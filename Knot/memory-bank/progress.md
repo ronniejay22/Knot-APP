@@ -744,9 +744,76 @@ iOS/Knot/
 
 ---
 
+### Step 1.9: Create Recommendations History Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `recommendations` table with 11 columns for storing AI-generated gift, experience, and date recommendations
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other child tables)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `milestone_id` is a **nullable** FK to `partner_milestones(id)` with `ON DELETE SET NULL` — recommendations can exist without a milestone (e.g., "just because" browsing), and deleting a milestone preserves the recommendation as historical data
+- `recommendation_type` has a CHECK constraint for 3 valid enum values: `gift`, `experience`, `date`
+- `title` is NOT NULL — every recommendation requires a display title
+- `description`, `external_url`, `merchant_name`, `image_url` are nullable — external APIs may not always return all fields
+- `price_cents` is nullable INTEGER with `CHECK (price_cents >= 0)` — follows the cents pattern from `partner_budgets`; NULL when price is unknown
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using the subquery pattern through `partner_vaults` to check `auth.uid() = user_id`
+- Created two indexes: `idx_recommendations_vault_id` for querying by vault, `idx_recommendations_milestone_id` for querying by milestone
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- No UNIQUE constraints — a vault can have unlimited recommendations (generated in batches of 3)
+- No trigger functions needed — recommendations are direct value storage from the LangGraph pipeline
+- Created 31 tests across 6 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00010_create_recommendations_table.sql` — Full migration with table, CHECK constraints (recommendation_type + price_cents >= 0), RLS, indexes, and grants
+- `backend/tests/test_recommendations_table.py` — 31 tests across 6 test classes (Exists, Schema, RLS, DataIntegrity, MilestoneFK, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_recommendations_table.py -v` — 31 passed, 0 failed, 44.26s
+- ✅ Table accessible via PostgREST API
+- ✅ All 11 columns present (id, vault_id, milestone_id, recommendation_type, title, description, external_url, price_cents, merchant_name, image_url, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ recommendation_type CHECK constraint rejects invalid values (e.g., 'coupon')
+- ✅ All 3 valid recommendation_type values accepted (gift, experience, date)
+- ✅ title NOT NULL constraint enforced
+- ✅ recommendation_type NOT NULL constraint enforced
+- ✅ milestone_id is nullable (NULL for 'just because' recommendations)
+- ✅ description is nullable
+- ✅ price_cents CHECK constraint rejects negative values (-100)
+- ✅ price_cents accepts zero (free items)
+- ✅ price_cents is nullable (price unknown)
+- ✅ Anon client (no JWT) sees 0 recommendations — RLS enforced
+- ✅ Service client (admin) can read all recommendations — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own recommendations
+- ✅ 3 recommendations (Choice of Three) stored and retrieved correctly
+- ✅ All fields populated and verified for gift recommendation (vault_id, milestone_id, type, title, description, url, price, merchant, image)
+- ✅ All 3 recommendation types stored: gift, experience, date
+- ✅ Recommendation correctly linked to milestone via milestone_id
+- ✅ Recommendation stored without milestone ('just because')
+- ✅ Prices stored as integers in cents (4999, 12000, 18000)
+- ✅ External URLs stored correctly for merchant handoff
+- ✅ Merchant names stored: ClassBento, Etsy, OpenTable
+- ✅ Milestone deletion sets recommendation.milestone_id to NULL (SET NULL, preserves history)
+- ✅ milestone_id FK constraint enforced (non-existent milestone_id rejected)
+- ✅ CASCADE delete verified: vault deletion removed recommendation rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → recommendations
+- ✅ Foreign key enforced: non-existent vault_id rejected
+- ✅ All existing tests still pass (207 from Steps 0.5–1.8 + 31 new = 238 total)
+
+**Notes:**
+- The `recommendations` table introduces a **new FK behavior**: `ON DELETE SET NULL` for `milestone_id`. All previous FK relationships in the schema use `ON DELETE CASCADE`. The SET NULL choice is deliberate — recommendations are historical records that should persist even if the milestone they were generated for is deleted. The `vault_id` FK still uses CASCADE because deleting a vault means the user is deleting all partner data.
+- Unlike `partner_budgets` which requires `price_cents` to be NOT NULL, the `recommendations` table makes it nullable because external APIs (Yelp, Ticketmaster, etc.) may not always return pricing information. The CHECK constraint `(price_cents >= 0)` still applies when a value is provided.
+- The table has **no UNIQUE constraints** (same pattern as `hints`). A vault can accumulate unlimited recommendations over time, and the same recommendation could theoretically be generated again (e.g., after a refresh cycle). Each batch of 3 is simply appended.
+- Two indexes are created instead of the usual one: `idx_recommendations_vault_id` (for "show all recommendations for this vault") and `idx_recommendations_milestone_id` (for "show recommendations generated for this specific milestone"). The milestone index is the first non-vault_id index on a child table.
+- The test file introduces `test_vault_with_milestone` fixture (vault with a birthday milestone), `test_vault_with_recommendations` fixture (vault with 3 recommendations linked to the milestone), `_insert_recommendation_raw` helper for testing failure responses, and sample recommendation constants (`SAMPLE_GIFT_REC`, `SAMPLE_EXPERIENCE_REC`, `SAMPLE_DATE_REC`).
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_recommendations_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.9:** Create Recommendations History Table
+- [ ] **Step 1.10:** Create User Feedback Table
 
 ---
 
