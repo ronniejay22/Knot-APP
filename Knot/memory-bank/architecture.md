@@ -142,7 +142,8 @@ backend/
 │       ├── 00005_create_partner_milestones_table.sql # Partner milestones with CHECK, trigger-based budget defaults, RLS, CASCADE
 │       ├── 00006_create_partner_vibes_table.sql     # Partner aesthetic vibes with CHECK (8 values), UNIQUE, RLS, CASCADE
 │       ├── 00007_create_partner_budgets_table.sql   # Partner budgets with CHECK (occasion_type, max>=min, min>=0), UNIQUE, RLS, CASCADE
-│       └── 00008_create_partner_love_languages_table.sql # Partner love languages with CHECK (language, priority), dual UNIQUE, RLS, CASCADE
+│       ├── 00008_create_partner_love_languages_table.sql # Partner love languages with CHECK (language, priority), dual UNIQUE, RLS, CASCADE
+│       └── 00009_create_hints_table.sql                  # Hints with vector(768) embedding, HNSW index, match_hints() RPC, RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
@@ -154,7 +155,8 @@ backend/
 │   ├── test_partner_milestones_table.py # Verifies partner_milestones schema, budget tier trigger, RLS, cascades (28 tests)
 │   ├── test_partner_vibes_table.py      # Verifies partner_vibes schema, CHECK/UNIQUE constraints, RLS, cascades (19 tests)
 │   ├── test_partner_budgets_table.py    # Verifies partner_budgets schema, CHECK constraints (occasion_type, max>=min, min>=0), UNIQUE, RLS, cascades (27 tests)
-│   └── test_partner_love_languages_table.py # Verifies partner_love_languages schema, CHECK (language, priority), dual UNIQUE, RLS, update semantics, cascades (28 tests)
+│   ├── test_partner_love_languages_table.py # Verifies partner_love_languages schema, CHECK (language, priority), dual UNIQUE, RLS, update semantics, cascades (28 tests)
+│   └── test_hints_table.py               # Verifies hints schema, CHECK (source), vector(768) embedding, HNSW index, match_hints() RPC similarity search, RLS, cascades (30 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -212,6 +214,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | `00006_create_partner_vibes_table.sql` | Creates `public.partner_vibes` table (id, vault_id, vibe_tag, created_at). CHECK constraint on `vibe_tag` for 8 valid aesthetic values: quiet_luxury, street_urban, outdoorsy, vintage, minimalist, bohemian, romantic, adventurous. `UNIQUE(vault_id, vibe_tag)` prevents duplicate vibes per vault (same deduplication pattern as `partner_interests`). No trigger functions needed — vibes are simple tag storage with no computed defaults. "Minimum 1, maximum 4 vibes per vault" enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 | `00007_create_partner_budgets_table.sql` | Creates `public.partner_budgets` table (id, vault_id, occasion_type, min_amount, max_amount, currency, created_at). CHECK constraint on `occasion_type` for 3 budget tiers: just_because, minor_occasion, major_milestone. Two cross-column CHECK constraints: `max_amount >= min_amount` (prevents invalid ranges) and `min_amount >= 0` (prevents negative amounts). Amounts stored as **integers in cents** (e.g., 2000 = $20.00) to avoid floating-point precision issues. `UNIQUE(vault_id, occasion_type)` ensures one budget per occasion type per vault. `currency` defaults to `'USD'` — international users can override. No trigger functions needed — budgets are direct value storage. "Exactly 3 tiers per vault" enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 | `00008_create_partner_love_languages_table.sql` | Creates `public.partner_love_languages` table (id, vault_id, language, priority, created_at). CHECK constraint on `language` for 5 valid values: words_of_affirmation, acts_of_service, receiving_gifts, quality_time, physical_touch. CHECK constraint on `priority` for values 1 (primary) and 2 (secondary) only. **Dual UNIQUE constraint strategy:** `UNIQUE(vault_id, priority)` prevents duplicate priorities per vault (at most one primary, one secondary), and `UNIQUE(vault_id, language)` prevents the same language from being both primary and secondary. Combined with the priority CHECK constraint, the maximum is exactly 2 rows per vault — a third row is impossible because no valid priority slot remains. No trigger functions needed. "Both primary and secondary must exist" minimum cardinality enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
+| `00009_create_hints_table.sql` | Creates `public.hints` table (id, vault_id, hint_text, hint_embedding, source, created_at, is_used). **First table with a pgvector column:** `hint_embedding vector(768)` stores embeddings from Vertex AI `text-embedding-004`. Column is **nullable** for resilience (hints can be stored even if embedding generation fails). CHECK constraint on `source` for 2 values: text_input, voice_transcription. `is_used` defaults to false (tracks whether hint was used in a recommendation). **HNSW index** on `hint_embedding` using `vector_cosine_ops` for fast cosine similarity nearest-neighbor search. Creates **`match_hints()` RPC function** for semantic similarity queries via PostgREST (returns hints ordered by cosine similarity with a computed similarity score). No UNIQUE constraints — unlimited hints per vault. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. EXECUTE granted on `match_hints()` to authenticated and anon roles. |
 
 ### Business Logic (`app/services/`)
 
@@ -309,6 +312,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_partner_vibes_table.py` — Integration tests verifying the `public.partner_vibes` table schema, CHECK constraint (vibe_tag for 8 values), UNIQUE constraint (prevents duplicate vibes per vault), RLS enforcement via subquery, data integrity (multiple vibes, single vibe, max 4 vibes), and CASCADE behavior (Step 1.5). 19 tests across 5 classes: table existence, schema (columns, CHECK constraint, NOT NULL, UNIQUE prevents duplicates, same vibe allowed across vaults), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple vibes, field values, max 4, single vibe), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_vibes` fixture (vault pre-populated with 3 vibes: quiet_luxury, minimalist, romantic) and `_insert_vibe_raw` helper for testing failure responses.
 - `test_partner_budgets_table.py` — Integration tests verifying the `public.partner_budgets` table schema, CHECK constraints (occasion_type for 3 values, max_amount >= min_amount, min_amount >= 0), UNIQUE constraint (prevents duplicate occasion types per vault), RLS enforcement via subquery, data integrity (all 3 tiers stored, amounts correct in cents, currency defaults, integer storage, zero min allowed), and CASCADE behavior (Step 1.6). 27 tests across 5 classes: table existence, schema (columns, 3 CHECK constraints, NOT NULL for all required fields, UNIQUE prevents duplicate occasion types, same type allowed across vaults, currency default/override), RLS (anon blocked, service bypasses, user isolation), data integrity (3 tiers stored and verified, amounts in cents, field values, zero min), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_budgets` fixture (vault pre-populated with 3 budget tiers: just_because $20-$50, minor_occasion $50-$150, major_milestone $100-$500) and `_insert_budget_raw` helper for testing failure responses.
 - `test_partner_love_languages_table.py` — Integration tests verifying the `public.partner_love_languages` table schema, CHECK constraints (language for 5 values, priority for 1/2 only), dual UNIQUE constraints (vault_id+priority prevents duplicate priorities, vault_id+language prevents same language at both priorities), RLS enforcement via subquery, data integrity (primary/secondary stored, field values, update primary succeeds, update to conflicting language fails), and CASCADE behavior (Step 1.7). 28 tests across 5 classes: table existence, schema (columns, 2 CHECK constraints, NOT NULL, 2 UNIQUE constraints, third language rejection, same language across vaults allowed, priority 0 rejected), RLS (anon blocked, service bypasses, user isolation), data integrity (primary+secondary stored, field values, primary correct, secondary correct, update primary succeeds, update to same-as-secondary fails), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_love_languages` fixture (vault pre-populated with primary=quality_time, secondary=receiving_gifts), `_insert_love_language_raw` helper for testing failure responses, and `_update_love_language` helper for testing update semantics.
+- `test_hints_table.py` — Integration tests verifying the `public.hints` table schema, CHECK constraint (source for 2 values), vector(768) embedding column (nullable, accepts 768-dim vectors), HNSW index, `match_hints()` RPC function for cosine similarity search, RLS enforcement via subquery, data integrity (multiple hints, mixed sources, is_used default and update, with/without embeddings), vector similarity search (ordering verification with crafted vectors, threshold filtering, match_count limiting, vault scoping, NULL embedding skipping), and CASCADE behavior (Step 1.8). 30 tests across 6 classes: table existence, schema (columns, CHECK constraint, NOT NULL, is_used default, embedding nullable, embedding accepts 768-dim), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple hints, field values, mixed sources, is_used update, with/without embedding), vector search (returns results, ordered by similarity, threshold filters, match_count limits, scoped to vault, skips NULL embeddings), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_hints` fixture (vault with 3 hints without embeddings), `test_vault_with_embedded_hints` fixture (vault with 3 hints with crafted 768-dim vectors for similarity testing), `_insert_hint_raw` helper for testing failure responses, and `_make_vector` helper for creating padded 768-dim vector strings.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -496,6 +500,38 @@ The `currency` column on `partner_budgets` uses `TEXT NOT NULL DEFAULT 'USD'` ra
 - **Delegates validation** to the API layer (Pydantic model can validate against a known list of ISO 4217 codes)
 - **Avoids maintenance burden** of updating a CHECK constraint every time a new currency is needed
 - **Mirrors the pattern** used by external APIs (Yelp, Ticketmaster) which return currency codes as strings
+
+### 37. pgvector Column Strategy: Nullable Embeddings
+The `hint_embedding` column on `hints` is `vector(768)` with **no NOT NULL constraint** (nullable). This deliberate design choice provides resilience:
+- The normal flow (Step 4.4) generates the embedding synchronously via Vertex AI `text-embedding-004` before storing the hint
+- If the Vertex AI API is temporarily unavailable, the hint text can still be stored immediately and the embedding backfilled later via a background job
+- The `match_hints()` RPC function includes `WHERE h.hint_embedding IS NOT NULL` to exclude unembedded hints from similarity search, ensuring partial data doesn't corrupt search results
+- This pattern of "store first, enrich later" is common in systems that depend on external ML APIs for data augmentation
+
+### 38. HNSW vs IVFFlat Index Choice
+The `hints` table uses an **HNSW (Hierarchical Navigable Small World)** index instead of IVFFlat for the vector similarity search. Key differences:
+- **HNSW:** No pre-build step required (works on empty tables), better recall (accuracy) at the cost of slightly more memory, incrementally updated as data is inserted
+- **IVFFlat:** Requires data in the table before building the index (`CREATE INDEX` should happen after initial data load), faster index creation for large batches, slightly less accurate
+- For Knot's use case (hints trickle in one-at-a-time via user input), HNSW is the clear winner because it handles incremental inserts naturally
+- The `vector_cosine_ops` operator class was chosen because cosine similarity is standard for text embeddings (it measures directional similarity regardless of vector magnitude)
+
+### 39. RPC Functions for pgvector Operations
+PostgREST (Supabase's REST API layer) does not natively support pgvector operators like `<=>` (cosine distance), `<->` (L2 distance), or `<#>` (inner product). To perform similarity search via the API, a **PostgreSQL function** must be created and called via the `/rest/v1/rpc/{function_name}` endpoint. The `match_hints()` function:
+- Accepts a query vector, vault_id, similarity threshold, and result count
+- Uses `1 - (hint_embedding <=> query_embedding)` to compute cosine similarity (the `<=>` operator returns cosine *distance*, which is `1 - similarity`)
+- Orders by `hint_embedding <=> query_embedding` ASC (smallest distance = most similar)
+- Filters by `hint_embedding IS NOT NULL` (skips unembedded hints) and `similarity >= match_threshold`
+- Returns a `similarity` column (1.0 = identical direction, 0.0 = orthogonal)
+- Uses `SECURITY INVOKER` (default) — when called by the service client, RLS is bypassed; when called by an authenticated user, RLS ensures they only see their own vault's hints
+
+This RPC pattern will be reused by the LangGraph hint retrieval node (Step 5.2) when performing semantic search to find relevant hints for recommendation generation.
+
+### 40. Hints as an Unbounded Collection
+Unlike other child tables that have explicit cardinality limits (5 likes, 5 dislikes, 1-4 vibes, 3 budget tiers, 2 love languages), the `hints` table has **no UNIQUE constraints and no cardinality limits** at the database level. A vault can accumulate unlimited hints over time. This is intentional:
+- Hints are the primary input for the "Second Brain" feature — the more hints captured, the better the recommendation quality
+- Duplicate hint text is allowed (the user might re-mention something, which is a signal of importance)
+- The `is_used` boolean tracks which hints have been incorporated into recommendations, enabling the system to prioritize fresh/unused hints
+- Cleanup of old/stale hints can be implemented as a background job in the future
 
 ---
 
