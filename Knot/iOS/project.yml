@@ -11,6 +11,9 @@ packages:
   LucideIcons:
     url: https://github.com/JakubMazur/lucide-icons-swift.git
     from: "0.563.1"
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: "2.0.0"
 
 settings:
   base:
@@ -42,6 +45,12 @@ targets:
         GENERATE_INFOPLIST_FILE: false
     dependencies:
       - package: LucideIcons
+      - package: Supabase
+        product: Auth
+      - package: Supabase
+        product: PostgREST
+      - package: Supabase
+        product: Supabase
     preBuildScripts: []
     postBuildScripts: []
 
