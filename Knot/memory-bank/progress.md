@@ -413,9 +413,80 @@ iOS/Knot/
 
 ---
 
+### Step 1.4: Create Milestones Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_milestones` table with 8 columns for storing partner milestones (birthdays, anniversaries, holidays, custom events)
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as `partner_vaults` and `partner_interests`)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `milestone_type` has a CHECK constraint for 4 valid enum values: `birthday`, `anniversary`, `holiday`, `custom`
+- `milestone_name` is NOT NULL — display name for the milestone
+- `milestone_date` is NOT NULL DATE — for yearly recurrence, uses year 2000 as placeholder (e.g., `2000-02-14` for Feb 14)
+- `recurrence` has a CHECK constraint for 2 valid enum values: `yearly`, `one_time`
+- `budget_tier` has a CHECK constraint for 3 valid enum values: `just_because`, `minor_occasion`, `major_milestone`
+- Created `handle_milestone_budget_tier()` BEFORE INSERT trigger function that auto-sets budget_tier based on milestone_type when not explicitly provided:
+  - `birthday` → `major_milestone`
+  - `anniversary` → `major_milestone`
+  - `holiday` → `minor_occasion` (app layer can override to `major_milestone` for Valentine's/Christmas by explicitly providing it)
+  - `custom` → trigger does not set a default; NOT NULL constraint rejects NULL, forcing the user to provide a value
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using the subquery pattern through `partner_vaults` to check `auth.uid() = user_id`
+- Created index on `vault_id` for fast lookups
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- No UNIQUE constraint on `(vault_id, milestone_type)` — a vault can have multiple milestones of the same type (e.g., multiple holidays)
+- Created 28 tests across 6 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00005_create_partner_milestones_table.sql` — Full migration with table, CHECK constraints (milestone_type + recurrence + budget_tier), trigger function for budget_tier defaults, RLS, index, and grants
+- `backend/tests/test_partner_milestones_table.py` — 28 tests across 6 test classes (Exists, Schema, BudgetTierDefaults, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_milestones_table.py -v` — 28 passed, 0 failed, 39.23s
+- ✅ Table accessible via PostgREST API
+- ✅ All 8 columns present (id, vault_id, milestone_type, milestone_name, milestone_date, recurrence, budget_tier, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ milestone_type CHECK constraint rejects invalid values (e.g., 'graduation')
+- ✅ All 4 valid milestone_type values accepted (birthday, anniversary, holiday, custom)
+- ✅ recurrence CHECK constraint rejects invalid values (e.g., 'weekly')
+- ✅ Both 'yearly' and 'one_time' recurrence values accepted
+- ✅ budget_tier CHECK constraint rejects invalid values (e.g., 'extravagant')
+- ✅ milestone_name NOT NULL constraint enforced
+- ✅ milestone_date NOT NULL constraint enforced
+- ✅ milestone_date stores year-2000 placeholder correctly (e.g., '2000-07-04')
+- ✅ Birthday auto-defaults budget_tier to 'major_milestone' via trigger
+- ✅ Anniversary auto-defaults budget_tier to 'major_milestone' via trigger
+- ✅ Holiday auto-defaults budget_tier to 'minor_occasion' via trigger
+- ✅ Holiday accepts explicit 'major_milestone' override (e.g., Valentine's Day)
+- ✅ Custom milestones store all 3 user-provided budget_tier values
+- ✅ Custom milestones without budget_tier correctly rejected (NOT NULL)
+- ✅ Anon client (no JWT) sees 0 milestones — RLS enforced
+- ✅ Service client (admin) can read all milestones — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own milestones
+- ✅ Multiple milestones per vault stored correctly (4 test milestones)
+- ✅ Birthday milestone fields verified (name, date, recurrence, budget_tier)
+- ✅ Custom milestone fields verified (name, date, recurrence, budget_tier)
+- ✅ Duplicate milestone types allowed (multiple holidays for same vault)
+- ✅ CASCADE delete verified: vault deletion removed milestone rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → partner_milestones
+- ✅ Foreign key enforced: non-existent vault_id rejected
+- ✅ All existing tests still pass (103 total from Steps 0.5–1.4, 2 warnings from third-party code)
+
+**Notes:**
+- Unlike `partner_interests` which has a UNIQUE constraint on `(vault_id, interest_category)`, `partner_milestones` has NO unique constraint on `(vault_id, milestone_type)`. A vault can have multiple milestones of the same type (e.g., multiple holidays like Christmas, Valentine's Day, New Year's Eve). This is intentional.
+- The `handle_milestone_budget_tier()` trigger function is specific to this table (unlike `handle_updated_at()` which is reusable). It uses a `CASE` statement on `milestone_type` to determine the default. The trigger only fires when `budget_tier IS NULL` — if an explicit value is provided, the trigger does not override it.
+- For yearly milestones, the `milestone_date` uses year 2000 as a placeholder (e.g., `2000-03-15` for March 15). The actual year is calculated dynamically by the application when determining "days until next occurrence."
+- The holiday budget_tier split (Valentine's/Christmas = `major_milestone` vs Mother's Day/Father's Day = `minor_occasion`) is handled at the application layer by explicitly providing `budget_tier: 'major_milestone'` for major holidays. The database trigger defaults holidays to `minor_occasion` as the safe default.
+- The CASCADE chain is now 4 levels deep (same depth as interests): `auth.users` → `public.users` → `partner_vaults` → `partner_milestones`.
+- The test file introduces `test_vault_with_milestones` fixture (vault pre-populated with 4 milestones: birthday, anniversary, Valentine's Day holiday, custom "First Date") and `_insert_milestone_raw` helper for testing failure responses.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_milestones_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.4:** Create Milestones Table
+- [ ] **Step 1.5:** Create Aesthetic Vibes Table
 
 ---
 

@@ -138,7 +138,8 @@ backend/
 │       ├── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
 │       ├── 00002_create_users_table.sql  # Users table with RLS, triggers, and grants
 │       ├── 00003_create_partner_vaults_table.sql  # Partner vaults with CHECK, UNIQUE, RLS, CASCADE
-│       └── 00004_create_partner_interests_table.sql  # Partner interests (likes/dislikes) with CHECK, UNIQUE, RLS, CASCADE
+│       ├── 00004_create_partner_interests_table.sql  # Partner interests (likes/dislikes) with CHECK, UNIQUE, RLS, CASCADE
+│       └── 00005_create_partner_milestones_table.sql # Partner milestones with CHECK, trigger-based budget defaults, RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
@@ -146,7 +147,8 @@ backend/
 │   ├── test_supabase_auth.py # Verifies auth service and Apple Sign-In config (6 tests)
 │   ├── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
 │   ├── test_partner_vaults_table.py  # Verifies partner_vaults schema, constraints, RLS, cascades (15 tests)
-│   └── test_partner_interests_table.py  # Verifies partner_interests schema, CHECK/UNIQUE constraints, RLS, cascades (22 tests)
+│   ├── test_partner_interests_table.py  # Verifies partner_interests schema, CHECK/UNIQUE constraints, RLS, cascades (22 tests)
+│   └── test_partner_milestones_table.py # Verifies partner_milestones schema, budget tier trigger, RLS, cascades (28 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -200,6 +202,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | `00002_create_users_table.sql` | Creates `public.users` table (id, email, created_at, updated_at) linked to `auth.users` via FK with CASCADE delete. Enables RLS with SELECT/UPDATE/INSERT policies enforcing `auth.uid() = id`. Creates two trigger functions: `handle_updated_at()` (reusable, auto-updates timestamp on row changes) and `handle_new_user()` (SECURITY DEFINER, auto-creates profile on auth signup). Grants permissions to `authenticated` and `anon` roles. |
 | `00003_create_partner_vaults_table.sql` | Creates `public.partner_vaults` table (id, user_id, partner_name, relationship_tenure_months, cohabitation_status, location_city, location_state, location_country, created_at, updated_at). `user_id` is UNIQUE (one vault per user) with FK CASCADE to `public.users`. CHECK constraint on `cohabitation_status` for 3 valid enum values. `location_country` defaults to `'US'`. Reuses `handle_updated_at()` trigger from migration 00002. RLS policies enforce `auth.uid() = user_id` for all 4 operations (SELECT, INSERT, UPDATE, DELETE). |
 | `00004_create_partner_interests_table.sql` | Creates `public.partner_interests` table (id, vault_id, interest_type, interest_category, created_at). Two CHECK constraints: `interest_type` for 'like'/'dislike', `interest_category` for 40 predefined categories. `UNIQUE(vault_id, interest_category)` prevents duplicate categories and blocks same interest as both like and dislike. FK CASCADE to `partner_vaults`. RLS policies use subquery to `partner_vaults` to check ownership via `auth.uid() = user_id`. Index on `vault_id` for fast lookups. "Exactly 5 likes + 5 dislikes" enforced at application layer, not database. |
+| `00005_create_partner_milestones_table.sql` | Creates `public.partner_milestones` table (id, vault_id, milestone_type, milestone_name, milestone_date, recurrence, budget_tier, created_at). Three CHECK constraints: `milestone_type` for 4 types (birthday/anniversary/holiday/custom), `recurrence` for yearly/one_time, `budget_tier` for 3 tiers. Creates `handle_milestone_budget_tier()` BEFORE INSERT trigger that auto-sets budget_tier when not provided: birthday/anniversary → major_milestone, holiday → minor_occasion, custom → must be explicit (NULL rejected by NOT NULL). No UNIQUE constraint on (vault_id, milestone_type) — multiple milestones of same type allowed (e.g., multiple holidays). FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 
 ### Business Logic (`app/services/`)
 
@@ -293,6 +296,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_users_table.py` — Integration tests verifying the `public.users` table schema, RLS enforcement, and trigger behavior (Step 1.1). Tests create real auth users via the Supabase Admin API, verify the `handle_new_user` trigger auto-creates profile rows, confirm RLS blocks anonymous access, and validate CASCADE delete behavior. Each test uses a `test_auth_user` fixture that creates and cleans up auth users automatically.
 - `test_partner_vaults_table.py` — Integration tests verifying the `public.partner_vaults` table schema, constraints, RLS enforcement, and trigger/CASCADE behavior (Step 1.2). 15 tests across 4 classes: table existence, schema verification (columns, NOT NULL, CHECK constraint, UNIQUE, defaults), RLS (anon blocked, service bypasses, user isolation), and triggers/cascades (updated_at auto-updates, cascade delete through auth→users→vaults, FK enforcement). Introduces `test_auth_user_pair` fixture for two-user isolation tests and `test_vault` fixture for vault-dependent tests.
 - `test_partner_interests_table.py` — Integration tests verifying the `public.partner_interests` table schema, CHECK constraints (interest_type + interest_category), UNIQUE constraint (prevents duplicates and like+dislike conflicts), RLS enforcement via subquery, data integrity (5 likes + 5 dislikes), and CASCADE behavior (Step 1.3). 22 tests across 5 classes: table existence, schema (columns, CHECK constraints, UNIQUE, NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (insert/retrieve 5+5, no overlap, predefined list), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_interests` fixture (vault pre-populated with 5 likes + 5 dislikes) and `_insert_interest_raw` helper for testing failure responses.
+- `test_partner_milestones_table.py` — Integration tests verifying the `public.partner_milestones` table schema, CHECK constraints (milestone_type + recurrence + budget_tier), budget tier auto-default trigger, RLS enforcement via subquery, data integrity (multiple milestones per vault, field verification), and CASCADE behavior (Step 1.4). 28 tests across 6 classes: table existence, schema (columns, 3 CHECK constraints, NOT NULL, date storage), budget tier defaults (birthday/anniversary auto-major, holiday auto-minor, holiday override, custom user-provided, custom without tier rejected), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple milestones, field verification, duplicate types allowed), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_milestones` fixture (vault pre-populated with 4 milestones: birthday, anniversary, Valentine's Day, custom) and `_insert_milestone_raw` helper for testing failure responses.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -311,10 +315,15 @@ The iOS project depends on three products from `supabase-swift` (v2.41.0):
 
 These are declared in `iOS/project.yml` under `packages` and `dependencies`, and resolved via SPM.
 
-### 15. Reusable Trigger Functions
-Database trigger functions are designed for reuse across tables:
-- **`handle_updated_at()`** — Generic `BEFORE UPDATE` trigger that sets `NEW.updated_at = now()`. Any table with an `updated_at` column can attach this trigger. Created in migration `00002` and will be reused by `partner_vaults`, `hints`, etc.
+### 15. Reusable vs Table-Specific Trigger Functions
+Database trigger functions fall into two categories:
+
+**Reusable (shared across tables):**
+- **`handle_updated_at()`** — Generic `BEFORE UPDATE` trigger that sets `NEW.updated_at = now()`. Any table with an `updated_at` column can attach this trigger. Created in migration `00002` and reused by `partner_vaults`, `hints`, etc.
 - **`handle_new_user()`** — `AFTER INSERT` trigger on `auth.users` that auto-creates a `public.users` row. Uses `SECURITY DEFINER` to bypass RLS (runs as the function creator, not the calling user).
+
+**Table-specific (logic tied to one table):**
+- **`handle_milestone_budget_tier()`** — `BEFORE INSERT` trigger on `partner_milestones` that auto-sets `budget_tier` based on `milestone_type` when the caller does not provide one. Uses a `CASE` statement: birthday/anniversary → `major_milestone`, holiday → `minor_occasion`, custom → no default (NOT NULL rejects). Only fires when `budget_tier IS NULL` — explicit values are never overridden. This allows the app layer to send `major_milestone` for major holidays (Valentine's/Christmas) while the database provides safe defaults for simpler inserts.
 
 ### 16. RLS + GRANT Layered Defense
 Tables use a two-layer access control strategy:
@@ -350,6 +359,7 @@ Test files use composable pytest fixtures that build on each other:
 - `test_auth_user` → creates an auth user (trigger creates `public.users` row)
 - `test_vault(test_auth_user)` → creates a vault for that user
 - `test_vault_with_interests(test_vault)` → adds 5 likes + 5 dislikes to the vault
+- `test_vault_with_milestones(test_vault)` → adds 4 milestones (birthday, anniversary, Valentine's Day, custom "First Date")
 
 Each fixture yields data and relies on CASCADE deletes for automatic cleanup (deleting the auth user cascades through all child data). This avoids manual cleanup logic and ensures tests are isolated.
 
@@ -390,6 +400,34 @@ Step 1.3 establishes the pattern for splitting validation between database and a
 - **Application-level** (Pydantic in FastAPI): "Exactly 5 likes and 5 dislikes per vault" — this requires counting rows across the table, which PostgreSQL CHECK constraints cannot do (they only operate on single rows)
 
 This split will be consistent for future tables. Simple per-row enum/value constraints go in the database. Cross-row cardinality rules go in the API layer.
+
+### 27. Trigger-Based Defaults for Context-Dependent Values
+The `partner_milestones` table introduces a new pattern: using a `BEFORE INSERT` trigger to set column defaults that depend on the value of another column in the same row. PostgreSQL's `DEFAULT` clause only supports constant expressions, so it cannot express "if milestone_type is 'birthday', default budget_tier to 'major_milestone'." The `handle_milestone_budget_tier()` trigger solves this by inspecting `NEW.milestone_type` and setting `NEW.budget_tier` when it's NULL. The trigger is designed to be non-destructive — it only modifies NULL values, never overrides explicit ones. This allows the application layer to send explicit values (e.g., `major_milestone` for Valentine's Day holidays) while the database provides safe defaults for simpler inserts (e.g., birthday auto-gets `major_milestone`).
+
+### 28. Year-2000 Placeholder for Yearly Recurring Dates
+Milestones with `recurrence = 'yearly'` store their date using year 2000 as a placeholder (e.g., `2000-03-15` for March 15 birthdays). This convention:
+- Uses a real `DATE` type (not separate month/day columns), enabling standard date operations
+- Avoids ambiguity about which year is "current" at the database level
+- Keeps the application logic for "next occurrence" simple: replace year 2000 with the current (or next) year, then check if the date has passed this year
+- Was chosen over alternatives like storing month/day separately (harder to query) or storing the actual birth year (privacy concern, and irrelevant for notification scheduling)
+
+One-time milestones (e.g., a specific trip or event) store the actual date with the real year.
+
+### 29. No UNIQUE Constraint on Milestones (Unlike Interests)
+The `partner_milestones` table deliberately has NO unique constraint on `(vault_id, milestone_type)` or `(vault_id, milestone_name)`. This is different from `partner_interests`, which uses `UNIQUE(vault_id, interest_category)` to prevent duplicates. The reasoning:
+- A vault needs multiple holidays (Christmas, Valentine's Day, New Year's Eve — all type `holiday`)
+- A vault might have multiple custom milestones (First Date, Engagement Party — all type `custom`)
+- Even milestone names could theoretically repeat (unlikely but not worth constraining)
+
+The only constraint is the FK to `partner_vaults` — every milestone must belong to a valid vault.
+
+### 30. Budget Tier Strategy: Database Defaults + Application Overrides
+The budget tier for milestones uses a two-layer strategy:
+1. **Database trigger** provides safe defaults: birthday/anniversary → `major_milestone`, holiday → `minor_occasion`
+2. **Application layer** overrides for specific cases: Valentine's Day and Christmas holidays get `major_milestone` (the app explicitly sends this value)
+3. **User choice** for custom milestones: the app must collect a budget tier during custom milestone creation
+
+This avoids encoding holiday-name-specific logic in the database (which would be brittle and hard to maintain) while still providing sensible defaults that reduce the burden on the API layer for common cases.
 
 ---
 
