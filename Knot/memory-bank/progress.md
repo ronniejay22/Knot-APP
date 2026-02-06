@@ -537,9 +537,76 @@ iOS/Knot/
 
 ---
 
+### Step 1.6: Create Budget Tiers Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_budgets` table with 7 columns for storing partner budget tiers per occasion type
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other child tables)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `occasion_type` has a CHECK constraint for 3 valid enum values: `just_because`, `minor_occasion`, `major_milestone`
+- `min_amount` and `max_amount` are NOT NULL integers storing amounts in **cents** (e.g., 2000 = $20.00) to avoid floating-point precision issues
+- `CHECK (min_amount >= 0)` prevents negative amounts
+- `CHECK (max_amount >= min_amount)` prevents invalid budget ranges (max below min)
+- `currency` defaults to `'USD'` — international users can override (e.g., `'GBP'`, `'EUR'`)
+- `UNIQUE(vault_id, occasion_type)` prevents duplicate occasion types per vault — each vault has at most one budget per tier
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using the subquery pattern through `partner_vaults` to check `auth.uid() = user_id`
+- Created index on `vault_id` for fast lookups (in addition to the composite unique index)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- No trigger functions needed — budgets are simple value storage with no computed defaults
+- "Exactly 3 budget tiers per vault" enforcement deferred to application layer (Step 3.10 API endpoint)
+- Created 27 tests across 5 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00007_create_partner_budgets_table.sql` — Full migration with table, CHECK constraints (occasion_type + max>=min + min>=0), UNIQUE constraint, RLS, index, and grants
+- `backend/tests/test_partner_budgets_table.py` — 27 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_budgets_table.py -v` — 27 passed, 0 failed, 36.86s
+- ✅ Table accessible via PostgREST API
+- ✅ All 7 columns present (id, vault_id, occasion_type, min_amount, max_amount, currency, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ occasion_type CHECK constraint rejects invalid values (e.g., 'extravagant')
+- ✅ All 3 valid occasion_type values accepted (just_because, minor_occasion, major_milestone)
+- ✅ currency defaults to 'USD' when not provided
+- ✅ currency accepts non-USD values (e.g., 'GBP')
+- ✅ CHECK (max_amount >= min_amount) rejects invalid ranges (max < min)
+- ✅ max_amount == min_amount allowed (exact budget, no range)
+- ✅ CHECK (min_amount >= 0) rejects negative amounts
+- ✅ occasion_type NOT NULL constraint enforced
+- ✅ min_amount NOT NULL constraint enforced
+- ✅ max_amount NOT NULL constraint enforced
+- ✅ UNIQUE(vault_id, occasion_type) prevents duplicate occasion types per vault
+- ✅ Same occasion_type allowed for different vaults (UNIQUE scoped to vault)
+- ✅ Anon client (no JWT) sees 0 budgets — RLS enforced
+- ✅ Service client (admin) can read all budgets — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own budgets
+- ✅ All 3 budget tiers stored and retrieved correctly
+- ✅ Budget amounts stored correctly (just_because $20-$50, minor_occasion $50-$150, major_milestone $100-$500)
+- ✅ All field values verified (vault_id, currency)
+- ✅ Amounts stored as integers (cents) — no floating-point issues
+- ✅ Zero min_amount allowed (free/no minimum)
+- ✅ CASCADE delete verified: vault deletion removed budget rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → partner_budgets
+- ✅ Foreign key enforced: non-existent vault_id rejected
+- ✅ All existing tests still pass (122 from Steps 0.5–1.5 + 27 new = 149 total)
+
+**Notes:**
+- The `partner_budgets` table stores monetary amounts as **integers in cents** (not dollars/floats). This is a standard pattern for financial data to avoid floating-point precision issues. For display, divide by 100: `2000 cents → $20.00`. The API layer and iOS UI must convert between cents and display amounts.
+- The `UNIQUE(vault_id, occasion_type)` constraint ensures each vault has at most one budget configuration per occasion type (just_because, minor_occasion, major_milestone). This means updating a budget tier requires an UPDATE on the existing row, not inserting a new one.
+- The `CHECK (max_amount >= min_amount)` constraint is a cross-column CHECK — unlike CHECK constraints in other tables which only validate a single column's value. PostgreSQL supports cross-column CHECKs within the same row, making this enforceable at the database level (unlike cross-row cardinality rules which must go in the API layer).
+- The `currency` column defaults to `'USD'` but accepts any string (no CHECK constraint). ISO 4217 currency code validation (e.g., only 3-letter codes) will be enforced at the API layer for flexibility.
+- The CASCADE chain is now 4 levels deep (same depth as interests, milestones, and vibes): `auth.users` → `public.users` → `partner_vaults` → `partner_budgets`.
+- The test file introduces `test_vault_with_budgets` fixture (vault pre-populated with 3 budget tiers matching the sensible defaults from the implementation plan: $20-$50, $50-$150, $100-$500) and `_insert_budget_raw` helper for testing failure responses.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_budgets_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.6:** Create Budget Tiers Table
+- [ ] **Step 1.7:** Create Love Languages Table
 
 ---
 
