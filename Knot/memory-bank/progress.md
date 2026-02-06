@@ -305,9 +305,59 @@ iOS/Knot/
 
 ---
 
+### Step 1.2: Create Partner Vault Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_vaults` table with 10 columns for storing partner profile data
+- `id` is auto-generated UUID via `gen_random_uuid()` (unlike `users.id` which mirrors `auth.users.id`)
+- `user_id` is `UNIQUE` — enforces one vault per user (MVP constraint)
+- `partner_name` is `NOT NULL` — the only required text field
+- `cohabitation_status` has a `CHECK` constraint for 3 valid enum values: `living_together`, `separate`, `long_distance`
+- `location_country` defaults to `'US'` for domestic users; international users can override
+- Foreign key on `user_id` references `public.users(id)` with `ON DELETE CASCADE` (cascades from auth.users → users → partner_vaults)
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) all enforcing `auth.uid() = user_id`
+- Reused `handle_updated_at()` trigger function from Step 1.1 (no new trigger function needed)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- Created 15 tests across 4 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00003_create_partner_vaults_table.sql` — Full migration with table, CHECK constraint, RLS, trigger, and grants
+- `backend/tests/test_partner_vaults_table.py` — 15 tests across 4 test classes (Exists, Schema, RLS, Triggers)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_vaults_table.py -v` — 15 passed, 0 failed, 18.15s
+- ✅ Table accessible via PostgREST API
+- ✅ All 10 columns present (id, user_id, partner_name, relationship_tenure_months, cohabitation_status, location_city, location_state, location_country, created_at, updated_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ partner_name NOT NULL constraint enforced (missing name → HTTP 400)
+- ✅ cohabitation_status CHECK constraint rejects invalid values
+- ✅ All 3 valid cohabitation_status values accepted (living_together, separate, long_distance)
+- ✅ location_country defaults to 'US' when not provided
+- ✅ user_id UNIQUE constraint enforced (second vault for same user → HTTP 409)
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ Anon client (no JWT) sees 0 vaults — RLS enforced
+- ✅ Service client (admin) can read all vaults — RLS bypassed
+- ✅ User isolation verified: each user sees only their own vault
+- ✅ set_updated_at trigger updates timestamp on row changes
+- ✅ CASCADE delete verified: auth deletion removes vault row (auth.users → users → partner_vaults)
+- ✅ Foreign key enforced: non-existent user_id rejected (HTTP 409)
+- ✅ All existing tests still pass (38 from Steps 0.5–1.1)
+
+**Notes:**
+- Unlike the `users` table where `id` directly references `auth.users.id`, `partner_vaults` uses its own auto-generated `id` and links via `user_id`. This is because the vault is a child entity — one user has one vault, but the vault's identity is independent.
+- The `UNIQUE` constraint on `user_id` automatically creates an implicit index, so no separate index was needed.
+- The DELETE policy was added (unlike the `users` table) because users may need to delete and recreate their vault during profile management. Future tables (interests, milestones, vibes, etc.) will reference `partner_vaults.id` with CASCADE, so deleting a vault will cascade-clean all child data.
+- The test file introduces a `test_auth_user_pair` fixture for creating two users simultaneously, used to verify RLS isolation between different users' vaults.
+- PostgREST returns HTTP 409 for UNIQUE and foreign key constraint violations, and HTTP 400 for NOT NULL and CHECK constraint violations.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_vaults_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.2:** Create Partner Vault Table
+- [ ] **Step 1.3:** Create Interests Table
 
 ---
 

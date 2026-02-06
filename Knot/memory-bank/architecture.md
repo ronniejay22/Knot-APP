@@ -136,13 +136,15 @@ backend/
 ├── supabase/                  # Supabase project configuration
 │   └── migrations/            # SQL migrations (run via SQL Editor or Supabase CLI)
 │       ├── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
-│       └── 00002_create_users_table.sql  # Users table with RLS, triggers, and grants
+│       ├── 00002_create_users_table.sql  # Users table with RLS, triggers, and grants
+│       └── 00003_create_partner_vaults_table.sql  # Partner vaults with CHECK, UNIQUE, RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
 │   ├── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
 │   ├── test_supabase_auth.py # Verifies auth service and Apple Sign-In config (6 tests)
-│   └── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
+│   ├── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
+│   └── test_partner_vaults_table.py  # Verifies partner_vaults schema, constraints, RLS, cascades (15 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -194,6 +196,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 |------|---------|
 | `00001_enable_pgvector.sql` | Enables the `vector` extension (pgvector) required for hint embedding storage and similarity search. Must be run before creating any tables with `vector(768)` columns. |
 | `00002_create_users_table.sql` | Creates `public.users` table (id, email, created_at, updated_at) linked to `auth.users` via FK with CASCADE delete. Enables RLS with SELECT/UPDATE/INSERT policies enforcing `auth.uid() = id`. Creates two trigger functions: `handle_updated_at()` (reusable, auto-updates timestamp on row changes) and `handle_new_user()` (SECURITY DEFINER, auto-creates profile on auth signup). Grants permissions to `authenticated` and `anon` roles. |
+| `00003_create_partner_vaults_table.sql` | Creates `public.partner_vaults` table (id, user_id, partner_name, relationship_tenure_months, cohabitation_status, location_city, location_state, location_country, created_at, updated_at). `user_id` is UNIQUE (one vault per user) with FK CASCADE to `public.users`. CHECK constraint on `cohabitation_status` for 3 valid enum values. `location_country` defaults to `'US'`. Reuses `handle_updated_at()` trigger from migration 00002. RLS policies enforce `auth.uid() = user_id` for all 4 operations (SELECT, INSERT, UPDATE, DELETE). |
 
 ### Business Logic (`app/services/`)
 
@@ -285,6 +288,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_supabase_connection.py` — Integration tests verifying Supabase connectivity and pgvector (Step 0.6). Uses `@pytest.mark.skipif` to gracefully skip connection tests when credentials aren't configured, while pure library tests (pgvector) always run.
 - `test_supabase_auth.py` — Integration tests verifying Supabase Auth service reachability and Apple Sign-In provider configuration (Step 0.7). Checks GoTrue settings/health endpoints and confirms Apple is enabled for native iOS auth.
 - `test_users_table.py` — Integration tests verifying the `public.users` table schema, RLS enforcement, and trigger behavior (Step 1.1). Tests create real auth users via the Supabase Admin API, verify the `handle_new_user` trigger auto-creates profile rows, confirm RLS blocks anonymous access, and validate CASCADE delete behavior. Each test uses a `test_auth_user` fixture that creates and cleans up auth users automatically.
+- `test_partner_vaults_table.py` — Integration tests verifying the `public.partner_vaults` table schema, constraints, RLS enforcement, and trigger/CASCADE behavior (Step 1.2). 15 tests across 4 classes: table existence, schema verification (columns, NOT NULL, CHECK constraint, UNIQUE, defaults), RLS (anon blocked, service bypasses, user isolation), and triggers/cascades (updated_at auto-updates, cascade delete through auth→users→vaults, FK enforcement). Introduces `test_auth_user_pair` fixture for two-user isolation tests and `test_vault` fixture for vault-dependent tests.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -324,7 +328,36 @@ Tests that need database rows in RLS-protected tables use the Supabase Admin API
 
 This pattern will be reused for all future table tests that depend on RLS.
 
-### 18. Supabase SQL Editor Transaction Behavior
+### 18. Partner Vault as Central Data Hub
+The `partner_vaults` table is the central entity that all partner-related data hangs off of. Future tables (`partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`, `recommendations`) will all reference `partner_vaults.id` via foreign keys with CASCADE delete. This means deleting a vault cleans up all child data automatically. The CASCADE chain is three levels deep: `auth.users` → `public.users` → `partner_vaults` → (child tables).
+
+### 19. Auto-Generated vs Mirrored Primary Keys
+Two patterns are used for primary keys:
+- **Mirrored:** `public.users.id` directly mirrors `auth.users.id` (same UUID). This makes it easy to join auth data with profile data.
+- **Auto-generated:** `partner_vaults.id` uses `gen_random_uuid()` to create its own identity. The `user_id` column is the FK link. This is used for child entities where the primary key doesn't need to match any external system.
+
+Future tables (interests, milestones, vibes, etc.) will follow the auto-generated pattern with FK references to their parent.
+
+### 20. CHECK Constraints vs Application-Layer Validation
+PostgreSQL CHECK constraints are used for simple enum validation (e.g., `cohabitation_status IN ('living_together', 'separate', 'long_distance')`). This provides database-level enforcement that can't be bypassed, even by service-role queries. For complex validation (e.g., "exactly 5 interests per vault"), enforcement will be at the application/API layer (Pydantic models in FastAPI) since PostgreSQL CHECK constraints can't span multiple rows.
+
+### 21. Test Fixture Composition Pattern
+Test files use composable pytest fixtures that build on each other:
+- `test_auth_user` → creates an auth user (trigger creates `public.users` row)
+- `test_vault(test_auth_user)` → creates a vault for that user
+- Future: `test_vault_with_interests(test_vault)` → adds interests to that vault
+
+Each fixture yields data and relies on CASCADE deletes for automatic cleanup (deleting the auth user cascades through all child data). This avoids manual cleanup logic and ensures tests are isolated.
+
+### 22. PostgREST Error Code Patterns
+When testing constraint violations via the PostgREST API:
+- **HTTP 400** — NOT NULL violations, CHECK constraint violations
+- **HTTP 409** — UNIQUE constraint violations, foreign key violations
+- **HTTP 200 with empty array** — RLS blocking (query succeeds but returns no rows)
+
+Tests check for these specific codes to verify the correct constraint is being enforced.
+
+### 23. Supabase SQL Editor Transaction Behavior
 The Supabase SQL Editor runs multi-statement SQL as a **single transaction**. If any statement fails (e.g., a typo in a role name), the entire batch is rolled back — including earlier statements that appeared to succeed. When running migrations manually, run in smaller batches to isolate failures. Numbered migration files should be run in order, one at a time.
 
 ---
