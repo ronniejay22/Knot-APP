@@ -135,11 +135,14 @@ backend/
 │       └── supabase_client.py # Lazy-initialized Supabase clients (anon + service role)
 ├── supabase/                  # Supabase project configuration
 │   └── migrations/            # SQL migrations (run via SQL Editor or Supabase CLI)
-│       └── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
+│       ├── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
+│       └── 00002_create_users_table.sql  # Users table with RLS, triggers, and grants
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
-│   └── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
+│   ├── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
+│   ├── test_supabase_auth.py # Verifies auth service and Apple Sign-In config (6 tests)
+│   └── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -190,6 +193,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | File | Purpose |
 |------|---------|
 | `00001_enable_pgvector.sql` | Enables the `vector` extension (pgvector) required for hint embedding storage and similarity search. Must be run before creating any tables with `vector(768)` columns. |
+| `00002_create_users_table.sql` | Creates `public.users` table (id, email, created_at, updated_at) linked to `auth.users` via FK with CASCADE delete. Enables RLS with SELECT/UPDATE/INSERT policies enforcing `auth.uid() = id`. Creates two trigger functions: `handle_updated_at()` (reusable, auto-updates timestamp on row changes) and `handle_new_user()` (SECURITY DEFINER, auto-creates profile on auth signup). Grants permissions to `authenticated` and `anon` roles. |
 
 ### Business Logic (`app/services/`)
 
@@ -280,6 +284,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_imports.py` — Smoke tests verifying all dependencies are importable (Step 0.5)
 - `test_supabase_connection.py` — Integration tests verifying Supabase connectivity and pgvector (Step 0.6). Uses `@pytest.mark.skipif` to gracefully skip connection tests when credentials aren't configured, while pure library tests (pgvector) always run.
 - `test_supabase_auth.py` — Integration tests verifying Supabase Auth service reachability and Apple Sign-In provider configuration (Step 0.7). Checks GoTrue settings/health endpoints and confirms Apple is enabled for native iOS auth.
+- `test_users_table.py` — Integration tests verifying the `public.users` table schema, RLS enforcement, and trigger behavior (Step 1.1). Tests create real auth users via the Supabase Admin API, verify the `handle_new_user` trigger auto-creates profile rows, confirm RLS blocks anonymous access, and validate CASCADE delete behavior. Each test uses a `test_auth_user` fixture that creates and cleans up auth users automatically.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -297,6 +302,30 @@ The iOS project depends on three products from `supabase-swift` (v2.41.0):
 - **Supabase** — Umbrella module that bundles all Supabase services
 
 These are declared in `iOS/project.yml` under `packages` and `dependencies`, and resolved via SPM.
+
+### 15. Reusable Trigger Functions
+Database trigger functions are designed for reuse across tables:
+- **`handle_updated_at()`** — Generic `BEFORE UPDATE` trigger that sets `NEW.updated_at = now()`. Any table with an `updated_at` column can attach this trigger. Created in migration `00002` and will be reused by `partner_vaults`, `hints`, etc.
+- **`handle_new_user()`** — `AFTER INSERT` trigger on `auth.users` that auto-creates a `public.users` row. Uses `SECURITY DEFINER` to bypass RLS (runs as the function creator, not the calling user).
+
+### 16. RLS + GRANT Layered Defense
+Tables use a two-layer access control strategy:
+- **GRANT** — Controls which PostgreSQL roles can perform which operations on the table (e.g., `authenticated` gets SELECT/INSERT/UPDATE, `anon` gets SELECT only)
+- **RLS Policies** — Controls which rows each user can see/modify (e.g., `auth.uid() = id` ensures users only access their own data)
+
+Both layers must pass for a query to succeed. The `anon` role has SELECT GRANT but RLS returns empty results (since `auth.uid()` is NULL for anonymous requests). The `service_role` key bypasses RLS entirely.
+
+### 17. Database Test Pattern with Auth Users
+Tests that need database rows in RLS-protected tables use the Supabase Admin API (`/auth/v1/admin/users`) to create real auth users. The `test_auth_user` pytest fixture:
+1. Creates an auth user with a unique email via the Admin API
+2. Waits for the `handle_new_user` trigger to auto-create the `public.users` row
+3. Yields the user info (id, email) to the test
+4. Cleans up by deleting the auth user (CASCADE removes the `public.users` row)
+
+This pattern will be reused for all future table tests that depend on RLS.
+
+### 18. Supabase SQL Editor Transaction Behavior
+The Supabase SQL Editor runs multi-statement SQL as a **single transaction**. If any statement fails (e.g., a typo in a role name), the entire batch is rolled back — including earlier statements that appeared to succeed. When running migrations manually, run in smaller batches to isolate failures. Numbered migration files should be run in order, one at a time.
 
 ---
 

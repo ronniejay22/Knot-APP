@@ -265,9 +265,49 @@ iOS/Knot/
 
 ---
 
+### Step 1.1: Create Users Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `public.users` table linked to `auth.users` via foreign key with `ON DELETE CASCADE`
+- Columns: `id` (UUID PK), `email` (text, nullable), `created_at` (timestamptz), `updated_at` (timestamptz)
+- Enabled Row Level Security (RLS) with three policies: `users_select_own`, `users_update_own`, `users_insert_own` — all enforce `auth.uid() = id`
+- Created `handle_updated_at()` trigger function (reusable for future tables) that auto-updates `updated_at` on row changes
+- Created `handle_new_user()` trigger (SECURITY DEFINER) on `auth.users` that auto-inserts a `public.users` row when a user signs up
+- Granted SELECT/INSERT/UPDATE to `authenticated` role, SELECT to `anon` role (RLS still blocks anon from seeing rows)
+- Created 10 tests verifying table existence, schema, RLS enforcement, and trigger behavior
+
+**Files created:**
+- `backend/supabase/migrations/00002_create_users_table.sql` — Full migration with table, RLS, triggers, and grants
+- `backend/tests/test_users_table.py` — 10 tests across 4 test classes (Exists, Schema, RLS, Triggers)
+
+**Test results:**
+- ✅ `pytest tests/test_users_table.py -v` — 10 passed, 0 failed
+- ✅ Table accessible via PostgREST API
+- ✅ All 4 columns present (id, email, created_at, updated_at)
+- ✅ id stores valid UUIDs matching auth.users
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ email accepts NULL (Apple Private Relay compatible)
+- ✅ Anon client (no JWT) sees 0 rows — RLS enforced
+- ✅ Service client (admin) can read all rows — RLS bypassed
+- ✅ handle_new_user trigger auto-creates profile on auth signup
+- ✅ set_updated_at trigger updates timestamp on row changes
+- ✅ ON DELETE CASCADE removes public.users row when auth user is deleted
+- ✅ All existing tests still pass (28 from Steps 0.5–0.7)
+
+**Notes:**
+- The Supabase SQL Editor runs multi-statement SQL as a single transaction. If any statement fails (e.g., a typo in a GRANT role name), the entire batch is rolled back. When debugging migration failures, run statements in smaller batches to isolate errors.
+- `handle_updated_at()` is a reusable trigger function — future tables (partner_vaults, etc.) can attach their own `set_updated_at` trigger using the same function.
+- `handle_new_user()` uses `SECURITY DEFINER` so it can insert into `public.users` despite RLS being enabled. It runs with the privileges of the function creator (postgres), not the calling user.
+- The `anon` role has SELECT GRANT on the table, but RLS returns empty results because `auth.uid()` is NULL for the anon key. This layered defense (GRANT + RLS) is intentional.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_users_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.1:** Create Users Table
+- [ ] **Step 1.2:** Create Partner Vault Table
 
 ---
 
