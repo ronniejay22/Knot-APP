@@ -279,6 +279,24 @@ Pytest is configured with:
 Tests are organized by scope in `backend/tests/`:
 - `test_imports.py` — Smoke tests verifying all dependencies are importable (Step 0.5)
 - `test_supabase_connection.py` — Integration tests verifying Supabase connectivity and pgvector (Step 0.6). Uses `@pytest.mark.skipif` to gracefully skip connection tests when credentials aren't configured, while pure library tests (pgvector) always run.
+- `test_supabase_auth.py` — Integration tests verifying Supabase Auth service reachability and Apple Sign-In provider configuration (Step 0.7). Checks GoTrue settings/health endpoints and confirms Apple is enabled for native iOS auth.
+
+### 13. Native iOS Auth Strategy
+Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
+- The iOS app presents `SignInWithAppleButton` (AuthenticationServices framework)
+- Apple returns an identity token directly to the app
+- The app sends this token to Supabase via `signInWithIdToken(provider: .apple, idToken: token)`
+- Supabase validates the token with Apple and creates/returns a user session
+
+This approach does NOT require an OAuth Secret Key or Callback URL in the Supabase dashboard. Those are only needed for web-based Sign in with Apple. The Client ID in Supabase must match the iOS app's bundle identifier (`com.ronniejay.knot`).
+
+### 14. Supabase Swift SDK (iOS)
+The iOS project depends on three products from `supabase-swift` (v2.41.0):
+- **Auth** — Authentication client (sign in, sign out, session management, token refresh)
+- **PostgREST** — Type-safe database query builder for Supabase tables
+- **Supabase** — Umbrella module that bundles all Supabase services
+
+These are declared in `iOS/project.yml` under `packages` and `dependencies`, and resolved via SPM.
 
 ---
 

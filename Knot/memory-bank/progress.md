@@ -222,9 +222,52 @@ iOS/Knot/
 
 ---
 
+### Step 0.7: Configure Supabase Auth with Apple Sign-In ✅
+**Date:** February 5, 2026  
+**Status:** Complete
+
+**What was done:**
+- Enabled Apple Sign-In provider in Supabase dashboard (Authentication → Sign In / Providers → Apple)
+- Configured Client ID with app bundle identifier (`com.ronniejay.knot`)
+- Enabled "Allow users without an email" for Apple Private Relay users
+- Added `supabase-swift` v2.41.0 SPM dependency to iOS project (Auth, PostgREST, Supabase modules)
+- Created `tests/test_supabase_auth.py` — 6 tests verifying auth service and Apple provider configuration
+- OAuth Secret Key intentionally left empty — Knot uses native iOS Sign in with Apple (not the web OAuth redirect flow)
+
+**Files created/modified:**
+- `iOS/project.yml` — **Updated:** Added `Supabase` SPM package with Auth, PostgREST, and Supabase product dependencies
+- `iOS/Knot.xcodeproj/` — **Regenerated:** via `xcodegen generate` with new Supabase dependencies
+- `backend/tests/test_supabase_auth.py` — **Created:** 6 tests across 2 test classes (auth reachability + Apple provider config)
+
+**Test results:**
+- ✅ `pytest tests/test_supabase_auth.py -v` — 6 passed, 0 failed
+- ✅ GoTrue `/auth/v1/settings` endpoint returns 200 with provider list
+- ✅ GoTrue `/auth/v1/health` endpoint returns healthy status
+- ✅ Email provider enabled by default
+- ✅ Apple provider is enabled (`"apple": true` in settings)
+- ✅ Signup is not disabled (new users can register)
+- ✅ Native auth endpoint (`/auth/v1/token?grant_type=id_token`) recognizes Apple as a valid provider
+- ✅ iOS project builds with Supabase Swift SDK (supabase-swift v2.41.0)
+- ✅ All existing tests still pass (22 from Steps 0.5–0.6)
+
+**Supabase Dashboard Configuration:**
+- Provider: Apple — **Enabled**
+- Client IDs: `com.ronniejay.knot`
+- Secret Key: Empty (not needed for native iOS auth)
+- Allow users without email: **Enabled**
+- Callback URL: `https://nmruwlfvhkvkbcdncwaq.supabase.co/auth/v1/callback` (for future web OAuth, not used by iOS)
+
+**Notes:**
+- Knot uses **native iOS Sign in with Apple** via `SignInWithAppleButton` (AuthenticationServices framework). The flow: iOS gets identity token from Apple → sends to Supabase via `signInWithIdToken(provider: .apple, idToken: token)`. This does NOT require the OAuth Secret Key or Callback URL.
+- The OAuth Secret Key would only be needed if adding web-based Sign in with Apple in the future. Apple OAuth secrets expire every 6 months.
+- The `supabase-swift` package brings transitive dependencies: swift-crypto, swift-asn1, swift-http-types, swift-clocks, swift-concurrency-extras, xctest-dynamic-overlay.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_supabase_auth.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 0.7:** Configure Supabase Auth with Apple Sign-In
+- [ ] **Step 1.1:** Create Users Table
 
 ---
 
@@ -246,3 +289,7 @@ iOS/Knot/
 6. **pgvector extension:** Must be enabled in the Supabase SQL Editor before creating tables with vector columns. Run the migration at `backend/supabase/migrations/00001_enable_pgvector.sql`.
 
 7. **pgvector Vector API:** Use `vec.to_list()` (not `list(vec)`) to convert vectors to Python lists. Use `vec.to_numpy()` for NumPy arrays. The `Vector` object is not iterable.
+
+8. **Apple Sign-In (native iOS):** Knot uses native `SignInWithAppleButton`, NOT the web OAuth redirect flow. The OAuth Secret Key in Supabase dashboard can be left empty. The native flow sends Apple's identity token directly to Supabase via `signInWithIdToken`.
+
+9. **Supabase Swift SDK:** Added as SPM dependency in `project.yml`. Three products are linked: `Auth` (authentication), `PostgREST` (database queries), `Supabase` (umbrella). After modifying `project.yml`, regenerate with `cd iOS && xcodegen generate`.
