@@ -1,0 +1,15 @@
+{
+  "originHash" : "96ab2f40c501bdadeea99efa9dac83a750832d041073e6a0d2c11e227196dab3",
+  "pins" : [
+    {
+      "identity" : "lucide-icons-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/JakubMazur/lucide-icons-swift.git",
+      "state" : {
+        "revision" : "2003b7b2a6ed3db218557a8a74da0f00b388c935",
+        "version" : "0.563.1"
+      }
+    }
+  ],
+  "version" : 3
+}

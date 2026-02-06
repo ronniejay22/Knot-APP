@@ -1,0 +1,6 @@
+# Project Knot - Backend Dependencies
+# Step 0.4: Minimum dependencies for project structure & health check
+# Full dependency list will be added in Step 0.5
+
+fastapi
+uvicorn[standard]

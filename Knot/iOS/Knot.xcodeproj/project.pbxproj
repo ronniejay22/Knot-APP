@@ -1,0 +1,642 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A501D3EBBEA7CF8A2C828AD /* Constants.swift */; };
+		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
+		4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */ = {isa = PBXBuildFile; productRef = 15C498B5F04CB77F50A32471 /* LucideIcons */; };
+		5F1D462AA8C8892C53A6324C /* KnotUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */; };
+		80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83BE2463CD2906C42BAABEC /* ContentView.swift */; };
+		897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8706879774F71CFAE5954F25 /* KnotTests.swift */; };
+		B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */; };
+		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		87F3C50B20893C47EAA2B7AD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F878334F70D73C6F409DAF22 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 45DAD458DC1620EA1D0D1B14;
+			remoteInfo = Knot;
+		};
+		C79A9C898631D545B129EA8F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F878334F70D73C6F409DAF22 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 45DAD458DC1620EA1D0D1B14;
+			remoteInfo = Knot;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		2A26FAED19328A49BE6820DE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		81631C398360D7081B617085 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		82D8C028DEC10B2C02A3FB2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		842768D146B565195D8F3390 /* Knot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Knot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8706879774F71CFAE5954F25 /* KnotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTests.swift; sourceTree = "<group>"; };
+		8A501D3EBBEA7CF8A2C828AD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		A14781043CA4A8EACC7F25A1 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITests.swift; sourceTree = "<group>"; };
+		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
+		FE8035000CBD8A7776129F2F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		544E748129BA10AA36F56048 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A1C32F3AE0572AD904CBAA1 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				81631C398360D7081B617085 /* .gitkeep */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		3157EF84C9B7F449A6F3C90D /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				A14781043CA4A8EACC7F25A1 /* .gitkeep */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		58F103BBDDD26E8222C5D92F /* KnotUITests */ = {
+			isa = PBXGroup;
+			children = (
+				ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */,
+				63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */,
+			);
+			path = KnotUITests;
+			sourceTree = "<group>";
+		};
+		7E5240D625C6A27DAE2C5B64 = {
+			isa = PBXGroup;
+			children = (
+				CFE159ADB4AED34FB9210A02 /* Knot */,
+				FC2EFB0CE592FE281157630A /* KnotTests */,
+				58F103BBDDD26E8222C5D92F /* KnotUITests */,
+				F7E46C8D3CE8BBD34B623C23 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8B4FAD1AC8370299C6B1F591 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				8A501D3EBBEA7CF8A2C828AD /* Constants.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		8FB2E998C39BA6F6ABE1CE6C /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E83BE2463CD2906C42BAABEC /* ContentView.swift */,
+				FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		9AF3884073380A3E5D074FA8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				2A26FAED19328A49BE6820DE /* .gitkeep */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		C291BA99A02F9C03EE06EBAA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		CABB3E5C1E9A67244820D7F9 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				FE8035000CBD8A7776129F2F /* .gitkeep */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		CFE159ADB4AED34FB9210A02 /* Knot */ = {
+			isa = PBXGroup;
+			children = (
+				8FB2E998C39BA6F6ABE1CE6C /* App */,
+				9AF3884073380A3E5D074FA8 /* Components */,
+				8B4FAD1AC8370299C6B1F591 /* Core */,
+				3157EF84C9B7F449A6F3C90D /* Features */,
+				CABB3E5C1E9A67244820D7F9 /* Models */,
+				C291BA99A02F9C03EE06EBAA /* Resources */,
+				0A1C32F3AE0572AD904CBAA1 /* Services */,
+				82D8C028DEC10B2C02A3FB2A /* Info.plist */,
+			);
+			path = Knot;
+			sourceTree = "<group>";
+		};
+		F7E46C8D3CE8BBD34B623C23 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				842768D146B565195D8F3390 /* Knot.app */,
+				D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */,
+				45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FC2EFB0CE592FE281157630A /* KnotTests */ = {
+			isa = PBXGroup;
+			children = (
+				8706879774F71CFAE5954F25 /* KnotTests.swift */,
+			);
+			path = KnotTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		45DAD458DC1620EA1D0D1B14 /* Knot */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D10DDB872687C6D0BB12D5EC /* Build configuration list for PBXNativeTarget "Knot" */;
+			buildPhases = (
+				CE62A06FC865DCCEF0079FE5 /* Sources */,
+				3ADA82AA7453A90ABA0CF94E /* Resources */,
+				544E748129BA10AA36F56048 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Knot;
+			packageProductDependencies = (
+				15C498B5F04CB77F50A32471 /* LucideIcons */,
+			);
+			productName = Knot;
+			productReference = 842768D146B565195D8F3390 /* Knot.app */;
+			productType = "com.apple.product-type.application";
+		};
+		67DB0E0083E3C4F9E6034B0E /* KnotUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 59030D88EBF9B12256B599E9 /* Build configuration list for PBXNativeTarget "KnotUITests" */;
+			buildPhases = (
+				A16043CC330A981178ECC9F5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4E9ACB94ABEABB2213A2D300 /* PBXTargetDependency */,
+			);
+			name = KnotUITests;
+			packageProductDependencies = (
+			);
+			productName = KnotUITests;
+			productReference = 45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		FA502BAB5DE73278D2AAD4FD /* KnotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D68A9AD45DAFA9DFAFC81B91 /* Build configuration list for PBXNativeTarget "KnotTests" */;
+			buildPhases = (
+				4749B5D33526541B239234F7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				98449036F455C6A5C6165931 /* PBXTargetDependency */,
+			);
+			name = KnotTests;
+			packageProductDependencies = (
+			);
+			productName = KnotTests;
+			productReference = D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F878334F70D73C6F409DAF22 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					45DAD458DC1620EA1D0D1B14 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					67DB0E0083E3C4F9E6034B0E = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = 45DAD458DC1620EA1D0D1B14;
+					};
+					FA502BAB5DE73278D2AAD4FD = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 3C708B7A2654AF70D1DC9355 /* Build configuration list for PBXProject "Knot" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 7E5240D625C6A27DAE2C5B64;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				45DAD458DC1620EA1D0D1B14 /* Knot */,
+				FA502BAB5DE73278D2AAD4FD /* KnotTests */,
+				67DB0E0083E3C4F9E6034B0E /* KnotUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3ADA82AA7453A90ABA0CF94E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4749B5D33526541B239234F7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A16043CC330A981178ECC9F5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */,
+				5F1D462AA8C8892C53A6324C /* KnotUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE62A06FC865DCCEF0079FE5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */,
+				80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */,
+				BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4E9ACB94ABEABB2213A2D300 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 45DAD458DC1620EA1D0D1B14 /* Knot */;
+			targetProxy = 87F3C50B20893C47EAA2B7AD /* PBXContainerItemProxy */;
+		};
+		98449036F455C6A5C6165931 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 45DAD458DC1620EA1D0D1B14 /* Knot */;
+			targetProxy = C79A9C898631D545B129EA8F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		288DD2CFE17A629394BCA866 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Knot;
+			};
+			name = Release;
+		};
+		57F562D196A01B0DDA583ADC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Knot;
+			};
+			name = Debug;
+		};
+		C8AECA75D93334592A249FD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Knot.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Knot";
+			};
+			name = Release;
+		};
+		CAE978CF47FDADAF0A652A03 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Knot/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D39E4B2445DB667387B466F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Knot.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Knot";
+			};
+			name = Debug;
+		};
+		DFFC55B1D459113B7CDD3CAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Knot/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		EA828B0926751B87A31D9401 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Knot/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		EB269CE3ED0EA6F2018881BE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Knot/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ronniejay.knot;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3C708B7A2654AF70D1DC9355 /* Build configuration list for PBXProject "Knot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EB269CE3ED0EA6F2018881BE /* Debug */,
+				DFFC55B1D459113B7CDD3CAB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		59030D88EBF9B12256B599E9 /* Build configuration list for PBXNativeTarget "KnotUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				57F562D196A01B0DDA583ADC /* Debug */,
+				288DD2CFE17A629394BCA866 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D10DDB872687C6D0BB12D5EC /* Build configuration list for PBXNativeTarget "Knot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CAE978CF47FDADAF0A652A03 /* Debug */,
+				EA828B0926751B87A31D9401 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D68A9AD45DAFA9DFAFC81B91 /* Build configuration list for PBXNativeTarget "KnotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D39E4B2445DB667387B466F0 /* Debug */,
+				C8AECA75D93334592A249FD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/JakubMazur/lucide-icons-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.563.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		15C498B5F04CB77F50A32471 /* LucideIcons */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */;
+			productName = LucideIcons;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F878334F70D73C6F409DAF22 /* Project object */;
+}
