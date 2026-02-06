@@ -180,9 +180,50 @@ iOS/Knot/
 
 ---
 
+### Step 0.6: Set Up Supabase Project ✅
+**Date:** February 5, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created Supabase project "knot-dev" via the Supabase dashboard
+- Enabled the pgvector extension in the database via SQL Editor (`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;`)
+- Created `.env` file in the backend directory with Supabase credentials (URL, anon key, service role key)
+- Updated `app/core/config.py` to load environment variables from `.env` using `python-dotenv` with a `validate_supabase_config()` function
+- Created `app/db/supabase_client.py` with lazy-initialized Supabase clients (anon for RLS-respecting user operations, service_role for admin operations)
+- Created `supabase/migrations/00001_enable_pgvector.sql` migration file
+- Created `tests/test_supabase_connection.py` — 11 tests across 3 test classes
+
+**Files created/modified:**
+- `backend/.env` — Supabase credentials (gitignored, NEVER commit)
+- `backend/app/core/config.py` — **Updated:** Now loads env vars via `python-dotenv`, exposes `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `validate_supabase_config()`
+- `backend/app/db/supabase_client.py` — **Created:** Provides `get_supabase_client()` (anon/RLS) and `get_service_client()` (admin/bypass RLS), plus `test_connection()` helper
+- `backend/supabase/migrations/00001_enable_pgvector.sql` — **Created:** SQL to enable pgvector extension
+- `backend/tests/test_supabase_connection.py` — **Created:** 11 tests verifying env config, Supabase connectivity, and pgvector library
+
+**Test results:**
+- ✅ `pytest tests/test_supabase_connection.py -v` — 11 passed, 0 failed, 2 warnings (Supabase library deprecation, not our code)
+- ✅ `.env` file loads all three Supabase credentials correctly
+- ✅ `validate_supabase_config()` passes — all required env vars present
+- ✅ Anon client initializes successfully
+- ✅ Service role client initializes successfully
+- ✅ Simple query executes against live Supabase database (connected via PostgREST)
+- ✅ pgvector `Vector` type imports and creates 768-dimension embeddings
+- ✅ pgvector extension enabled in Supabase database
+- ✅ Existing `test_imports.py` (11 tests) still passes
+- ✅ `/health` endpoint still returns `{"status":"ok"}`
+
+**Notes:**
+- The Supabase client uses the new key format: `sb_publishable_...` (anon) and `sb_secret_...` (service_role)
+- The `supabase` Python library emits 2 deprecation warnings about `timeout` and `verify` parameters — these are in the library's code, not ours, and will resolve when `supabase-py` updates
+- `pgvector.Vector` uses `.to_list()` and `.to_numpy()` methods (not iterable via `list()`) — important for future embedding work
+- Connection tests handle PostgREST error code `PGRST205` (table not in schema cache) as a successful connection signal
+- Supabase clients are initialized lazily (on first use) to avoid import-time failures
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_supabase_connection.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 0.6:** Set Up Supabase Project
 - [ ] **Step 0.7:** Configure Supabase Auth with Apple Sign-In
 
 ---
@@ -199,3 +240,9 @@ iOS/Knot/
 3. **Running on Simulator:** Select iPhone 17 Pro simulator (available: iPhone 17, 17 Pro, 17 Pro Max, iPhone Air on iOS 26.2). Avoid physical device to skip provisioning profile issues during development.
 
 4. **XcodeGen required:** Install with `brew install xcodegen`
+
+5. **Supabase credentials:** The `.env` file is gitignored. New developers must create their own by copying `.env.example` and filling in credentials from the Supabase dashboard (Settings → API).
+
+6. **pgvector extension:** Must be enabled in the Supabase SQL Editor before creating tables with vector columns. Run the migration at `backend/supabase/migrations/00001_enable_pgvector.sql`.
+
+7. **pgvector Vector API:** Use `vec.to_list()` (not `list(vec)`) to convert vectors to Python lists. Use `vec.to_numpy()` for NumPy arrays. The `Vector` object is not iterable.

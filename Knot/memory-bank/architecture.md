@@ -131,10 +131,15 @@ backend/
 │   ├── agents/               # LangGraph recommendation pipeline
 │   │   └── __init__.py       # (hint retrieval → aggregation → filtering → scoring → selection)
 │   └── db/                   # Database connection and repository pattern classes
-│       └── __init__.py
+│       ├── __init__.py
+│       └── supabase_client.py # Lazy-initialized Supabase clients (anon + service role)
+├── supabase/                  # Supabase project configuration
+│   └── migrations/            # SQL migrations (run via SQL Editor or Supabase CLI)
+│       └── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
-│   └── test_imports.py       # Verifies all dependencies are importable (11 tests)
+│   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
+│   └── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -167,15 +172,24 @@ Each file defines an `APIRouter` with a URL prefix and tag. Routes will be added
 
 | File | Purpose |
 |------|---------|
-| `config.py` | Application settings constants (`API_V1_PREFIX`, `PROJECT_NAME`). Will be expanded with pydantic-settings to load and validate environment variables in Step 0.5. |
+| `config.py` | Loads environment variables from `.env` via `python-dotenv`. Exposes `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and future API keys. Provides `validate_supabase_config()` to check required vars are present. |
 | `security.py` | Auth middleware placeholder. Will extract Bearer tokens from `Authorization` header, validate against Supabase Auth, and return the authenticated user ID. Raises `HTTPException(401)` if invalid. Implemented in Step 2.5. |
 
 ### Data Layer (`app/models/`, `app/db/`)
 
-| Folder | Purpose |
-|--------|---------|
+| Folder/File | Purpose |
+|-------------|---------|
 | `models/` | Pydantic models for API request/response validation. Ensures strict schema adherence (e.g., exactly 5 interests, valid vibe tags). |
-| `db/` | Repository classes for Supabase/PostgreSQL queries. Handles all database operations with proper RLS context. |
+| `db/` | Database connection and repository pattern classes. |
+| `db/supabase_client.py` | Provides two lazy-initialized Supabase clients: `get_supabase_client()` uses the anon key (respects RLS for user-scoped queries) and `get_service_client()` uses the service_role key (bypasses RLS for admin/background operations). Also provides `test_connection()` to verify database connectivity. |
+
+### Supabase Migrations (`supabase/migrations/`)
+
+SQL migration files to be run in the Supabase SQL Editor or via `supabase db push`.
+
+| File | Purpose |
+|------|---------|
+| `00001_enable_pgvector.sql` | Enables the `vector` extension (pgvector) required for hint embedding storage and similarity search. Must be run before creating any tables with `vector(768)` columns. |
 
 ### Business Logic (`app/services/`)
 
@@ -246,10 +260,25 @@ All dependencies are declared in `requirements.txt` without pinned versions to a
 
 Note: `pgvector` is used via its base `Vector` type, not the SQLAlchemy integration, since database access goes through the Supabase client (PostgREST). The SQLAlchemy backend is not installed.
 
-### 9. Test Configuration (`pyproject.toml`)
+### 9. Dual Supabase Client Pattern
+The backend maintains two Supabase clients, both lazy-initialized (created on first use, not at import time):
+- **Anon client** (`get_supabase_client()`) — Uses the `anon` (public) key. Respects Row Level Security (RLS). Used for all user-facing operations where the user's JWT enforces access controls.
+- **Service client** (`get_service_client()`) — Uses the `service_role` key. **Bypasses RLS entirely.** Only used for admin operations: background jobs, notification processing, migrations, and cross-user queries.
+
+This pattern ensures user data isolation by default while allowing privileged operations when explicitly needed.
+
+### 10. SQL Migrations Strategy
+Database schema changes are stored as numbered SQL files in `backend/supabase/migrations/` (e.g., `00001_enable_pgvector.sql`). These can be run manually via the Supabase SQL Editor or via the Supabase CLI (`supabase db push`). Migrations are sequential and should never be modified after being applied — always create a new migration file for changes.
+
+### 11. Test Configuration (`pyproject.toml`)
 Pytest is configured with:
 - `asyncio_mode = "auto"` — async test functions are detected and run automatically without `@pytest.mark.asyncio`
 - `filterwarnings` — suppresses known deprecation warnings from `pyiceberg` (a transitive dependency of `supabase`). Only third-party warnings are suppressed; warnings from our code still surface.
+
+### 12. Test Organization
+Tests are organized by scope in `backend/tests/`:
+- `test_imports.py` — Smoke tests verifying all dependencies are importable (Step 0.5)
+- `test_supabase_connection.py` — Integration tests verifying Supabase connectivity and pgvector (Step 0.6). Uses `@pytest.mark.skipif` to gracefully skip connection tests when credentials aren't configured, while pure library tests (pgvector) always run.
 
 ---
 
