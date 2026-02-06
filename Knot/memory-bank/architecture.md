@@ -73,11 +73,12 @@ Future files:
 #### `/Models` — Data Models
 | File | Purpose |
 |------|---------|
-| `PartnerVaultLocal.swift` | SwiftData model for local vault storage |
-| `HintLocal.swift` | SwiftData model for hints |
-| `MilestoneLocal.swift` | SwiftData model for milestones |
-| `RecommendationLocal.swift` | SwiftData model for recommendations |
-| `DTOs.swift` | Data Transfer Objects for API requests/responses |
+| `SyncStatus.swift` | Shared enum (`synced`, `pendingUpload`, `pendingDownload`) tracking local-to-Supabase sync state. Used by all `@Model` classes. Stored as raw `String` in SwiftData with a computed property for type-safe access. |
+| `PartnerVaultLocal.swift` | SwiftData `@Model` mirroring `partner_vaults` table. Stores partner profile (name, tenure, cohabitation, location) locally. `remoteID` is nullable (NULL until synced with Supabase). |
+| `HintLocal.swift` | SwiftData `@Model` mirroring `hints` table. Stores captured hints (text, source, isUsed). Deliberately excludes `hint_embedding` (vector(768)) — embeddings are server-side only for semantic search. |
+| `MilestoneLocal.swift` | SwiftData `@Model` mirroring `partner_milestones` table. Stores milestones (type, name, date, recurrence, budgetTier) for Home screen countdown display. |
+| `RecommendationLocal.swift` | SwiftData `@Model` mirroring `recommendations` table. Stores AI-generated recommendations for Choice-of-Three display. `description` renamed to `descriptionText` to avoid Swift protocol conflict. |
+| `DTOs.swift` | Data Transfer Objects for API requests/responses (future) |
 
 #### `/Components` — Reusable UI Components
 Shadcn-inspired, reusable SwiftUI components.
@@ -144,7 +145,9 @@ backend/
 │       ├── 00007_create_partner_budgets_table.sql   # Partner budgets with CHECK (occasion_type, max>=min, min>=0), UNIQUE, RLS, CASCADE
 │       ├── 00008_create_partner_love_languages_table.sql # Partner love languages with CHECK (language, priority), dual UNIQUE, RLS, CASCADE
 │       ├── 00009_create_hints_table.sql                  # Hints with vector(768) embedding, HNSW index, match_hints() RPC, RLS, CASCADE
-│       └── 00010_create_recommendations_table.sql        # Recommendations with CHECK (type), price_cents >= 0, milestone FK SET NULL, RLS, CASCADE
+│       ├── 00010_create_recommendations_table.sql        # Recommendations with CHECK (type), price_cents >= 0, milestone FK SET NULL, RLS, CASCADE
+│       ├── 00011_create_recommendation_feedback_table.sql # Recommendation feedback with CHECK (action, rating 1-5), dual FK (recommendation + user), direct RLS, CASCADE
+│       └── 00012_create_notification_queue_table.sql      # Notification queue with CHECK (days_before 14/7/3, status), DEFAULT pending, partial index, direct RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
@@ -158,7 +161,9 @@ backend/
 │   ├── test_partner_budgets_table.py    # Verifies partner_budgets schema, CHECK constraints (occasion_type, max>=min, min>=0), UNIQUE, RLS, cascades (27 tests)
 │   ├── test_partner_love_languages_table.py # Verifies partner_love_languages schema, CHECK (language, priority), dual UNIQUE, RLS, update semantics, cascades (28 tests)
 │   ├── test_hints_table.py               # Verifies hints schema, CHECK (source), vector(768) embedding, HNSW index, match_hints() RPC similarity search, RLS, cascades (30 tests)
-│   └── test_recommendations_table.py     # Verifies recommendations schema, CHECK (type, price>=0), milestone FK SET NULL, RLS, data integrity, cascades (31 tests)
+│   ├── test_recommendations_table.py     # Verifies recommendations schema, CHECK (type, price>=0), milestone FK SET NULL, RLS, data integrity, cascades (31 tests)
+│   ├── test_recommendation_feedback_table.py # Verifies recommendation_feedback schema, CHECK (action, rating 1-5), dual FK CASCADE, direct RLS, data integrity, cascades (27 tests)
+│   └── test_notification_queue_table.py  # Verifies notification_queue schema, CHECK (days_before, status), DEFAULT pending, status transitions, partial index, direct RLS, cascades (26 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -218,6 +223,8 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | `00008_create_partner_love_languages_table.sql` | Creates `public.partner_love_languages` table (id, vault_id, language, priority, created_at). CHECK constraint on `language` for 5 valid values: words_of_affirmation, acts_of_service, receiving_gifts, quality_time, physical_touch. CHECK constraint on `priority` for values 1 (primary) and 2 (secondary) only. **Dual UNIQUE constraint strategy:** `UNIQUE(vault_id, priority)` prevents duplicate priorities per vault (at most one primary, one secondary), and `UNIQUE(vault_id, language)` prevents the same language from being both primary and secondary. Combined with the priority CHECK constraint, the maximum is exactly 2 rows per vault — a third row is impossible because no valid priority slot remains. No trigger functions needed. "Both primary and secondary must exist" minimum cardinality enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 | `00009_create_hints_table.sql` | Creates `public.hints` table (id, vault_id, hint_text, hint_embedding, source, created_at, is_used). **First table with a pgvector column:** `hint_embedding vector(768)` stores embeddings from Vertex AI `text-embedding-004`. Column is **nullable** for resilience (hints can be stored even if embedding generation fails). CHECK constraint on `source` for 2 values: text_input, voice_transcription. `is_used` defaults to false (tracks whether hint was used in a recommendation). **HNSW index** on `hint_embedding` using `vector_cosine_ops` for fast cosine similarity nearest-neighbor search. Creates **`match_hints()` RPC function** for semantic similarity queries via PostgREST (returns hints ordered by cosine similarity with a computed similarity score). No UNIQUE constraints — unlimited hints per vault. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. EXECUTE granted on `match_hints()` to authenticated and anon roles. |
 | `00010_create_recommendations_table.sql` | Creates `public.recommendations` table (id, vault_id, milestone_id, recommendation_type, title, description, external_url, price_cents, merchant_name, image_url, created_at). Stores AI-generated gift, experience, and date recommendations from the LangGraph pipeline. CHECK constraint on `recommendation_type` for 3 values: gift, experience, date. CHECK constraint on `price_cents >= 0` (stored in cents, nullable when price unknown). `title` is NOT NULL; `description`, `external_url`, `merchant_name`, `image_url` are nullable for resilience against partial external API data. **First table with ON DELETE SET NULL:** `milestone_id` FK to `partner_milestones` uses SET NULL (not CASCADE) — recommendations persist as history even when the milestone they were generated for is deleted. `vault_id` FK still uses CASCADE (deleting vault removes all recommendations). Two indexes: `vault_id` for vault queries, `milestone_id` for milestone queries. No UNIQUE constraints — unlimited recommendations per vault (generated in batches of 3). RLS uses subquery pattern through `partner_vaults`. |
+| `00011_create_recommendation_feedback_table.sql` | Creates `public.recommendation_feedback` table (id, recommendation_id, user_id, action, rating, feedback_text, created_at). Stores user feedback on AI-generated recommendations — tracks selections, refreshes, saves, shares, and star ratings. CHECK constraint on `action` for 5 values: selected, refreshed, saved, shared, rated. CHECK constraint on `rating` for 1-5 range (nullable — only required for 'rated' action). `feedback_text` is nullable for optional text feedback. **First table with dual FK CASCADE:** `recommendation_id` FK to `recommendations` (CASCADE) and `user_id` FK to `users` (CASCADE) — feedback is deleted when either the recommendation or user is removed. **First table with direct RLS** (not vault subquery): policies use `user_id = auth.uid()` directly since the table has its own `user_id` column. Two indexes: `recommendation_id` for querying by recommendation, `user_id` for querying by user. No UNIQUE constraints — multiple feedback entries per recommendation allowed (e.g., selected then rated). |
+| `00012_create_notification_queue_table.sql` | Creates `public.notification_queue` table (id, user_id, milestone_id, scheduled_for, days_before, status, sent_at, created_at). Schedules proactive push notifications for upcoming milestones at 14, 7, and 3 days before. CHECK constraint on `days_before` for 3 discrete values: 14, 7, 3. CHECK constraint on `status` for 4 values: pending, sent, failed, cancelled. `status` defaults to `'pending'` via DEFAULT clause. `sent_at` is nullable (NULL until notification is actually sent). `user_id` FK to `users` (CASCADE) and `milestone_id` FK to `partner_milestones` (CASCADE) — notifications are cleaned up when either the user or milestone is deleted. Uses direct RLS (`user_id = auth.uid()`). **First table with a partial composite index:** `(status, scheduled_for) WHERE status = 'pending'` — optimized for the notification processing job's "find all pending notifications due now" query. Also has standard indexes on `user_id` and `milestone_id`. |
 
 ### Business Logic (`app/services/`)
 
@@ -317,6 +324,8 @@ Tests are organized by scope in `backend/tests/`:
 - `test_partner_love_languages_table.py` — Integration tests verifying the `public.partner_love_languages` table schema, CHECK constraints (language for 5 values, priority for 1/2 only), dual UNIQUE constraints (vault_id+priority prevents duplicate priorities, vault_id+language prevents same language at both priorities), RLS enforcement via subquery, data integrity (primary/secondary stored, field values, update primary succeeds, update to conflicting language fails), and CASCADE behavior (Step 1.7). 28 tests across 5 classes: table existence, schema (columns, 2 CHECK constraints, NOT NULL, 2 UNIQUE constraints, third language rejection, same language across vaults allowed, priority 0 rejected), RLS (anon blocked, service bypasses, user isolation), data integrity (primary+secondary stored, field values, primary correct, secondary correct, update primary succeeds, update to same-as-secondary fails), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_love_languages` fixture (vault pre-populated with primary=quality_time, secondary=receiving_gifts), `_insert_love_language_raw` helper for testing failure responses, and `_update_love_language` helper for testing update semantics.
 - `test_hints_table.py` — Integration tests verifying the `public.hints` table schema, CHECK constraint (source for 2 values), vector(768) embedding column (nullable, accepts 768-dim vectors), HNSW index, `match_hints()` RPC function for cosine similarity search, RLS enforcement via subquery, data integrity (multiple hints, mixed sources, is_used default and update, with/without embeddings), vector similarity search (ordering verification with crafted vectors, threshold filtering, match_count limiting, vault scoping, NULL embedding skipping), and CASCADE behavior (Step 1.8). 30 tests across 6 classes: table existence, schema (columns, CHECK constraint, NOT NULL, is_used default, embedding nullable, embedding accepts 768-dim), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple hints, field values, mixed sources, is_used update, with/without embedding), vector search (returns results, ordered by similarity, threshold filters, match_count limits, scoped to vault, skips NULL embeddings), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_hints` fixture (vault with 3 hints without embeddings), `test_vault_with_embedded_hints` fixture (vault with 3 hints with crafted 768-dim vectors for similarity testing), `_insert_hint_raw` helper for testing failure responses, and `_make_vector` helper for creating padded 768-dim vector strings.
 - `test_recommendations_table.py` — Integration tests verifying the `public.recommendations` table schema, CHECK constraints (recommendation_type for 3 values, price_cents >= 0), nullable columns (milestone_id, description, external_url, price_cents, merchant_name, image_url), milestone FK SET NULL behavior, RLS enforcement via subquery, data integrity (3 recommendations per vault/"Choice of Three", all fields populated, all 3 types stored, with/without milestone, prices in cents, external URLs, merchant names), milestone FK behavior (SET NULL on milestone delete preserves recommendation history, FK enforcement rejects invalid milestone_id), and CASCADE behavior (Step 1.9). 31 tests across 6 classes: table existence, schema (columns, CHECK constraints, NOT NULL for title/type, nullable for description/url/price/merchant/image/milestone_id, price accepts zero, price rejects negative), RLS (anon blocked, service bypasses, user isolation), data integrity (3 recs stored, all fields verified, types stored, milestone linked, without milestone, prices in cents, URLs, merchants), milestone FK (SET NULL on delete, FK enforcement), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_milestone` fixture (vault with birthday milestone), `test_vault_with_recommendations` fixture (vault with 3 recommendations: gift/experience/date linked to milestone), `_insert_recommendation_raw` helper for testing failure responses, and sample recommendation constants (`SAMPLE_GIFT_REC`, `SAMPLE_EXPERIENCE_REC`, `SAMPLE_DATE_REC`).
+- `test_recommendation_feedback_table.py` — Integration tests verifying the `public.recommendation_feedback` table schema, CHECK constraints (action for 5 values, rating for 1-5 range), dual FK CASCADE (recommendation_id + user_id), direct RLS enforcement (`user_id = auth.uid()`), data integrity (selected action, rated with text, multiple feedback per recommendation), and CASCADE behavior (Step 1.10). 27 tests across 5 classes: table existence, schema (columns, action CHECK with all 5 values tested, rating range CHECK rejects 0 and 6, rating accepts 1-5, rating nullable, feedback_text nullable/stores value, action NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (selected action queried by recommendation_id, rated with text stored, multiple entries per recommendation), and cascades (recommendation deletion, full auth chain, recommendation_id FK enforcement, user_id FK enforcement). Introduces `test_vault_with_recommendation` fixture (vault with a gift recommendation), `test_feedback_selected` fixture (feedback with action='selected'), `_insert_feedback_raw` helper for testing failure responses, and `_delete_feedback` helper.
+- `test_notification_queue_table.py` — Integration tests verifying the `public.notification_queue` table schema, CHECK constraints (days_before for 14/7/3, status for 4 values), DEFAULT status to 'pending', status transition semantics, direct RLS enforcement (`user_id = auth.uid()`), data integrity (pending stored, 3 per milestone ordered, field values, status update to sent with sent_at, status update to cancelled), and CASCADE behavior (Step 1.11). 26 tests across 5 classes: table existence, schema (columns, days_before CHECK rejects invalid/accepts 14/7/3, status CHECK rejects invalid/accepts all 4, status defaults to pending, sent_at nullable, scheduled_for NOT NULL, days_before NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (pending queryable, 3 per milestone at 14/7/3, field values verified, update to sent with sent_at, update to cancelled), and cascades (milestone deletion, full auth chain, milestone_id FK enforcement, user_id FK enforcement). Introduces `test_vault_with_milestone` fixture (vault with birthday milestone), `test_notification_pending` fixture (single pending at 14 days), `test_three_notifications` fixture (14/7/3 set), `_insert_notification_raw` helper, `_update_notification` helper, and `_future_timestamp` helper for generating ISO 8601 timestamps.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -571,7 +580,95 @@ Like `hints`, the `recommendations` table has **no UNIQUE constraints and no car
 - Multiple batches of 3 can exist for the same vault and milestone (e.g., initial batch + refreshed batch)
 - The same recommendation could theoretically be regenerated (e.g., if the user refreshes and the API returns the same item)
 - Historical recommendations are never deleted by the system — only by vault CASCADE or explicit user action
-- The `recommendation_feedback` table (Step 1.10) will link to specific recommendation IDs to track which ones were selected, refreshed, saved, or shared
+- The `recommendation_feedback` table (Step 1.10) links to specific recommendation IDs to track which ones were selected, refreshed, saved, or shared
+
+### 45. Direct RLS vs Vault Subquery RLS
+Two RLS patterns are now used in the schema:
+
+**Vault Subquery Pattern** (used by child tables of `partner_vaults`):
+```sql
+USING (EXISTS (
+    SELECT 1 FROM public.partner_vaults
+    WHERE partner_vaults.id = child_table.vault_id
+    AND partner_vaults.user_id = auth.uid()
+))
+```
+Used by: `partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`, `recommendations`
+
+**Direct User ID Pattern** (used by tables with their own `user_id` column):
+```sql
+USING (user_id = auth.uid())
+```
+Used by: `users`, `recommendation_feedback`, `notification_queue`
+
+The direct pattern is simpler and more performant (no subquery/join needed). It's used when the table has a direct relationship to the user, not mediated through the partner vault. The `recommendation_feedback` and `notification_queue` tables have their own `user_id` because they model user actions and system events rather than partner profile data.
+
+### 46. Dual FK CASCADE on Feedback Table
+The `recommendation_feedback` table is the **first table with foreign keys to two different parent tables** that both use CASCADE:
+- `recommendation_id → recommendations ON DELETE CASCADE`
+- `user_id → users ON DELETE CASCADE`
+
+This means a feedback row can be deleted from two independent paths:
+1. When the recommendation is deleted (e.g., vault deletion cascading through `vaults → recommendations → feedback`)
+2. When the user account is deleted (e.g., `auth.users → users → feedback`)
+
+This is safe because feedback is meaningless without either the recommendation it refers to or the user who provided it. Both CASCADE paths lead to correct cleanup.
+
+### 47. Partial Composite Index for Job Processing
+The `notification_queue` table introduces a **partial index** — the first in the schema:
+```sql
+CREATE INDEX idx_notification_queue_status_scheduled
+    ON public.notification_queue (status, scheduled_for)
+    WHERE status = 'pending';
+```
+
+This index only includes rows where `status = 'pending'`, making it highly efficient for the notification processing job's primary query pattern: "find all pending notifications scheduled before NOW." Key benefits:
+- The index is much smaller than a full index (excludes sent/failed/cancelled rows that accumulate over time)
+- As notifications are processed and marked 'sent', they automatically leave the index
+- The composite `(status, scheduled_for)` allows PostgreSQL to satisfy both the filter and the sort in a single index scan
+
+This pattern is recommended for any "job queue" table where the processing query always filters by a specific status value.
+
+### 48. Notification Queue as CASCADE (Not SET NULL)
+The `notification_queue.milestone_id` uses `ON DELETE CASCADE` (not SET NULL like `recommendations.milestone_id`). The reasoning:
+- **Notifications are prospective** — they represent future actions to be taken. If the milestone is deleted, the notifications are meaningless and should be cleaned up.
+- **Recommendations are retrospective** — they represent past suggestions that the user may have acted on. Preserving them as historical records (with `milestone_id` set to NULL) is valuable for the feedback/learning loop.
+
+This creates a clear pattern: **forward-looking references CASCADE, backward-looking references SET NULL.**
+
+### 49. SwiftData Model Design Decisions
+The SwiftData models (Step 1.12) follow several deliberate design choices:
+
+**Raw String for Enum Storage:**
+SwiftData has limitations with persisting custom enums directly. `SyncStatus` is stored as `syncStatusRaw: String` with a computed `syncStatus` property for type-safe access. This pattern should be used for all future SwiftData enums.
+
+**Nullable `remoteID` for Offline-First:**
+All models use `remoteID: UUID?` (nullable) rather than a required ID. When a record is created locally (e.g., capturing a hint while offline), it won't have a Supabase UUID until it's synced. The nullable pattern enables offline-first creation without dummy IDs.
+
+**No SwiftData `@Relationship` Links:**
+The models do NOT define SwiftData `@Relationship` between them (e.g., vault → hints). Relationships are managed via UUID foreign keys, matching the Supabase schema pattern. This avoids SwiftData's complex relationship lifecycle management and keeps the models as simple data containers. SwiftData relationships can be added later if local query performance demands it.
+
+**Excluded Server-Only Columns:**
+`HintLocal` excludes `hint_embedding` (768-float vector). This column is only used server-side for semantic search via the `match_hints()` RPC function. Storing it on-device would waste ~3KB per hint with no local utility.
+
+### 50. Complete Database Schema Summary (End of Phase 1)
+With Phase 1 complete, the full database schema consists of 12 tables:
+
+| # | Table | Parent FK | Delete Behavior | RLS Pattern |
+|---|-------|-----------|----------------|-------------|
+| 1 | `users` | `auth.users` | CASCADE | Direct (`id = auth.uid()`) |
+| 2 | `partner_vaults` | `users` | CASCADE | Direct (`user_id = auth.uid()`) |
+| 3 | `partner_interests` | `partner_vaults` | CASCADE | Vault subquery |
+| 4 | `partner_milestones` | `partner_vaults` | CASCADE | Vault subquery |
+| 5 | `partner_vibes` | `partner_vaults` | CASCADE | Vault subquery |
+| 6 | `partner_budgets` | `partner_vaults` | CASCADE | Vault subquery |
+| 7 | `partner_love_languages` | `partner_vaults` | CASCADE | Vault subquery |
+| 8 | `hints` | `partner_vaults` | CASCADE | Vault subquery |
+| 9 | `recommendations` | `partner_vaults` + `partner_milestones` | CASCADE + SET NULL | Vault subquery |
+| 10 | `recommendation_feedback` | `recommendations` + `users` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
+| 11 | `notification_queue` | `users` + `partner_milestones` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
+
+Total test count: **291 tests** across 14 test files.
 
 ---
 

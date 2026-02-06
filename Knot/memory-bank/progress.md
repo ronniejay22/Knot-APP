@@ -811,9 +811,174 @@ iOS/Knot/
 
 ---
 
+### Step 1.10: Create User Feedback Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `recommendation_feedback` table with 7 columns for storing user feedback on AI-generated recommendations
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other tables)
+- `recommendation_id` is a NOT NULL FK to `recommendations(id)` with `ON DELETE CASCADE` — deleting a recommendation removes its feedback
+- `user_id` is a NOT NULL FK to `users(id)` with `ON DELETE CASCADE` — deleting a user removes their feedback
+- `action` has a CHECK constraint for 5 valid enum values: `selected`, `refreshed`, `saved`, `shared`, `rated`
+- `rating` has a CHECK constraint for values 1-5 (nullable — only provided for `rated` action)
+- `feedback_text` is nullable TEXT for optional text feedback (e.g., "She loved the pottery class!")
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using direct `user_id = auth.uid()` (unlike child tables that use vault subquery, feedback has a direct `user_id` column)
+- Created two indexes: `idx_feedback_recommendation_id` (for querying feedback by recommendation) and `idx_feedback_user_id` (for querying feedback by user)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- No UNIQUE constraints — multiple feedback entries per recommendation allowed (e.g., `selected` then `rated`)
+- Created 27 tests across 5 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00011_create_recommendation_feedback_table.sql` — Full migration with table, CHECK constraints (action + rating 1-5), RLS, indexes, and grants
+- `backend/tests/test_recommendation_feedback_table.py` — 27 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_recommendation_feedback_table.py -v` — 27 passed, 0 failed, ~40s
+- ✅ Table accessible via PostgREST API
+- ✅ All 7 columns present (id, recommendation_id, user_id, action, rating, feedback_text, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ action CHECK constraint rejects invalid values (e.g., 'clicked')
+- ✅ All 5 valid action values accepted (selected, refreshed, saved, shared, rated)
+- ✅ action NOT NULL constraint enforced
+- ✅ rating CHECK constraint rejects 0 (must be >= 1)
+- ✅ rating CHECK constraint rejects 6 (must be <= 5)
+- ✅ rating accepts all valid values (1, 2, 3, 4, 5)
+- ✅ rating is nullable (NULL for non-rated actions)
+- ✅ feedback_text is nullable
+- ✅ feedback_text stores value correctly when provided
+- ✅ Anon client (no JWT) sees 0 feedback rows — RLS enforced
+- ✅ Service client (admin) can read all feedback — RLS bypassed
+- ✅ User isolation verified: each user sees only their own feedback
+- ✅ Feedback for 'selected' action stored and queried by recommendation_id
+- ✅ Rated feedback with text stored correctly (action=rated, rating=4, text present)
+- ✅ Multiple feedback entries per recommendation allowed (selected + rated)
+- ✅ CASCADE delete verified: recommendation deletion removed feedback rows
+- ✅ Full CASCADE delete verified: auth deletion removed feedback rows
+- ✅ FK constraint enforced: non-existent recommendation_id rejected
+- ✅ FK constraint enforced: non-existent user_id rejected
+- ✅ All existing tests still pass (238 from Steps 0.5–1.9 + 27 new = 265 total)
+
+**Notes:**
+- The `recommendation_feedback` table uses **direct RLS** (`user_id = auth.uid()`) instead of the subquery pattern used by vault child tables. This is because feedback has its own `user_id` column — it doesn't need to traverse through `partner_vaults` to determine ownership. This is simpler and more performant for RLS evaluation.
+- The table has **dual FK relationships**: `recommendation_id → recommendations` (CASCADE) and `user_id → users` (CASCADE). This means feedback can be deleted from two directions: when the recommendation is removed, or when the user account is deleted. Both paths cascade cleanly.
+- No UNIQUE constraints are imposed — a user can submit multiple feedback entries for the same recommendation (e.g., `selected` when they pick it, then `rated` after the purchase). This models the real user journey where feedback accumulates over time.
+- The `rating` column uses a range CHECK (`rating >= 1 AND rating <= 5`) rather than an IN check, which is more natural for numeric ranges and would support fractional ratings in the future if needed.
+- The test file introduces `test_vault_with_recommendation` fixture (vault with a single gift recommendation), `test_feedback_selected` fixture (feedback entry with action='selected'), `_insert_feedback_raw` helper for testing failure responses, and `_delete_feedback` helper for cleanup.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_recommendation_feedback_table.py -v`
+
+---
+
+### Step 1.11: Create Notification Queue Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `notification_queue` table with 8 columns for scheduling proactive milestone notifications
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other tables)
+- `user_id` is a NOT NULL FK to `users(id)` with `ON DELETE CASCADE`
+- `milestone_id` is a NOT NULL FK to `partner_milestones(id)` with `ON DELETE CASCADE` — deleting a milestone cancels its pending notifications
+- `scheduled_for` is NOT NULL TIMESTAMPTZ — the exact timestamp when the notification should be sent
+- `days_before` has a CHECK constraint for 3 valid integer values: `14`, `7`, `3` — the notification schedule cadence
+- `status` has a CHECK constraint for 4 valid enum values: `pending`, `sent`, `failed`, `cancelled` — defaults to `'pending'`
+- `sent_at` is nullable TIMESTAMPTZ — NULL until the notification is actually sent
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using direct `user_id = auth.uid()` (same pattern as `recommendation_feedback`)
+- Created three indexes: `idx_notification_queue_user_id`, `idx_notification_queue_milestone_id`, and a **partial composite index** `idx_notification_queue_status_scheduled` on `(status, scheduled_for) WHERE status = 'pending'` for the notification processing job
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- Created 26 tests across 5 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00012_create_notification_queue_table.sql` — Full migration with table, CHECK constraints (days_before + status), DEFAULT status, RLS, indexes (including partial), and grants
+- `backend/tests/test_notification_queue_table.py` — 26 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_notification_queue_table.py -v` — 26 passed, 0 failed, ~36s
+- ✅ Table accessible via PostgREST API
+- ✅ All 8 columns present (id, user_id, milestone_id, scheduled_for, days_before, status, sent_at, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ days_before CHECK constraint rejects invalid values (e.g., 10)
+- ✅ days_before accepts all 3 valid values (14, 7, 3)
+- ✅ days_before NOT NULL constraint enforced
+- ✅ status CHECK constraint rejects invalid values (e.g., 'delivered')
+- ✅ status defaults to 'pending' when not explicitly provided
+- ✅ status accepts all 4 valid values (pending, sent, failed, cancelled)
+- ✅ sent_at is nullable (NULL until sent)
+- ✅ scheduled_for NOT NULL constraint enforced
+- ✅ Anon client (no JWT) sees 0 notifications — RLS enforced
+- ✅ Service client (admin) can read all notifications — RLS bypassed
+- ✅ User isolation verified: each user sees only their own notifications
+- ✅ Pending notification stored and queryable by status
+- ✅ Three notifications per milestone (14, 7, 3 days before) stored and ordered correctly
+- ✅ All field values verified (user_id, milestone_id, days_before, status, sent_at, scheduled_for)
+- ✅ Status updated from 'pending' to 'sent' with sent_at populated
+- ✅ Status updated from 'pending' to 'cancelled'
+- ✅ CASCADE delete verified: milestone deletion removed notification rows
+- ✅ Full CASCADE delete verified: auth deletion removed notification rows
+- ✅ FK constraint enforced: non-existent milestone_id rejected
+- ✅ FK constraint enforced: non-existent user_id rejected
+- ✅ All existing tests still pass (265 from Steps 0.5–1.10 + 26 new = 291 total)
+
+**Notes:**
+- The `notification_queue` table introduces a **partial composite index**: `CREATE INDEX ... ON notification_queue (status, scheduled_for) WHERE status = 'pending'`. This is the first partial index in the schema. It only indexes rows where `status = 'pending'`, making it highly efficient for the notification processing job's query pattern: "find all pending notifications scheduled before NOW." Rows with status `sent`, `failed`, or `cancelled` are excluded from the index, keeping it compact.
+- Like `recommendation_feedback`, the `notification_queue` uses **direct RLS** (`user_id = auth.uid()`) rather than the subquery pattern. Both tables have their own `user_id` column for direct ownership checks.
+- The `milestone_id` FK uses `ON DELETE CASCADE` (unlike `recommendations.milestone_id` which uses `ON DELETE SET NULL`). The reasoning: notification queue entries for a deleted milestone are meaningless and should be cleaned up. Recommendations are historical records worth preserving; scheduled notifications for a nonexistent milestone are not.
+- The `days_before` CHECK uses `IN (14, 7, 3)` for discrete valid values rather than a range CHECK. This matches the implementation plan's specification that notifications fire at exactly these three intervals.
+- The `status` column defaults to `'pending'` via `DEFAULT 'pending'` — the first column in the schema with a text default (other defaults have been `now()` for timestamps, `gen_random_uuid()` for UUIDs, `'US'` for country, and `false` for booleans).
+- The test file introduces `test_vault_with_milestone` fixture (vault with a birthday milestone), `test_notification_pending` fixture (single pending notification at 14 days), `test_three_notifications` fixture (notifications at 14, 7, 3 days), `_insert_notification_raw` helper for testing failure responses, `_update_notification` helper for testing status transitions, and `_future_timestamp` helper for generating ISO 8601 timestamps.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_notification_queue_table.py -v`
+
+---
+
+### Step 1.12: Create SwiftData Models (iOS) ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created 4 SwiftData `@Model` classes mirroring key database tables for local access
+- Created `SyncStatus` enum (`synced`, `pendingUpload`, `pendingDownload`) shared by all models
+- Each model stores `syncStatusRaw` as a `String` (SwiftData-compatible) with a computed `syncStatus` property for type-safe enum access
+- Registered all 4 models in `KnotApp.swift`'s `ModelContainer` schema
+- Removed the `.gitkeep` placeholder from the `Models/` folder
+- Regenerated the Xcode project via `xcodegen generate`
+
+**Files created:**
+- `iOS/Knot/Models/SyncStatus.swift` — `SyncStatus` enum with `synced`, `pendingUpload`, `pendingDownload` cases (Codable + Sendable)
+- `iOS/Knot/Models/PartnerVaultLocal.swift` — SwiftData model mirroring `partner_vaults` table (10 DB columns + syncStatus)
+- `iOS/Knot/Models/HintLocal.swift` — SwiftData model mirroring `hints` table (6 DB columns + syncStatus; excludes `hint_embedding`)
+- `iOS/Knot/Models/MilestoneLocal.swift` — SwiftData model mirroring `partner_milestones` table (8 DB columns + syncStatus)
+- `iOS/Knot/Models/RecommendationLocal.swift` — SwiftData model mirroring `recommendations` table (10 DB columns + syncStatus)
+
+**Files modified:**
+- `iOS/Knot/App/KnotApp.swift` — Updated `Schema` to include all 4 SwiftData models: `PartnerVaultLocal.self`, `HintLocal.self`, `MilestoneLocal.self`, `RecommendationLocal.self`
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with new model files
+
+**Files removed:**
+- `iOS/Knot/Models/.gitkeep` — No longer needed (real files in folder)
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings
+- ✅ All 4 @Model classes compile with SwiftData macros
+- ✅ SyncStatus enum compiles as Codable + Sendable
+- ✅ ModelContainer initialization succeeds with all 4 model types
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The `@Model` macro automatically adds `Sendable` conformance. Explicitly declaring `: Sendable` on `@Model` classes causes a "redundant conformance" warning in Swift 6. The explicit conformance was removed from all 4 model classes.
+- `SyncStatus` is stored as a raw `String` (`syncStatusRaw`) in SwiftData because SwiftData requires all persisted properties to be simple types. The computed `syncStatus` property provides type-safe access to the enum. This pattern avoids SwiftData limitations with persisting custom enums directly.
+- `HintLocal` deliberately **excludes** the `hint_embedding` column (`vector(768)`) from the Supabase `hints` table. Embeddings are only used server-side for semantic search via `match_hints()` RPC. Storing 768-float vectors on-device would waste ~3KB per hint with no local utility.
+- `RecommendationLocal` renames `description` to `descriptionText` to avoid conflict with Swift's built-in `CustomStringConvertible.description` protocol requirement.
+- All models use `UUID?` for `remoteID` (nullable) because a locally-created record won't have a Supabase ID until it's synced. The `?` nullable pattern enables offline-first creation.
+- The models do NOT define SwiftData `@Relationship` links between them (e.g., vault → hints). This is intentional for MVP — relationships are managed via UUID foreign keys, matching the Supabase schema pattern. SwiftData relationships can be added in a future iteration if local query performance requires it.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.10:** Create User Feedback Table
+- [ ] **Step 2.1:** Implement Apple Sign-In Button (iOS)
 
 ---
 

@@ -13,7 +13,10 @@ import SwiftData
 struct KnotApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            // SwiftData models will be added here in Step 1.12
+            PartnerVaultLocal.self,
+            HintLocal.self,
+            MilestoneLocal.self,
+            RecommendationLocal.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
