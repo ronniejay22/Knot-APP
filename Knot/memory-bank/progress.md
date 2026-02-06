@@ -604,9 +604,76 @@ iOS/Knot/
 
 ---
 
+### Step 1.7: Create Love Languages Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_love_languages` table with 5 columns for storing a partner's primary and secondary love languages
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other child tables)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `language` has a CHECK constraint for 5 valid enum values: `words_of_affirmation`, `acts_of_service`, `receiving_gifts`, `quality_time`, `physical_touch`
+- `priority` has a CHECK constraint for 2 valid values: `1` (primary) and `2` (secondary)
+- Two UNIQUE constraints enforce the "exactly one primary and one secondary" rule at the database level:
+  - `UNIQUE(vault_id, priority)` — prevents duplicate priorities per vault (at most one primary, one secondary)
+  - `UNIQUE(vault_id, language)` — prevents the same language from being both primary and secondary
+- Combined with `CHECK(priority IN (1, 2))`, these constraints mean a vault can have at most 2 love language rows total — no valid priority slot exists for a third
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using the subquery pattern through `partner_vaults` to check `auth.uid() = user_id`
+- Created index on `vault_id` for fast lookups (in addition to the two composite unique indexes)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- No trigger functions needed — love languages are simple value storage with no computed defaults
+- "Exactly one primary and one secondary per vault" minimum cardinality enforced at API layer (Step 3.10); database enforces maximum cardinality
+- Created 28 tests across 5 test classes
+
+**Files created:**
+- `backend/supabase/migrations/00008_create_partner_love_languages_table.sql` — Full migration with table, CHECK constraints (language + priority), two UNIQUE constraints (vault_id+priority, vault_id+language), RLS, index, and grants
+- `backend/tests/test_partner_love_languages_table.py` — 28 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_love_languages_table.py -v` — 28 passed, 0 failed, 40.74s
+- ✅ Table accessible via PostgREST API
+- ✅ All 5 columns present (id, vault_id, language, priority, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ language CHECK constraint rejects invalid values (e.g., 'gift_giving')
+- ✅ All 5 valid language values accepted (words_of_affirmation, acts_of_service, receiving_gifts, quality_time, physical_touch)
+- ✅ priority CHECK constraint rejects invalid values (e.g., 3, 0)
+- ✅ Both valid priority values accepted (1=primary, 2=secondary)
+- ✅ language NOT NULL constraint enforced
+- ✅ priority NOT NULL constraint enforced
+- ✅ UNIQUE(vault_id, priority) prevents duplicate primary love language
+- ✅ UNIQUE(vault_id, priority) prevents duplicate secondary love language
+- ✅ UNIQUE(vault_id, language) prevents same language as both primary and secondary
+- ✅ Same language allowed for different vaults (UNIQUE scoped to vault)
+- ✅ Third love language correctly rejected (no valid priority slot available)
+- ✅ Anon client (no JWT) sees 0 love languages — RLS enforced
+- ✅ Service client (admin) can read all love languages — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own love languages
+- ✅ Primary and secondary love languages stored and retrieved correctly
+- ✅ Love language field values verified (vault_id, language)
+- ✅ Primary love language verified (quality_time, priority=1)
+- ✅ Secondary love language verified (receiving_gifts, priority=2)
+- ✅ Update primary to different language succeeded (quality_time → physical_touch)
+- ✅ Update primary to same language as secondary correctly rejected (UNIQUE violation)
+- ✅ CASCADE delete verified: vault deletion removed love language rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → partner_love_languages
+- ✅ Foreign key enforced: non-existent vault_id rejected
+- ✅ All existing tests still pass (149 from Steps 0.5–1.6 + 28 new = 177 total)
+
+**Notes:**
+- The `partner_love_languages` table uses a **dual UNIQUE constraint** strategy to enforce the "exactly one primary, one secondary" rule at the database level as tightly as possible. `UNIQUE(vault_id, priority)` prevents multiple rows with the same priority, and `UNIQUE(vault_id, language)` prevents the same language from appearing at both priorities. Combined with `CHECK(priority IN (1, 2))`, the maximum cardinality is exactly 2 rows per vault — no third row can be inserted because all valid priority values are taken, and priority=3 is rejected by the CHECK constraint.
+- The minimum cardinality (requiring that both a primary AND secondary exist) cannot be enforced at the database level — PostgreSQL constraints operate on existing rows, not missing ones. This will be enforced at the API layer in Step 3.10 via Pydantic validation in the `POST /api/v1/vault` endpoint.
+- Unlike `partner_budgets` (which uses `UNIQUE(vault_id, occasion_type)` for one-to-one mapping), `partner_love_languages` uses TWO UNIQUE constraints for different purposes: one for priority deduplication, one for language mutual exclusion. This is the first table with multiple UNIQUE constraints.
+- Updating a love language (e.g., changing primary from `quality_time` to `physical_touch`) works via a standard PATCH/UPDATE on the existing row. Updating primary to the same language as secondary is correctly blocked by `UNIQUE(vault_id, language)`.
+- The CASCADE chain is 4 levels deep (same as all other child tables): `auth.users` → `public.users` → `partner_vaults` → `partner_love_languages`.
+- The test file introduces `test_vault_with_love_languages` fixture (vault pre-populated with primary=quality_time, secondary=receiving_gifts), `_insert_love_language_raw` helper for testing failure responses, and `_update_love_language` helper for testing updates.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_love_languages_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.7:** Create Love Languages Table
+- [ ] **Step 1.8:** Create Hints Table with Vector Embedding
 
 ---
 

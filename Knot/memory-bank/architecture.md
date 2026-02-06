@@ -140,7 +140,9 @@ backend/
 │       ├── 00003_create_partner_vaults_table.sql  # Partner vaults with CHECK, UNIQUE, RLS, CASCADE
 │       ├── 00004_create_partner_interests_table.sql  # Partner interests (likes/dislikes) with CHECK, UNIQUE, RLS, CASCADE
 │       ├── 00005_create_partner_milestones_table.sql # Partner milestones with CHECK, trigger-based budget defaults, RLS, CASCADE
-│       └── 00006_create_partner_vibes_table.sql     # Partner aesthetic vibes with CHECK (8 values), UNIQUE, RLS, CASCADE
+│       ├── 00006_create_partner_vibes_table.sql     # Partner aesthetic vibes with CHECK (8 values), UNIQUE, RLS, CASCADE
+│       ├── 00007_create_partner_budgets_table.sql   # Partner budgets with CHECK (occasion_type, max>=min, min>=0), UNIQUE, RLS, CASCADE
+│       └── 00008_create_partner_love_languages_table.sql # Partner love languages with CHECK (language, priority), dual UNIQUE, RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
@@ -151,7 +153,8 @@ backend/
 │   ├── test_partner_interests_table.py  # Verifies partner_interests schema, CHECK/UNIQUE constraints, RLS, cascades (22 tests)
 │   ├── test_partner_milestones_table.py # Verifies partner_milestones schema, budget tier trigger, RLS, cascades (28 tests)
 │   ├── test_partner_vibes_table.py      # Verifies partner_vibes schema, CHECK/UNIQUE constraints, RLS, cascades (19 tests)
-│   └── test_partner_budgets_table.py    # Verifies partner_budgets schema, CHECK constraints (occasion_type, max>=min, min>=0), UNIQUE, RLS, cascades (27 tests)
+│   ├── test_partner_budgets_table.py    # Verifies partner_budgets schema, CHECK constraints (occasion_type, max>=min, min>=0), UNIQUE, RLS, cascades (27 tests)
+│   └── test_partner_love_languages_table.py # Verifies partner_love_languages schema, CHECK (language, priority), dual UNIQUE, RLS, update semantics, cascades (28 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -208,6 +211,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | `00005_create_partner_milestones_table.sql` | Creates `public.partner_milestones` table (id, vault_id, milestone_type, milestone_name, milestone_date, recurrence, budget_tier, created_at). Three CHECK constraints: `milestone_type` for 4 types (birthday/anniversary/holiday/custom), `recurrence` for yearly/one_time, `budget_tier` for 3 tiers. Creates `handle_milestone_budget_tier()` BEFORE INSERT trigger that auto-sets budget_tier when not provided: birthday/anniversary → major_milestone, holiday → minor_occasion, custom → must be explicit (NULL rejected by NOT NULL). No UNIQUE constraint on (vault_id, milestone_type) — multiple milestones of same type allowed (e.g., multiple holidays). FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 | `00006_create_partner_vibes_table.sql` | Creates `public.partner_vibes` table (id, vault_id, vibe_tag, created_at). CHECK constraint on `vibe_tag` for 8 valid aesthetic values: quiet_luxury, street_urban, outdoorsy, vintage, minimalist, bohemian, romantic, adventurous. `UNIQUE(vault_id, vibe_tag)` prevents duplicate vibes per vault (same deduplication pattern as `partner_interests`). No trigger functions needed — vibes are simple tag storage with no computed defaults. "Minimum 1, maximum 4 vibes per vault" enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 | `00007_create_partner_budgets_table.sql` | Creates `public.partner_budgets` table (id, vault_id, occasion_type, min_amount, max_amount, currency, created_at). CHECK constraint on `occasion_type` for 3 budget tiers: just_because, minor_occasion, major_milestone. Two cross-column CHECK constraints: `max_amount >= min_amount` (prevents invalid ranges) and `min_amount >= 0` (prevents negative amounts). Amounts stored as **integers in cents** (e.g., 2000 = $20.00) to avoid floating-point precision issues. `UNIQUE(vault_id, occasion_type)` ensures one budget per occasion type per vault. `currency` defaults to `'USD'` — international users can override. No trigger functions needed — budgets are direct value storage. "Exactly 3 tiers per vault" enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
+| `00008_create_partner_love_languages_table.sql` | Creates `public.partner_love_languages` table (id, vault_id, language, priority, created_at). CHECK constraint on `language` for 5 valid values: words_of_affirmation, acts_of_service, receiving_gifts, quality_time, physical_touch. CHECK constraint on `priority` for values 1 (primary) and 2 (secondary) only. **Dual UNIQUE constraint strategy:** `UNIQUE(vault_id, priority)` prevents duplicate priorities per vault (at most one primary, one secondary), and `UNIQUE(vault_id, language)` prevents the same language from being both primary and secondary. Combined with the priority CHECK constraint, the maximum is exactly 2 rows per vault — a third row is impossible because no valid priority slot remains. No trigger functions needed. "Both primary and secondary must exist" minimum cardinality enforced at API layer, not database. FK CASCADE to `partner_vaults`. RLS uses subquery pattern. Index on `vault_id`. |
 
 ### Business Logic (`app/services/`)
 
@@ -304,6 +308,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_partner_milestones_table.py` — Integration tests verifying the `public.partner_milestones` table schema, CHECK constraints (milestone_type + recurrence + budget_tier), budget tier auto-default trigger, RLS enforcement via subquery, data integrity (multiple milestones per vault, field verification), and CASCADE behavior (Step 1.4). 28 tests across 6 classes: table existence, schema (columns, 3 CHECK constraints, NOT NULL, date storage), budget tier defaults (birthday/anniversary auto-major, holiday auto-minor, holiday override, custom user-provided, custom without tier rejected), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple milestones, field verification, duplicate types allowed), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_milestones` fixture (vault pre-populated with 4 milestones: birthday, anniversary, Valentine's Day, custom) and `_insert_milestone_raw` helper for testing failure responses.
 - `test_partner_vibes_table.py` — Integration tests verifying the `public.partner_vibes` table schema, CHECK constraint (vibe_tag for 8 values), UNIQUE constraint (prevents duplicate vibes per vault), RLS enforcement via subquery, data integrity (multiple vibes, single vibe, max 4 vibes), and CASCADE behavior (Step 1.5). 19 tests across 5 classes: table existence, schema (columns, CHECK constraint, NOT NULL, UNIQUE prevents duplicates, same vibe allowed across vaults), RLS (anon blocked, service bypasses, user isolation), data integrity (multiple vibes, field values, max 4, single vibe), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_vibes` fixture (vault pre-populated with 3 vibes: quiet_luxury, minimalist, romantic) and `_insert_vibe_raw` helper for testing failure responses.
 - `test_partner_budgets_table.py` — Integration tests verifying the `public.partner_budgets` table schema, CHECK constraints (occasion_type for 3 values, max_amount >= min_amount, min_amount >= 0), UNIQUE constraint (prevents duplicate occasion types per vault), RLS enforcement via subquery, data integrity (all 3 tiers stored, amounts correct in cents, currency defaults, integer storage, zero min allowed), and CASCADE behavior (Step 1.6). 27 tests across 5 classes: table existence, schema (columns, 3 CHECK constraints, NOT NULL for all required fields, UNIQUE prevents duplicate occasion types, same type allowed across vaults, currency default/override), RLS (anon blocked, service bypasses, user isolation), data integrity (3 tiers stored and verified, amounts in cents, field values, zero min), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_budgets` fixture (vault pre-populated with 3 budget tiers: just_because $20-$50, minor_occasion $50-$150, major_milestone $100-$500) and `_insert_budget_raw` helper for testing failure responses.
+- `test_partner_love_languages_table.py` — Integration tests verifying the `public.partner_love_languages` table schema, CHECK constraints (language for 5 values, priority for 1/2 only), dual UNIQUE constraints (vault_id+priority prevents duplicate priorities, vault_id+language prevents same language at both priorities), RLS enforcement via subquery, data integrity (primary/secondary stored, field values, update primary succeeds, update to conflicting language fails), and CASCADE behavior (Step 1.7). 28 tests across 5 classes: table existence, schema (columns, 2 CHECK constraints, NOT NULL, 2 UNIQUE constraints, third language rejection, same language across vaults allowed, priority 0 rejected), RLS (anon blocked, service bypasses, user isolation), data integrity (primary+secondary stored, field values, primary correct, secondary correct, update primary succeeds, update to same-as-secondary fails), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_love_languages` fixture (vault pre-populated with primary=quality_time, secondary=receiving_gifts), `_insert_love_language_raw` helper for testing failure responses, and `_update_love_language` helper for testing update semantics.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -463,10 +468,29 @@ The `UNIQUE(vault_id, occasion_type)` constraint on `partner_budgets` ensures ea
 - `partner_interests`: `UNIQUE(vault_id, interest_category)` — deduplication + mutual exclusion (like/dislike)
 - `partner_vibes`: `UNIQUE(vault_id, vibe_tag)` — pure deduplication
 - `partner_budgets`: `UNIQUE(vault_id, occasion_type)` — enforces one-to-one mapping between vault and each occasion type
+- `partner_love_languages`: `UNIQUE(vault_id, priority)` + `UNIQUE(vault_id, language)` — dual constraint for priority uniqueness + language mutual exclusion (see §35)
 
 This means updating a budget tier requires an `UPDATE` on the existing row (not `DELETE` + `INSERT`). The API layer should use upsert semantics when the user adjusts their budget sliders.
 
-### 35. Currency as Flexible Text Column
+### 35. Dual UNIQUE Constraint Strategy for Love Languages
+The `partner_love_languages` table introduces a new pattern: using **two UNIQUE constraints** together to enforce both priority uniqueness and language mutual exclusion:
+- `UNIQUE(vault_id, priority)` — ensures at most one primary (1) and one secondary (2) per vault
+- `UNIQUE(vault_id, language)` — ensures the same language cannot appear at both priorities for a vault
+
+Combined with `CHECK(priority IN (1, 2))`, these constraints create a hard maximum of 2 rows per vault. A third insert is impossible because:
+1. Priority 1 is taken → `UNIQUE(vault_id, priority)` blocks another priority=1
+2. Priority 2 is taken → `UNIQUE(vault_id, priority)` blocks another priority=2
+3. Priority 3+ → `CHECK(priority IN (1, 2))` blocks it
+
+This is more restrictive than other child tables:
+- `partner_interests`: single UNIQUE, unlimited rows within constraint
+- `partner_vibes`: single UNIQUE, up to 8 rows (one per valid vibe)
+- `partner_budgets`: single UNIQUE, up to 3 rows (one per occasion type)
+- `partner_love_languages`: dual UNIQUE + CHECK, **exactly 0-2 rows** (hard database limit)
+
+Updating a love language (e.g., changing primary from `quality_time` to `physical_touch`) works via a standard PATCH. However, swapping primary and secondary requires a multi-step process (delete one, update the other, re-insert) because the UNIQUE constraints prevent intermediate states where both rows have the same language or priority. The API layer should handle swap operations as a transaction.
+
+### 36. Currency as Flexible Text Column
 The `currency` column on `partner_budgets` uses `TEXT NOT NULL DEFAULT 'USD'` rather than a CHECK constraint with a fixed list of ISO 4217 codes. This design choice:
 - **Supports international users** without database migrations when adding new currencies
 - **Delegates validation** to the API layer (Pydantic model can validate against a known list of ISO 4217 codes)
