@@ -8,13 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A501D3EBBEA7CF8A2C828AD /* Constants.swift */; };
+		08FF4428155608D136787B78 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AA11148E4DFC8D8D22DA69D6 /* Supabase */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
 		4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */ = {isa = PBXBuildFile; productRef = 15C498B5F04CB77F50A32471 /* LucideIcons */; };
 		5F1D462AA8C8892C53A6324C /* KnotUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */; };
 		80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83BE2463CD2906C42BAABEC /* ContentView.swift */; };
+		87887A63D053FC1A6B023981 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 2AB9DA03F64ECAF39D6C01B3 /* Auth */; };
 		897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8706879774F71CFAE5954F25 /* KnotTests.swift */; };
 		B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
+		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +61,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */,
+				87887A63D053FC1A6B023981 /* Auth in Frameworks */,
+				D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */,
+				08FF4428155608D136787B78 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,6 +197,9 @@
 			name = Knot;
 			packageProductDependencies = (
 				15C498B5F04CB77F50A32471 /* LucideIcons */,
+				2AB9DA03F64ECAF39D6C01B3 /* Auth */,
+				BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */,
+				AA11148E4DFC8D8D22DA69D6 /* Supabase */,
 			);
 			productName = Knot;
 			productReference = 842768D146B565195D8F3390 /* Knot.app */;
@@ -268,6 +277,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */,
+				7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -628,6 +638,14 @@
 				minimumVersion = 0.563.1;
 			};
 		};
+		7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -635,6 +653,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */;
 			productName = LucideIcons;
+		};
+		2AB9DA03F64ECAF39D6C01B3 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		AA11148E4DFC8D8D22DA69D6 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
