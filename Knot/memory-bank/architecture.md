@@ -137,14 +137,16 @@ backend/
 │   └── migrations/            # SQL migrations (run via SQL Editor or Supabase CLI)
 │       ├── 00001_enable_pgvector.sql  # Enables pgvector extension for vector search
 │       ├── 00002_create_users_table.sql  # Users table with RLS, triggers, and grants
-│       └── 00003_create_partner_vaults_table.sql  # Partner vaults with CHECK, UNIQUE, RLS, CASCADE
+│       ├── 00003_create_partner_vaults_table.sql  # Partner vaults with CHECK, UNIQUE, RLS, CASCADE
+│       └── 00004_create_partner_interests_table.sql  # Partner interests (likes/dislikes) with CHECK, UNIQUE, RLS, CASCADE
 ├── tests/                    # Backend test suite (pytest)
 │   ├── __init__.py
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
 │   ├── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
 │   ├── test_supabase_auth.py # Verifies auth service and Apple Sign-In config (6 tests)
 │   ├── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
-│   └── test_partner_vaults_table.py  # Verifies partner_vaults schema, constraints, RLS, cascades (15 tests)
+│   ├── test_partner_vaults_table.py  # Verifies partner_vaults schema, constraints, RLS, cascades (15 tests)
+│   └── test_partner_interests_table.py  # Verifies partner_interests schema, CHECK/UNIQUE constraints, RLS, cascades (22 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -197,6 +199,7 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 | `00001_enable_pgvector.sql` | Enables the `vector` extension (pgvector) required for hint embedding storage and similarity search. Must be run before creating any tables with `vector(768)` columns. |
 | `00002_create_users_table.sql` | Creates `public.users` table (id, email, created_at, updated_at) linked to `auth.users` via FK with CASCADE delete. Enables RLS with SELECT/UPDATE/INSERT policies enforcing `auth.uid() = id`. Creates two trigger functions: `handle_updated_at()` (reusable, auto-updates timestamp on row changes) and `handle_new_user()` (SECURITY DEFINER, auto-creates profile on auth signup). Grants permissions to `authenticated` and `anon` roles. |
 | `00003_create_partner_vaults_table.sql` | Creates `public.partner_vaults` table (id, user_id, partner_name, relationship_tenure_months, cohabitation_status, location_city, location_state, location_country, created_at, updated_at). `user_id` is UNIQUE (one vault per user) with FK CASCADE to `public.users`. CHECK constraint on `cohabitation_status` for 3 valid enum values. `location_country` defaults to `'US'`. Reuses `handle_updated_at()` trigger from migration 00002. RLS policies enforce `auth.uid() = user_id` for all 4 operations (SELECT, INSERT, UPDATE, DELETE). |
+| `00004_create_partner_interests_table.sql` | Creates `public.partner_interests` table (id, vault_id, interest_type, interest_category, created_at). Two CHECK constraints: `interest_type` for 'like'/'dislike', `interest_category` for 40 predefined categories. `UNIQUE(vault_id, interest_category)` prevents duplicate categories and blocks same interest as both like and dislike. FK CASCADE to `partner_vaults`. RLS policies use subquery to `partner_vaults` to check ownership via `auth.uid() = user_id`. Index on `vault_id` for fast lookups. "Exactly 5 likes + 5 dislikes" enforced at application layer, not database. |
 
 ### Business Logic (`app/services/`)
 
@@ -289,6 +292,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_supabase_auth.py` — Integration tests verifying Supabase Auth service reachability and Apple Sign-In provider configuration (Step 0.7). Checks GoTrue settings/health endpoints and confirms Apple is enabled for native iOS auth.
 - `test_users_table.py` — Integration tests verifying the `public.users` table schema, RLS enforcement, and trigger behavior (Step 1.1). Tests create real auth users via the Supabase Admin API, verify the `handle_new_user` trigger auto-creates profile rows, confirm RLS blocks anonymous access, and validate CASCADE delete behavior. Each test uses a `test_auth_user` fixture that creates and cleans up auth users automatically.
 - `test_partner_vaults_table.py` — Integration tests verifying the `public.partner_vaults` table schema, constraints, RLS enforcement, and trigger/CASCADE behavior (Step 1.2). 15 tests across 4 classes: table existence, schema verification (columns, NOT NULL, CHECK constraint, UNIQUE, defaults), RLS (anon blocked, service bypasses, user isolation), and triggers/cascades (updated_at auto-updates, cascade delete through auth→users→vaults, FK enforcement). Introduces `test_auth_user_pair` fixture for two-user isolation tests and `test_vault` fixture for vault-dependent tests.
+- `test_partner_interests_table.py` — Integration tests verifying the `public.partner_interests` table schema, CHECK constraints (interest_type + interest_category), UNIQUE constraint (prevents duplicates and like+dislike conflicts), RLS enforcement via subquery, data integrity (5 likes + 5 dislikes), and CASCADE behavior (Step 1.3). 22 tests across 5 classes: table existence, schema (columns, CHECK constraints, UNIQUE, NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (insert/retrieve 5+5, no overlap, predefined list), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_interests` fixture (vault pre-populated with 5 likes + 5 dislikes) and `_insert_interest_raw` helper for testing failure responses.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -345,7 +349,7 @@ PostgreSQL CHECK constraints are used for simple enum validation (e.g., `cohabit
 Test files use composable pytest fixtures that build on each other:
 - `test_auth_user` → creates an auth user (trigger creates `public.users` row)
 - `test_vault(test_auth_user)` → creates a vault for that user
-- Future: `test_vault_with_interests(test_vault)` → adds interests to that vault
+- `test_vault_with_interests(test_vault)` → adds 5 likes + 5 dislikes to the vault
 
 Each fixture yields data and relies on CASCADE deletes for automatic cleanup (deleting the auth user cascades through all child data). This avoids manual cleanup logic and ensures tests are isolated.
 
@@ -359,6 +363,33 @@ Tests check for these specific codes to verify the correct constraint is being e
 
 ### 23. Supabase SQL Editor Transaction Behavior
 The Supabase SQL Editor runs multi-statement SQL as a **single transaction**. If any statement fails (e.g., a typo in a role name), the entire batch is rolled back — including earlier statements that appeared to succeed. When running migrations manually, run in smaller batches to isolate failures. Numbered migration files should be run in order, one at a time.
+
+### 24. RLS Subquery Pattern for Child Tables
+Tables that don't have a direct `user_id` column (like `partner_interests`, which only has `vault_id`) use a **subquery pattern** for RLS policies:
+```sql
+CREATE POLICY "interests_select_own"
+    ON public.partner_interests FOR SELECT
+    USING (EXISTS (
+        SELECT 1 FROM public.partner_vaults
+        WHERE partner_vaults.id = partner_interests.vault_id
+        AND partner_vaults.user_id = auth.uid()
+    ));
+```
+This checks ownership by joining through the parent table (`partner_vaults`) to find the `user_id`. All future child tables hanging off `partner_vaults` (milestones, vibes, budgets, love languages, hints) will use this same pattern. The subquery is efficient because PostgreSQL optimizes `EXISTS` with a semi-join.
+
+### 25. UNIQUE Composite Constraint for Mutual Exclusion
+The `UNIQUE(vault_id, interest_category)` constraint on `partner_interests` serves a dual purpose:
+1. **Prevents duplicates** — The same category cannot appear twice for a vault (even with the same `interest_type`)
+2. **Enforces mutual exclusion** — A category cannot be both a "like" and a "dislike" for the same vault, since the UNIQUE constraint is on `(vault_id, interest_category)` regardless of `interest_type`
+
+This is more efficient than using a database trigger or complex CHECK constraint, and provides atomic enforcement at the database level. The trade-off is that changing an interest from "like" to "dislike" requires deleting the old row and inserting a new one (rather than updating `interest_type` in place), since the UNIQUE constraint prevents having both simultaneously.
+
+### 26. Database-Level vs Application-Level Validation Split
+Step 1.3 establishes the pattern for splitting validation between database and application layers:
+- **Database-level** (CHECK, UNIQUE, FK): `interest_type` enum, `interest_category` enum, no duplicate categories per vault, referential integrity
+- **Application-level** (Pydantic in FastAPI): "Exactly 5 likes and 5 dislikes per vault" — this requires counting rows across the table, which PostgreSQL CHECK constraints cannot do (they only operate on single rows)
+
+This split will be consistent for future tables. Simple per-row enum/value constraints go in the database. Cross-row cardinality rules go in the API layer.
 
 ---
 

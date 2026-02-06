@@ -355,9 +355,67 @@ iOS/Knot/
 
 ---
 
+### Step 1.3: Create Interests Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_interests` table with 5 columns for storing partner likes and dislikes
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as `partner_vaults`)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `interest_type` has a CHECK constraint for 2 valid enum values: `like`, `dislike`
+- `interest_category` has a CHECK constraint for all 40 predefined interest categories (matching `iOS/Knot/Core/Constants.swift`)
+- `UNIQUE(vault_id, interest_category)` composite constraint prevents:
+  - Duplicate categories for the same vault
+  - The same category appearing as both a like AND a dislike
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using subquery to `partner_vaults` to check `auth.uid() = user_id` (since interests don't have a direct `user_id` column)
+- Created index on `vault_id` for fast lookups (in addition to the composite unique index)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- Created 22 tests across 5 test classes
+- "Exactly 5 likes and 5 dislikes per vault" enforcement deferred to application layer (Step 3.10 API endpoint)
+
+**Files created:**
+- `backend/supabase/migrations/00004_create_partner_interests_table.sql` — Full migration with table, CHECK constraints (interest_type + interest_category), UNIQUE constraint, RLS, index, and grants
+- `backend/tests/test_partner_interests_table.py` — 22 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_interests_table.py -v` — 22 passed, 0 failed, 45.66s
+- ✅ Table accessible via PostgREST API
+- ✅ All 5 columns present (id, vault_id, interest_type, interest_category, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ interest_type CHECK constraint rejects invalid values (e.g., 'love')
+- ✅ interest_type accepts both 'like' and 'dislike'
+- ✅ interest_category CHECK constraint rejects invalid categories (e.g., 'Underwater Basket Weaving')
+- ✅ All 40 valid interest categories accepted
+- ✅ UNIQUE(vault_id, interest_category) prevents duplicate categories
+- ✅ UNIQUE constraint prevents same category as both like and dislike (e.g., "Hiking" as both like and dislike → HTTP 409)
+- ✅ interest_category NOT NULL enforced
+- ✅ interest_type NOT NULL enforced
+- ✅ Anon client (no JWT) sees 0 interests — RLS enforced
+- ✅ Service client (admin) can read all interests — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own interests
+- ✅ 5 likes + 5 dislikes inserted and retrieved correctly
+- ✅ No overlap between likes and dislikes
+- ✅ All stored interests from predefined list
+- ✅ CASCADE delete verified: vault deletion removes interest rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → partner_interests
+- ✅ Foreign key enforced: non-existent vault_id rejected (HTTP 409)
+
+**Notes:**
+- RLS policies for child tables (like `partner_interests`) use a subquery pattern: `EXISTS (SELECT 1 FROM partner_vaults WHERE partner_vaults.id = partner_interests.vault_id AND partner_vaults.user_id = auth.uid())`. This is necessary because child tables don't have a direct `user_id` column — they inherit access control through their parent vault.
+- The `UNIQUE(vault_id, interest_category)` constraint automatically creates a composite B-tree index on both columns. A separate single-column index on `vault_id` was also added for queries that filter only by `vault_id` (e.g., "get all interests for a vault").
+- The implementation plan says "41 categories" but the actual predefined list (in both the plan and `Constants.swift`) contains 40 categories. The CHECK constraint matches the 40 listed categories exactly.
+- The "exactly 5 likes and 5 dislikes" rule cannot be enforced at the database level with CHECK constraints (since PostgreSQL CHECK constraints operate on single rows, not across multiple rows). This will be enforced at the API layer in Step 3.10 via Pydantic validation in the `POST /api/v1/vault` endpoint.
+- The CASCADE chain is now 4 levels deep: `auth.users` → `public.users` → `partner_vaults` → `partner_interests`.
+- The test file introduces two new fixtures: `test_vault_with_interests` (creates a vault pre-populated with 5 likes and 5 dislikes) and `_insert_interest_raw` (returns the raw HTTP response for testing failure cases).
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_interests_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.3:** Create Interests Table
+- [ ] **Step 1.4:** Create Milestones Table
 
 ---
 
