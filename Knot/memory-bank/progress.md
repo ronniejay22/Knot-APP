@@ -484,9 +484,62 @@ iOS/Knot/
 
 ---
 
+### Step 1.5: Create Aesthetic Vibes Table ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `partner_vibes` table with 4 columns for storing partner aesthetic vibe tags
+- `id` is auto-generated UUID via `gen_random_uuid()` (same pattern as other child tables)
+- `vault_id` is a NOT NULL FK to `partner_vaults(id)` with `ON DELETE CASCADE`
+- `vibe_tag` has a CHECK constraint for 8 valid enum values: `quiet_luxury`, `street_urban`, `outdoorsy`, `vintage`, `minimalist`, `bohemian`, `romantic`, `adventurous`
+- `UNIQUE(vault_id, vibe_tag)` composite constraint prevents duplicate vibes per vault (same pattern as `partner_interests`)
+- Enabled RLS with 4 policies (SELECT, INSERT, UPDATE, DELETE) using the subquery pattern through `partner_vaults` to check `auth.uid() = user_id`
+- Created index on `vault_id` for fast lookups (in addition to the composite unique index)
+- Granted full CRUD to `authenticated` role, read-only to `anon` role (blocked by RLS)
+- Created 19 tests across 5 test classes
+- "Minimum 1, maximum 4 vibes per vault" enforcement deferred to application layer (Step 3.10 API endpoint)
+
+**Files created:**
+- `backend/supabase/migrations/00006_create_partner_vibes_table.sql` — Full migration with table, CHECK constraint (vibe_tag), UNIQUE constraint, RLS, index, and grants
+- `backend/tests/test_partner_vibes_table.py` — 19 tests across 5 test classes (Exists, Schema, RLS, DataIntegrity, Cascades)
+
+**Test results:**
+- ✅ `pytest tests/test_partner_vibes_table.py -v` — 19 passed, 0 failed, 31.13s
+- ✅ Table accessible via PostgREST API
+- ✅ All 4 columns present (id, vault_id, vibe_tag, created_at)
+- ✅ id is auto-generated UUID via gen_random_uuid()
+- ✅ created_at auto-populated via DEFAULT now()
+- ✅ vibe_tag CHECK constraint rejects invalid values (e.g., 'fancy')
+- ✅ All 8 valid vibe_tag values accepted
+- ✅ vibe_tag NOT NULL constraint enforced
+- ✅ UNIQUE(vault_id, vibe_tag) prevents duplicate vibes per vault
+- ✅ Same vibe_tag allowed for different vaults (UNIQUE scoped to vault)
+- ✅ Anon client (no JWT) sees 0 vibes — RLS enforced
+- ✅ Service client (admin) can read all vibes — RLS bypassed
+- ✅ User isolation verified: each vault sees only its own vibes
+- ✅ Multiple vibes per vault stored correctly (3 test vibes)
+- ✅ Vibe tag field values verified (vault_id, vibe_tag)
+- ✅ 4 vibes stored successfully (max for onboarding)
+- ✅ Single vibe stored and retrievable (minimum for onboarding)
+- ✅ CASCADE delete verified: vault deletion removed vibe rows
+- ✅ Full CASCADE chain verified: auth.users → users → partner_vaults → partner_vibes
+- ✅ Foreign key enforced: non-existent vault_id rejected
+- ✅ All existing tests still pass (122 total from Steps 0.5–1.5, 2 warnings from third-party code)
+
+**Notes:**
+- The `partner_vibes` table is the simplest child table so far — no trigger functions, no computed defaults, just a straight tag storage table with a CHECK constraint for the 8 valid vibe values.
+- The `UNIQUE(vault_id, vibe_tag)` constraint follows the same pattern as `partner_interests` — it prevents the same vibe from appearing twice for a vault. Unlike interests (which use the UNIQUE to also prevent like+dislike conflicts), vibes have no such dual-purpose need. The UNIQUE here is purely for deduplication.
+- The "1-4 vibes per vault" cardinality rule cannot be enforced at the database level (PostgreSQL CHECK constraints operate on single rows, not across multiple rows). This will be enforced at the API layer in Step 3.10 via Pydantic validation in the `POST /api/v1/vault` endpoint, alongside the "exactly 5 likes and 5 dislikes" rule for interests.
+- The CASCADE chain is now 4 levels deep (same depth as interests and milestones): `auth.users` → `public.users` → `partner_vaults` → `partner_vibes`.
+- The test file introduces `test_vault_with_vibes` fixture (vault pre-populated with 3 vibes: quiet_luxury, minimalist, romantic) and `_insert_vibe_raw` helper for testing failure responses.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_partner_vibes_table.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 1.5:** Create Aesthetic Vibes Table
+- [ ] **Step 1.6:** Create Budget Tiers Table
 
 ---
 
