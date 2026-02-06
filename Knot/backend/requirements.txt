@@ -1,6 +1,32 @@
 # Project Knot - Backend Dependencies
-# Step 0.4: Minimum dependencies for project structure & health check
-# Full dependency list will be added in Step 0.5
+# Updated: Step 0.5 — Full dependency list
 
+# --- Web Framework ---
 fastapi
 uvicorn[standard]
+
+# --- AI Orchestration ---
+langgraph
+
+# --- AI Model (Gemini 1.5 Pro via Vertex AI) ---
+google-cloud-aiplatform
+
+# --- Data Validation ---
+pydantic
+pydantic-ai
+
+# --- Database ---
+supabase
+
+# --- Vector Search ---
+pgvector
+
+# --- Async HTTP Client (external API integrations) ---
+httpx
+
+# --- Environment Variable Management ---
+python-dotenv
+
+# --- Testing ---
+pytest
+pytest-asyncio

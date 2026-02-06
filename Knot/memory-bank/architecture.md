@@ -133,9 +133,11 @@ backend/
 │   └── db/                   # Database connection and repository pattern classes
 │       └── __init__.py
 ├── tests/                    # Backend test suite (pytest)
-│   └── __init__.py
+│   ├── __init__.py
+│   └── test_imports.py       # Verifies all dependencies are importable (11 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
-├── requirements.txt          # Python dependencies
+├── requirements.txt          # Python dependencies (all packages for MVP)
+├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
 ├── .env.example              # Template for environment variables (safe to commit)
 ├── .env                      # Actual secrets (gitignored, NEVER commit)
 └── .gitignore                # Excludes .env, __pycache__, venv, IDE files
@@ -233,6 +235,21 @@ Each layer only depends on the layer below it. Route handlers never call the dat
 
 ### 7. Python Virtual Environment
 The backend uses a local `venv/` (gitignored) with Python 3.13. This avoids polluting the system Python and ensures reproducible builds. Activate with `source backend/venv/bin/activate`.
+
+### 8. Dependency Management Strategy
+All dependencies are declared in `requirements.txt` without pinned versions to allow flexibility during early development. Key dependency groups:
+- **Web:** FastAPI + Uvicorn (ASGI server with hot reload)
+- **AI:** LangGraph (graph-based orchestration) + Google Cloud AI Platform (Gemini 1.5 Pro via Vertex AI) + Pydantic AI (structured AI output validation)
+- **Database:** Supabase client (PostgreSQL via PostgREST) + pgvector (vector type encoding for embeddings)
+- **HTTP:** httpx (async client for external API integrations)
+- **Testing:** pytest + pytest-asyncio
+
+Note: `pgvector` is used via its base `Vector` type, not the SQLAlchemy integration, since database access goes through the Supabase client (PostgREST). The SQLAlchemy backend is not installed.
+
+### 9. Test Configuration (`pyproject.toml`)
+Pytest is configured with:
+- `asyncio_mode = "auto"` — async test functions are detected and run automatically without `@pytest.mark.asyncio`
+- `filterwarnings` — suppresses known deprecation warnings from `pyiceberg` (a transitive dependency of `supabase`). Only third-party warnings are suppressed; warnings from our code still surface.
 
 ---
 

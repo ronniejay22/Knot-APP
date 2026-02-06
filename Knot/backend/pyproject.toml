@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    # Suppress deprecation warnings from pyiceberg (transitive dep of supabase)
+    # These are in third-party code we don't control — will resolve when pyiceberg updates
+    "ignore::pyparsing.exceptions.PyparsingDeprecationWarning",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince212",
+]

@@ -139,9 +139,49 @@ iOS/Knot/
 
 ---
 
+### Step 0.5: Install Backend Dependencies ✅
+**Date:** February 5, 2026  
+**Status:** Complete
+
+**What was done:**
+- Updated `requirements.txt` with the full dependency list from the implementation plan
+- Installed all packages into the Python 3.13 virtual environment
+- Created `tests/test_imports.py` — 11 test functions verifying every package imports correctly
+- Created `pyproject.toml` with pytest configuration (asyncio mode, warning filters for third-party deprecations)
+
+**Files created/modified:**
+- `backend/requirements.txt` — Updated with all dependencies (fastapi, uvicorn, langgraph, google-cloud-aiplatform, pydantic, pydantic-ai, supabase, pgvector, httpx, python-dotenv, pytest, pytest-asyncio)
+- `backend/tests/test_imports.py` — Import verification test suite (11 tests)
+- `backend/pyproject.toml` — Pytest config with asyncio_mode="auto" and warning filters for pyiceberg deprecation warnings
+
+**Installed package versions (key packages):**
+- `fastapi` 0.128.2
+- `uvicorn` 0.40.0
+- `langgraph` 1.0.7
+- `google-cloud-aiplatform` 1.136.0
+- `pydantic` 2.12.5
+- `pydantic-ai` 1.56.0
+- `supabase` 2.27.3
+- `pgvector` 0.4.2
+- `httpx` 0.28.1
+- `python-dotenv` 1.2.1
+- `pytest` 9.0.2
+
+**Test results:**
+- ✅ `pip install -r requirements.txt` installs all packages without errors
+- ✅ `pytest tests/test_imports.py -v` — 11 passed, 0 failed, 0 warnings
+- ✅ All key imports verified: `FastAPI`, `StateGraph` (LangGraph), `aiplatform` (Vertex AI), `BaseModel` (Pydantic), `Agent` (Pydantic AI), `create_client` (Supabase), `Vector` (pgvector), `AsyncClient` (httpx), `load_dotenv`
+- ✅ `/health` endpoint still works after dependency expansion
+
+**Notes:**
+- `pyiceberg` (transitive dep of `supabase`) emits deprecation warnings — suppressed in `pyproject.toml` via `filterwarnings`. These are in third-party code and will resolve when pyiceberg updates.
+- `pgvector` is used via its base `Vector` type (not the SQLAlchemy integration) since we use Supabase client for DB access.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_imports.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 0.5:** Install Backend Dependencies
 - [ ] **Step 0.6:** Set Up Supabase Project
 - [ ] **Step 0.7:** Configure Supabase Auth with Apple Sign-In
 
