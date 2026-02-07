@@ -38,8 +38,15 @@ final class AuthViewModel {
     var isLoading = false
 
     /// True when the user has a valid Supabase session. Drives root navigation:
-    /// `true` → Home screen, `false` → Sign-In screen.
+    /// `true` → Home screen (or Onboarding if vault not created), `false` → Sign-In screen.
     var isAuthenticated = false
+
+    /// True when the user has completed the onboarding flow (Partner Vault exists).
+    /// When `isAuthenticated` is `true` but `hasCompletedOnboarding` is `false`,
+    /// the app shows the onboarding flow instead of the Home screen.
+    /// Set to `true` after the vault is submitted to the backend (Step 3.11)
+    /// or when an existing vault is loaded on session restore.
+    var hasCompletedOnboarding = false
 
     /// Human-readable error message shown in an alert on failure.
     var signInError: String?

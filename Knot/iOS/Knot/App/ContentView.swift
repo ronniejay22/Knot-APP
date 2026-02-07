@@ -5,19 +5,21 @@
 //  Created on February 3, 2026.
 //  Updated February 6, 2026 — Step 2.1: Show SignInView as the initial screen.
 //  Updated February 6, 2026 — Step 2.3: Auth state router with session persistence.
+//  Updated February 7, 2026 — Step 3.1: Added Onboarding flow between auth and Home.
 //
 
 import SwiftUI
 
-/// Root view of the app. Routes between Sign-In and Home based on auth state.
+/// Root view of the app. Routes between Sign-In, Onboarding, and Home based on auth state.
 ///
 /// On launch, the Supabase SDK checks the iOS Keychain for an existing session.
-/// While checking, a loading indicator is shown. If a valid session is found,
-/// the user is taken directly to the Home screen. If no session exists,
-/// the Sign-In screen is displayed.
+/// While checking, a loading indicator is shown. Once resolved:
+/// - No session → Sign-In screen
+/// - Session exists, no vault → Onboarding flow
+/// - Session exists, vault exists → Home screen
 ///
 /// The `AuthViewModel` is created here and injected into the SwiftUI environment
-/// so all child views (SignInView, HomeView) share the same auth state.
+/// so all child views (SignInView, OnboardingContainerView, HomeView) share the same auth state.
 struct ContentView: View {
     @State private var authViewModel = AuthViewModel()
 
@@ -27,8 +29,16 @@ struct ContentView: View {
                 // MARK: - Loading (checking Keychain for session)
                 sessionCheckView
             } else if authViewModel.isAuthenticated {
-                // MARK: - Authenticated → Home
-                HomeView()
+                if authViewModel.hasCompletedOnboarding {
+                    // MARK: - Authenticated + Vault exists → Home
+                    HomeView()
+                } else {
+                    // MARK: - Authenticated + No vault → Onboarding
+                    OnboardingContainerView {
+                        // Called when user taps "Get Started" on the completion step
+                        authViewModel.hasCompletedOnboarding = true
+                    }
+                }
             } else {
                 // MARK: - Not authenticated → Sign-In
                 SignInView()

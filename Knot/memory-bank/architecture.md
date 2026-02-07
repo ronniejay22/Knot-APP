@@ -46,7 +46,7 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 |--------|--------|---------|
 | `Auth/` | **Active** | Apple Sign-In flow, session management, auth state |
 | `Home/` | **Placeholder** | Placeholder for session persistence verification (Step 2.3). Full build in Step 4.1. |
-| `Onboarding/` | Planned | Partner Vault creation (9-step wizard) |
+| `Onboarding/` | **Active** | Partner Vault creation (9-step wizard). Container + ViewModel at root, step views in `Steps/` subfolder. |
 | `Recommendations/` | Planned | Choice-of-Three UI, refresh flow |
 | `HintCapture/` | Planned | Text and voice hint input |
 | `Settings/` | Planned | User preferences, account management |
@@ -61,6 +61,24 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | File | Purpose |
 |------|---------|
 | `HomeView.swift` | Placeholder Home screen created in Step 2.3 for session persistence verification, updated in Step 2.4 with sign-out functionality. Shows Knot branding, welcome message, session status indicator (Lucide `circleCheck` icon), and Sign Out button (red bordered with `logOut` icon) + toolbar icon. Reads `AuthViewModel` from environment and calls `signOut()` async. Will be replaced with the full Home screen (hint capture, milestone cards, network monitoring) in Step 4.1; sign-out moves to Settings in Step 11.1. |
+
+##### `Onboarding/` — Partner Vault Onboarding Flow
+| File | Purpose |
+|------|---------|
+| `OnboardingViewModel.swift` | `@Observable @MainActor` class managing all onboarding state. Contains `OnboardingStep` enum (9 cases: welcome through completion) with `title`, `isFirst`, `isLast`, `totalSteps`. Holds `currentStep`, `progress` (0.0–1.0), `canProceed` flag, and all data properties for Steps 3.2–3.8 (partnerName, selectedInterests, selectedDislikes, selectedVibes, budget amounts, love languages, milestones). Provides `goToNextStep()` and `goToPreviousStep()` navigation methods. Created by `OnboardingContainerView` and injected into environment — all step views share the same instance. |
+| `OnboardingContainerView.swift` | Navigation shell for the 9-step onboarding flow. Owns `OnboardingViewModel` via `@State` and injects it into the SwiftUI environment. Displays: (1) animated progress bar at top with step title and "Step X of 9" counter, (2) current step view in center via `@ViewBuilder` switch, (3) Back/Next/Get Started buttons at bottom. Back button hidden on first step; "Get Started" replaces "Next" on last step. Uses `.id(viewModel.currentStep)` for step identity and `.transition(.asymmetric(...))` for slide animations. Accepts `onComplete` closure called when user finishes onboarding. |
+
+| Step View (in `Steps/`) | Step # | Purpose |
+|--------------------------|--------|---------|
+| `OnboardingWelcomeView.swift` | 1 | Welcome screen with Knot branding and checklist of vault sections (basics, interests, milestones, budget, love languages). Read-only informational step. |
+| `OnboardingBasicInfoView.swift` | 2 | Partner basic info placeholder. Full form fields (name, tenure picker, cohabitation segmented control, location) built in Step 3.2. |
+| `OnboardingInterestsView.swift` | 3 | Interests selection placeholder. Full chip-grid UI with 40 categories, selection counter, and "exactly 5" validation built in Step 3.3. |
+| `OnboardingDislikesView.swift` | 4 | Dislikes selection placeholder. Full chip-grid with disabled "liked" interests and "exactly 5" validation built in Step 3.4. |
+| `OnboardingMilestonesView.swift` | 5 | Milestones placeholder. Full date pickers, holiday toggles, and custom milestone sheet built in Step 3.5. |
+| `OnboardingVibesView.swift` | 6 | Aesthetic vibes placeholder. Full visual cards with Lucide icons and 1–4 selection limits built in Step 3.6. |
+| `OnboardingBudgetView.swift` | 7 | Budget tiers placeholder. Full slider/range inputs with dollar display built in Step 3.7. |
+| `OnboardingLoveLanguagesView.swift` | 8 | Love languages placeholder. Full two-step selection (primary then secondary) built in Step 3.8. |
+| `OnboardingCompletionView.swift` | 9 | Completion screen with success message and partner profile summary (shows entered name, vibes, interest count). "Get Started" button is in the container's navigation bar. Full summary design built in Step 3.9. |
 
 #### `/Core` — Shared Utilities
 | File | Purpose |
@@ -823,6 +841,44 @@ The sign-out also invalidates the session server-side (revokes the refresh token
 2. **Toolbar button** — A navigation bar `ToolbarItem(placement: .topBarTrailing)` with just the `logOut` icon. Tinted `.primary` to blend with the navigation bar.
 
 Both call `authViewModel.signOut()` inside a `Task { }` block (since `signOut()` is `async`). Both are temporary — the permanent sign-out UI will live in the Settings screen (Step 11.1). The body button will be removed when the full Home screen is built (Step 4.1).
+
+### 66. Onboarding Navigation Architecture (Step 3.1)
+The onboarding flow uses a **container + step views** pattern:
+
+```
+ContentView (auth router)
+  └── OnboardingContainerView (@State OnboardingViewModel)
+        ├── Progress Bar (GeometryReader + animated fill)
+        ├── Step Content (@ViewBuilder switch on currentStep)
+        │     ├── OnboardingWelcomeView (@Environment OnboardingViewModel)
+        │     ├── OnboardingBasicInfoView (@Environment OnboardingViewModel)
+        │     ├── ... (7 more step views)
+        │     └── OnboardingCompletionView (@Environment OnboardingViewModel)
+        └── Navigation Buttons (Back / Next / Get Started)
+```
+
+Key design decisions:
+- **Single ViewModel for all steps:** Unlike the Auth flow (where `AuthViewModel` handles one concern), the `OnboardingViewModel` holds ALL onboarding data across 9 steps. This is intentional — the data is interdependent (e.g., dislikes must exclude likes, budget tiers map to milestone types) and needs to persist across back/forward navigation.
+- **Container owns the ViewModel:** `OnboardingContainerView` creates `OnboardingViewModel` via `@State` and injects it into the environment. This mirrors the `ContentView` → `AuthViewModel` ownership pattern.
+- **Step views are stateless readers:** Each step view reads the shared `OnboardingViewModel` from `@Environment` and writes to its data properties. No step view creates its own `@State` data — everything lives in the ViewModel.
+- **`.id()` for transition animations:** The step content uses `.id(viewModel.currentStep)` to force SwiftUI to treat each step as a new view identity. Without this, SwiftUI would try to diff the views in-place and the slide transition animation wouldn't fire.
+
+### 67. ContentView Four-State Auth Router (Step 3.1)
+`ContentView` now routes between four states (up from three in Step 2.3):
+
+1. **`isCheckingSession = true`** → Loading spinner (checking Keychain)
+2. **`isAuthenticated = true && hasCompletedOnboarding = true`** → `HomeView()`
+3. **`isAuthenticated = true && hasCompletedOnboarding = false`** → `OnboardingContainerView`
+4. **`isAuthenticated = false`** → `SignInView()`
+
+The `hasCompletedOnboarding` flag is currently in-memory only (resets on app relaunch). Step 3.11 will check for an existing vault on session restore to persist this across launches.
+
+### 68. OnboardingStep Enum Design
+The `OnboardingStep` enum uses `Int` raw values (0–8) for two purposes:
+1. **Progress calculation:** `progress = Double(step.rawValue) / Double(totalSteps - 1)` gives 0.0–1.0
+2. **Navigation:** `OnboardingStep(rawValue: current + 1)` safely advances; returns `nil` at bounds
+
+Computed properties (`title`, `isFirst`, `isLast`) keep the container view clean — no switch statements needed for basic step metadata.
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:

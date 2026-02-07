@@ -1164,9 +1164,69 @@ iOS/Knot/
 
 ---
 
+### Step 3.1: Design Onboarding Flow Navigation (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `OnboardingViewModel` — `@Observable @MainActor` class managing all onboarding state across 9 steps
+- Created `OnboardingStep` enum with 9 cases: welcome, basicInfo, interests, dislikes, milestones, vibes, budget, loveLanguages, completion
+- Created `OnboardingContainerView` — navigation shell with animated progress bar, step content switching via `@ViewBuilder`, and Back/Next/Get Started buttons
+- Created 9 placeholder step views in `Features/Onboarding/Steps/`, each reading the shared `OnboardingViewModel` from `@Environment`
+- Added `hasCompletedOnboarding` flag to `AuthViewModel` for routing between Onboarding and Home
+- Updated `ContentView` to route: authenticated + no vault → `OnboardingContainerView`, authenticated + vault → `HomeView`
+- Progress bar animates between steps using `GeometryReader` with pink fill
+- Step transitions use `.asymmetric` combined move+opacity animations
+- Back button hidden on first step (Welcome), "Get Started" replaces "Next" on last step (Completion)
+- `OnboardingViewModel` holds placeholder data properties for all future steps (partner name, interests, vibes, budgets, love languages, milestones) — ready for Steps 3.2–3.8 to populate
+
+**Files created:**
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — `OnboardingStep` enum (9 cases with title, isFirst, isLast, totalSteps) + `OnboardingViewModel` class (navigation state, data properties, goToNextStep/goToPreviousStep)
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — Navigation container with progress bar, step content `@ViewBuilder`, Back/Next/Get Started buttons, `onComplete` closure
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingWelcomeView.swift` — Step 1: Welcome with Knot branding and checklist of vault sections
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBasicInfoView.swift` — Step 2: Partner info placeholder (name, tenure, cohabitation, location)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingInterestsView.swift` — Step 3: Interests placeholder (5 likes)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift` — Step 4: Dislikes placeholder (5 hard avoids)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMilestonesView.swift` — Step 5: Milestones placeholder (birthday, anniversary, holidays)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingVibesView.swift` — Step 6: Aesthetic vibes placeholder (1–4 vibes)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBudgetView.swift` — Step 7: Budget tiers placeholder (3 occasion types)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingLoveLanguagesView.swift` — Step 8: Love languages placeholder (primary + secondary)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — Step 9: Completion with success message and profile summary
+
+**Files modified:**
+- `iOS/Knot/App/ContentView.swift` — Added onboarding route: `isAuthenticated && !hasCompletedOnboarding` → `OnboardingContainerView`. Updated doc comments.
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `hasCompletedOnboarding` property (default `false`). Will be set `true` when vault is submitted (Step 3.11) or when existing vault is loaded on session restore.
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with 12 new source files
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ After sign-in, onboarding flow appears (not Home screen)
+- ✅ Navigate through all 9 steps using "Next" — each step is reachable
+- ✅ Press "Back" — previous steps retain entered data (state lives in OnboardingViewModel)
+- ✅ Progress bar animates correctly between steps (0% → 100%)
+- ✅ Step counter updates ("Step 1 of 9" through "Step 9 of 9")
+- ✅ Back button hidden on Welcome step (Step 1)
+- ✅ "Get Started" button appears on Completion step (Step 9) — replaces "Next"
+- ✅ Tapping "Get Started" transitions to Home screen
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The `OnboardingContainerView` owns the `OnboardingViewModel` via `@State` and injects it into the environment via `.environment(viewModel)`. This is the same pattern used by `ContentView` with `AuthViewModel` — the container owns the state, child step views read it via `@Environment`.
+- All 9 step views are placeholders with Lucide icons, titles, and gray rounded rectangles where the actual UI will go. Steps 3.2–3.8 will replace these placeholders with real form fields, chip grids, sliders, and date pickers.
+- The `OnboardingViewModel` already contains all data properties needed for Steps 3.2–3.8 (partnerName, selectedInterests, selectedDislikes, selectedVibes, budget amounts, love languages, milestone data). These are pre-populated with sensible defaults so the placeholder views can reference them without crashing.
+- The `canProceed` flag on `OnboardingViewModel` is currently always `true` (all placeholders allow proceeding). Steps 3.2–3.8 will set this to `false` when validation fails (e.g., name field empty, fewer than 5 interests selected).
+- The `hasCompletedOnboarding` flag on `AuthViewModel` is currently in-memory only. It resets on app relaunch (new users will see onboarding again). Step 3.11 (Connect iOS Onboarding to Backend API) will persist this by checking whether a vault exists in Supabase when the session is restored.
+- The step content uses `.id(viewModel.currentStep)` to force SwiftUI to create new views on step change, enabling the `.transition(.asymmetric(...))` animations. Without `.id()`, SwiftUI would try to diff the views in-place and the transition animation wouldn't fire.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
 - [ ] **Step 2.5:** Create Backend Auth Middleware
+- [ ] **Step 3.2:** Build Partner Basic Info Screen (iOS)
 
 ---
 
@@ -1216,3 +1276,13 @@ iOS/Knot/
 20. **Sign-out follows the listener pattern:** `signOut()` calls `SupabaseManager.client.auth.signOut()` and does NOT manually set `isAuthenticated = false`. The `authStateChanges` listener handles the `signedOut` event. This is the same single-source-of-truth pattern used for sign-in. Never bypass the listener for auth state changes.
 
 21. **Sign-out button placement (temporary):** The sign-out button is currently on the placeholder Home screen for testing. It will move to the Settings screen in Step 11.1. The toolbar icon can remain for quick access during development.
+
+22. **Onboarding folder structure:** The onboarding feature lives in `Features/Onboarding/`. The container and view model are at the root level; individual step views are in the `Steps/` subfolder. This keeps the file count manageable while maintaining clear organization.
+
+23. **OnboardingViewModel owns all step data:** A single `OnboardingViewModel` holds data for all 9 steps. It is created by `OnboardingContainerView` and injected via `.environment()`. All step views read/write it via `@Environment(OnboardingViewModel.self)`. This ensures data persists when navigating back and forth — the view model is never recreated during the flow.
+
+24. **`canProceed` validation pattern:** Each step view is responsible for setting `viewModel.canProceed` based on its validation rules (e.g., name not empty, exactly 5 interests selected). The container's "Next" button reads this flag. When implementing a new step, set `canProceed` in an `.onChange` or `.onAppear` modifier.
+
+25. **`hasCompletedOnboarding` is in-memory only (for now):** The flag resets on app relaunch. Until Step 3.11 (Connect iOS Onboarding to Backend API) checks for an existing vault on session restore, authenticated users will see onboarding on every launch. This is expected during development.
+
+26. **Step transitions use `.id()` for animation:** The step content in `OnboardingContainerView` uses `.id(viewModel.currentStep)` to force SwiftUI view identity changes on each step, enabling the `.transition(.asymmetric(...))` animations. Without `.id()`, SwiftUI would diff in-place and skip the transition.
