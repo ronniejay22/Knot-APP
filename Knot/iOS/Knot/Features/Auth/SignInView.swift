@@ -5,6 +5,7 @@
 //  Created on February 6, 2026.
 //  Step 2.1: Apple Sign-In Button
 //  Step 2.2: Connected to Supabase Auth via AuthViewModel
+//  Step 2.3: Uses shared AuthViewModel from environment
 //
 
 import SwiftUI
@@ -15,10 +16,17 @@ import LucideIcons
 /// Presents the Knot branding, value proposition, and Apple Sign-In button.
 /// On successful Apple Sign-In, forwards the identity token to Supabase Auth
 /// via `AuthViewModel`, which stores the session in the iOS Keychain.
+///
+/// Uses the shared `AuthViewModel` from the SwiftUI environment (injected by
+/// `ContentView`). This ensures sign-in state drives the root navigation —
+/// when `isAuthenticated` becomes `true`, `ContentView` automatically switches
+/// to the Home screen.
 struct SignInView: View {
-    @State private var viewModel = AuthViewModel()
+    @Environment(AuthViewModel.self) private var authViewModel
 
     var body: some View {
+        @Bindable var viewModel = authViewModel
+
         ZStack {
             VStack(spacing: 0) {
                 Spacer()
@@ -67,14 +75,14 @@ struct SignInView: View {
                 // MARK: - Apple Sign-In
                 VStack(spacing: 16) {
                     SignInWithAppleButton(.signIn) { request in
-                        viewModel.configureRequest(request)
+                        authViewModel.configureRequest(request)
                     } onCompletion: { result in
-                        viewModel.handleResult(result)
+                        authViewModel.handleResult(result)
                     }
                     .signInWithAppleButtonStyle(.black)
                     .frame(height: 54)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .disabled(viewModel.isLoading)
+                    .disabled(authViewModel.isLoading)
 
                     Text("By continuing, you agree to our Terms & Privacy Policy")
                         .font(.caption2)
@@ -86,7 +94,7 @@ struct SignInView: View {
             }
 
             // MARK: - Loading Overlay
-            if viewModel.isLoading {
+            if authViewModel.isLoading {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                 ProgressView("Signing in...")
@@ -98,7 +106,7 @@ struct SignInView: View {
         .alert("Sign In Error", isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(viewModel.signInError ?? "An unknown error occurred.")
+            Text(authViewModel.signInError ?? "An unknown error occurred.")
         }
     }
 }

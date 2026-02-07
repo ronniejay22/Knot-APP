@@ -1080,9 +1080,59 @@ iOS/Knot/
 
 ---
 
+### Step 2.3: Implement Session Persistence (iOS) ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Updated `AuthViewModel` to listen for Supabase `authStateChanges` on app launch, restoring sessions from the iOS Keychain automatically
+- Added `isCheckingSession` state that starts `true` and transitions to `false` after the initial session check (the `initialSession` event)
+- Refactored `ContentView` into a three-state auth router: loading spinner (checking Keychain), Home screen (authenticated), Sign-In screen (not authenticated)
+- Created `AuthViewModel` as `@State` in `ContentView` and injected it into the SwiftUI environment so `SignInView` and `HomeView` share the same auth state
+- Updated `SignInView` to read the shared `AuthViewModel` from `@Environment` instead of creating its own `@State` instance
+- Created placeholder `HomeView` in `Features/Home/` showing welcome branding and session status indicator (full Home screen deferred to Phase 4)
+- Removed manual `isAuthenticated = true` from `signInWithSupabase()` — auth state is now driven entirely by the `authStateChanges` listener (`signedIn` event sets it to `true`, `signedOut` sets it to `false`)
+- Added `isListening` guard to prevent duplicate listener tasks if `listenForAuthChanges()` is called more than once
+- Removed `Features/.gitkeep` placeholder (replaced by real feature folders: `Auth/`, `Home/`)
+- Regenerated Xcode project via `xcodegen generate`
+
+**Files created:**
+- `iOS/Knot/Features/Home/HomeView.swift` — Placeholder Home screen with Knot branding, welcome message, and Lucide `circleCheck` icon. Reads `AuthViewModel` from environment (ready for sign-out in Step 2.4). Full implementation in Step 4.1.
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `isCheckingSession` (starts `true`), `isListening` (prevents duplicate listeners), `listenForAuthChanges()` async method (listens to Supabase `authStateChanges` stream). Handles 5 events: `initialSession` (restore from Keychain), `signedIn`, `signedOut`, `tokenRefreshed`, `userUpdated`. Removed manual `isAuthenticated = true` from `signInWithSupabase()`.
+- `iOS/Knot/App/ContentView.swift` — Refactored from unconditional `SignInView()` to three-state auth router. Creates `@State AuthViewModel`, injects via `.environment()`, calls `listenForAuthChanges()` via `.task`. Shows `ProgressView` during session check, `HomeView` when authenticated, `SignInView` when not.
+- `iOS/Knot/Features/Auth/SignInView.swift` — Changed from `@State private var viewModel = AuthViewModel()` to `@Environment(AuthViewModel.self) private var authViewModel`. Uses `@Bindable var viewModel = authViewModel` for the `.alert` binding. All action closures reference `authViewModel` directly.
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with new `HomeView.swift` file
+
+**Files removed:**
+- `iOS/Knot/Features/.gitkeep` — No longer needed (real feature folders exist)
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Session persistence verified: sign in → force-quit → relaunch → goes directly to Home screen (no re-sign-in required)
+- ✅ No session: fresh install → shows Sign-In screen
+- ✅ Auth state changes drive navigation reactively (signedIn → Home, signedOut → Sign-In)
+- ✅ Loading spinner shown briefly during initial Keychain check (resolves in <100ms)
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The Supabase Swift SDK's `authStateChanges` is an `AsyncSequence` that emits `(AuthChangeEvent, Session?)` tuples. The first event is always `initialSession`, which contains the session restored from Keychain (or `nil` if no session exists). This is the mechanism for session persistence — no manual Keychain code is needed.
+- The `isCheckingSession` state prevents a flash of the Sign-In screen on app launch. Without it, `isAuthenticated` starts `false`, which would briefly show `SignInView` before the Keychain check completes and sets `isAuthenticated = true`. The loading spinner bridges this gap.
+- `isAuthenticated` is no longer set manually in `signInWithSupabase()`. Instead, the `authStateChanges` listener handles it: Supabase SDK emits `signedIn` after a successful `signInWithIdToken`, which sets `isAuthenticated = true`. This ensures a single source of truth for auth state — all auth transitions flow through the listener.
+- The `@Environment(AuthViewModel.self)` pattern is the modern SwiftUI approach for sharing `@Observable` objects. The environment injection in `ContentView` (`.environment(authViewModel)`) makes the same instance available to all descendant views. This replaces the older `@EnvironmentObject` pattern.
+- The `@Bindable var viewModel = authViewModel` local variable in `SignInView` is necessary for the `.alert(isPresented: $viewModel.showError)` binding. SwiftUI's `@Environment` properties cannot be directly used with `$` binding syntax — the `@Bindable` wrapper provides this capability for `@Observable` objects.
+- The `listenForAuthChanges()` async method runs for the lifetime of the root view (via `.task`). The `isListening` guard is a safety net to prevent multiple listener instances if `.task` is called more than once (e.g., during SwiftUI view lifecycle events).
+- Lucide icon note: The library uses `Lucide.circleCheck` (not `checkCircle`). Lucide Swift follows the naming pattern `{shape}{action}` rather than `{action}{shape}`.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 2.3:** Implement Session Persistence (iOS)
+- [ ] **Step 2.4:** Implement Sign-Out (iOS)
 
 ---
 
@@ -1120,3 +1170,11 @@ iOS/Knot/
 14. **DEVELOPMENT_TEAM in project.yml:** Must be set to the paid team ID (`VN5G3R8J23`), not empty string. If left empty, `xcodegen generate` will reset the team in the Xcode project, causing error 1000 on Sign in with Apple.
 
 15. **Supabase session storage:** The Supabase Swift SDK automatically stores auth sessions in the iOS Keychain. No manual Keychain code is needed. Session tokens are persisted across app launches and the SDK handles token refresh.
+
+16. **Auth state is driven by `authStateChanges`:** After Step 2.3, all auth state transitions (`isAuthenticated`) flow through the `listenForAuthChanges()` async listener in `AuthViewModel`. Never set `isAuthenticated` manually — let the Supabase SDK emit `signedIn`/`signedOut` events.
+
+17. **Shared AuthViewModel via environment:** `ContentView` creates the `AuthViewModel` and injects it into the SwiftUI environment. All feature views (`SignInView`, `HomeView`, future views) read it via `@Environment(AuthViewModel.self)`. Do not create separate `AuthViewModel` instances in child views.
+
+18. **`@Bindable` wrapper for alert bindings:** When using `@Environment` with `@Observable` objects, you need `@Bindable var viewModel = authViewModel` to create `$`-bindable references for `.alert(isPresented:)` and similar SwiftUI modifiers.
+
+19. **Lucide icon naming convention:** The library uses `{shape}{action}` naming (e.g., `Lucide.circleCheck`, not `Lucide.checkCircle`). Verify icon names against the Lucide Swift source or the derived data symbols.

@@ -4,27 +4,40 @@
 //
 //  Created on February 6, 2026.
 //  Step 2.2: Connects Apple Sign-In credential to Supabase Auth.
+//  Step 2.3: Session persistence — restores session from Keychain on app launch.
 //
 
 import AuthenticationServices
 import CryptoKit
 import Supabase
 
-/// Manages the Apple Sign-In → Supabase Auth flow.
+/// Manages authentication state for the entire app.
 ///
-/// Generates a secure nonce for the OIDC exchange, sends the Apple identity
-/// token to Supabase via `signInWithIdToken`, and stores the resulting session
-/// in the iOS Keychain (handled automatically by the Supabase Swift SDK).
+/// On launch, listens to `authStateChanges` from the Supabase SDK to restore
+/// any existing session from the iOS Keychain. If a valid session is found,
+/// `isAuthenticated` becomes `true` and the app navigates to the Home screen.
+/// If no session exists (or the session is expired and cannot be refreshed),
+/// the Sign-In screen is shown.
+///
+/// Also handles the Apple Sign-In → Supabase Auth flow: generates a secure
+/// nonce for the OIDC exchange, sends the Apple identity token to Supabase
+/// via `signInWithIdToken`, and stores the resulting session in the Keychain
+/// (handled automatically by the Supabase Swift SDK).
 @Observable
 @MainActor
 final class AuthViewModel {
 
     // MARK: - Published State
 
+    /// True while checking the Keychain for an existing session on app launch.
+    /// The UI shows a loading indicator during this phase.
+    var isCheckingSession = true
+
     /// True while the Supabase sign-in network request is in flight.
     var isLoading = false
 
-    /// True after a successful Supabase sign-in. Will drive navigation in Step 2.3.
+    /// True when the user has a valid Supabase session. Drives root navigation:
+    /// `true` → Home screen, `false` → Sign-In screen.
     var isAuthenticated = false
 
     /// Human-readable error message shown in an alert on failure.
@@ -39,6 +52,60 @@ final class AuthViewModel {
     /// Persists between `configureRequest` and `handleResult` so it can be
     /// forwarded to Supabase for OIDC nonce verification.
     private var currentNonce: String?
+
+    /// Tracks whether the auth state listener task is already running
+    /// to prevent duplicate listeners.
+    private var isListening = false
+
+    // MARK: - Session Persistence (Step 2.3)
+
+    /// Starts listening for Supabase auth state changes.
+    ///
+    /// The Supabase Swift SDK emits an `initialSession` event on first listen,
+    /// which contains the session restored from the iOS Keychain (or `nil` if
+    /// no session exists). Subsequent events track sign-in, sign-out, and
+    /// token refresh.
+    ///
+    /// Call this once from the root view's `.task` modifier. The async stream
+    /// runs for the lifetime of the view.
+    func listenForAuthChanges() async {
+        guard !isListening else { return }
+        isListening = true
+
+        for await (event, session) in SupabaseManager.client.auth.authStateChanges {
+            switch event {
+            case .initialSession:
+                // First event — session restored from Keychain (or nil)
+                isAuthenticated = session != nil
+                isCheckingSession = false
+
+                if let session {
+                    print("[Knot] Session restored from Keychain")
+                    print("[Knot] User ID: \(session.user.id)")
+                    print("[Knot] Email: \(session.user.email ?? "hidden")")
+                } else {
+                    print("[Knot] No existing session — showing Sign-In")
+                }
+
+            case .signedIn:
+                isAuthenticated = true
+                print("[Knot] Auth state: signed in")
+
+            case .signedOut:
+                isAuthenticated = false
+                print("[Knot] Auth state: signed out")
+
+            case .tokenRefreshed:
+                print("[Knot] Auth state: token refreshed")
+
+            case .userUpdated:
+                print("[Knot] Auth state: user updated")
+
+            default:
+                break
+            }
+        }
+    }
 
     // MARK: - Apple Sign-In Request Configuration
 
@@ -124,7 +191,7 @@ final class AuthViewModel {
                 )
             )
 
-            isAuthenticated = true
+            // isAuthenticated is set by the authStateChanges listener (signedIn event)
             currentNonce = nil
 
             print("[Knot] Supabase sign-in succeeded")

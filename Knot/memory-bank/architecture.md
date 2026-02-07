@@ -37,16 +37,16 @@ Knot/
 | File | Purpose |
 |------|---------|
 | `KnotApp.swift` | Main app entry point. Configures SwiftData ModelContainer and injects it into the app environment. |
-| `ContentView.swift` | Root view displayed on launch. Currently shows `SignInView()` unconditionally. Will be refactored into an auth state router in Step 2.3 (show Home if session exists, Sign-In otherwise). |
+| `ContentView.swift` | Root auth state router. Creates `AuthViewModel` as `@State`, injects it into the SwiftUI environment via `.environment()`, and starts the `authStateChanges` listener via `.task`. Routes between three states: loading spinner (`isCheckingSession`), `HomeView` (`isAuthenticated`), or `SignInView` (default). |
 
 #### `/Features` — Feature Modules
 Organized by feature, each containing Views, ViewModels, and feature-specific components.
 
 | Folder | Status | Purpose |
 |--------|--------|---------|
-| `Auth/` | **Active** | Apple Sign-In flow, session management |
+| `Auth/` | **Active** | Apple Sign-In flow, session management, auth state |
+| `Home/` | **Placeholder** | Placeholder for session persistence verification (Step 2.3). Full build in Step 4.1. |
 | `Onboarding/` | Planned | Partner Vault creation (9-step wizard) |
-| `Home/` | Planned | Main dashboard with hint capture and milestone cards |
 | `Recommendations/` | Planned | Choice-of-Three UI, refresh flow |
 | `HintCapture/` | Planned | Text and voice hint input |
 | `Settings/` | Planned | User preferences, account management |
@@ -54,8 +54,13 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 ##### `Auth/` — Authentication Feature
 | File | Purpose |
 |------|---------|
-| `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Delegates auth logic to `AuthViewModel`. Shows a loading overlay during Supabase sign-in. Contains a private `SignInFeatureRow` component for the value prop list. |
-| `AuthViewModel.swift` | `@Observable @MainActor` class managing the Apple Sign-In → Supabase Auth flow. Generates a secure OIDC nonce (`SecRandomCopyBytes` + `CryptoKit.SHA256`), configures the Apple Sign-In request, extracts the identity token from the Apple credential, and sends it to Supabase via `signInWithIdToken`. Exposes `isLoading`, `isAuthenticated`, `signInError`, `showError` for the UI. |
+| `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Delegates auth logic to `AuthViewModel` (shared via `@Environment`). Shows a loading overlay during Supabase sign-in. Contains a private `SignInFeatureRow` component for the value prop list. Uses `@Bindable` wrapper for alert binding. |
+| `AuthViewModel.swift` | `@Observable @MainActor` class managing the full auth lifecycle. On launch, listens to `authStateChanges` to restore sessions from Keychain (`initialSession` event). Handles Apple Sign-In → Supabase Auth flow with OIDC nonce security. Exposes `isCheckingSession` (initial load), `isLoading` (sign-in in progress), `isAuthenticated` (drives root navigation), `signInError`, `showError`. All auth state transitions flow through `listenForAuthChanges()`. |
+
+##### `Home/` — Home Feature (Placeholder)
+| File | Purpose |
+|------|---------|
+| `HomeView.swift` | Placeholder Home screen created in Step 2.3 for session persistence verification. Shows Knot branding, welcome message, and session status indicator (Lucide `circleCheck` icon). Reads `AuthViewModel` from environment. Will be replaced with the full Home screen (hint capture, milestone cards, network monitoring) in Step 4.1. |
 
 #### `/Core` — Shared Utilities
 | File | Purpose |
@@ -682,18 +687,28 @@ The entitlements file is referenced in two places in `project.yml`:
 1. `entitlements.path` — XcodeGen uses this to set up the Xcode project correctly
 2. `CODE_SIGN_ENTITLEMENTS` — The build setting that tells the code signing process which entitlements to embed
 
-### 53. ContentView as Auth Router (Step 2.1 → 2.3)
-`ContentView` currently shows `SignInView()` unconditionally. In Step 2.3, it will be refactored into an auth state router:
+### 53. ContentView as Auth State Router (Step 2.3)
+`ContentView` is the root auth state router with three states:
+1. **`isCheckingSession = true`** → Shows a loading spinner while the Supabase SDK checks the Keychain for a stored session
+2. **`isAuthenticated = true`** → Shows `HomeView()`
+3. **`isAuthenticated = false`** → Shows `SignInView()`
+
 ```swift
 struct ContentView: View {
-    @State private var isAuthenticated = false
+    @State private var authViewModel = AuthViewModel()
     var body: some View {
-        if isAuthenticated { HomeView() }
-        else { SignInView() }
+        Group {
+            if authViewModel.isCheckingSession { ProgressView() }
+            else if authViewModel.isAuthenticated { HomeView() }
+            else { SignInView() }
+        }
+        .environment(authViewModel)
+        .task { await authViewModel.listenForAuthChanges() }
     }
 }
 ```
-This pattern keeps the app entry point clean and delegates authentication state management to a service layer. The `isAuthenticated` state will be driven by checking for an existing Supabase session in the iOS Keychain.
+
+The `AuthViewModel` is created here and injected into the SwiftUI environment. All child views share the same auth state instance. The `.task` modifier starts the `authStateChanges` listener, which runs for the lifetime of the root view.
 
 ### 54. Apple Developer Program Requirement
 Sign in with Apple requires the **paid Apple Developer Program** ($99/year) for full functionality. Without it:
@@ -749,6 +764,46 @@ Without the `properties` key, XcodeGen creates a blank entitlements file. With i
 
 ### 59. Supabase Anon Key Safety (Step 2.2)
 The `Constants.Supabase.anonKey` is a **publishable** key — it is safe to embed in the app binary. It grants only the permissions defined by Row Level Security (RLS) policies on each table. The actual data access is controlled by the JWT (obtained after `signInWithIdToken`) which encodes the user's `auth.uid()`. All Supabase tables use RLS policies that check `auth.uid()` against the row's `user_id` column.
+
+### 60. Session Persistence via authStateChanges (Step 2.3)
+The Supabase Swift SDK provides an `AsyncSequence` called `authStateChanges` that emits `(AuthChangeEvent, Session?)` tuples. The event lifecycle:
+
+1. **`initialSession`** — Always the first event. Contains the session restored from iOS Keychain, or `nil` if no session exists. This is the mechanism for session persistence — no manual Keychain code is needed.
+2. **`signedIn`** — Emitted after a successful `signInWithIdToken` call. The `isAuthenticated` flag is set here (not in the sign-in method itself).
+3. **`signedOut`** — Emitted after `signOut()`. Clears `isAuthenticated`.
+4. **`tokenRefreshed`** — Emitted when the SDK silently refreshes an expired access token using the stored refresh token.
+5. **`userUpdated`** — Emitted when user metadata changes.
+
+All auth state transitions flow through this single listener (`listenForAuthChanges()` in `AuthViewModel`). This creates a **single source of truth** for auth state — no manual `isAuthenticated` assignments outside the listener.
+
+### 61. Environment-Based ViewModel Sharing (Step 2.3)
+The `AuthViewModel` is shared across the view hierarchy using SwiftUI's `@Observable` + `@Environment` pattern:
+
+```
+ContentView (@State authViewModel) ──.environment(authViewModel)──▶ SignInView (@Environment)
+                                                                  ▶ HomeView (@Environment)
+```
+
+This replaces the older `@EnvironmentObject` pattern. Key implications:
+- `ContentView` owns the `AuthViewModel` via `@State` (keeps it alive)
+- Child views access it via `@Environment(AuthViewModel.self)` (read-only reference)
+- For `$`-binding (e.g., `.alert(isPresented:)`), child views create a local `@Bindable var viewModel = authViewModel`
+- All views react to the same `isAuthenticated` state — when the listener flips it, `ContentView` automatically swaps between `SignInView` and `HomeView`
+
+### 62. isCheckingSession Anti-Flash Pattern (Step 2.3)
+Without `isCheckingSession`, the app would show a flash of the Sign-In screen on every launch:
+1. App starts → `isAuthenticated = false` (default) → `SignInView` renders
+2. ~100ms later → Keychain check completes → `isAuthenticated = true` → `HomeView` renders
+
+The `isCheckingSession = true` default introduces a third state (loading spinner) that absorbs this delay, preventing the jarring flash. The transition is: loading → Home (if session exists) or loading → Sign-In (if not).
+
+### 63. HomeView Placeholder (Step 2.3 → Step 4.1)
+`Features/Home/HomeView.swift` is a minimal placeholder created in Step 2.3 solely to verify session persistence navigation works. It shows:
+- Knot branding (Lucide heart icon)
+- "Welcome to Knot" message
+- "Session restored from Keychain" status indicator (Lucide `circleCheck` icon)
+
+The full Home screen (hint capture, milestone cards, network monitoring) will replace this in Step 4.1.
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:
