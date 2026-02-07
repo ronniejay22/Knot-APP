@@ -1448,9 +1448,63 @@ iOS/Knot/
 
 ---
 
+### Step 2.5: Create Backend Auth Middleware ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created the `get_current_user_id` FastAPI dependency in `app/core/security.py` that extracts and validates Bearer tokens against Supabase Auth
+- The middleware uses `HTTPBearer(auto_error=False)` to extract the Bearer token from the `Authorization` header, then validates it by calling Supabase's `/auth/v1/user` endpoint with the token and the anon API key
+- Returns the authenticated user's UUID string on success; raises `HTTPException(401)` with `WWW-Authenticate: Bearer` header for all failure cases (missing token, invalid/expired token, network error, malformed response)
+- Created a protected test endpoint `GET /api/v1/me` in `app/main.py` that uses `Depends(get_current_user_id)` and returns `{"user_id": "<uuid>"}` — serves as both a test route and a future-use "who am I" endpoint
+- Uses a private `_get_apikey()` helper with lazy import to avoid circular dependency with the config module
+- Created comprehensive test suite with 14 tests across 5 test classes covering all auth scenarios
+
+**Files modified:**
+- `backend/app/core/security.py` — **Updated:** Replaced placeholder with full auth middleware implementation. Exports `get_current_user_id` dependency for use in route handlers via `Depends()`
+- `backend/app/main.py` — **Updated:** Added `GET /api/v1/me` protected endpoint importing `get_current_user_id` from security module
+
+**Files created:**
+- `backend/tests/test_auth_middleware.py` — 14 tests across 5 test classes (TestValidToken, TestInvalidToken, TestNoToken, TestMalformedHeaders, TestHealthEndpointUnprotected)
+
+**Middleware architecture:**
+1. `HTTPBearer(auto_error=False)` extracts Bearer token (returns `None` if missing instead of FastAPI's default 403)
+2. If `credentials is None` → 401 with "Missing authentication token" message
+3. Sends `GET {SUPABASE_URL}/auth/v1/user` with `Authorization: Bearer {token}` and `apikey: {anon_key}` headers
+4. If `httpx.RequestError` (network failure) → 401 with "Authentication service unavailable"
+5. If non-200 response from Supabase → 401 with "Invalid or expired authentication token"
+6. If response JSON missing `id` field → 401 with "no user ID found"
+7. Returns `user_data["id"]` (UUID string) on success
+
+**Test results:**
+- ✅ `pytest tests/test_auth_middleware.py -v` — 14 passed, 0 failed, 7.41s
+- ✅ Valid Supabase JWT → HTTP 200 with correct user_id
+- ✅ Returned user_id matches the authenticated user's ID from auth.users
+- ✅ Response is valid JSON with `{"user_id": "<uuid>"}` structure
+- ✅ Garbage token → HTTP 401 with descriptive error detail
+- ✅ Structurally valid but fabricated JWT → HTTP 401 (validates with Supabase, not just format)
+- ✅ Empty Bearer token → HTTP 401
+- ✅ No Authorization header → HTTP 401 with descriptive message mentioning "token"
+- ✅ 401 response includes `WWW-Authenticate: Bearer` header (RFC 7235 compliance)
+- ✅ Basic auth (instead of Bearer) → HTTP 401
+- ✅ Raw token without "Bearer " prefix → HTTP 401
+- ✅ `/health` endpoint returns 200 without auth (unprotected)
+- ✅ `/health` endpoint returns 200 with auth (ignores token gracefully)
+- ✅ All existing tests still pass (280+ from Steps 0.5–3.5)
+
+**Notes:**
+- The middleware validates tokens by calling Supabase's GoTrue API (`/auth/v1/user`) rather than decoding JWTs locally. This ensures tokens are validated against the live session state (e.g., revoked sessions are properly rejected). The tradeoff is a network round-trip per request, but this is acceptable for MVP.
+- The `apikey` header is required by Supabase's API gateway (Kong) for all requests, including authenticated ones. The anon key is safe to use here — actual access control is enforced by the Bearer token (JWT) and RLS policies.
+- The `_get_apikey()` helper uses a lazy import (`from app.core.config import SUPABASE_ANON_KEY`) to avoid circular dependency issues when `security.py` is imported at module level.
+- Tests create real Supabase auth users via the Admin API (`/auth/v1/admin/users`), sign them in to get valid JWTs, and clean up after each test. This requires `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
+- The test fixture `test_auth_user_with_token` includes a `time.sleep(0.5)` after user creation to allow the `handle_new_user` trigger to fire and create the `public.users` row before signing in.
+- Usage in future route handlers: `from app.core.security import get_current_user_id` then `async def my_route(user_id: str = Depends(get_current_user_id))`.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_auth_middleware.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 2.5:** Create Backend Auth Middleware
 - [ ] **Step 3.6:** Build Aesthetic Vibes Screen (iOS)
 
 ---

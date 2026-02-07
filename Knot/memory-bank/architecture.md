@@ -184,6 +184,7 @@ backend/
 │   ├── test_imports.py       # Verifies all dependencies are importable (11 tests)
 │   ├── test_supabase_connection.py  # Verifies Supabase connectivity and pgvector (11 tests)
 │   ├── test_supabase_auth.py # Verifies auth service and Apple Sign-In config (6 tests)
+│   ├── test_auth_middleware.py # Verifies backend auth middleware — valid/invalid/missing tokens, malformed headers, health unprotected (14 tests)
 │   ├── test_users_table.py   # Verifies users table schema, RLS, and triggers (10 tests)
 │   ├── test_partner_vaults_table.py  # Verifies partner_vaults schema, constraints, RLS, cascades (15 tests)
 │   ├── test_partner_interests_table.py  # Verifies partner_interests schema, CHECK/UNIQUE constraints, RLS, cascades (22 tests)
@@ -208,7 +209,8 @@ backend/
 | Symbol | Purpose |
 |--------|---------|
 | `app` | The FastAPI application instance. Title: "Knot API", version: "0.1.0". |
-| `health_check()` | `GET /health` — Returns `{"status": "ok"}`. Used by deployment platforms for uptime monitoring. |
+| `health_check()` | `GET /health` — Returns `{"status": "ok"}`. Unprotected. Used by deployment platforms for uptime monitoring. |
+| `get_current_user()` | `GET /api/v1/me` — **Protected** endpoint that returns `{"user_id": "<uuid>"}`. Uses `Depends(get_current_user_id)` to validate the Bearer token. Serves as a "who am I" endpoint and auth middleware verification route. Added in Step 2.5. |
 
 API routers from `app/api/` will be registered here via `app.include_router()` as endpoints are implemented.
 
@@ -228,7 +230,7 @@ Each file defines an `APIRouter` with a URL prefix and tag. Routes will be added
 | File | Purpose |
 |------|---------|
 | `config.py` | Loads environment variables from `.env` via `python-dotenv`. Exposes `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and future API keys. Provides `validate_supabase_config()` to check required vars are present. |
-| `security.py` | Auth middleware placeholder. Will extract Bearer tokens from `Authorization` header, validate against Supabase Auth, and return the authenticated user ID. Raises `HTTPException(401)` if invalid. Implemented in Step 2.5. |
+| `security.py` | **Auth middleware (Step 2.5).** Exports `get_current_user_id` — a FastAPI dependency that extracts the Bearer token from the `Authorization` header via `HTTPBearer(auto_error=False)`, validates it against Supabase Auth's `/auth/v1/user` endpoint using `httpx.AsyncClient`, and returns the authenticated user's UUID string. Raises `HTTPException(401)` with `WWW-Authenticate: Bearer` header for all failure cases: missing token, invalid/expired token, network errors, and malformed responses. Uses a private `_get_apikey()` helper with lazy import of `SUPABASE_ANON_KEY` to avoid circular dependencies. Usage: `async def route(user_id: str = Depends(get_current_user_id))`. |
 
 ### Data Layer (`app/models/`, `app/db/`)
 
@@ -353,6 +355,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_imports.py` — Smoke tests verifying all dependencies are importable (Step 0.5)
 - `test_supabase_connection.py` — Integration tests verifying Supabase connectivity and pgvector (Step 0.6). Uses `@pytest.mark.skipif` to gracefully skip connection tests when credentials aren't configured, while pure library tests (pgvector) always run.
 - `test_supabase_auth.py` — Integration tests verifying Supabase Auth service reachability and Apple Sign-In provider configuration (Step 0.7). Checks GoTrue settings/health endpoints and confirms Apple is enabled for native iOS auth.
+- `test_auth_middleware.py` — Integration tests verifying the FastAPI auth middleware (Step 2.5). 14 tests across 5 classes: valid token (200 response, correct user_id, JSON structure), invalid token (garbage token, fake JWT, empty bearer — all 401), no token (missing header returns 401 with descriptive message and WWW-Authenticate header per RFC 7235), malformed headers (Basic auth and raw token without Bearer prefix — both 401), and health endpoint unprotected (200 with and without auth). Tests create real Supabase auth users via the Admin API, sign them in to get valid JWTs, and clean up automatically. Introduces `test_auth_user_with_token` fixture (creates user, signs in, yields user info + access_token, deletes on teardown) and `client` fixture (FastAPI TestClient from `app.main`).
 - `test_users_table.py` — Integration tests verifying the `public.users` table schema, RLS enforcement, and trigger behavior (Step 1.1). Tests create real auth users via the Supabase Admin API, verify the `handle_new_user` trigger auto-creates profile rows, confirm RLS blocks anonymous access, and validate CASCADE delete behavior. Each test uses a `test_auth_user` fixture that creates and cleans up auth users automatically.
 - `test_partner_vaults_table.py` — Integration tests verifying the `public.partner_vaults` table schema, constraints, RLS enforcement, and trigger/CASCADE behavior (Step 1.2). 15 tests across 4 classes: table existence, schema verification (columns, NOT NULL, CHECK constraint, UNIQUE, defaults), RLS (anon blocked, service bypasses, user isolation), and triggers/cascades (updated_at auto-updates, cascade delete through auth→users→vaults, FK enforcement). Introduces `test_auth_user_pair` fixture for two-user isolation tests and `test_vault` fixture for vault-dependent tests.
 - `test_partner_interests_table.py` — Integration tests verifying the `public.partner_interests` table schema, CHECK constraints (interest_type + interest_category), UNIQUE constraint (prevents duplicates and like+dislike conflicts), RLS enforcement via subquery, data integrity (5 likes + 5 dislikes), and CASCADE behavior (Step 1.3). 22 tests across 5 classes: table existence, schema (columns, CHECK constraints, UNIQUE, NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (insert/retrieve 5+5, no overlap, predefined list), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_interests` fixture (vault pre-populated with 5 likes + 5 dislikes) and `_insert_interest_raw` helper for testing failure responses.
@@ -941,6 +944,22 @@ The ViewModel stores relationship tenure as a single integer (`relationshipTenur
 
 This keeps the ViewModel data model simple (matches the database `relationship_tenure_months` integer column in `partner_vaults`) while providing an intuitive UI. The summary line (`"2 years, 6 months"`) is a computed property on the view that reads the ViewModel value.
 
+### 74. Backend Auth Middleware — Server-Side Token Validation (Step 2.5)
+The `get_current_user_id` FastAPI dependency validates tokens by calling Supabase's GoTrue API (`GET /auth/v1/user`) rather than decoding JWTs locally. Key design decisions:
+- **Server-side validation over local JWT decode:** Ensures tokens are validated against the live session state — revoked sessions, expired tokens, and tampered JWTs are all properly rejected. The tradeoff is a network round-trip to Supabase on every authenticated request (~50-100ms), which is acceptable for MVP volume.
+- **`HTTPBearer(auto_error=False)`:** By default, FastAPI's `HTTPBearer` returns 403 when the Authorization header is missing. Setting `auto_error=False` gives us control to return 401 with a descriptive message and `WWW-Authenticate: Bearer` header (RFC 7235 compliance).
+- **`apikey` header required by Supabase:** Supabase's API gateway (Kong) requires the `apikey` header on every request, even authenticated ones. The anon key is used here — it's safe because actual access control is enforced by the Bearer token (JWT) and RLS policies, not the apikey.
+- **Lazy `_get_apikey()` import:** The helper uses `from app.core.config import SUPABASE_ANON_KEY` inside the function body to avoid circular imports when `security.py` is imported at module level by `main.py`.
+- **All failure paths return 401:** Missing token, invalid token, expired token, network errors, and malformed responses all raise `HTTPException(401)` with descriptive detail messages. This ensures the client always knows the issue is authentication-related.
+- **Usage pattern:** All protected route handlers use `user_id: str = Depends(get_current_user_id)` to inject the authenticated user's UUID. The vault, hints, and recommendations endpoints will all follow this pattern.
+
+### 75. Auth Middleware Test Strategy (Step 2.5)
+The `test_auth_middleware.py` tests use a different approach from database table tests:
+- **FastAPI TestClient:** Tests use `TestClient(app)` from `fastapi.testclient` to make HTTP requests against the actual FastAPI app in-process, not against a deployed server. This tests the full middleware pipeline (header extraction → Supabase validation → user ID return).
+- **Real Supabase auth users:** The `test_auth_user_with_token` fixture creates a real auth user via the Admin API, signs them in to get a valid JWT, and cleans up on teardown. This tests against real Supabase infrastructure, not mocks.
+- **`time.sleep(0.5)` in fixture:** After creating the auth user, the fixture waits 500ms for the `handle_new_user` trigger to fire and create the `public.users` row. Without this, the sign-in may race the trigger.
+- **Comprehensive negative testing:** Tests verify not just that invalid tokens return 401, but also: garbage strings, structurally valid but fabricated JWTs (proves middleware validates with Supabase, not just format), empty bearers, Basic auth instead of Bearer, and raw tokens without the "Bearer " prefix.
+
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:
 
@@ -958,7 +977,7 @@ With Phase 1 complete, the full database schema consists of 12 tables:
 | 10 | `recommendation_feedback` | `recommendations` + `users` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
 | 11 | `notification_queue` | `users` + `partner_milestones` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
 
-Total test count: **291 tests** across 14 test files.
+Total test count: **305 tests** across 15 test files (291 database/infrastructure + 14 auth middleware).
 
 ---
 
