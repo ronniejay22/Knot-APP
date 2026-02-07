@@ -5,7 +5,9 @@ This is the main application module for the Knot backend.
 It initializes the FastAPI app and registers all route handlers.
 """
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+
+from app.core.security import get_current_user_id
 
 app = FastAPI(
     title="Knot API",
@@ -18,3 +20,14 @@ app = FastAPI(
 async def health_check():
     """Health check endpoint. Returns service status."""
     return {"status": "ok"}
+
+
+@app.get("/api/v1/me")
+async def get_current_user(user_id: str = Depends(get_current_user_id)):
+    """
+    Protected endpoint — returns the authenticated user's ID.
+
+    Requires a valid Supabase Bearer token in the Authorization header.
+    Used to verify that the auth middleware is working correctly.
+    """
+    return {"user_id": user_id}
