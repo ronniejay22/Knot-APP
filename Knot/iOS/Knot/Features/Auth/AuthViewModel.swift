@@ -5,6 +5,7 @@
 //  Created on February 6, 2026.
 //  Step 2.2: Connects Apple Sign-In credential to Supabase Auth.
 //  Step 2.3: Session persistence — restores session from Keychain on app launch.
+//  Step 2.4: Sign-out — clears Supabase session and Keychain, returns to Sign-In.
 //
 
 import AuthenticationServices
@@ -204,6 +205,30 @@ final class AuthViewModel {
             signInError = "Sign-in failed. Please try again."
             showError = true
             print("[Knot] Supabase sign-in error: \(error)")
+        }
+    }
+
+    // MARK: - Sign Out (Step 2.4)
+
+    /// Signs the user out of Supabase and clears the Keychain session.
+    ///
+    /// Calls `supabase.auth.signOut()`, which:
+    /// 1. Invalidates the current session on the Supabase server
+    /// 2. Removes the session (access + refresh tokens) from the iOS Keychain
+    /// 3. Emits a `signedOut` event via `authStateChanges`, which the listener
+    ///    handles by setting `isAuthenticated = false`
+    ///
+    /// The `ContentView` auth router reacts to `isAuthenticated` changing to `false`
+    /// and navigates back to the Sign-In screen automatically.
+    func signOut() async {
+        do {
+            try await SupabaseManager.client.auth.signOut()
+            // isAuthenticated is set to false by the authStateChanges listener (signedOut event)
+            print("[Knot] Sign-out succeeded — session cleared from Keychain")
+        } catch {
+            signInError = "Sign-out failed. Please try again."
+            showError = true
+            print("[Knot] Sign-out error: \(error)")
         }
     }
 

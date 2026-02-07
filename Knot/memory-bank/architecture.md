@@ -55,12 +55,12 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | File | Purpose |
 |------|---------|
 | `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Delegates auth logic to `AuthViewModel` (shared via `@Environment`). Shows a loading overlay during Supabase sign-in. Contains a private `SignInFeatureRow` component for the value prop list. Uses `@Bindable` wrapper for alert binding. |
-| `AuthViewModel.swift` | `@Observable @MainActor` class managing the full auth lifecycle. On launch, listens to `authStateChanges` to restore sessions from Keychain (`initialSession` event). Handles Apple Sign-In → Supabase Auth flow with OIDC nonce security. Exposes `isCheckingSession` (initial load), `isLoading` (sign-in in progress), `isAuthenticated` (drives root navigation), `signInError`, `showError`. All auth state transitions flow through `listenForAuthChanges()`. |
+| `AuthViewModel.swift` | `@Observable @MainActor` class managing the full auth lifecycle. On launch, listens to `authStateChanges` to restore sessions from Keychain (`initialSession` event). Handles Apple Sign-In → Supabase Auth flow with OIDC nonce security. Provides `signOut()` (Step 2.4) which calls `supabase.auth.signOut()` to invalidate the server session, clear the Keychain, and emit `signedOut` through the listener. Exposes `isCheckingSession` (initial load), `isLoading` (sign-in in progress), `isAuthenticated` (drives root navigation), `signInError`, `showError`. All auth state transitions flow through `listenForAuthChanges()`. |
 
 ##### `Home/` — Home Feature (Placeholder)
 | File | Purpose |
 |------|---------|
-| `HomeView.swift` | Placeholder Home screen created in Step 2.3 for session persistence verification. Shows Knot branding, welcome message, and session status indicator (Lucide `circleCheck` icon). Reads `AuthViewModel` from environment. Will be replaced with the full Home screen (hint capture, milestone cards, network monitoring) in Step 4.1. |
+| `HomeView.swift` | Placeholder Home screen created in Step 2.3 for session persistence verification, updated in Step 2.4 with sign-out functionality. Shows Knot branding, welcome message, session status indicator (Lucide `circleCheck` icon), and Sign Out button (red bordered with `logOut` icon) + toolbar icon. Reads `AuthViewModel` from environment and calls `signOut()` async. Will be replaced with the full Home screen (hint capture, milestone cards, network monitoring) in Step 4.1; sign-out moves to Settings in Step 11.1. |
 
 #### `/Core` — Shared Utilities
 | File | Purpose |
@@ -798,12 +798,31 @@ Without `isCheckingSession`, the app would show a flash of the Sign-In screen on
 The `isCheckingSession = true` default introduces a third state (loading spinner) that absorbs this delay, preventing the jarring flash. The transition is: loading → Home (if session exists) or loading → Sign-In (if not).
 
 ### 63. HomeView Placeholder (Step 2.3 → Step 4.1)
-`Features/Home/HomeView.swift` is a minimal placeholder created in Step 2.3 solely to verify session persistence navigation works. It shows:
+`Features/Home/HomeView.swift` is a minimal placeholder created in Step 2.3 solely to verify session persistence navigation works. Updated in Step 2.4 to add sign-out functionality. It shows:
 - Knot branding (Lucide heart icon)
 - "Welcome to Knot" message
 - "Session restored from Keychain" status indicator (Lucide `circleCheck` icon)
+- Sign Out button (red bordered, full-width) and toolbar icon (Step 2.4)
 
-The full Home screen (hint capture, milestone cards, network monitoring) will replace this in Step 4.1.
+The full Home screen (hint capture, milestone cards, network monitoring) will replace this in Step 4.1. The sign-out button will move to the Settings screen in Step 11.1.
+
+### 64. Sign-Out Flow — Listener-Driven State (Step 2.4)
+The `signOut()` method in `AuthViewModel` deliberately does NOT set `isAuthenticated = false` directly. Instead, it calls `SupabaseManager.client.auth.signOut()` and relies on the `authStateChanges` listener to handle the `signedOut` event:
+
+```
+signOut() → Supabase SDK → server invalidation + Keychain clear → emits signedOut → listener sets isAuthenticated = false → ContentView swaps to SignInView
+```
+
+This is the same pattern used for sign-in (Step 2.3): `signInWithIdToken()` does not set `isAuthenticated = true` — the `signedIn` event does. Maintaining this pattern ensures a **single source of truth** for auth state. If any future code needs to check auth state, `isAuthenticated` is always driven by the Supabase SDK's event stream, never by manual assignment.
+
+The sign-out also invalidates the session server-side (revokes the refresh token), so even if the local Keychain were somehow restored, the session would be rejected by Supabase Auth on the next API call.
+
+### 65. Dual Sign-Out UI Affordances (Step 2.4)
+`HomeView` provides two ways to sign out:
+1. **Body button** — A prominent red bordered `Button(role: .destructive)` with Lucide `logOut` icon and "Sign Out" text. Full-width, 48pt height, `.buttonStyle(.bordered)` with `.tint(.red)`. Visible and discoverable for testing.
+2. **Toolbar button** — A navigation bar `ToolbarItem(placement: .topBarTrailing)` with just the `logOut` icon. Tinted `.primary` to blend with the navigation bar.
+
+Both call `authViewModel.signOut()` inside a `Task { }` block (since `signOut()` is `async`). Both are temporary — the permanent sign-out UI will live in the Settings screen (Step 11.1). The body button will be removed when the full Home screen is built (Step 4.1).
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:

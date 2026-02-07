@@ -4,6 +4,7 @@
 //
 //  Created on February 6, 2026.
 //  Step 2.3: Placeholder Home screen for session persistence verification.
+//  Step 2.4: Added Sign Out button in navigation toolbar.
 //  Full implementation in Phase 4 (Step 4.1).
 //
 
@@ -12,13 +13,15 @@ import LucideIcons
 
 /// Placeholder Home screen displayed after successful authentication.
 ///
-/// This is a minimal view to verify session persistence (Step 2.3).
-/// The full Home screen with hint capture, milestone cards, and network
-/// monitoring will be built in Step 4.1.
+/// This is a minimal view to verify session persistence (Step 2.3) and
+/// sign-out functionality (Step 2.4). The full Home screen with hint capture,
+/// milestone cards, and network monitoring will be built in Step 4.1.
 struct HomeView: View {
     @Environment(AuthViewModel.self) private var authViewModel
 
     var body: some View {
+        @Bindable var viewModel = authViewModel
+
         NavigationStack {
             VStack(spacing: 24) {
                 Spacer()
@@ -60,11 +63,54 @@ struct HomeView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // MARK: - Sign Out Button (Step 2.4)
+                Button(role: .destructive) {
+                    Task {
+                        await authViewModel.signOut()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(uiImage: Lucide.logOut)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 18, height: 18)
+
+                        Text("Sign Out")
+                            .font(.body.weight(.medium))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
                 .padding(.bottom, 40)
             }
             .padding(.horizontal, 24)
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await authViewModel.signOut()
+                        }
+                    } label: {
+                        Image(uiImage: Lucide.logOut)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                    }
+                    .tint(.primary)
+                }
+            }
+            .alert("Sign Out Error", isPresented: $viewModel.showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(authViewModel.signInError ?? "An unknown error occurred.")
+            }
         }
     }
 }

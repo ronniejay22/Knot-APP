@@ -1130,9 +1130,43 @@ iOS/Knot/
 
 ---
 
+### Step 2.4: Implement Sign-Out (iOS) ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Added `signOut()` async method to `AuthViewModel` that calls `SupabaseManager.client.auth.signOut()`
+- The Supabase SDK handles three things on sign-out: (1) invalidates the session on the server, (2) removes tokens from the iOS Keychain, (3) emits a `signedOut` event via `authStateChanges`
+- The existing `listenForAuthChanges()` listener catches the `signedOut` event and sets `isAuthenticated = false`, which causes `ContentView` to swap back to `SignInView` automatically
+- Added a prominent "Sign Out" button to `HomeView` — red bordered button with Lucide `logOut` icon, full-width, 48pt height
+- Added a toolbar button in the navigation bar (top-right) with the `logOut` icon for quick access
+- Error handling: if `signOut()` throws, an alert is shown with "Sign-out failed. Please try again."
+- No manual `isAuthenticated = false` assignment in `signOut()` — auth state is driven entirely by the `authStateChanges` listener (consistent with the pattern established in Step 2.3)
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `signOut()` async method in a new `// MARK: - Sign Out (Step 2.4)` section. Updated file header comment.
+- `iOS/Knot/Features/Home/HomeView.swift` — Added full-width "Sign Out" button with Lucide `logOut` icon, toolbar button in navigation bar, updated file header and doc comment.
+
+**Test results:**
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Sign in → tap "Sign Out" → Sign-In screen appears immediately
+- ✅ After sign-out, force-quit and relaunch → Sign-In screen appears (session cleared from Keychain)
+- ✅ Toolbar sign-out button works identically to the body button
+- ✅ `authStateChanges` listener correctly handles `signedOut` event → `isAuthenticated = false`
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The `signOut()` method follows the same pattern as `signInWithSupabase()` — it does NOT manually set `isAuthenticated = false`. Instead, it relies on the `authStateChanges` listener to handle the `signedOut` event. This maintains the single source of truth for auth state established in Step 2.3.
+- Two sign-out UI affordances are provided: (1) a prominent red button at the bottom of the Home screen (visible for testing, will be moved to Settings in Step 11.1), and (2) a toolbar icon button in the navigation bar. The full Settings screen (Step 11.1) will be the permanent home for sign-out.
+- The Supabase Swift SDK's `signOut()` is a server-side invalidation — it revokes the refresh token on the Supabase server, ensuring the session cannot be reused even if the Keychain is somehow restored. The local Keychain cleanup is also handled by the SDK.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 2.4:** Implement Sign-Out (iOS)
+- [ ] **Step 2.5:** Create Backend Auth Middleware
 
 ---
 
@@ -1178,3 +1212,7 @@ iOS/Knot/
 18. **`@Bindable` wrapper for alert bindings:** When using `@Environment` with `@Observable` objects, you need `@Bindable var viewModel = authViewModel` to create `$`-bindable references for `.alert(isPresented:)` and similar SwiftUI modifiers.
 
 19. **Lucide icon naming convention:** The library uses `{shape}{action}` naming (e.g., `Lucide.circleCheck`, not `Lucide.checkCircle`). Verify icon names against the Lucide Swift source or the derived data symbols.
+
+20. **Sign-out follows the listener pattern:** `signOut()` calls `SupabaseManager.client.auth.signOut()` and does NOT manually set `isAuthenticated = false`. The `authStateChanges` listener handles the `signedOut` event. This is the same single-source-of-truth pattern used for sign-in. Never bypass the listener for auth state changes.
+
+21. **Sign-out button placement (temporary):** The sign-out button is currently on the placeholder Home screen for testing. It will move to the Settings screen in Step 11.1. The toolbar icon can remain for quick access during development.
