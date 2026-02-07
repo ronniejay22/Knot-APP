@@ -14,6 +14,14 @@ enum Constants {
         static let baseURL = "https://api.knot-app.com"
         static let version = "v1"
     }
+
+    /// Supabase Configuration
+    /// The anon key is the publishable (public) key — safe to embed in the app binary.
+    /// Row Level Security (RLS) in the database enforces per-user access control.
+    enum Supabase {
+        static let projectURL = URL(string: "https://nmruwlfvhkvkbcdncwaq.supabase.co")!
+        static let anonKey = "sb_publishable_QhaP3fnVMLpH-lE2n1XWvQ_X-1zodXi"
+    }
     
     /// Validation Rules
     enum Validation {

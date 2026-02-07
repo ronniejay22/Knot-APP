@@ -37,7 +37,7 @@ Knot/
 | File | Purpose |
 |------|---------|
 | `KnotApp.swift` | Main app entry point. Configures SwiftData ModelContainer and injects it into the app environment. |
-| `ContentView.swift` | Root view displayed on launch. Will be replaced with navigation logic (Auth vs Home). |
+| `ContentView.swift` | Root view displayed on launch. Currently shows `SignInView()` unconditionally. Will be refactored into an auth state router in Step 2.3 (show Home if session exists, Sign-In otherwise). |
 
 #### `/Features` — Feature Modules
 Organized by feature, each containing Views, ViewModels, and feature-specific components.
@@ -54,12 +54,13 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 ##### `Auth/` — Authentication Feature
 | File | Purpose |
 |------|---------|
-| `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Handles Apple credential extraction (user ID, email, identity token) on success and error display on failure. Contains a private `SignInFeatureRow` component for the value prop list. |
+| `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Delegates auth logic to `AuthViewModel`. Shows a loading overlay during Supabase sign-in. Contains a private `SignInFeatureRow` component for the value prop list. |
+| `AuthViewModel.swift` | `@Observable @MainActor` class managing the Apple Sign-In → Supabase Auth flow. Generates a secure OIDC nonce (`SecRandomCopyBytes` + `CryptoKit.SHA256`), configures the Apple Sign-In request, extracts the identity token from the Apple credential, and sends it to Supabase via `signInWithIdToken`. Exposes `isLoading`, `isAuthenticated`, `signInError`, `showError` for the UI. |
 
 #### `/Core` — Shared Utilities
 | File | Purpose |
 |------|---------|
-| `Constants.swift` | App-wide constants: API URLs, validation rules, predefined categories (41 interests, 8 vibes, 5 love languages). |
+| `Constants.swift` | App-wide constants: API URLs, Supabase configuration (`projectURL`, `anonKey`), validation rules, predefined categories (41 interests, 8 vibes, 5 love languages). |
 
 Future files:
 - `Extensions.swift` — Swift type extensions
@@ -67,14 +68,14 @@ Future files:
 - `NetworkMonitor.swift` — Online/offline detection
 
 #### `/Services` — Data & API Layer
-| File | Purpose |
-|------|---------|
-| `SupabaseClient.swift` | Supabase connection and auth client |
-| `APIClient.swift` | HTTP client for backend API calls |
-| `AuthService.swift` | Authentication logic (sign in, sign out, session) |
-| `VaultService.swift` | Partner Vault CRUD operations |
-| `HintService.swift` | Hint capture and retrieval |
-| `RecommendationService.swift` | Recommendation fetching and feedback |
+| File | Status | Purpose |
+|------|--------|---------|
+| `SupabaseClient.swift` | **Active** | Singleton `SupabaseManager.client` initialized with `Constants.Supabase.projectURL` and `anonKey`. The Supabase Swift SDK automatically handles Keychain session storage and token refresh. Used by `AuthViewModel` and future service classes. |
+| `APIClient.swift` | Planned | HTTP client for backend API calls |
+| `AuthService.swift` | Planned | Authentication logic (sign in, sign out, session) |
+| `VaultService.swift` | Planned | Partner Vault CRUD operations |
+| `HintService.swift` | Planned | Hint capture and retrieval |
+| `RecommendationService.swift` | Planned | Recommendation fetching and feedback |
 
 #### `/Models` — Data Models
 | File | Purpose |
@@ -715,6 +716,39 @@ The sign-in flow returns three pieces of data:
 - `credential.user` — Stable Apple user ID (e.g., `000817.ddb36fbe43e549ce802859bbb818cfc2.0307`). This never changes for the same Apple ID + app combination.
 - `credential.email` — Only returned on **first** sign-in. Subsequent sign-ins return `nil`. The app must persist this on first login.
 - `credential.identityToken` — JWT for server-side validation. This is sent to Supabase Auth in Step 2.2.
+
+### 56. AuthViewModel — OIDC Nonce Flow (Step 2.2)
+The `AuthViewModel` implements the OpenID Connect (OIDC) nonce pattern to prevent replay attacks:
+
+1. **Generate nonce:** `randomNonceString()` creates a 32-character cryptographically random string using `SecRandomCopyBytes`. This is the "raw nonce."
+2. **Hash for Apple:** `sha256()` hashes the raw nonce using `CryptoKit.SHA256`. The hash is set on `ASAuthorizationAppleIDRequest.nonce`. Apple embeds this hash in the identity token JWT.
+3. **Send raw to Supabase:** The *unhashed* nonce is sent to Supabase via `OpenIDConnectCredentials(nonce:)`. Supabase hashes it server-side and compares against the hash embedded in the JWT — if they match, the token is valid and hasn't been replayed.
+
+**Why `nonisolated`?** The `configureRequest()` method is `nonisolated` because `SignInWithAppleButton`'s `request` closure may run off the main actor. It uses `MainActor.assumeIsolated` to safely write `currentNonce` to the actor-isolated property. The utility methods (`randomNonceString`, `sha256`) are `nonisolated static` because they're pure functions.
+
+### 57. SupabaseManager Singleton Pattern (Step 2.2)
+`SupabaseManager` is an `enum` (not a `class` or `struct`) to prevent accidental instantiation. It exposes a single `static let client` — the `SupabaseClient` instance used throughout the app.
+
+**Keychain session storage** is handled automatically by the Supabase Swift SDK. When `signInWithIdToken` succeeds, the SDK stores the access token, refresh token, and user metadata in the iOS Keychain. On subsequent app launches, the SDK retrieves the stored session — Step 2.3 will use this to determine if the user is already authenticated.
+
+**Thread safety:** The `SupabaseClient` is designed to be called from any thread. The `AuthViewModel` ensures UI state updates happen on `@MainActor`, but the Supabase network calls are standard `async/await`.
+
+### 58. XcodeGen Entitlements Regeneration Gotcha (Step 2.2)
+Running `xcodegen generate` can overwrite the `Knot.entitlements` file to an empty `<dict/>` if the `entitlements` section in `project.yml` doesn't include `properties`. The fix is to declare capabilities in two places:
+
+```yaml
+# project.yml
+entitlements:
+  path: Knot/Knot.entitlements
+  properties:                              # <-- THIS prevents overwriting
+    com.apple.developer.applesignin:
+      - Default
+```
+
+Without the `properties` key, XcodeGen creates a blank entitlements file. With it, the file is generated with the correct content. This is critical when adding future entitlements (push notifications, associated domains).
+
+### 59. Supabase Anon Key Safety (Step 2.2)
+The `Constants.Supabase.anonKey` is a **publishable** key — it is safe to embed in the app binary. It grants only the permissions defined by Row Level Security (RLS) policies on each table. The actual data access is controlled by the JWT (obtained after `signInWithIdToken`) which encodes the user's `auth.uid()`. All Supabase tables use RLS policies that check `auth.uid()` against the row's `user_id` column.
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:

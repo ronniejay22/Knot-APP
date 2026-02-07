@@ -1021,9 +1021,68 @@ iOS/Knot/
 
 ---
 
+### Step 2.2: Connect Apple Sign-In to Supabase Auth (iOS) ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `SupabaseClient.swift` in `/Services/` — singleton `SupabaseManager` that initializes the Supabase Swift client with the project URL and anon key from `Constants.Supabase`
+- Created `AuthViewModel.swift` in `/Features/Auth/` — `@Observable @MainActor` class that manages the full Apple-to-Supabase authentication flow
+- Implemented OIDC nonce security: generates a cryptographically secure random nonce (`SecRandomCopyBytes`), hashes it with SHA-256 (`CryptoKit`), sets the hash on the Apple Sign-In request, and forwards the raw nonce to Supabase for verification
+- After successful Apple Sign-In, extracts the identity token from `ASAuthorizationAppleIDCredential` and sends it to Supabase via `signInWithIdToken(credentials: OpenIDConnectCredentials(provider: .apple, idToken:, nonce:))`
+- The Supabase Swift SDK automatically stores the returned session (access token, refresh token) in the iOS Keychain — no manual Keychain code required
+- Added loading overlay with `ProgressView("Signing in...")` and `.regularMaterial` background while the Supabase network request is in flight
+- Disabled the Apple Sign-In button during loading to prevent duplicate requests
+- Added `Constants.Supabase` enum with `projectURL` and `anonKey` to `Constants.swift`
+- Updated `project.yml` to set `DEVELOPMENT_TEAM: VN5G3R8J23` (persists across xcodegen regenerations) and added `entitlements.properties` to prevent XcodeGen from overwriting the entitlements file
+- Removed `Services/.gitkeep` placeholder (replaced by `SupabaseClient.swift`)
+
+**Files created:**
+- `iOS/Knot/Services/SupabaseClient.swift` — Singleton `SupabaseManager.client` initialized with project URL and anon key. The SDK auto-stores sessions in Keychain.
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — `@Observable @MainActor` class with: `configureRequest()` (nonce generation + SHA-256 hash), `handleResult()` (credential extraction + error handling), `signInWithSupabase()` (sends identity token to Supabase Auth). Exposes `isLoading`, `isAuthenticated`, `signInError`, `showError` for the UI.
+
+**Files modified:**
+- `iOS/Knot/Core/Constants.swift` — Added `Supabase` enum with `projectURL` (`https://nmruwlfvhkvkbcdncwaq.supabase.co`) and `anonKey` (publishable key, safe to embed)
+- `iOS/Knot/Features/Auth/SignInView.swift` — Replaced `@State`-based error handling with `@State private var viewModel = AuthViewModel()`. Added loading overlay, disabled button during loading, wired `configureRequest` and `handleResult` to the `SignInWithAppleButton` closures.
+- `iOS/project.yml` — Set `DEVELOPMENT_TEAM: VN5G3R8J23`, added `entitlements.properties` with `com.apple.developer.applesignin: [Default]` to survive xcodegen regenerations
+- `iOS/Knot/Knot.entitlements` — Restored `com.apple.developer.applesignin` capability (was overwritten to empty by xcodegen)
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with new files
+
+**Files removed:**
+- `iOS/Knot/Services/.gitkeep` — No longer needed (real file in folder)
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Loading overlay appears while Supabase sign-in is in progress ("Signing in..." with material background)
+- ✅ Apple Sign-In button disabled during loading (prevents duplicate requests)
+- ✅ Full end-to-end flow validated on iPhone 17 Pro Simulator (iOS 26.2):
+  - Apple Sign-In sheet appears → user authenticates → identity token extracted
+  - Token forwarded to Supabase via `signInWithIdToken` with OIDC nonce
+  - Supabase sign-in succeeded with User ID `27B4A75F-541C-41FF-B948-60281EC30E93`
+  - Email: `ronniejones22@gmail.com`
+  - Access token received (JWT starting with `eyJhbGciOiJFUzI1NiIs...`)
+  - Session automatically stored in iOS Keychain by the Supabase Swift SDK
+- ✅ User visible in Supabase dashboard → Authentication → Users (Apple provider)
+- ✅ `handle_new_user` trigger auto-created a row in `public.users` table
+- ✅ User cancellation: silently handled (no alert, no Supabase call)
+- ✅ Error handling: alert displays with error message on failure
+
+**Notes:**
+- The `AuthViewModel` uses `@Observable @MainActor` — this is the modern SwiftUI pattern for view models that manage async state. `@Observable` (iOS 17+ Observation framework) provides automatic change tracking, `@MainActor` ensures all property access is on the main thread.
+- The `configureRequest` method is `nonisolated` because `SignInWithAppleButton`'s request closure may not be `@MainActor`-isolated. It uses `MainActor.assumeIsolated` to safely store the nonce.
+- The nonce utility methods (`randomNonceString`, `sha256`) are `nonisolated static` to avoid actor isolation overhead — they are pure functions with no side effects.
+- The Supabase Swift SDK handles session storage in the iOS Keychain automatically. No manual Keychain code is needed. The session includes both access and refresh tokens, and the SDK handles token refresh transparently.
+- `DEVELOPMENT_TEAM` must be `VN5G3R8J23` in `project.yml` (not empty string) for Sign in with Apple to work. After the xcodegen regeneration in Step 2.2 initially reset this to empty, causing error 1000, the fix was applied and now persists across regenerations.
+- The `entitlements.properties` section in `project.yml` ensures XcodeGen generates the entitlements file with the correct content even if the file is deleted and regenerated.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 2.2:** Connect Apple Sign-In to Supabase Auth (iOS)
+- [ ] **Step 2.3:** Implement Session Persistence (iOS)
 
 ---
 
@@ -1055,3 +1114,9 @@ iOS/Knot/
 11. **Sign in with Apple on Simulator:** Three requirements for the Apple Sign-In sheet to appear: (1) `DEVELOPMENT_TEAM` set in Xcode build settings, (2) Apple ID signed in on the Simulator (Settings > Apple Account), (3) App ID registered with Sign in with Apple capability in the Apple Developer portal (requires paid program).
 
 12. **Feature-based folder structure:** New features go in `/Features/{FeatureName}/`. Step 2.1 created `Features/Auth/SignInView.swift`. Future features follow the same pattern: `Features/Onboarding/`, `Features/Home/`, etc.
+
+13. **XcodeGen entitlements gotcha:** XcodeGen will overwrite the entitlements file to an empty `<dict/>` on regeneration UNLESS `entitlements.properties` is specified in `project.yml`. Always declare entitlement capabilities in both the `.entitlements` file AND in `project.yml`'s `entitlements.properties` section.
+
+14. **DEVELOPMENT_TEAM in project.yml:** Must be set to the paid team ID (`VN5G3R8J23`), not empty string. If left empty, `xcodegen generate` will reset the team in the Xcode project, causing error 1000 on Sign in with Apple.
+
+15. **Supabase session storage:** The Supabase Swift SDK automatically stores auth sessions in the iOS Keychain. No manual Keychain code is needed. Session tokens are persisted across app launches and the SDK handles token refresh.

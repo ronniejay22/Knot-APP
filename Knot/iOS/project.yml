@@ -26,7 +26,7 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: com.ronniejay.knot
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: VN5G3R8J23
     CODE_SIGN_STYLE: Automatic
 
 targets:
@@ -39,6 +39,9 @@ targets:
           - "**/.DS_Store"
     entitlements:
       path: Knot/Knot.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
     settings:
       base:
         INFOPLIST_FILE: Knot/Info.plist
