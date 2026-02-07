@@ -37,12 +37,15 @@ targets:
       - path: Knot
         excludes:
           - "**/.DS_Store"
+    entitlements:
+      path: Knot/Knot.entitlements
     settings:
       base:
         INFOPLIST_FILE: Knot/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.ronniejay.knot
         SWIFT_EMIT_LOC_STRINGS: true
         GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_ENTITLEMENTS: Knot/Knot.entitlements
     dependencies:
       - package: LucideIcons
       - package: Supabase

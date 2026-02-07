@@ -976,9 +976,54 @@ iOS/Knot/
 
 ---
 
+### Step 2.1: Implement Apple Sign-In Button (iOS) ✅
+**Date:** February 6, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `SignInView` in `/Features/Auth/` displaying the standard `SignInWithAppleButton` from `AuthenticationServices`
+- Designed a clean, minimalist sign-in screen with Knot branding (Lucide heart icon, title, tagline), three value proposition rows (gift, calendar, sparkles icons), and the Apple Sign-In button at the bottom
+- Button styled with `.signInWithAppleButtonStyle(.black)`, 54pt height, 12pt rounded corners matching the shadcn-inspired design system
+- Implemented `handleSignInResult()` that extracts the Apple credential (user ID, email, identity token) on success — ready for Supabase integration in Step 2.2
+- Error handling: user cancellation (`ASAuthorizationError.canceled`) is silently ignored; other errors display an alert with the error description
+- Created `Knot.entitlements` with `com.apple.developer.applesignin` capability
+- Updated `project.yml` with `entitlements` path and `CODE_SIGN_ENTITLEMENTS` build setting
+- Updated `ContentView.swift` to show `SignInView()` as the root view (session-based navigation will be added in Step 2.3)
+- Removed the placeholder Lucide icon test view from `ContentView` (no longer needed — icons are verified in `SignInView`)
+
+**Files created:**
+- `iOS/Knot/Features/Auth/SignInView.swift` — Sign-in screen with Apple Sign-In button, branding, value props, error handling
+- `iOS/Knot/Knot.entitlements` — Sign in with Apple entitlement (`com.apple.developer.applesignin: [Default]`)
+
+**Files modified:**
+- `iOS/project.yml` — Added `entitlements` section and `CODE_SIGN_ENTITLEMENTS` build setting to Knot target
+- `iOS/Knot/App/ContentView.swift` — Simplified to show `SignInView()` as the root view
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with new files and entitlements
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild clean build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ SignInView renders on iPhone 17 Pro Simulator (iOS 26.2): heart icon, "Knot" title, tagline, 3 feature rows, Apple button, privacy text
+- ✅ Tapping "Sign in with Apple" triggers the AuthenticationServices flow
+- ✅ Error handling verified: error alert displays with correct error message
+- ✅ User cancellation: silently handled (no alert shown)
+- ✅ Full sign-in flow validated on Simulator: Apple Sign-In sheet appears, user selects email sharing preference, enters password, credential returned successfully with User ID, email (`ronniejones22@gmail.com`), and identity token (JWT starting with `eyJraWQi...`). Requires paid Apple Developer Program and correct team selection in Xcode (not "Personal Team").
+
+**Notes:**
+- The `SignInView` uses `SignInWithAppleButton(.signIn)` from `AuthenticationServices` — this is Apple's official SwiftUI component. It automatically adapts to light/dark mode and locale.
+- `requestedScopes` is set to `[.email]` — Apple will prompt the user to share or hide their email. The `email` property on the credential is only non-nil on first sign-in (Apple returns `nil` on subsequent logins).
+- The identity token (`credential.identityToken`) is a JWT that Supabase Auth will validate in Step 2.2 via `signInWithIdToken(provider: .apple, idToken: token)`.
+- Error 1000 on the Simulator is a known limitation when: (a) the Simulator doesn't have an Apple ID signed in (Settings > Apple Account), or (b) the app's bundle ID isn't registered with the Sign in with Apple capability in the Apple Developer portal, or (c) the developer isn't enrolled in the paid Apple Developer Program.
+- The `SignInFeatureRow` is a private component within `SignInView.swift` (not in `/Components/`) because it's specific to the sign-in screen and not reusable elsewhere.
+- `DEVELOPMENT_TEAM` must be set in the Xcode project (either via `project.yml` or directly in Xcode's Signing & Capabilities tab) for Sign in with Apple to work on the Simulator.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 2.1:** Implement Apple Sign-In Button (iOS)
+- [ ] **Step 2.2:** Connect Apple Sign-In to Supabase Auth (iOS)
 
 ---
 
@@ -1004,3 +1049,9 @@ iOS/Knot/
 8. **Apple Sign-In (native iOS):** Knot uses native `SignInWithAppleButton`, NOT the web OAuth redirect flow. The OAuth Secret Key in Supabase dashboard can be left empty. The native flow sends Apple's identity token directly to Supabase via `signInWithIdToken`.
 
 9. **Supabase Swift SDK:** Added as SPM dependency in `project.yml`. Three products are linked: `Auth` (authentication), `PostgREST` (database queries), `Supabase` (umbrella). After modifying `project.yml`, regenerate with `cd iOS && xcodegen generate`.
+
+10. **Apple Developer Program (paid):** Sign in with Apple on the Simulator requires the paid Apple Developer Program ($99/year). Without it, you'll get `ASAuthorizationError error 1000`. The code is correct — it's an account-level limitation. Enroll at [developer.apple.com](https://developer.apple.com) to register App IDs with Sign in with Apple capability.
+
+11. **Sign in with Apple on Simulator:** Three requirements for the Apple Sign-In sheet to appear: (1) `DEVELOPMENT_TEAM` set in Xcode build settings, (2) Apple ID signed in on the Simulator (Settings > Apple Account), (3) App ID registered with Sign in with Apple capability in the Apple Developer portal (requires paid program).
+
+12. **Feature-based folder structure:** New features go in `/Features/{FeatureName}/`. Step 2.1 created `Features/Auth/SignInView.swift`. Future features follow the same pattern: `Features/Onboarding/`, `Features/Home/`, etc.

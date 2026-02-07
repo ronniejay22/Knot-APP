@@ -3,55 +3,17 @@
 //  Knot
 //
 //  Created on February 3, 2026.
+//  Updated February 6, 2026 — Step 2.1: Show SignInView as the initial screen.
 //
 
 import SwiftUI
-import LucideIcons
 
+/// Root view of the app. Displays the appropriate screen based on auth state.
+/// Currently shows SignInView (Step 2.1). Session-based navigation will be
+/// added in Step 2.3 to conditionally show Home vs Sign-In.
 struct ContentView: View {
     var body: some View {
-        VStack(spacing: 24) {
-            // Lucide Heart icon (verifies Step 0.3 dependency)
-            Image(uiImage: Lucide.heart)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 64)
-                .foregroundStyle(.pink)
-            
-            Text("Knot")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Relational Excellence on Autopilot")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            // Additional Lucide icons to confirm package works
-            HStack(spacing: 16) {
-                Image(uiImage: Lucide.gift)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.secondary)
-                
-                Image(uiImage: Lucide.calendar)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.secondary)
-                
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding()
+        SignInView()
     }
 }
 

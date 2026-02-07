@@ -29,6 +29,7 @@ Knot/
 | `project.yml` | XcodeGen configuration. Defines targets, build settings, and dependencies. Run `xcodegen generate` after modifying. |
 | `Knot.xcodeproj/` | Generated Xcode project. **Do not edit directly** — modify `project.yml` instead. |
 | `Knot/Info.plist` | iOS app configuration (bundle name, supported orientations, launch screen). |
+| `Knot/Knot.entitlements` | App entitlements file. Currently contains `com.apple.developer.applesignin` for Sign in with Apple capability. Future entitlements (push notifications, associated domains for deep links) will be added here. Referenced by `CODE_SIGN_ENTITLEMENTS` in `project.yml`. |
 
 ### Source Code (`iOS/Knot/`)
 
@@ -41,14 +42,19 @@ Knot/
 #### `/Features` — Feature Modules
 Organized by feature, each containing Views, ViewModels, and feature-specific components.
 
-| Folder | Purpose |
-|--------|---------|
-| `Auth/` | Apple Sign-In flow, session management |
-| `Onboarding/` | Partner Vault creation (9-step wizard) |
-| `Home/` | Main dashboard with hint capture and milestone cards |
-| `Recommendations/` | Choice-of-Three UI, refresh flow |
-| `HintCapture/` | Text and voice hint input |
-| `Settings/` | User preferences, account management |
+| Folder | Status | Purpose |
+|--------|--------|---------|
+| `Auth/` | **Active** | Apple Sign-In flow, session management |
+| `Onboarding/` | Planned | Partner Vault creation (9-step wizard) |
+| `Home/` | Planned | Main dashboard with hint capture and milestone cards |
+| `Recommendations/` | Planned | Choice-of-Three UI, refresh flow |
+| `HintCapture/` | Planned | Text and voice hint input |
+| `Settings/` | Planned | User preferences, account management |
+
+##### `Auth/` — Authentication Feature
+| File | Purpose |
+|------|---------|
+| `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Handles Apple credential extraction (user ID, email, identity token) on success and error display on failure. Contains a private `SignInFeatureRow` component for the value prop list. |
 
 #### `/Core` — Shared Utilities
 | File | Purpose |
@@ -650,6 +656,65 @@ The models do NOT define SwiftData `@Relationship` between them (e.g., vault →
 
 **Excluded Server-Only Columns:**
 `HintLocal` excludes `hint_embedding` (768-float vector). This column is only used server-side for semantic search via the `match_hints()` RPC function. Storing it on-device would waste ~3KB per hint with no local utility.
+
+### 51. SignInView Architecture (Step 2.1)
+The `SignInView` is the first feature view in the app and establishes patterns for future feature views:
+
+**View-Only Pattern (No ViewModel Yet):**
+Step 2.1 uses a simple `@State`-based view without a separate ViewModel. The sign-in result handler is a private method on the view struct. This is intentional for the MVP — the view is simple enough that a ViewModel would be over-engineering. A ViewModel (`AuthViewModel`) will be introduced in Step 2.2 when Supabase session management adds complexity.
+
+**Private Sub-Components:**
+The `SignInFeatureRow` component is `private` within `SignInView.swift` rather than being placed in `/Components/`. This is because it's a presentational component specific to the sign-in screen with no reuse potential. Components that ARE reusable across features (like `ChipView`, `CardView`) should go in `/Components/`.
+
+**Error Handling Strategy:**
+The view distinguishes between user-initiated cancellation (`ASAuthorizationError.canceled`) and system errors. Cancellation is silently ignored (standard iOS behavior — the user knowingly dismissed the sheet). All other errors surface as alerts. This two-tier error handling pattern should be followed for all user-facing flows.
+
+**Credential Extraction Pattern:**
+The Apple credential provides three key pieces: `user` (stable Apple user ID), `email` (only on first sign-in, nil on subsequent), and `identityToken` (JWT for server validation). The identity token is the critical piece for Step 2.2 — it's sent to Supabase Auth via `signInWithIdToken(provider: .apple, idToken: token)`.
+
+### 52. Entitlements File Strategy
+The `Knot.entitlements` file is the central location for all iOS app capabilities. Currently contains only Sign in with Apple. Future additions will include:
+- `aps-environment` — Push notification entitlement (Step 7.4)
+- `com.apple.developer.associated-domains` — Universal links for deep linking (Step 9.1)
+
+The entitlements file is referenced in two places in `project.yml`:
+1. `entitlements.path` — XcodeGen uses this to set up the Xcode project correctly
+2. `CODE_SIGN_ENTITLEMENTS` — The build setting that tells the code signing process which entitlements to embed
+
+### 53. ContentView as Auth Router (Step 2.1 → 2.3)
+`ContentView` currently shows `SignInView()` unconditionally. In Step 2.3, it will be refactored into an auth state router:
+```swift
+struct ContentView: View {
+    @State private var isAuthenticated = false
+    var body: some View {
+        if isAuthenticated { HomeView() }
+        else { SignInView() }
+    }
+}
+```
+This pattern keeps the app entry point clean and delegates authentication state management to a service layer. The `isAuthenticated` state will be driven by checking for an existing Supabase session in the iOS Keychain.
+
+### 54. Apple Developer Program Requirement
+Sign in with Apple requires the **paid Apple Developer Program** ($99/year) for full functionality. Without it:
+- Error 1000 (`ASAuthorizationError.unknown`) occurs when tapping the sign-in button
+- App IDs cannot be registered with the Sign in with Apple capability
+- The Apple Sign-In sheet will not appear on the Simulator or device
+
+The free Apple Developer account allows building and running on the Simulator but cannot access Certificates, Identifiers & Profiles. This is a prerequisite for Steps 2.1–2.4 to be fully testable end-to-end. The code implementation is correct regardless of enrollment status.
+
+**Critical: Team Selection in Xcode**
+After enrolling in the paid program, Xcode may still default to the **"Personal Team"** (the free tier). The Team dropdown in Signing & Capabilities will show two entries with the same name -- select the one that is NOT labeled "(Personal Team)". Using the Personal Team will produce: *"Cannot create a iOS App Development provisioning profile... Personal development teams do not support the Sign In with Apple capability."* The correct paid team ID for this project is `VN5G3R8J23`.
+
+### 55. Sign in with Apple — Simulator Testing Checklist
+Validated end-to-end on iPhone 17 Pro Simulator (iOS 26.2). Three prerequisites for the Apple Sign-In sheet to appear:
+1. **Paid Apple Developer Program** enrolled and active
+2. **Correct team selected** in Xcode Signing & Capabilities (not "Personal Team")
+3. **Apple ID signed in** on the Simulator (Settings > Apple Account)
+
+The sign-in flow returns three pieces of data:
+- `credential.user` — Stable Apple user ID (e.g., `000817.ddb36fbe43e549ce802859bbb818cfc2.0307`). This never changes for the same Apple ID + app combination.
+- `credential.email` — Only returned on **first** sign-in. Subsequent sign-ins return `nil`. The app must persist this on first login.
+- `credential.identityToken` — JWT for server-side validation. This is sent to Supabase Auth in Step 2.2.
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:
