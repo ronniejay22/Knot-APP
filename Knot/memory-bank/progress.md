@@ -1223,10 +1223,53 @@ iOS/Knot/
 
 ---
 
+### Step 3.2: Build Partner Basic Info Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingBasicInfoView` placeholder with a full form collecting four data fields
+- **Partner's Name** — `TextField` with `.givenName` content type, keyboard submit chaining (name → city → state → dismiss), and a deferred "Required" validation hint (only appears after user interaction via `hasInteractedWithName` flag to avoid jarring first-load UX)
+- **Relationship Tenure** — Two inline `Picker` controls (`.menu` style, pink tint) for years (0–30) and months (0–11). Custom `Binding(get:set:)` objects decompose the ViewModel's single `relationshipTenureMonths: Int` into the two-component UI. A human-readable summary ("2 years, 6 months") displays below the pickers
+- **Cohabitation Status** — `Picker` with `.segmented` style for three options: "Living Together", "Separate", "Long Distance". Includes contextual description text that updates dynamically with the selection
+- **Location** — City and state `TextField`s (marked optional) with `.addressCity`/`.addressState` content types for iOS autofill. Lucide `mapPin` icon and helper text explain why location is useful for local recommendations
+- Added centralized `validateCurrentStep()` method to `OnboardingViewModel` — called by `goToNextStep()`, `goToPreviousStep()`, and by the view's `.onAppear` / `.onChange(of: partnerName)` modifiers
+- Validation rule: `canProceed = false` when `partnerName` (trimmed of whitespace) is empty; `true` otherwise
+- Added `@FocusState` keyboard management with `Field` enum for submit-chaining between text fields
+- Added `.scrollDismissesKeyboard(.interactively)` for smooth keyboard dismissal during scroll
+- Added two `#Preview` variants: empty state and pre-filled state (for design iteration)
+- Updated Xcode project to recommended settings (LastUpgradeCheck 2620, STRING_CATALOG_GENERATE_SYMBOLS)
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBasicInfoView.swift` — Full rewrite from placeholder to complete form (62 lines → 312 lines). Header section, name field with deferred validation, tenure pickers with custom bindings, cohabitation segmented control with contextual description, location fields with mapPin icon and autofill support.
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `validateCurrentStep()` method with `.basicInfo` case (name required). Replaced `canProceed = true` resets in `goToNextStep()`/`goToPreviousStep()` with `validateCurrentStep()` calls. Future steps (3.3–3.8) will add cases to the switch.
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Enter a name and select options → "Next" button enabled, navigation proceeds to Interests step
+- ✅ Clear the name field → "Next" button disabled, "Name is required to continue" hint appears
+- ✅ Relationship tenure pickers update `relationshipTenureMonths` correctly (e.g., 2 years + 6 months = 30 months)
+- ✅ Cohabitation segmented control switches between all three options with contextual description
+- ✅ Location fields accept text input with proper keyboard submit chaining
+- ✅ Navigate forward → back → data persists (ViewModel state preserved across step transitions)
+- ✅ Keyboard dismisses on scroll (`.scrollDismissesKeyboard(.interactively)`)
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The `hasInteractedWithName` flag is `@State` (local to the view, reset on view recreation). Since `.id(viewModel.currentStep)` recreates the view on every step change, the "Required" hint resets when navigating away and back. This is intentional — the user already entered a name to leave the step, so the hint is unnecessary on return.
+- The tenure pickers use `Binding(get:set:)` inside a computed property (`tenureSection`) because `@Bindable var vm = viewModel` is only available inside the `body` getter. The custom bindings decompose `relationshipTenureMonths` into years and months, and recompose them on set. Since `OnboardingViewModel` is `@Observable`, reads in the `get:` closure are tracked and writes in `set:` trigger view updates.
+- The `validateCurrentStep()` method in the ViewModel provides a centralized switch statement for validation. This replaces the previous pattern of resetting `canProceed = true` in navigation methods. Each step's case defines its own validation rule. The `default` case returns `true` for placeholder steps that don't have validation yet.
+- The view also calls `validateCurrentStep()` via `.onAppear` and `.onChange(of: partnerName)` to handle real-time validation as the user types. Both the ViewModel-level and view-level validation are kept in sync by calling the same method.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
 - [ ] **Step 2.5:** Create Backend Auth Middleware
-- [ ] **Step 3.2:** Build Partner Basic Info Screen (iOS)
+- [ ] **Step 3.3:** Build Interests Selection Screen (iOS)
 
 ---
 
@@ -1281,8 +1324,14 @@ iOS/Knot/
 
 23. **OnboardingViewModel owns all step data:** A single `OnboardingViewModel` holds data for all 9 steps. It is created by `OnboardingContainerView` and injected via `.environment()`. All step views read/write it via `@Environment(OnboardingViewModel.self)`. This ensures data persists when navigating back and forth — the view model is never recreated during the flow.
 
-24. **`canProceed` validation pattern:** Each step view is responsible for setting `viewModel.canProceed` based on its validation rules (e.g., name not empty, exactly 5 interests selected). The container's "Next" button reads this flag. When implementing a new step, set `canProceed` in an `.onChange` or `.onAppear` modifier.
+24. **`canProceed` validation pattern (updated in Step 3.2):** Validation is now centralized in `OnboardingViewModel.validateCurrentStep()` — a switch statement with one case per step. The ViewModel calls it automatically after `goToNextStep()`/`goToPreviousStep()`. Step views also call it via `.onAppear` and `.onChange(of:)` for real-time validation as the user types. When implementing a new step, add a case to the switch in `validateCurrentStep()` and call it from the view's `.onChange` modifier.
 
 25. **`hasCompletedOnboarding` is in-memory only (for now):** The flag resets on app relaunch. Until Step 3.11 (Connect iOS Onboarding to Backend API) checks for an existing vault on session restore, authenticated users will see onboarding on every launch. This is expected during development.
 
 26. **Step transitions use `.id()` for animation:** The step content in `OnboardingContainerView` uses `.id(viewModel.currentStep)` to force SwiftUI view identity changes on each step, enabling the `.transition(.asymmetric(...))` animations. Without `.id()`, SwiftUI would diff in-place and skip the transition.
+
+27. **`@Bindable` in body vs computed properties:** In `OnboardingBasicInfoView`, `@Bindable var vm = viewModel` is declared inside `body` and used for `$vm.partnerName` bindings passed to sub-methods. For computed properties that need bindings (like `tenureSection`), use `Binding(get:set:)` with the `@Environment` viewModel directly, since `@Bindable` is scoped to `body`.
+
+28. **Deferred validation hints:** The "Name is required" hint uses a `@State private var hasInteractedWithName` flag to defer display until the user interacts with the field. This avoids showing validation errors on first load (before the user has had a chance to type). The flag is reset when navigating away (view is recreated via `.id()`), which is correct — the user must have entered a name to leave the step.
+
+29. **Custom Binding decomposition for tenure pickers:** The ViewModel stores tenure as a single `relationshipTenureMonths: Int`. The UI decomposes this into years (0–30) and months (0–11) using `Binding(get: { months / 12 }, set: { viewModel.months = newYears * 12 + remainingMonths })`. This keeps the ViewModel simple (single integer) while the view handles the UI decomposition.

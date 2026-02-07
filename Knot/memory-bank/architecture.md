@@ -65,13 +65,13 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 ##### `Onboarding/` — Partner Vault Onboarding Flow
 | File | Purpose |
 |------|---------|
-| `OnboardingViewModel.swift` | `@Observable @MainActor` class managing all onboarding state. Contains `OnboardingStep` enum (9 cases: welcome through completion) with `title`, `isFirst`, `isLast`, `totalSteps`. Holds `currentStep`, `progress` (0.0–1.0), `canProceed` flag, and all data properties for Steps 3.2–3.8 (partnerName, selectedInterests, selectedDislikes, selectedVibes, budget amounts, love languages, milestones). Provides `goToNextStep()` and `goToPreviousStep()` navigation methods. Created by `OnboardingContainerView` and injected into environment — all step views share the same instance. |
+| `OnboardingViewModel.swift` | `@Observable @MainActor` class managing all onboarding state. Contains `OnboardingStep` enum (9 cases: welcome through completion) with `title`, `isFirst`, `isLast`, `totalSteps`. Holds `currentStep`, `progress` (0.0–1.0), `canProceed` flag, and all data properties for Steps 3.2–3.8 (partnerName, selectedInterests, selectedDislikes, selectedVibes, budget amounts, love languages, milestones). Provides `goToNextStep()`, `goToPreviousStep()` navigation methods, and `validateCurrentStep()` centralized validation (switch on `currentStep` — `.basicInfo` checks name non-empty, `default` returns `true` for placeholder steps). Navigation methods call `validateCurrentStep()` after every step change. Step views also call it via `.onAppear` / `.onChange` for real-time validation. Created by `OnboardingContainerView` and injected into environment — all step views share the same instance. |
 | `OnboardingContainerView.swift` | Navigation shell for the 9-step onboarding flow. Owns `OnboardingViewModel` via `@State` and injects it into the SwiftUI environment. Displays: (1) animated progress bar at top with step title and "Step X of 9" counter, (2) current step view in center via `@ViewBuilder` switch, (3) Back/Next/Get Started buttons at bottom. Back button hidden on first step; "Get Started" replaces "Next" on last step. Uses `.id(viewModel.currentStep)` for step identity and `.transition(.asymmetric(...))` for slide animations. Accepts `onComplete` closure called when user finishes onboarding. |
 
 | Step View (in `Steps/`) | Step # | Purpose |
 |--------------------------|--------|---------|
 | `OnboardingWelcomeView.swift` | 1 | Welcome screen with Knot branding and checklist of vault sections (basics, interests, milestones, budget, love languages). Read-only informational step. |
-| `OnboardingBasicInfoView.swift` | 2 | Partner basic info placeholder. Full form fields (name, tenure picker, cohabitation segmented control, location) built in Step 3.2. |
+| `OnboardingBasicInfoView.swift` | 2 | **Active (Step 3.2).** Partner basic info form with 4 sections: (1) Partner name `TextField` with `.givenName` content type, deferred "Required" validation hint via `@State hasInteractedWithName`, and `@FocusState` keyboard chaining (name → city → state → dismiss); (2) Relationship tenure — two `Picker(.menu)` controls for years (0–30) and months (0–11) using `Binding(get:set:)` to decompose/recompose `viewModel.relationshipTenureMonths`; (3) Cohabitation status `Picker(.segmented)` with contextual description text; (4) Location city/state `TextField`s with `.addressCity`/`.addressState` content types (optional). Calls `viewModel.validateCurrentStep()` on `.onAppear` and `.onChange(of: partnerName)`. Uses `@Bindable var vm = viewModel` in `body` for binding syntax, `Binding(get:set:)` in computed properties. `ScrollView` with `.scrollDismissesKeyboard(.interactively)`. |
 | `OnboardingInterestsView.swift` | 3 | Interests selection placeholder. Full chip-grid UI with 40 categories, selection counter, and "exactly 5" validation built in Step 3.3. |
 | `OnboardingDislikesView.swift` | 4 | Dislikes selection placeholder. Full chip-grid with disabled "liked" interests and "exactly 5" validation built in Step 3.4. |
 | `OnboardingMilestonesView.swift` | 5 | Milestones placeholder. Full date pickers, holiday toggles, and custom milestone sheet built in Step 3.5. |
@@ -879,6 +879,59 @@ The `OnboardingStep` enum uses `Int` raw values (0–8) for two purposes:
 2. **Navigation:** `OnboardingStep(rawValue: current + 1)` safely advances; returns `nil` at bounds
 
 Computed properties (`title`, `isFirst`, `isLast`) keep the container view clean — no switch statements needed for basic step metadata.
+
+### 69. Centralized Step Validation Pattern (Step 3.2)
+The `OnboardingViewModel.validateCurrentStep()` method centralizes all step-level validation in a single switch statement:
+
+```swift
+func validateCurrentStep() {
+    switch currentStep {
+    case .basicInfo:
+        canProceed = !partnerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    // Future: case .interests: canProceed = selectedInterests.count == 5
+    default:
+        canProceed = true
+    }
+}
+```
+
+This replaces the previous pattern of resetting `canProceed = true` in `goToNextStep()`/`goToPreviousStep()`. The method is called from three places:
+1. **`goToNextStep()`** — validates the new step after advancing
+2. **`goToPreviousStep()`** — validates the previous step when going back
+3. **Step views** — via `.onAppear` (initial validation) and `.onChange(of: property)` (real-time validation as user types)
+
+This dual-trigger approach (ViewModel-level + view-level) ensures validation is always up-to-date regardless of how the step is reached.
+
+### 70. @Bindable Scoping and Custom Binding Strategy (Step 3.2)
+`OnboardingBasicInfoView` introduces a pattern for handling bindings in views with `@Environment` `@Observable` objects:
+
+- **Inside `body`:** `@Bindable var vm = viewModel` provides `$vm.partnerName` syntax for `TextField` and `Picker` controls. Bindings are passed as parameters to private methods (e.g., `nameSection(name: $vm.partnerName)`).
+- **Inside computed properties:** `Binding(get:set:)` is used directly with the `@Environment` property (e.g., in `tenureSection`), since `@Bindable` is scoped to `body` and not accessible in other properties/methods.
+
+This split is necessary because SwiftUI's `@Bindable` property wrapper can only be declared as a local variable inside `body`. Future step views should follow the same pattern: `@Bindable` for simple bindings in body, `Binding(get:set:)` for derived/computed bindings in extracted sub-views.
+
+### 71. Deferred Validation Hint UX Pattern (Step 3.2)
+The "Name is required to continue" hint uses a `@State private var hasInteractedWithName` flag to defer display:
+- **On first load:** hint is hidden (user hasn't typed yet, showing an error would be jarring)
+- **After first keystroke:** `hasInteractedWithName = true` (set via `.onChange(of: partnerName)`)
+- **After clearing:** hint appears (user had text and deleted it — this is a meaningful validation failure)
+- **After navigating away and back:** `hasInteractedWithName` resets to `false` (view is recreated via `.id()`) — hint is hidden again because the user must have had a valid name to leave the step
+
+This pattern should be reused for any required field that starts empty. It decouples the validation error UX (when to show the message) from the `canProceed` validation logic (which always runs, even on first load).
+
+### 72. Keyboard Submit Chaining Pattern (Step 3.2)
+`OnboardingBasicInfoView` uses `@FocusState` with a `Field` enum to chain keyboard submit actions:
+```
+Name → (submit) → City → (submit) → State → (submit) → Dismiss keyboard
+```
+Each `TextField` uses `.focused($focusedField, equals: .fieldCase)` and `.onSubmit { focusedField = .nextField }`. The last field sets `focusedField = nil` to dismiss the keyboard. Combined with `.scrollDismissesKeyboard(.interactively)` on the `ScrollView`, this provides a smooth keyboard experience.
+
+### 73. Tenure Decomposition Pattern (Step 3.2)
+The ViewModel stores relationship tenure as a single integer (`relationshipTenureMonths: Int`). The UI decomposes this into two pickers (years 0–30 and months 0–11) using custom `Binding(get:set:)`:
+- **get:** `viewModel.relationshipTenureMonths / 12` for years, `% 12` for months
+- **set:** Recomposes as `newYears * 12 + remainingMonths` or `currentYears * 12 + newMonths`
+
+This keeps the ViewModel data model simple (matches the database `relationship_tenure_months` integer column in `partner_vaults`) while providing an intuitive UI. The summary line (`"2 years, 6 months"`) is a computed property on the view that reads the ViewModel value.
 
 ### 50. Complete Database Schema Summary (End of Phase 1)
 With Phase 1 complete, the full database schema consists of 12 tables:

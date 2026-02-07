@@ -4,6 +4,7 @@
 //
 //  Created on February 7, 2026.
 //  Step 3.1: Onboarding flow navigation — shared state across all 9 steps.
+//  Step 3.2: Added validation for Partner Basic Info (name required).
 //
 
 import Foundation
@@ -125,8 +126,7 @@ final class OnboardingViewModel {
     func goToNextStep() {
         guard let nextIndex = OnboardingStep(rawValue: currentStep.rawValue + 1) else { return }
         currentStep = nextIndex
-        // Reset canProceed for the new step — each step view will set it appropriately
-        canProceed = true
+        validateCurrentStep()
     }
 
     /// Returns to the previous onboarding step.
@@ -134,7 +134,29 @@ final class OnboardingViewModel {
     func goToPreviousStep() {
         guard let prevIndex = OnboardingStep(rawValue: currentStep.rawValue - 1) else { return }
         currentStep = prevIndex
-        // Re-entering a previous step should allow proceeding (data was already entered)
-        canProceed = true
+        validateCurrentStep()
+    }
+
+    // MARK: - Validation
+
+    /// Validates whether the user can proceed from the current step.
+    ///
+    /// Steps without validation (welcome, completion, and unimplemented placeholders)
+    /// default to `canProceed = true`. Steps with validation rules update `canProceed`
+    /// based on their specific requirements.
+    ///
+    /// This method is called after every step transition. Individual step views may also
+    /// call it via `.onChange` modifiers when the user modifies form data (see architecture
+    /// note #24 for the view-based validation pattern).
+    func validateCurrentStep() {
+        switch currentStep {
+        case .basicInfo:
+            canProceed = !partnerName
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default:
+            // Placeholder steps and steps without validation allow proceeding.
+            // Steps 3.3–3.8 will add cases here as they are implemented.
+            canProceed = true
+        }
     }
 }
