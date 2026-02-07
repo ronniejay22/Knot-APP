@@ -1346,10 +1346,59 @@ iOS/Knot/
 
 ---
 
+### Step 3.4: Build Dislikes Selection Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingDislikesView` placeholder with a full dislikes selection screen matching the Interests screen (Step 3.3) visual style
+- **3-column dark card grid:** Reuses `OnboardingInterestsView.cardGradient(for:)` and `.iconName(for:)` static methods for consistent gradient and icon visuals across both screens — no code duplication
+- **Disabled "liked" interests:** Cards for interests already selected as likes in Step 3.3 are grayed out (flat `Color(white: 0.18)` instead of gradient), 50% opacity, `.disabled(true)` (not tappable), and show a heart badge in the top-right corner to indicate "already liked"
+- **Personalized header:** "What doesn't [partner name] like?" using the name from Step 3.2, with subtitle "Choose 5 things your partner avoids. We'll make sure to steer clear of these."
+- **Search bar:** Identical pill-style search to the Interests screen — real-time filtering of 40 categories, clear button, empty-state message
+- **Exactly-5 validation:** Counter shows "X selected (Y more needed)" in pink; checkmark icon when complete. "Next" button disabled until exactly 5 dislikes are chosen
+- **Shake animation:** 6th selection attempt triggers the same horizontal shake as the Interests screen
+- **ViewModel validation:** Added `.dislikes` case to `OnboardingViewModel.validateCurrentStep()` — requires `selectedDislikes.count == 5` AND `selectedDislikes.isDisjoint(with: selectedInterests)` (no overlap with likes)
+- **4 preview variants:** Empty (no likes), with liked interests grayed out, 3 dislikes selected, 5 dislikes selected (complete)
+
+**`DislikeImageCard` visual states:**
+- **Unselected:** Gradient background, semi-transparent SF Symbol icon, white text (identical to `InterestImageCard`)
+- **Selected (disliked):** Pink border, checkmark badge in top-right corner
+- **Disabled (liked):** Flat gray background, 50% opacity, dimmed text (35% white), heart badge in top-right, not tappable
+- **Shaking:** Horizontal shake animation when 6th selection rejected
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift` — Full rewrite from placeholder to complete dislikes screen (62 lines → ~310 lines). Contains `OnboardingDislikesView` (main view) and `DislikeImageCard` (private struct with disabled state support).
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `.dislikes` validation case with count check and `isDisjoint(with:)` overlap guard. Updated comment noting Steps 3.5–3.8 remain.
+
+**Test results:**
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Interests selected as likes in Step 3.3 appear grayed out with heart badge
+- ✅ Attempt to tap a liked interest — cannot be selected (`.disabled(true)`)
+- ✅ Select 5 different interests as dislikes — "Next" enables, counter shows checkmark
+- ✅ Select only 4 — "Next" is disabled, counter shows "(1 more needed)"
+- ✅ Attempt to select a 6th dislike — shake animation triggers on the card
+- ✅ Tap a selected dislike to deselect — deselects correctly, counter decrements
+- ✅ Search bar filters interests in real-time
+- ✅ Clear search restores full list
+- ✅ Empty search shows "No interests match" message
+- ✅ Navigate forward then back — selections persist (ViewModel state preserved)
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- `DislikeImageCard` is a separate `private struct` from `InterestImageCard` (in InterestsView) because it adds an `isDisabled` state with different visual treatment (grayscale, heart badge, `.disabled()` modifier). Extracting a shared base card was considered but the disabled-state-specific logic makes the two cards diverge enough that separate implementations are cleaner.
+- The gradient and icon mapping functions (`cardGradient(for:)` and `iconName(for:)`) are reused from `OnboardingInterestsView` via their `static` access level. They are NOT `private`, so DislikesView can call them directly. If these are ever made private, the dislikes view will fail to compile.
+- The `isDisjoint(with:)` check in the ViewModel validation is a safety net — the UI already prevents selecting liked interests via `.disabled(true)`. The ViewModel check guards against programmatic state corruption.
+- The `FlowLayout` component (created in Step 3.3) is still not used by this screen. It remains available for VibesView (Step 3.6) which may use a chip layout.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
 - [ ] **Step 2.5:** Create Backend Auth Middleware
-- [ ] **Step 3.4:** Build Dislikes Selection Screen (iOS)
+- [ ] **Step 3.5:** Build Milestones Input Screen (iOS)
 
 ---
 
@@ -1427,3 +1476,9 @@ iOS/Knot/
 34. **SF Symbol icon mapping for interests:** A static `[String: String]` dictionary in `OnboardingInterestsView` maps each of the 40 interest categories to an SF Symbol name. All symbols target iOS 17.0+. Add new mappings here when adding new interest categories.
 
 35. **Card gradient hue rotation:** Interest cards use `hue = index / count` to spread 40 categories across the full color wheel (0.0 to 1.0). This ensures every card has a unique, visually distinct gradient without manual color assignment. The formula works for any number of categories.
+
+36. **Reusing static methods across onboarding views:** `OnboardingInterestsView.cardGradient(for:)` and `.iconName(for:)` are `static` (not `private static`) so that `OnboardingDislikesView` can call them directly for consistent visuals. Do not make these `private` — it would break the dislikes screen.
+
+37. **Disabled card pattern for conflict prevention:** The dislikes screen uses a `DislikeImageCard` with an `isDisabled` parameter. When `true`, the card shows flat gray (`Color(white: 0.18)`), 50% opacity, dimmed text, a heart badge, and `.disabled(true)` on the `Button`. The action closure also guards with `if !isLiked` as a secondary safety net.
+
+38. **Double-guard validation for likes/dislikes overlap:** The UI prevents overlap via `.disabled(true)` on liked cards. The ViewModel adds `isDisjoint(with:)` as a programmatic safety net. Both guards exist because the ViewModel may be modified in tests or future code without the UI guardrail.

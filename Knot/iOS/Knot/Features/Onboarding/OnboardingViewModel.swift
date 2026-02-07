@@ -6,6 +6,7 @@
 //  Step 3.1: Onboarding flow navigation — shared state across all 9 steps.
 //  Step 3.2: Added validation for Partner Basic Info (name required).
 //  Step 3.3: Added validation for Interests (exactly 5 likes required).
+//  Step 3.4: Added validation for Dislikes (exactly 5, no overlap with likes).
 //
 
 import Foundation
@@ -156,9 +157,12 @@ final class OnboardingViewModel {
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .interests:
             canProceed = selectedInterests.count == Constants.Validation.requiredInterests
+        case .dislikes:
+            canProceed = selectedDislikes.count == Constants.Validation.requiredDislikes
+                && selectedDislikes.isDisjoint(with: selectedInterests)
         default:
             // Placeholder steps and steps without validation allow proceeding.
-            // Steps 3.4–3.8 will add cases here as they are implemented.
+            // Steps 3.5–3.8 will add cases here as they are implemented.
             canProceed = true
         }
     }
