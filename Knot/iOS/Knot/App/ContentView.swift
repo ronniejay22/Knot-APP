@@ -58,10 +58,13 @@ struct ContentView: View {
         VStack(spacing: 16) {
             ProgressView()
                 .controlSize(.regular)
+                .tint(Theme.accent)
             Text("Loading...")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 

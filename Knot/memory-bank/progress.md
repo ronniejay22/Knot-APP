@@ -1266,10 +1266,90 @@ iOS/Knot/
 
 ---
 
+### Step 3.3: Build Interests Selection Screen (iOS) + App-Wide Design System ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Built the full interests selection screen with a dark-themed 3-column image card grid, matching a reference design provided by the user
+- Created `Theme.swift` — app-wide design system with centralized colors, gradients, and surfaces (dark purple aesthetic)
+- Set `.preferredColorScheme(.dark)` at the app level in `KnotApp.swift` so the entire app uses dark mode
+- Propagated the design system across ALL existing views: SignInView, ContentView, HomeView, OnboardingContainerView, OnboardingBasicInfoView, and all 9 onboarding step views
+- Created `FlowLayout.swift` — a reusable `Layout` component for wrapping chip grids (will be reused by DislikesView Step 3.4 and VibesView Step 3.6)
+
+**Interests Screen (OnboardingInterestsView) details:**
+- **Personalized title:** "What does [name] love?" using the partner's name from Step 3.2
+- **Search bar:** Rounded pill with magnifying glass icon, real-time filtering of the 40 interest categories, clear button
+- **3-column card grid:** `LazyVGrid` with `InterestImageCard` components — each card has a themed gradient background (hue-rotated across 40 categories), an SF Symbol icon (e.g., airplane for Travel, flame for Cooking), interest name at bottom-left with text shadow, and dark gradient overlay for readability
+- **Selection:** Exactly 5 required. Tapping selects (pink border + checkmark badge), tapping again deselects. 6th attempt triggers a horizontal shake animation
+- **Counter:** "X selected (Y more needed)" in pink at the bottom, with checkmark icon when complete
+- **Empty search state:** "No interests match..." message
+- **Validation:** `.interests` case added to `OnboardingViewModel.validateCurrentStep()`: `canProceed = selectedInterests.count == 5`
+
+**Design System (Theme.swift) details:**
+- `Theme.backgroundTop` / `Theme.backgroundBottom` — dark purple gradient endpoints
+- `Theme.backgroundGradient` — `LinearGradient` applied to major container views
+- `Theme.surface` — `Color.white.opacity(0.08)` for cards, input fields, elevated content
+- `Theme.surfaceElevated` — `Color.white.opacity(0.12)` for hover/pressed states
+- `Theme.surfaceBorder` — `Color.white.opacity(0.12)` for borders
+- `Theme.accent` — `Color.pink` (buttons, selected states, progress indicators)
+- `Theme.textPrimary` / `.textSecondary` / `.textTertiary` — explicit white opacity levels
+- `Theme.progressTrack` / `.progressFill` — progress bar colors
+
+**Files created:**
+- `iOS/Knot/Core/Theme.swift` — Centralized design system (dark purple aesthetic)
+- `iOS/Knot/Components/FlowLayout.swift` — Reusable wrapping layout for chip grids
+
+**Files modified:**
+- `iOS/Knot/App/KnotApp.swift` — Added `.preferredColorScheme(.dark)` on ContentView
+- `iOS/Knot/App/ContentView.swift` — Updated loading spinner with Theme colors and background gradient
+- `iOS/Knot/Features/Auth/SignInView.swift` — Added Theme.backgroundGradient, changed Apple button to `.white` style, replaced hardcoded colors with Theme references
+- `iOS/Knot/Features/Home/HomeView.swift` — Added Theme.backgroundGradient, replaced hardcoded colors with Theme references
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — Added Theme.backgroundGradient, updated progress bar to Theme.progressTrack/progressFill, buttons to Theme.accent
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `.interests` validation case
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingInterestsView.swift` — Full rewrite: dark card grid with search, SF Symbol icons, themed gradients, shake animation. Removed view-level `.preferredColorScheme(.dark)` (now app-level)
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBasicInfoView.swift` — Replaced `Color(.systemGray6)` with `Theme.surface`, `.tint(.pink)` with `Theme.accent`, added surface borders
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingWelcomeView.swift` — Replaced `.pink` with `Theme.accent`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift` — Updated to Theme colors
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMilestonesView.swift` — Updated to Theme colors
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingVibesView.swift` — Updated to Theme colors
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBudgetView.swift` — Updated to Theme colors
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingLoveLanguagesView.swift` — Updated to Theme colors
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — Updated to Theme colors, added surface border
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Tap 4 interests — "Next" disabled, counter shows "4 selected (1 more needed)"
+- ✅ Tap a 5th — "Next" enables, counter shows "5 selected" with checkmark
+- ✅ Tap a 6th — rejected with shake animation on the card
+- ✅ Tap a selected interest — deselects, counter decrements
+- ✅ Navigate forward then back — selections persist (ViewModel state preserved)
+- ✅ Search bar filters interests in real-time
+- ✅ Clear search restores full list
+- ✅ Empty search shows "No interests match" message
+- ✅ Dark theme consistent across all screens: Sign-In, Onboarding (all 9 steps), Home
+- ✅ Apple Sign-In button renders as white-on-dark (high contrast)
+- ✅ Progress bar uses Theme colors (dark track, pink fill)
+- ✅ Form fields in BasicInfoView use Theme.surface with borders
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The dark theme is set app-wide via `.preferredColorScheme(.dark)` on `KnotApp.swift`. Individual views do NOT need to set it — it propagates to the entire window.
+- The background gradient is applied by each major container view (SignInView, OnboardingContainerView, HomeView) rather than at the app level, so views have flexibility to use different backgrounds in the future.
+- Since the app is in permanent dark mode, SwiftUI semantic colors (`.primary`, `.secondary`, `.tertiary`) automatically resolve to light-on-dark values. Use `Theme.textSecondary` / `.textTertiary` only when you need the exact reference design opacity.
+- The `FlowLayout` component was created for the initial chip design but is no longer used by the interests screen (which uses `LazyVGrid` for the card grid). Keep it for DislikesView (Step 3.4) and VibesView (Step 3.6) which may use chip layouts.
+- SF Symbol icon mapping is a static dictionary in `OnboardingInterestsView`. All symbols target iOS 17.0+. If any symbol doesn't exist on a particular iOS version, the Image will render empty (graceful degradation).
+- The card gradient uses hue rotation: `hue = index / count` spreads 40 categories across the full color wheel, ensuring visual uniqueness per card.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
 - [ ] **Step 2.5:** Create Backend Auth Middleware
-- [ ] **Step 3.3:** Build Interests Selection Screen (iOS)
+- [ ] **Step 3.4:** Build Dislikes Selection Screen (iOS)
 
 ---
 
@@ -1335,3 +1415,15 @@ iOS/Knot/
 28. **Deferred validation hints:** The "Name is required" hint uses a `@State private var hasInteractedWithName` flag to defer display until the user interacts with the field. This avoids showing validation errors on first load (before the user has had a chance to type). The flag is reset when navigating away (view is recreated via `.id()`), which is correct — the user must have entered a name to leave the step.
 
 29. **Custom Binding decomposition for tenure pickers:** The ViewModel stores tenure as a single `relationshipTenureMonths: Int`. The UI decomposes this into years (0–30) and months (0–11) using `Binding(get: { months / 12 }, set: { viewModel.months = newYears * 12 + remainingMonths })`. This keeps the ViewModel simple (single integer) while the view handles the UI decomposition.
+
+30. **App-wide dark theme (`.preferredColorScheme(.dark)`):** Set in `KnotApp.swift` on the `ContentView`. Affects the entire window — all system controls, navigation bars, and semantic colors resolve to dark mode values automatically. Individual views should NOT set `.preferredColorScheme(.dark)` — it's handled globally.
+
+31. **`Theme.swift` design system:** All colors are centralized in `Core/Theme.swift`. Use `Theme.accent` instead of `.pink`, `Theme.surface` instead of `Color(.systemGray6)`, `Theme.backgroundGradient` for screen backgrounds. When adding new views, always use `Theme` constants — never hardcode colors.
+
+32. **Background gradient strategy:** `Theme.backgroundGradient` (dark purple gradient) is applied by each major container view (`SignInView`, `OnboardingContainerView`, `HomeView`) with `.ignoresSafeArea()`. Step views inside the onboarding container are transparent and inherit the container's background. New container-level screens should apply the gradient; new child views should not.
+
+33. **Apple Sign-In button on dark background:** Uses `.signInWithAppleButtonStyle(.white)` for high contrast. The `.black` style is invisible on the dark background. If the app theme changes, this should be updated accordingly.
+
+34. **SF Symbol icon mapping for interests:** A static `[String: String]` dictionary in `OnboardingInterestsView` maps each of the 40 interest categories to an SF Symbol name. All symbols target iOS 17.0+. Add new mappings here when adding new interest categories.
+
+35. **Card gradient hue rotation:** Interest cards use `hue = index / count` to spread 40 categories across the full color wheel (0.0 to 1.0). This ensures every card has a unique, visually distinct gradient without manual color assignment. The formula works for any number of categories.

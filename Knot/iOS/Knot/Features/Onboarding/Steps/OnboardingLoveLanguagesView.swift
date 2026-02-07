@@ -27,29 +27,29 @@ struct OnboardingLoveLanguagesView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Love Languages")
                 .font(.title2.weight(.bold))
 
             Text("How does your partner prefer\nto receive affection?")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
 
             // Placeholder for love language selection (Step 3.8)
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
+                .fill(Theme.surface)
                 .frame(height: 200)
                 .overlay {
                     VStack(spacing: 8) {
                         Text("Primary: \(viewModel.primaryLoveLanguage.isEmpty ? "Not set" : viewModel.primaryLoveLanguage)")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Theme.textTertiary)
                         Text("Secondary: \(viewModel.secondaryLoveLanguage.isEmpty ? "Not set" : viewModel.secondaryLoveLanguage)")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Theme.textTertiary)
                     }
                 }
                 .padding(.horizontal, 24)

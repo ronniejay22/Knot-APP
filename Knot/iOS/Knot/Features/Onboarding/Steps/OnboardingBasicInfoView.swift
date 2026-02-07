@@ -72,7 +72,7 @@ struct OnboardingBasicInfoView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 40, height: 40)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Tell us about your partner")
                 .font(.title3.weight(.semibold))
@@ -96,8 +96,9 @@ struct OnboardingBasicInfoView: View {
                 .font(.body)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .background(Color(.systemGray6))
+                .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.surfaceBorder, lineWidth: 0.5))
                 .textContentType(.givenName)
                 .autocorrectionDisabled()
                 .submitLabel(.next)
@@ -144,7 +145,7 @@ struct OnboardingBasicInfoView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .tint(.pink)
+                    .tint(Theme.accent)
 
                     Text(viewModel.relationshipTenureMonths / 12 == 1 ? "year" : "years")
                         .font(.subheadline)
@@ -152,7 +153,7 @@ struct OnboardingBasicInfoView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(.systemGray6))
+                .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 // Months picker
@@ -169,7 +170,7 @@ struct OnboardingBasicInfoView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .tint(.pink)
+                    .tint(Theme.accent)
 
                     Text(viewModel.relationshipTenureMonths % 12 == 1 ? "month" : "months")
                         .font(.subheadline)
@@ -177,7 +178,7 @@ struct OnboardingBasicInfoView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(.systemGray6))
+                .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 Spacer()
@@ -266,8 +267,9 @@ struct OnboardingBasicInfoView: View {
                     .font(.body)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .background(Theme.surface)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.surfaceBorder, lineWidth: 0.5))
                     .textContentType(.addressCity)
                     .autocorrectionDisabled()
                     .submitLabel(.next)
@@ -280,8 +282,9 @@ struct OnboardingBasicInfoView: View {
                     .font(.body)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .background(Theme.surface)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.surfaceBorder, lineWidth: 0.5))
                     .textContentType(.addressState)
                     .autocorrectionDisabled()
                     .submitLabel(.done)

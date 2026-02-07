@@ -28,6 +28,9 @@ struct SignInView: View {
         @Bindable var viewModel = authViewModel
 
         ZStack {
+            // MARK: - Background
+            Theme.backgroundGradient.ignoresSafeArea()
+
             VStack(spacing: 0) {
                 Spacer()
 
@@ -38,15 +41,16 @@ struct SignInView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 72, height: 72)
-                        .foregroundStyle(.pink)
+                        .foregroundStyle(Theme.accent)
 
                     Text("Knot")
                         .font(.system(size: 44, weight: .bold, design: .default))
                         .tracking(-1)
+                        .foregroundStyle(.white)
 
                     Text("Relational Excellence\non Autopilot")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                 }
@@ -79,14 +83,14 @@ struct SignInView: View {
                     } onCompletion: { result in
                         authViewModel.handleResult(result)
                     }
-                    .signInWithAppleButtonStyle(.black)
+                    .signInWithAppleButtonStyle(.white)
                     .frame(height: 54)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .disabled(authViewModel.isLoading)
 
                     Text("By continuing, you agree to our Terms & Privacy Policy")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 24)
@@ -95,11 +99,12 @@ struct SignInView: View {
 
             // MARK: - Loading Overlay
             if authViewModel.isLoading {
-                Color.black.opacity(0.3)
+                Color.black.opacity(0.4)
                     .ignoresSafeArea()
                 ProgressView("Signing in...")
+                    .tint(.white)
                     .padding(24)
-                    .background(.regularMaterial)
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -125,11 +130,11 @@ private struct SignInFeatureRow: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
-                .foregroundStyle(.pink.opacity(0.85))
+                .foregroundStyle(Theme.accent.opacity(0.85))
 
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
 
             Spacer()
         }

@@ -33,15 +33,16 @@ struct HomeView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 56, height: 56)
-                        .foregroundStyle(.pink)
+                        .foregroundStyle(Theme.accent)
 
                     Text("Welcome to Knot")
                         .font(.system(size: 28, weight: .bold, design: .default))
                         .tracking(-0.5)
+                        .foregroundStyle(.white)
 
                     Text("Your session is active.\nYou're authenticated.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                 }
@@ -60,7 +61,7 @@ struct HomeView: View {
 
                         Text("Session restored from Keychain")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 }
 
@@ -88,6 +89,7 @@ struct HomeView: View {
                 .padding(.bottom, 40)
             }
             .padding(.horizontal, 24)
+            .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -103,7 +105,7 @@ struct HomeView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
                     }
-                    .tint(.primary)
+                    .tint(.white)
                 }
             }
             .alert("Sign Out Error", isPresented: $viewModel.showError) {

@@ -27,7 +27,7 @@ struct OnboardingWelcomeView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 80, height: 80)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             // MARK: - Title & Subtitle
             VStack(spacing: 12) {
@@ -78,7 +78,7 @@ private struct WelcomeChecklistRow: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
-                .foregroundStyle(.pink.opacity(0.8))
+                .foregroundStyle(Theme.accent.opacity(0.8))
 
             Text(text)
                 .font(.subheadline)

@@ -29,7 +29,7 @@ struct OnboardingCompletionView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 80, height: 80)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             // MARK: - Title & Message
             VStack(spacing: 12) {
@@ -89,8 +89,9 @@ struct OnboardingCompletionView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGray6))
+            .background(Theme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.surfaceBorder, lineWidth: 0.5))
             .padding(.horizontal, 24)
 
             Spacer()

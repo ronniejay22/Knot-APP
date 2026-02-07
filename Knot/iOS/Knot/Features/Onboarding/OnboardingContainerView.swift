@@ -51,6 +51,7 @@ struct OnboardingContainerView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
         }
+        .background(Theme.backgroundGradient.ignoresSafeArea())
         .environment(viewModel)
         .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
     }
@@ -64,13 +65,13 @@ struct OnboardingContainerView: View {
                 Text(viewModel.currentStep.title)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textSecondary)
 
                 Spacer()
 
                 Text("Step \(viewModel.currentStep.rawValue + 1) of \(OnboardingStep.totalSteps)")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.textTertiary)
             }
 
             // Animated progress track
@@ -78,12 +79,12 @@ struct OnboardingContainerView: View {
                 ZStack(alignment: .leading) {
                     // Background track
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray5))
+                        .fill(Theme.progressTrack)
                         .frame(height: 6)
 
                     // Filled progress
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.pink)
+                        .fill(Theme.progressFill)
                         .frame(
                             width: geometry.size.width * viewModel.progress,
                             height: 6
@@ -144,7 +145,7 @@ struct OnboardingContainerView: View {
                     .padding(.horizontal, 20)
                 }
                 .buttonStyle(.bordered)
-                .tint(.secondary)
+                .tint(.white)
             }
 
             Spacer()
@@ -169,7 +170,7 @@ struct OnboardingContainerView: View {
                     .padding(.horizontal, 28)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.pink)
+                .tint(Theme.accent)
             } else {
                 // Normal step — "Next" button
                 Button {
@@ -189,7 +190,7 @@ struct OnboardingContainerView: View {
                     .padding(.horizontal, 28)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.pink)
+                .tint(Theme.accent)
                 .disabled(!viewModel.canProceed)
             }
         }

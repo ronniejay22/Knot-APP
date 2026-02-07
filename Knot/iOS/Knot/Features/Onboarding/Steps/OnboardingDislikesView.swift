@@ -27,25 +27,25 @@ struct OnboardingDislikesView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Hard Avoids")
                 .font(.title2.weight(.bold))
 
             Text("Select 5 things they definitely don't like.\n\(viewModel.selectedDislikes.count) of 5 selected")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
 
             // Placeholder for chip grid (Step 3.4)
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
+                .fill(Theme.surface)
                 .frame(height: 240)
                 .overlay {
                     Text("Dislike chips coming in Step 3.4")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 24)
 

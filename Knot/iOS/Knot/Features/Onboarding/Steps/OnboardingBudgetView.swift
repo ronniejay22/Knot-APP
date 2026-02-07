@@ -28,25 +28,25 @@ struct OnboardingBudgetView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Budget Ranges")
                 .font(.title2.weight(.bold))
 
             Text("Set spending ranges for different\ntypes of occasions.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
 
             // Placeholder for budget sliders (Step 3.7)
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
+                .fill(Theme.surface)
                 .frame(height: 200)
                 .overlay {
                     Text("Budget sliders coming in Step 3.7")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 24)
 

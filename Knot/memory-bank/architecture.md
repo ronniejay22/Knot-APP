@@ -72,7 +72,7 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 |--------------------------|--------|---------|
 | `OnboardingWelcomeView.swift` | 1 | Welcome screen with Knot branding and checklist of vault sections (basics, interests, milestones, budget, love languages). Read-only informational step. |
 | `OnboardingBasicInfoView.swift` | 2 | **Active (Step 3.2).** Partner basic info form with 4 sections: (1) Partner name `TextField` with `.givenName` content type, deferred "Required" validation hint via `@State hasInteractedWithName`, and `@FocusState` keyboard chaining (name → city → state → dismiss); (2) Relationship tenure — two `Picker(.menu)` controls for years (0–30) and months (0–11) using `Binding(get:set:)` to decompose/recompose `viewModel.relationshipTenureMonths`; (3) Cohabitation status `Picker(.segmented)` with contextual description text; (4) Location city/state `TextField`s with `.addressCity`/`.addressState` content types (optional). Calls `viewModel.validateCurrentStep()` on `.onAppear` and `.onChange(of: partnerName)`. Uses `@Bindable var vm = viewModel` in `body` for binding syntax, `Binding(get:set:)` in computed properties. `ScrollView` with `.scrollDismissesKeyboard(.interactively)`. |
-| `OnboardingInterestsView.swift` | 3 | Interests selection placeholder. Full chip-grid UI with 40 categories, selection counter, and "exactly 5" validation built in Step 3.3. |
+| `OnboardingInterestsView.swift` | 3 | **Active (Step 3.3).** Dark-themed 3-column grid of visual interest cards with search bar. Each card (`InterestImageCard`, private struct) has a hue-rotated `LinearGradient` background, large semi-transparent SF Symbol icon, interest name at bottom-left, and dark gradient overlay. Selected cards show a pink border + checkmark badge. Shake animation rejects 6th selection. Search bar filters 40 categories in real-time with clear button and empty-state message. Counter shows "X selected (Y more needed)" in pink. Uses `viewModel.selectedInterests` (Set<String>), `toggleInterest()` for add/remove logic, and `triggerShake()` with `DispatchQueue.main.asyncAfter` for animation. Static functions `cardGradient(for:)` and `iconName(for:)` generate per-card visuals. All colors use `Theme` constants. |
 | `OnboardingDislikesView.swift` | 4 | Dislikes selection placeholder. Full chip-grid with disabled "liked" interests and "exactly 5" validation built in Step 3.4. |
 | `OnboardingMilestonesView.swift` | 5 | Milestones placeholder. Full date pickers, holiday toggles, and custom milestone sheet built in Step 3.5. |
 | `OnboardingVibesView.swift` | 6 | Aesthetic vibes placeholder. Full visual cards with Lucide icons and 1–4 selection limits built in Step 3.6. |
@@ -83,11 +83,11 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 #### `/Core` — Shared Utilities
 | File | Purpose |
 |------|---------|
-| `Constants.swift` | App-wide constants: API URLs, Supabase configuration (`projectURL`, `anonKey`), validation rules, predefined categories (41 interests, 8 vibes, 5 love languages). |
+| `Constants.swift` | App-wide constants: API URLs, Supabase configuration (`projectURL`, `anonKey`), validation rules, predefined categories (40 interests, 8 vibes, 5 love languages). |
+| `Theme.swift` | **App-wide design system (Step 3.3).** Centralizes all colors, gradients, and surfaces for the dark purple aesthetic. Contains: `backgroundGradient` (dark purple LinearGradient from `(0.10, 0.05, 0.16)` to `(0.05, 0.02, 0.10)`), `surface` / `surfaceElevated` / `surfaceBorder` (semi-transparent white at 8%/12%/12% opacity), `accent` (Color.pink), `textPrimary` / `textSecondary` / `textTertiary` (white at 100%/60%/35% opacity), and `progressTrack` / `progressFill`. All views MUST use `Theme` constants — never hardcode colors. |
 
 Future files:
 - `Extensions.swift` — Swift type extensions
-- `Theme.swift` — Colors, typography, spacing (design system)
 - `NetworkMonitor.swift` — Online/offline detection
 
 #### `/Services` — Data & API Layer
@@ -113,13 +113,14 @@ Future files:
 #### `/Components` — Reusable UI Components
 Shadcn-inspired, reusable SwiftUI components.
 
-| Component | Purpose |
-|-----------|---------|
-| `ChipView.swift` | Selectable tag/pill for interests and vibes |
-| `CardView.swift` | Recommendation card with image, title, price |
-| `ButtonStyles.swift` | Primary, secondary, and ghost button styles |
-| `InputField.swift` | Text input with label and validation |
-| `LoadingView.swift` | Loading spinner with optional message |
+| Component | Status | Purpose |
+|-----------|--------|---------|
+| `FlowLayout.swift` | **Active** | Custom `Layout` protocol implementation for wrapping flow (CSS `flex-wrap` equivalent). Arranges subviews left-to-right, wrapping to the next row when they exceed available width. Configurable `horizontalSpacing` and `verticalSpacing`. Created in Step 3.3 for chip grids; will be used by DislikesView (Step 3.4) and VibesView (Step 3.6). |
+| `ChipView.swift` | Planned | Selectable tag/pill for interests and vibes |
+| `CardView.swift` | Planned | Recommendation card with image, title, price |
+| `ButtonStyles.swift` | Planned | Primary, secondary, and ghost button styles |
+| `InputField.swift` | Planned | Text input with label and validation |
+| `LoadingView.swift` | Planned | Loading spinner with optional message |
 
 #### `/Resources` — Assets
 | File | Purpose |
@@ -281,6 +282,13 @@ All required env vars are templated in `.env.example`:
 ---
 
 ## Key Architectural Decisions
+
+### 0. App-Wide Dark Theme & Design System
+The entire app uses a dark purple aesthetic, enforced at the app level:
+- **`KnotApp.swift`** applies `.preferredColorScheme(.dark)` on the root `ContentView`, so ALL views render in dark mode. Individual views should never set this modifier.
+- **`Theme.swift`** centralizes all colors. Views reference `Theme.accent`, `Theme.surface`, `Theme.backgroundGradient`, etc. — never hardcode color values.
+- **Background gradient** is applied by each major container (`SignInView`, `OnboardingContainerView`, `HomeView`) with `.ignoresSafeArea()`. Step views inside the onboarding container are transparent and inherit the container background.
+- **SwiftUI semantic colors** (`.primary`, `.secondary`, `.tertiary`) resolve correctly in dark mode. Use `Theme.textSecondary` / `.textTertiary` only when the exact reference-design opacity is needed.
 
 ### 1. Feature-Based Organization
 Code is organized by feature (Auth, Onboarding, Home) rather than by type (Views, Models, Controllers). This keeps related code together and makes features self-contained.

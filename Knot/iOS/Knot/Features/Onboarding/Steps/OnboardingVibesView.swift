@@ -27,25 +27,25 @@ struct OnboardingVibesView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Their Aesthetic")
                 .font(.title2.weight(.bold))
 
             Text("What vibes match their style?\nSelect 1 to 4 options.\n\(viewModel.selectedVibes.count) selected")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
 
             // Placeholder for vibe cards (Step 3.6)
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
+                .fill(Theme.surface)
                 .frame(height: 200)
                 .overlay {
                     Text("Vibe cards coming in Step 3.6")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 24)
 

@@ -28,25 +28,25 @@ struct OnboardingMilestonesView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.pink)
+                .foregroundStyle(Theme.accent)
 
             Text("Important Dates")
                 .font(.title2.weight(.bold))
 
             Text("Add their birthday, anniversary,\nand other milestones to remember.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
 
             // Placeholder for date pickers and milestone list (Step 3.5)
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
+                .fill(Theme.surface)
                 .frame(height: 200)
                 .overlay {
                     Text("Date pickers coming in Step 3.5")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 24)
 
