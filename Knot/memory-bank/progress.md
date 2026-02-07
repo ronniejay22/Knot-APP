@@ -1395,10 +1395,63 @@ iOS/Knot/
 
 ---
 
+### Step 3.5: Build Milestones Input Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingMilestonesView` placeholder with a full milestones input screen containing 4 sections: birthday (required), anniversary (optional), holiday quick-add, and custom milestones
+- **Birthday section (required):** Month/day pickers using `Picker(.menu)` with pink tint, human-readable date display below (e.g., "July 22"), "Required" capsule badge. Day picker auto-clamps when month changes (e.g., switching from March 31 to February clamps to Feb 29)
+- **Anniversary section (optional):** Toggle to enable/disable. When toggled on, month/day pickers animate in with `.opacity.combined(with: .move(edge: .top))` transition. Wrapped in a `Theme.surface.opacity(0.5)` card with border for visual grouping
+- **Holiday Quick-Add:** 5 predefined US major holidays as toggleable list chips — Valentine's Day (Feb 14), Mother's Day (May 11), Father's Day (Jun 15), Christmas (Dec 25), New Year's Eve (Dec 31). Each chip shows SF Symbol icon, holiday name, date, and a `Lucide.circleCheck`/`Lucide.circle` toggle indicator. Selected state uses `Theme.accent.opacity(0.12)` background with pink border. Counter shows "X selected" in pink
+- **Custom Milestones:** List of user-created milestones with star icon, name, date, recurrence label, and X delete button. "Add Custom Milestone" button with dashed border opens a `.sheet` with `NavigationStack`, name `TextField`, month/day pickers, yearly/one-time segmented recurrence picker, Cancel/Save toolbar buttons. Save button disabled when name is empty
+- Created `CustomMilestone` struct (Identifiable, Sendable) with name, month, day, recurrence properties
+- Created `HolidayOption` struct with static `allHolidays` array containing the 5 predefined US holidays (id, displayName, month, day, iconName)
+- Created private `HolidayChip` view component for the toggleable holiday list items
+- Added `daysInMonth()` and `clampDay()` static helper methods to `OnboardingViewModel` for date validation across month boundaries
+- Added `customMilestones: [CustomMilestone]` array to `OnboardingViewModel`
+- Added `.milestones` validation case: birthday always valid (has defaults); custom milestones must have non-empty names
+- Added 3 preview variants: empty state, with partner name, with pre-filled data (birthday, anniversary, holidays, custom milestones)
+
+**Files created:**
+- None (all changes in existing files)
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `CustomMilestone` struct, `HolidayOption` struct with `allHolidays`, `customMilestones` array, `daysInMonth()` and `clampDay()` static helpers, `.milestones` validation case
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMilestonesView.swift` — Full rewrite from placeholder to complete milestones screen (~450 lines). Contains `OnboardingMilestonesView` (main view with 4 sections + add custom sheet) and `HolidayChip` (private struct)
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Enter a birthday and tap "Next" — navigation proceeds to Vibes step
+- ✅ Skip anniversary (toggle off) — allowed, "Next" is enabled
+- ✅ Toggle anniversary on — month/day pickers animate in
+- ✅ Toggle "Valentine's Day" on — chip highlights with pink border and checkmark
+- ✅ Toggle "Valentine's Day" off — chip returns to neutral state
+- ✅ Add a custom milestone named "First Date" — appears in the milestones list with date and recurrence
+- ✅ Delete a custom milestone via X button — removed with animation
+- ✅ Add custom sheet: Save disabled when name is empty; enabled when name is entered
+- ✅ Month change clamps day correctly (e.g., March 31 → February becomes Feb 29)
+- ✅ Navigate forward then back — all selections persist (ViewModel state preserved)
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The `HolidayOption` struct uses fixed month/day values for all holidays. Mother's Day and Father's Day use approximate dates (May 11, Jun 15) rather than computing the floating "2nd Sunday of May" / "3rd Sunday of June" dynamically. This is a simplification for MVP — the exact date for the current year will be computed dynamically when notifications are scheduled (Step 7.2).
+- The `CustomMilestone` struct lives in `OnboardingViewModel.swift` alongside `HolidayOption` rather than in a separate file, because both are tightly coupled to the onboarding flow and small enough to colocate. If these grow or are needed outside onboarding (e.g., vault editing in Step 3.12), extract to `/Models/`.
+- The `daysInMonth()` helper returns 29 for February (not 28) to support leap year birthdays. Since milestones store month+day only (year is computed dynamically), allowing day 29 for February ensures Feb 29 birthdays are storable. The year-specific validation (e.g., "2025 is not a leap year") happens when computing the next occurrence for notifications.
+- The `.milestones` validation in the ViewModel always allows proceeding because birthday has defaults (Jan 1). The only constraint is that custom milestones, if any exist, must have non-empty names — this is enforced by the sheet's Save button being disabled when the name field is empty, and the ViewModel validation acts as a safety net.
+- The `HolidayChip` is a `private struct` within `OnboardingMilestonesView.swift`. It's not in `/Components/` because it's specific to the milestones onboarding step and unlikely to be reused elsewhere.
+- The custom milestone sheet uses `.presentationDetents([.medium])` for a half-height modal. This provides enough room for the name field, date pickers, and recurrence toggle without taking over the full screen.
+- The reusable `monthPicker()` and `dayPicker()` helper functions are defined within `OnboardingMilestonesView` and used in both the main view (birthday, anniversary) and the custom milestone sheet. They accept `Binding<Int>` and use `Picker(.menu)` with pink tint.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
 - [ ] **Step 2.5:** Create Backend Auth Middleware
-- [ ] **Step 3.5:** Build Milestones Input Screen (iOS)
+- [ ] **Step 3.6:** Build Aesthetic Vibes Screen (iOS)
 
 ---
 
@@ -1482,3 +1535,17 @@ iOS/Knot/
 37. **Disabled card pattern for conflict prevention:** The dislikes screen uses a `DislikeImageCard` with an `isDisabled` parameter. When `true`, the card shows flat gray (`Color(white: 0.18)`), 50% opacity, dimmed text, a heart badge, and `.disabled(true)` on the `Button`. The action closure also guards with `if !isLiked` as a secondary safety net.
 
 38. **Double-guard validation for likes/dislikes overlap:** The UI prevents overlap via `.disabled(true)` on liked cards. The ViewModel adds `isDisjoint(with:)` as a programmatic safety net. Both guards exist because the ViewModel may be modified in tests or future code without the UI guardrail.
+
+39. **`CustomMilestone` and `HolidayOption` structs:** Both live in `OnboardingViewModel.swift` (not in `/Models/`). They are small, tightly coupled to onboarding, and conform to `Identifiable` + `Sendable`. If vault editing (Step 3.12) needs them, extract to a shared location.
+
+40. **Holiday dates are approximate for floating holidays:** Mother's Day (`May 11`) and Father's Day (`Jun 15`) use fixed dates in `HolidayOption`. The actual "2nd Sunday of May" / "3rd Sunday of June" computation happens at notification scheduling time (Step 7.2), not during onboarding. This is intentional — onboarding stores the holiday *identity* (e.g., `"mothers_day"`), not the exact date for a specific year.
+
+41. **Day clamping when month changes:** `OnboardingViewModel.clampDay(_:toMonth:)` ensures the day value stays valid when the month changes (e.g., March 31 → February clamps to 29). The birthday and anniversary `Binding(get:set:)` closures call this on every month change. The custom milestone sheet also clamps before saving.
+
+42. **February allows day 29:** `daysInMonth(2)` returns 29 to support leap year birthdays. Year-specific validation happens when computing next occurrence for notifications, not during onboarding input.
+
+43. **Reusable `monthPicker()` and `dayPicker()` within MilestonesView:** These are `private func` helpers inside the view, not `/Components/` components, because they are specific to the month+day milestone format. They accept `Binding<Int>` and could be extracted if future screens need similar date pickers.
+
+44. **Custom milestone sheet state management:** The sheet uses `@State` properties (`customName`, `customMonth`, `customDay`, `customRecurrence`) local to `OnboardingMilestonesView`, not the ViewModel. This keeps the sheet's temporary "work in progress" state separate from committed data. The `resetCustomSheetState()` method clears these before each sheet presentation.
+
+45. **`HolidayChip` is a private struct:** The `HolidayChip` component lives inside `OnboardingMilestonesView.swift` as a `private struct`. It is not reusable outside this file and does not need to be in `/Components/`.

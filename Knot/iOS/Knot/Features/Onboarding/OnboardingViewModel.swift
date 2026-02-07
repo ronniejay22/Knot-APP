@@ -7,9 +7,43 @@
 //  Step 3.2: Added validation for Partner Basic Info (name required).
 //  Step 3.3: Added validation for Interests (exactly 5 likes required).
 //  Step 3.4: Added validation for Dislikes (exactly 5, no overlap with likes).
+//  Step 3.5: Added CustomMilestone model, milestone validation (birthday required).
 //
 
 import Foundation
+
+/// A user-created milestone (e.g., "First Date", "Gotcha Day").
+///
+/// Used by the milestones onboarding step (Step 3.5) to hold custom
+/// milestones that don't fit the predefined birthday/anniversary/holiday slots.
+struct CustomMilestone: Identifiable, Sendable {
+    let id = UUID()
+    var name: String
+    var month: Int
+    var day: Int
+    var recurrence: String  // "yearly" or "one_time"
+}
+
+/// Predefined US holidays available for quick-add during onboarding.
+///
+/// Each holiday has a display name, a stable identifier for storage,
+/// and a fixed month/day (or computed date for floating holidays).
+struct HolidayOption: Identifiable, Sendable {
+    let id: String          // stable key, e.g. "valentines_day"
+    let displayName: String
+    let month: Int
+    let day: Int
+    let iconName: String    // SF Symbol name
+
+    /// The predefined US major holidays available during onboarding.
+    static let allHolidays: [HolidayOption] = [
+        HolidayOption(id: "valentines_day", displayName: "Valentine's Day", month: 2, day: 14, iconName: "heart.fill"),
+        HolidayOption(id: "mothers_day", displayName: "Mother's Day", month: 5, day: 11, iconName: "figure.and.child.holdinghands"),
+        HolidayOption(id: "fathers_day", displayName: "Father's Day", month: 6, day: 15, iconName: "figure.and.child.holdinghands"),
+        HolidayOption(id: "christmas", displayName: "Christmas", month: 12, day: 25, iconName: "gift.fill"),
+        HolidayOption(id: "new_years_eve", displayName: "New Year's Eve", month: 12, day: 31, iconName: "party.popper.fill"),
+    ]
+}
 
 /// Defines the ordered steps in the onboarding flow.
 ///
@@ -96,12 +130,37 @@ final class OnboardingViewModel {
 
     // MARK: - Milestones (Step 3.5)
 
+    /// Birthday month (1–12). Required milestone.
     var partnerBirthdayMonth: Int = 1
+    /// Birthday day (1–31). Required milestone.
     var partnerBirthdayDay: Int = 1
+    /// Whether the user has toggled the anniversary section on.
     var hasAnniversary: Bool = false
+    /// Anniversary month (1–12). Only used when `hasAnniversary` is true.
     var anniversaryMonth: Int = 1
+    /// Anniversary day (1–31). Only used when `hasAnniversary` is true.
     var anniversaryDay: Int = 1
+    /// Set of holiday IDs the user has toggled on (e.g., "valentines_day", "christmas").
     var selectedHolidays: Set<String> = []
+    /// User-created custom milestones (e.g., "First Date", "Gotcha Day").
+    var customMilestones: [CustomMilestone] = []
+
+    /// Returns the valid day range for a given month (accounts for month length).
+    /// Does not account for leap years — uses a fixed 28 days for February
+    /// since milestones store month+day only (year is computed dynamically).
+    static func daysInMonth(_ month: Int) -> Int {
+        switch month {
+        case 1, 3, 5, 7, 8, 10, 12: return 31
+        case 4, 6, 9, 11: return 30
+        case 2: return 29
+        default: return 31
+        }
+    }
+
+    /// Clamp a day value to the valid range for the given month.
+    static func clampDay(_ day: Int, toMonth month: Int) -> Int {
+        min(day, daysInMonth(month))
+    }
 
     // MARK: - Vibes (Step 3.6)
 
@@ -160,9 +219,16 @@ final class OnboardingViewModel {
         case .dislikes:
             canProceed = selectedDislikes.count == Constants.Validation.requiredDislikes
                 && selectedDislikes.isDisjoint(with: selectedInterests)
+        case .milestones:
+            // Birthday is always valid (month+day have defaults).
+            // Custom milestones must have non-empty names if they exist.
+            let customsValid = customMilestones.allSatisfy {
+                !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            canProceed = customsValid
         default:
             // Placeholder steps and steps without validation allow proceeding.
-            // Steps 3.5–3.8 will add cases here as they are implemented.
+            // Steps 3.6–3.8 will add cases here as they are implemented.
             canProceed = true
         }
     }
