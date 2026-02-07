@@ -1503,9 +1503,57 @@ iOS/Knot/
 
 ---
 
+### Step 3.6: Build Aesthetic Vibes Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingVibesView` placeholder with a full aesthetic vibes selection screen using a 2-column grid of 8 visual cards
+- Each card displays a unique themed gradient background, a Lucide icon (large semi-transparent watermark + small icon above the name), the vibe display name (converted from `snake_case`), and a short description
+- **Vibe-to-icon mapping:** quiet_luxury → `Lucide.gem`, street_urban → `Lucide.building2`, outdoorsy → `Lucide.trees`, vintage → `Lucide.watch`, minimalist → `Lucide.penLine`, bohemian → `Lucide.sun`, romantic → `Lucide.heart`, adventurous → `Lucide.compass`
+- **Vibe-to-gradient mapping:** Each vibe has a hand-tuned 2-color gradient (e.g., warm gold for Quiet Luxury, forest green for Outdoorsy, cool steel for Minimalist, rose for Romantic)
+- **No maximum limit:** Users can select any number of vibes (1 through all 8). The implementation plan originally specified max 4, but this was changed per user feedback
+- **Selection feedback:** Pink border + checkmark badge in top-right corner on selected cards, subtle 1.02x scale-up effect
+- **Selection counter** at bottom showing "X selected" with checkmark when at least 1 chosen, or "(pick at least 1)" when empty
+- **Personalized header** using partner name from Step 3.2 (e.g., "What's Alex's aesthetic?")
+- Added `.vibes` validation case to `OnboardingViewModel.validateCurrentStep()` — checks `selectedVibes.count >= 1`
+- **Validation error banner (new pattern):** Added `validationMessage` computed property to `OnboardingViewModel` returning user-facing error strings for all steps (basicInfo, interests, dislikes, milestones, vibes). Updated `OnboardingContainerView` so the Next button is always tappable — when `canProceed` is false, tapping shows a red error banner that slides up with the validation message and auto-dismisses after 3 seconds. The button tint dims to 40% opacity when invalid. Error banner auto-clears on step change.
+- Added 3 preview variants: empty state, 2 selected with partner name, 4 selected with partner name
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingVibesView.swift` — Full rewrite from placeholder to complete vibes screen (~360 lines). Contains `OnboardingVibesView` (main view with header, 2-column grid, counter, toggle logic, and static helper functions for display names, descriptions, icons, gradients) and `VibeCard` (private struct)
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `.vibes` validation case, added `validationMessage` computed property with per-step error strings
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — Added `showValidationError` / `validationErrorText` state, red error banner view, always-tappable Next button with validation-on-tap logic, auto-dismiss after 3 seconds, dimmed tint when invalid
+
+**Test results:**
+- ✅ `xcodegen generate` completed successfully
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Tap a vibe — highlights as selected (pink border + checkmark + scale)
+- ✅ Tap again — deselects (returns to gradient-only state)
+- ✅ Select all 8 vibes — all highlight, no rejection
+- ✅ Proceed with 1 vibe — allowed (`canProceed = true`)
+- ✅ Tap Next with 0 vibes — red error banner appears: "Pick at least 1 vibe to continue."
+- ✅ Error banner auto-dismisses after 3 seconds
+- ✅ Navigate forward then back — all selections persist (ViewModel state preserved)
+- ✅ Validation error messages work for all steps (tested basicInfo, interests, dislikes, vibes)
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The implementation plan originally specified a maximum of 4 vibes, but this limit was removed per user feedback. The `Constants.Validation.maxVibes` constant still exists but is no longer enforced in the vibes step. If a max is needed later, re-add the check in `toggleVibe()` and the validation case.
+- Unlike the Interests/Dislikes screens (3-column grid of 40 items), the Vibes screen uses a 2-column grid because there are only 8 options. Larger cards provide more visual impact and room for the description text.
+- Vibe gradients are hand-tuned per vibe (not auto-generated via hue rotation like interests). This gives each vibe a distinct color identity that matches its aesthetic (e.g., warm gold for luxury, forest green for outdoorsy, rose for romantic).
+- The `VibeCard` is a `private struct` within `OnboardingVibesView.swift`. Unlike `InterestImageCard`, it includes a description label and uses Lucide icons (UIImage) instead of SF Symbols. The card has two icon placements: a large semi-transparent watermark offset to the upper-right, and a small opaque icon at bottom-left above the name.
+- Static helper functions (`displayName(for:)`, `vibeDescription(for:)`, `vibeIcon(for:)`, `vibeGradient(for:)`) are `static` on `OnboardingVibesView` and could be reused by future screens (e.g., the completion summary in Step 3.9, or the vibe override in Step 6.5).
+- The validation error banner pattern is generic and works for all steps. When adding new steps with validation (Steps 3.7–3.8), add a case to `validationMessage` in the ViewModel — the container automatically picks it up.
+- The Next button is no longer `.disabled()` — it's always tappable with a dimmed tint (`Theme.accent.opacity(0.4)`) when invalid. This replaces the previous pattern where the button was grayed out with no feedback. The tradeoff is that users can always tap Next, but they get immediate, specific feedback about what's missing.
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.6:** Build Aesthetic Vibes Screen (iOS)
+- [ ] **Step 3.7:** Build Budget Tiers Screen (iOS)
 
 ---
 
@@ -1603,3 +1651,13 @@ iOS/Knot/
 44. **Custom milestone sheet state management:** The sheet uses `@State` properties (`customName`, `customMonth`, `customDay`, `customRecurrence`) local to `OnboardingMilestonesView`, not the ViewModel. This keeps the sheet's temporary "work in progress" state separate from committed data. The `resetCustomSheetState()` method clears these before each sheet presentation.
 
 45. **`HolidayChip` is a private struct:** The `HolidayChip` component lives inside `OnboardingMilestonesView.swift` as a `private struct`. It is not reusable outside this file and does not need to be in `/Components/`.
+
+46. **Vibes use hand-tuned gradients (not hue rotation):** Unlike interests (which use `hue = index / count` for auto-generated gradients), each vibe has a manually defined 2-color gradient that evokes its aesthetic. This is intentional — 8 vibes are few enough to curate, and the color should match the vibe's meaning (warm gold = luxury, forest green = outdoorsy, etc.).
+
+47. **Vibes have no maximum selection limit:** The implementation plan specified max 4, but this was removed per user feedback. All 8 can be selected. The `Constants.Validation.maxVibes` constant still exists but is not enforced. If a cap is reintroduced, add the check in `OnboardingVibesView.toggleVibe()` and restore the max check in `validateCurrentStep()`.
+
+48. **`VibeCard` uses Lucide icons (UIImage), not SF Symbols:** The vibes screen maps each vibe to a `Lucide.*` static property returning `UIImage`. These are rendered via `Image(uiImage:).renderingMode(.template)`. The interests screen uses SF Symbols (`Image(systemName:)`). Both approaches work on the dark theme — use whichever icon library has the best match for the concept.
+
+49. **Validation error banner pattern (Step 3.6):** The `OnboardingContainerView` now shows a red error banner when the user taps Next while `canProceed` is false. The message comes from `OnboardingViewModel.validationMessage` — a computed property with a `switch` on `currentStep`. To add validation messages for new steps: (1) add a case to `validateCurrentStep()`, (2) add a matching case to `validationMessage`. The container handles display, animation, and auto-dismiss automatically.
+
+50. **Next button is always tappable (post-Step 3.6):** The Next button no longer uses `.disabled(!viewModel.canProceed)`. Instead, it's always tappable and checks `canProceed` in its action closure. When invalid, it shows the error banner. When valid, it advances normally. The button tint dims to `Theme.accent.opacity(0.4)` when invalid as a visual hint. This change applies to ALL onboarding steps, not just vibes.

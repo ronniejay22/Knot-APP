@@ -8,6 +8,8 @@
 //  Step 3.3: Added validation for Interests (exactly 5 likes required).
 //  Step 3.4: Added validation for Dislikes (exactly 5, no overlap with likes).
 //  Step 3.5: Added CustomMilestone model, milestone validation (birthday required).
+//  Step 3.6: Added vibes validation (min 1 selection required).
+//          Added validationMessage for user-facing error feedback on Next tap.
 //
 
 import Foundation
@@ -113,6 +115,32 @@ final class OnboardingViewModel {
     /// Each step view can override this by setting `canProceed`.
     /// The welcome and completion steps always allow proceeding.
     var canProceed: Bool = true
+
+    /// User-facing error message shown when the user taps Next while `canProceed` is false.
+    /// Returns `nil` when the current step is valid. Used by `OnboardingContainerView`
+    /// to display a brief error banner.
+    var validationMessage: String? {
+        guard !canProceed else { return nil }
+        switch currentStep {
+        case .basicInfo:
+            return "Please enter your partner's name."
+        case .interests:
+            let remaining = Constants.Validation.requiredInterests - selectedInterests.count
+            return "Select \(remaining) more interest\(remaining == 1 ? "" : "s") to continue."
+        case .dislikes:
+            if !selectedDislikes.isDisjoint(with: selectedInterests) {
+                return "A dislike can't also be a like. Please fix the overlap."
+            }
+            let remaining = Constants.Validation.requiredDislikes - selectedDislikes.count
+            return "Select \(remaining) more dislike\(remaining == 1 ? "" : "s") to continue."
+        case .vibes:
+            return "Pick at least 1 vibe to continue."
+        case .milestones:
+            return "Custom milestone names can't be empty."
+        default:
+            return nil
+        }
+    }
 
     // MARK: - Partner Basic Info (Step 3.2)
 
@@ -226,9 +254,11 @@ final class OnboardingViewModel {
                 !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
             canProceed = customsValid
+        case .vibes:
+            canProceed = selectedVibes.count >= Constants.Validation.minVibes
         default:
             // Placeholder steps and steps without validation allow proceeding.
-            // Steps 3.6–3.8 will add cases here as they are implemented.
+            // Steps 3.7–3.8 will add cases here as they are implemented.
             canProceed = true
         }
     }

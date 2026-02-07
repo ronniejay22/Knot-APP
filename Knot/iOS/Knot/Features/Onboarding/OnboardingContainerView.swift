@@ -4,6 +4,7 @@
 //
 //  Created on February 7, 2026.
 //  Step 3.1: Multi-step onboarding navigation container.
+//  Step 3.6: Added validation error banner when tapping Next before step is valid.
 //
 
 import SwiftUI
@@ -28,6 +29,9 @@ struct OnboardingContainerView: View {
     var onComplete: () -> Void
 
     @State private var viewModel = OnboardingViewModel()
+    @State private var showValidationError = false
+    @State private var validationErrorText = ""
+    @State private var dismissTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,6 +50,20 @@ struct OnboardingContainerView: View {
                 ))
                 .id(viewModel.currentStep)
 
+            // MARK: - Validation Error Banner
+            if showValidationError {
+                Text(validationErrorText)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.red.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             // MARK: - Navigation Buttons
             navigationButtons
                 .padding(.horizontal, 24)
@@ -54,6 +72,13 @@ struct OnboardingContainerView: View {
         .background(Theme.backgroundGradient.ignoresSafeArea())
         .environment(viewModel)
         .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
+        .animation(.easeInOut(duration: 0.25), value: showValidationError)
+        .onChange(of: viewModel.currentStep) { _, _ in
+            // Dismiss any lingering error and cancel pending dismiss when switching steps
+            dismissTask?.cancel()
+            dismissTask = nil
+            showValidationError = false
+        }
     }
 
     // MARK: - Progress Bar
@@ -173,8 +198,22 @@ struct OnboardingContainerView: View {
                 .tint(Theme.accent)
             } else {
                 // Normal step — "Next" button
+                // Always tappable; shows validation error banner if step isn't valid.
                 Button {
-                    viewModel.goToNextStep()
+                    if viewModel.canProceed {
+                        showValidationError = false
+                        viewModel.goToNextStep()
+                    } else if let message = viewModel.validationMessage {
+                        validationErrorText = message
+                        showValidationError = true
+                        // Cancel any previous dismiss task, then schedule a new one
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            try? await Task.sleep(for: .seconds(3))
+                            guard !Task.isCancelled else { return }
+                            showValidationError = false
+                        }
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Text("Next")
@@ -190,8 +229,7 @@ struct OnboardingContainerView: View {
                     .padding(.horizontal, 28)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
-                .disabled(!viewModel.canProceed)
+                .tint(viewModel.canProceed ? Theme.accent : Theme.accent.opacity(0.4))
             }
         }
     }
