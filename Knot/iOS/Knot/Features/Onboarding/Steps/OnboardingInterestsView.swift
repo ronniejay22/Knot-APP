@@ -66,6 +66,7 @@ struct OnboardingInterestsView: View {
                                 isSelected: viewModel.selectedInterests.contains(interest),
                                 iconName: Self.iconName(for: interest),
                                 gradient: Self.cardGradient(for: interest),
+                                imageName: Self.imageName(for: interest),
                                 isShaking: shakingCard == interest
                             ) {
                                 toggleInterest(interest)
@@ -216,6 +217,21 @@ struct OnboardingInterestsView: View {
         )
     }
 
+    // MARK: - Asset Catalog Image Name
+
+    /// Maps an interest name to its asset catalog image name.
+    /// Convention: `"Interests/interest-{lowercased-hyphenated}"`.
+    /// Returns nil if no image has been added to the asset catalog yet.
+    static func imageName(for interest: String) -> String? {
+        let slug = interest
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        let name = "Interests/interest-\(slug)"
+        // Only return the name if the image actually exists in the catalog.
+        guard UIImage(named: name) != nil else { return nil }
+        return name
+    }
+
     // MARK: - SF Symbol Icons
 
     /// Maps each interest category to a themed SF Symbol.
@@ -270,12 +286,13 @@ struct OnboardingInterestsView: View {
 
 /// A visual card representing a single interest category.
 ///
-/// Displays a themed gradient background with a centered SF Symbol icon
-/// and the interest name at the bottom-left. Matches the dark card-based
-/// grid design from the reference.
+/// When an image is available in the asset catalog, the card displays it as
+/// a full-bleed photo with a dark gradient overlay at the bottom for text
+/// readability. When no image is available, it falls back to the themed
+/// gradient background with a centered SF Symbol icon.
 ///
 /// Visual states:
-/// - **Unselected:** Gradient background, semi-transparent icon, white text
+/// - **Unselected:** Photo (or gradient) background, white text
 /// - **Selected:** Pink border, checkmark badge in top-right corner
 /// - **Shaking:** Horizontal shake animation when the 6th selection is rejected
 private struct InterestImageCard: View {
@@ -283,6 +300,8 @@ private struct InterestImageCard: View {
     let isSelected: Bool
     let iconName: String
     let gradient: LinearGradient
+    /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
+    let imageName: String?
     let isShaking: Bool
     let action: () -> Void
 
@@ -291,14 +310,21 @@ private struct InterestImageCard: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Gradient background
-                gradient
+                // Background: prefer asset image, fall back to gradient + icon
+                if let imageName {
+                    Image(imageName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    // Gradient background
+                    gradient
 
-                // SF Symbol icon (large, centered, semi-transparent)
-                Image(systemName: iconName)
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(.white.opacity(0.20))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // SF Symbol icon (large, centered, semi-transparent)
+                    Image(systemName: iconName)
+                        .font(.system(size: 30, weight: .light))
+                        .foregroundStyle(.white.opacity(0.20))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
 
                 // Bottom gradient overlay for text readability
                 LinearGradient(

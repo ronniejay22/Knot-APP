@@ -72,6 +72,7 @@ struct OnboardingDislikesView: View {
                                 isDisabled: isLiked,
                                 iconName: OnboardingInterestsView.iconName(for: interest),
                                 gradient: OnboardingInterestsView.cardGradient(for: interest),
+                                imageName: OnboardingInterestsView.imageName(for: interest),
                                 isShaking: shakingCard == interest
                             ) {
                                 if !isLiked {
@@ -211,10 +212,14 @@ struct OnboardingDislikesView: View {
 /// for interests already selected as "likes." Disabled cards appear desaturated
 /// with reduced opacity and an "Already liked" badge, and are not tappable.
 ///
+/// When an image is available in the asset catalog, the card displays it as a
+/// full-bleed photo. When no image is available, it falls back to the themed
+/// gradient background with a centered SF Symbol icon.
+///
 /// Visual states:
-/// - **Unselected:** Gradient background, semi-transparent icon, white text
+/// - **Unselected:** Photo (or gradient) background, white text
 /// - **Selected (disliked):** Pink border, checkmark badge in top-right corner
-/// - **Disabled (liked):** Grayscale gradient, reduced opacity, lock badge, not tappable
+/// - **Disabled (liked):** Desaturated, reduced opacity, heart badge, not tappable
 /// - **Shaking:** Horizontal shake animation when the 6th selection is rejected
 private struct DislikeImageCard: View {
     let title: String
@@ -222,6 +227,8 @@ private struct DislikeImageCard: View {
     let isDisabled: Bool
     let iconName: String
     let gradient: LinearGradient
+    /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
+    let imageName: String?
     let isShaking: Bool
     let action: () -> Void
 
@@ -230,18 +237,23 @@ private struct DislikeImageCard: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Gradient background — desaturated when disabled
+                // Background: prefer asset image, fall back to gradient + icon
                 if isDisabled {
+                    // Disabled state — always flat gray regardless of image availability
                     Color(white: 0.18)
+                } else if let imageName {
+                    Image(imageName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
                 } else {
                     gradient
-                }
 
-                // SF Symbol icon (large, centered, semi-transparent)
-                Image(systemName: iconName)
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(.white.opacity(isDisabled ? 0.08 : 0.20))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // SF Symbol icon (only when no image)
+                    Image(systemName: iconName)
+                        .font(.system(size: 30, weight: .light))
+                        .foregroundStyle(.white.opacity(0.20))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
 
                 // Bottom gradient overlay for text readability
                 LinearGradient(

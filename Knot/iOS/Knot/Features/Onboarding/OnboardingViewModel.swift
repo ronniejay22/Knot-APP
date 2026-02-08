@@ -10,6 +10,7 @@
 //  Step 3.5: Added CustomMilestone model, milestone validation (birthday required).
 //  Step 3.6: Added vibes validation (min 1 selection required).
 //          Added validationMessage for user-facing error feedback on Next tap.
+//  Step 3.7: Added budget validation (max >= min for all three tiers).
 //
 
 import Foundation
@@ -137,6 +138,8 @@ final class OnboardingViewModel {
             return "Pick at least 1 vibe to continue."
         case .milestones:
             return "Custom milestone names can't be empty."
+        case .budget:
+            return "Maximum budget must be at least the minimum for each tier."
         default:
             return nil
         }
@@ -196,12 +199,22 @@ final class OnboardingViewModel {
 
     // MARK: - Budget (Step 3.7)
 
+    /// Effective budget bounds (computed from selected ranges).
+    /// These are what get submitted to the backend.
     var justBecauseMin: Int = 2000     // cents
     var justBecauseMax: Int = 5000     // cents
     var minorOccasionMin: Int = 5000   // cents
     var minorOccasionMax: Int = 15000  // cents
     var majorMilestoneMin: Int = 10000 // cents
     var majorMilestoneMax: Int = 50000 // cents
+
+    /// Selected budget range IDs per tier (e.g., "2000-5000").
+    /// The budget view supports multi-select — the effective min/max
+    /// above are computed as min(selected mins) / max(selected maxes).
+    /// Stored here so selections persist when navigating between steps.
+    var justBecauseRanges: Set<String> = ["2000-5000"]
+    var minorOccasionRanges: Set<String> = ["5000-15000"]
+    var majorMilestoneRanges: Set<String> = ["10000-50000"]
 
     // MARK: - Love Languages (Step 3.8)
 
@@ -256,9 +269,15 @@ final class OnboardingViewModel {
             canProceed = customsValid
         case .vibes:
             canProceed = selectedVibes.count >= Constants.Validation.minVibes
+        case .budget:
+            // Auto-correction in the budget view's Binding setters ensures max >= min,
+            // so this should always pass. Included as a safety net for programmatic changes.
+            canProceed = justBecauseMax >= justBecauseMin
+                && minorOccasionMax >= minorOccasionMin
+                && majorMilestoneMax >= majorMilestoneMin
         default:
             // Placeholder steps and steps without validation allow proceeding.
-            // Steps 3.7–3.8 will add cases here as they are implemented.
+            // Step 3.8 will add a case here when implemented.
             canProceed = true
         }
     }

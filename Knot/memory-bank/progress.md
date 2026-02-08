@@ -1551,9 +1551,90 @@ iOS/Knot/
 
 ---
 
+### Step 3.7: Build Budget Tiers Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingBudgetView` placeholder with a full budget tiers screen containing three tier cards with multi-select preset range buttons
+- **Three budget tier cards** stacked vertically in a `ScrollView`, each with a unique accent color:
+  - **Just Because** (teal accent, `Lucide.coffee`) — "Spontaneous dates & small surprises"
+  - **Minor Occasion** (warm amber accent, `Lucide.gift`) — "Smaller holidays & celebrations"
+  - **Major Milestone** (pink/Theme.accent, `Lucide.sparkles`) — "Birthdays, anniversaries & big holidays"
+- **Multi-select range buttons:** Each tier displays 4 preset dollar ranges in a 2-column `LazyVGrid`. Users can select **multiple** ranges per tier — the effective min/max is computed as `min(selected mins)` / `max(selected maxes)`. At least one range must remain selected (last one can't be deselected)
+- **"Select all" button** in each card's title row: shows "Select all" in accent color when not all selected; changes to "All selected" in muted text when all are active
+- **Personalized header** using the partner's name from Step 3.2 (e.g., "Budget for Alex")
+- **Preset ranges and defaults:**
+  - Just Because: $5–$20, **$20–$50** (default), $50–$100, $100–$200
+  - Minor Occasion: $25–$50, **$50–$150** (default), $150–$300, $300–$500
+  - Major Milestone: $50–$100, **$100–$500** (default), $500–$750, $750–$1,000
+- Added `BudgetRangeOption` (`fileprivate` struct, `Identifiable`, `Equatable`, `Sendable`) with computed `label` property using a file-level `formatDollars()` function (avoids `@MainActor` isolation issues)
+- Added `BudgetTierCard` (`private` struct) with icon badge, title/subtitle, "Select all" button, and 2-column button grid
+- Added `.budget` validation case to `OnboardingViewModel.validateCurrentStep()` — checks `max >= min` for all three tiers (always passes since preset ranges guarantee validity)
+- Added `.budget` case to `validationMessage` — "Maximum budget must be at least the minimum for each tier."
+- Added `justBecauseRanges`, `minorOccasionRanges`, `majorMilestoneRanges` (`Set<String>`) to `OnboardingViewModel` to persist multi-select state across step navigation
+- `toggle()` helper uses `inout Set<String>` for toggling; `syncBudget()` recomputes effective min/max from selected ranges via closures
+- Dollar amounts stored in cents (matching database convention); `formatDollars()` converts to "$XX" or "$X,XXX" display format using `NumberFormatter`
+- Card uses `.clipShape(RoundedRectangle(cornerRadius: 16))` to prevent button overflow
+- 3 preview variants: default, with name, multiple selected
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBudgetView.swift` — Full rewrite from placeholder to complete budget screen (~310 lines). Contains `OnboardingBudgetView` (main view with header, 3 tier cards, toggle/sync helpers, preset options), `BudgetRangeOption` (fileprivate struct), `BudgetTierCard` (private struct), and `formatDollars()` (file-level function)
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `justBecauseRanges`, `minorOccasionRanges`, `majorMilestoneRanges` Set properties; added `.budget` validation case and validation message
+
+**Test results:**
+- ✅ `xcodebuild build` — zero errors, zero warnings (BUILD SUCCEEDED)
+- ✅ Swift 6 strict concurrency: no warnings or errors
+- ✅ Tap a range button — highlights with accent fill and white text
+- ✅ Tap a different range — both are now highlighted (multi-select)
+- ✅ Tap "Select all" — all 4 buttons highlight, text changes to "All selected"
+- ✅ Tap a selected range to deselect — deselects correctly
+- ✅ Attempt to deselect the last remaining range — prevented (stays selected)
+- ✅ Default selections ($20–$50, $50–$150, $100–$500) pre-selected on load
+- ✅ Navigate forward (Next) and back — all selections persist (ViewModel state preserved)
+- ✅ Proceed to Love Languages step — navigation works
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The original implementation plan specified sliders, but preset range buttons were chosen for cleaner UX — users tap to select comfort zones rather than fiddling with dual sliders
+- `BudgetRangeOption` is `fileprivate` (not `private`) because `OnboardingBudgetView`'s static option arrays reference the type. The static arrays are also `fileprivate` to match. `BudgetTierCard` is `private` since it doesn't need to be referenced outside the file
+- The `formatDollars()` function is at file level (not on the View) to avoid `@MainActor` isolation issues — `BudgetRangeOption.label` is a computed property on a non-isolated `Sendable` struct, so it can't call a `@MainActor`-isolated method
+- `@Environment` viewModel doesn't support mutation through `WritableKeyPath` subscript. The toggle/selectAll logic uses direct property access (`viewModel.justBecauseRanges.insert(...)`) and closure-based setters (`setMin: { viewModel.justBecauseMin = $0 }`) instead
+- The `FlowLayout` component (created in Step 3.3) was initially used for range buttons but replaced with `LazyVGrid` (2-column) for consistent equal-width layout. `FlowLayout` caused uneven wrapping with varying-width dollar labels
+- `.clipShape(RoundedRectangle(cornerRadius: 16))` is applied to the card background to prevent button content from overflowing outside the rounded container
+- Run iOS build with: `cd iOS && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build -project Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet`
+
+---
+
+### Interest Card Images (Enhancement)
+**Date:** February 7, 2026
+**Status:** Complete
+
+**What was done:**
+- Added asset catalog support for custom images on interest cards (both Interests and Dislikes screens)
+- Created `Assets.xcassets/Interests/` folder group with `provides-namespace: true` (40 image sets, one per interest category)
+- Naming convention: `interest-{lowercased-hyphenated}` (e.g., `interest-travel`, `interest-board-games`)
+- Added `imageName(for:)` static method to `OnboardingInterestsView` — converts interest name to asset path (`"Interests/interest-travel"`), returns `nil` if no image is in the catalog (checked via `UIImage(named:)`)
+- Updated `InterestImageCard` to accept optional `imageName` — when present, renders a full-bleed photo (`.resizable().aspectRatio(contentMode: .fill)`); when absent, falls back to the existing gradient + SF Symbol icon
+- Updated `DislikeImageCard` identically — disabled (already-liked) cards still use flat gray background regardless of image availability
+- User added 40 JPEG images (~280x400px) to the asset catalog via Xcode
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingInterestsView.swift` — Added `imageName(for:)` static method; updated `InterestImageCard` struct with optional `imageName` parameter and conditional image/gradient rendering
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift` — Updated `DislikeImageCard` struct with optional `imageName` parameter and conditional image/gradient rendering; passes `OnboardingInterestsView.imageName(for:)` to each card
+- `iOS/Knot/Resources/Assets.xcassets/Interests/` — 40 new `.imageset` folders with `Contents.json` and user-provided JPEG images
+
+**Test results:**
+- ✅ Build succeeds with zero errors and zero warnings
+- ✅ Interest cards display custom images with dark gradient overlay for text readability
+- ✅ Dislike cards display custom images; disabled (liked) cards show flat gray
+- ✅ Cards without images gracefully fall back to gradient + SF Symbol
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.7:** Build Budget Tiers Screen (iOS)
+- [ ] **Step 3.8:** Build Love Languages Screen (iOS)
 
 ---
 
