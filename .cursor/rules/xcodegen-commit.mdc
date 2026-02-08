@@ -1,0 +1,32 @@
+---
+description: Always include project.pbxproj changes when committing after xcodegen generate
+alwaysApply: true
+---
+
+# XcodeGen + Git Commit Rule
+
+When running `xcodegen generate` (or any command that regenerates the Xcode project), **always stage and commit `Knot/iOS/Knot.xcodeproj/project.pbxproj`** alongside the source files that triggered the regeneration.
+
+## The Problem
+
+`xcodegen generate` rewrites `project.pbxproj` to reflect new/removed source files. If this file isn't committed with the related source changes, it shows up as a dangling uncommitted modification.
+
+## Required Workflow
+
+Whenever you:
+1. Create, rename, or delete a `.swift` file under `Knot/iOS/`
+2. Run `xcodegen generate` in `Knot/iOS/`
+
+You **must** also:
+```bash
+git add Knot/iOS/Knot.xcodeproj/project.pbxproj
+```
+**before** committing. Include it in the same commit as the source file changes.
+
+## Pre-Commit Checklist
+
+Before every `git commit` that touches `Knot/iOS/` source files, run:
+```bash
+git status Knot/iOS/Knot.xcodeproj/
+```
+If `project.pbxproj` is modified or untracked, stage it.
