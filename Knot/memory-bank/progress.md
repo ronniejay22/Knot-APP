@@ -1947,9 +1947,66 @@ iOS/Knot/
 
 ---
 
+### Step 4.1: Build Home Screen Layout (iOS) ✅
+**Date:** February 8, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `NetworkMonitor.swift` — `@Observable` class using `NWPathMonitor` to track network connectivity and publish `isConnected` on the main actor for safe SwiftUI binding
+- Created `HomeViewModel.swift` — `@Observable` class that loads vault data from `GET /api/v1/vault` via `VaultService`, computes milestone countdowns with year rollover logic, and provides computed properties for the UI (partner name, upcoming milestones, vibes, recent hints)
+- Completely rebuilt `HomeView.swift` from the Step 2.3 placeholder into the full Home screen with 5 distinct sections:
+  1. **Offline banner** — Red banner with Lucide `wifiOff` icon when `networkMonitor.isConnected` is `false`, animated show/hide
+  2. **Header section** — Time-of-day greeting ("Good morning/afternoon/evening/night"), partner name (32pt bold, scales down for long names), next milestone countdown badge (circular, 28pt rounded number), milestone countdown subtitle with SF Symbol icon, and horizontally scrollable vibe capsule tags
+  3. **Hint Capture section** — `TextEditor` with placeholder text overlay, character counter ("0/500", turns red at 450+), Lucide `mic` button (Step 4.3 placeholder), Lucide `arrowUp` submit button (accent when active, surface when disabled), border highlights on focus
+  4. **Upcoming Milestones section** — Next 1-2 milestones sorted by days until occurrence, each as a card with SF Symbol type icon, name, formatted date, and countdown capsule pill. Color-coded by urgency: red (≤3 days), orange (≤7), yellow (≤14), pink/accent (distant). Loading spinner and dashed-border empty state included
+  5. **Recent Hints section** — Last 3 hints preview with source icon (pen/mic), text (2-line truncation), relative timestamp. "View All" button (Step 4.5 placeholder). Dashed-border empty state with descriptive guidance text
+- All interactive sections disabled + dimmed to 50% opacity when offline
+- Toolbar: Knot branding (heart + "Knot") on leading, edit profile (`userPen`) + sign out (`logOut`) icons on trailing
+- Edit Profile still accessible via `.fullScreenCover`, vault data auto-refreshes on dismiss via `.onChange(of: showEditProfile)`
+- Keyboard dismisses interactively on scroll via `.scrollDismissesKeyboard(.interactively)`
+- Hint submit provides haptic feedback (`UIImpactFeedbackGenerator`) and clears input (full API call in Step 4.2)
+- Regenerated Xcode project via `xcodegen generate` to include new files
+
+**Supporting types created:**
+- `UpcomingMilestone` (Identifiable, Sendable) — milestone with countdown info, `formattedDate` ("Feb 14"), `countdownText` ("in 14 days" / "Tomorrow" / "Today!"), `iconName` (SF Symbol per type), `urgencyLevel` (critical/soon/upcoming/distant)
+- `HintPreview` (Identifiable, Sendable) — hint preview model for Recent Hints section (populated when Hints API is available in Step 4.5)
+
+**Files created:**
+- `iOS/Knot/Core/NetworkMonitor.swift` — Network connectivity observer using `NWPathMonitor`
+- `iOS/Knot/Features/Home/HomeViewModel.swift` — Home screen data management, vault loading, milestone countdowns
+
+**Files modified:**
+- `iOS/Knot/Features/Home/HomeView.swift` — Complete rebuild from placeholder to full Home screen
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with 2 new source files
+
+**Test results (visual verification on simulator):**
+- ✅ All 5 sections render correctly on iPhone 17 Pro Simulator (iOS 26.2)
+- ✅ Header shows partner name ("Jas"), greeting ("Good morning"), vibe tags ("Bohemian")
+- ✅ Milestone countdown shows "Jas's Birthday in 327 days" with red circular badge (327)
+- ✅ Upcoming Milestones card shows "Jas's Birthday" with "Jan 1" date and "in 327 days" countdown pill
+- ✅ Hint capture input renders with placeholder, mic button, submit button, and "0/500" counter
+- ✅ Recent Hints shows empty state with descriptive text
+- ✅ Toolbar shows Knot branding + edit profile + sign out icons
+- ✅ Edit Profile accessible from toolbar, vault refreshes on dismiss
+- ✅ Build succeeds with zero errors
+- ✅ Total backend test count remains **386 tests** (no new backend tests — Step 4.1 is iOS-only, data needs served by existing `GET /api/v1/vault` from Step 3.12)
+
+**Notes:**
+- The backend server must be running (`uvicorn app.main:app --host 127.0.0.1 --port 8000`) for the Home screen to load vault data. If the server was started before Step 3.10 code was written, it must be restarted to pick up the vault routes
+- `CHHapticPattern` errors in simulator logs ("hapticpatternlibrary.plist couldn't be opened") are standard iOS simulator noise — haptics work on physical devices, not simulators. These do not indicate bugs in our code
+- `nw_connection` and socket errors from Supabase SDK are transient networking noise — the SDK retries automatically and the app handles failures gracefully
+- The hint submit button currently only provides haptic feedback and clears the input. The actual API call (`POST /api/v1/hints`) will be connected in Step 4.2
+- The microphone button is a visual placeholder — voice capture will be implemented in Step 4.3 using `SFSpeechRecognizer`
+- Recent Hints is always empty until Step 4.5 (Hint List View) populates `viewModel.recentHints`
+- Milestone countdown correctly handles year rollover: if a birthday has already passed this year, it computes days until next year's occurrence
+- `NetworkMonitor` uses `NWPathMonitor` on a dedicated dispatch queue and dispatches updates to `@MainActor` for thread-safe SwiftUI binding. It starts immediately on init and cancels on deinit
+- The `vibeDisplayName()` helper converts snake_case to Title Case inline (e.g., "quiet_luxury" → "Quiet Luxury"). It does NOT use the static `OnboardingVibesView.displayName(for:)` method because that would create a dependency on the Onboarding module from the Home feature. If more vibe display logic is needed across features, extract to a shared utility
+
+---
+
 ## Next Steps
 
-- [ ] **Step 4.1:** Build Home Screen Layout (iOS)
+- [ ] **Step 4.2:** Implement Text Hint Capture (iOS)
 
 ---
 

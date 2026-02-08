@@ -45,7 +45,7 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | Folder | Status | Purpose |
 |--------|--------|---------|
 | `Auth/` | **Active** | Apple Sign-In flow, session management, auth state |
-| `Home/` | **Placeholder** | Placeholder for session persistence verification (Step 2.3). Full build in Step 4.1. |
+| `Home/` | **Active** | Full Home screen with header, hint capture, milestone countdown, recent hints, offline banner (Step 4.1). |
 | `Onboarding/` | **Active** | Partner Vault creation (9-step wizard). Container + ViewModel at root, step views in `Steps/` subfolder. |
 | `Recommendations/` | Planned | Choice-of-Three UI, refresh flow |
 | `HintCapture/` | Planned | Text and voice hint input |
@@ -57,10 +57,11 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | `SignInView.swift` | Sign-in screen with Apple Sign-In button. Displays Knot branding (Lucide heart icon, title, tagline), three value proposition rows, and `SignInWithAppleButton` from `AuthenticationServices`. Delegates auth logic to `AuthViewModel` (shared via `@Environment`). Shows a loading overlay during Supabase sign-in. Contains a private `SignInFeatureRow` component for the value prop list. Uses `@Bindable` wrapper for alert binding. |
 | `AuthViewModel.swift` | `@Observable @MainActor` class managing the full auth lifecycle. On launch, listens to `authStateChanges` to restore sessions from Keychain (`initialSession` event). Handles Apple Sign-In → Supabase Auth flow with OIDC nonce security. Provides `signOut()` (Step 2.4) which calls `supabase.auth.signOut()` to invalidate the server session, clear the Keychain, and emit `signedOut` through the listener. Exposes `isCheckingSession` (initial load), `isLoading` (sign-in in progress), `isAuthenticated` (drives root navigation), `signInError`, `showError`. All auth state transitions flow through `listenForAuthChanges()`. |
 
-##### `Home/` — Home Feature (Placeholder)
+##### `Home/` — Home Feature
 | File | Purpose |
 |------|---------|
-| `HomeView.swift` | Placeholder Home screen created in Step 2.3 for session persistence verification, updated in Step 2.4 with sign-out functionality, and Step 3.12 with Edit Profile access. Shows Knot branding, welcome message, session status indicator (Lucide `circleCheck` icon), "Edit Partner Profile" button (Lucide `userPen`, bordered, accent tint) that presents `EditVaultView` as `.fullScreenCover`, and Sign Out button (red bordered with `logOut` icon). Toolbar: top-left `userPen` icon for edit profile, top-right `logOut` icon for sign-out. `@State private var showEditProfile` controls sheet presentation. Reads `AuthViewModel` from environment and calls `signOut()` async. Will be replaced with the full Home screen (hint capture, milestone cards, network monitoring) in Step 4.1; sign-out and edit profile move to Settings in Step 11.1. |
+| `HomeView.swift` | **Active (Step 4.1).** Full Home screen with 5 sections: (1) **Offline banner** — red `HStack` with Lucide `wifiOff` icon, animated show/hide via `.transition(.move(edge: .top).combined(with: .opacity))`, driven by `networkMonitor.isConnected`; (2) **Header** — time-of-day greeting (`greetingText` switches on `Calendar.current.component(.hour)`), partner name (32pt bold, `minimumScaleFactor(0.7)` for long names), next milestone countdown badge (circular 64×64, `milestoneCountdownColor()` returns red/orange/yellow/pink by urgency), milestone subtitle with SF Symbol icon, and horizontally scrollable vibe capsule tags (`vibeDisplayName()` converts snake_case → Title Case inline); (3) **Hint Capture** — `TextEditor` with `ZStack` placeholder overlay, `@FocusState` border highlight, character counter (red at 450+, red.opacity(0.8) at limit), Lucide `mic` button (Step 4.3 voice capture placeholder), Lucide `arrowUp` submit button (accent fill when `canSubmitHint`, surface fill when disabled), `submitHint()` provides `UIImpactFeedbackGenerator(.light)` haptic and clears input (API call in Step 4.2); (4) **Upcoming Milestones** — `ForEach(viewModel.upcomingMilestones)` renders `milestoneCard()` with SF Symbol type icon, name, `formattedDate`, countdown capsule pill, urgency coloring; loading spinner and dashed-border `emptyMilestoneCard`; (5) **Recent Hints** — `ForEach(viewModel.recentHints)` renders `hintPreviewCard()` with source icon (pen/mic), 2-line text, relative timestamp; "View All" button (Step 4.5); dashed-border `emptyHintsCard` with guidance text. All interactive sections `.disabled(!networkMonitor.isConnected).opacity(0.5)` when offline. Toolbar: Knot branding (heart + "Knot") leading, edit profile (`userPen`) + sign out (`logOut`) trailing. Edit Profile via `.fullScreenCover`, vault refreshes on dismiss via `.onChange(of: showEditProfile)`. `.task { await viewModel.loadVault() }` on appear. `.scrollDismissesKeyboard(.interactively)`. Sign-out moves to Settings in Step 11.1. |
+| `HomeViewModel.swift` | **Active (Step 4.1).** `@Observable @MainActor` class managing Home screen data. `loadVault()` calls `VaultService().getVault()` and stores the `VaultGetResponse` in `vault`. Computed properties: `partnerName` (fallback "Your Partner"), `upcomingMilestones` (parses all milestones via `parseMilestoneDate()`, computes `daysUntilNextOccurrence()` with year rollover, sorts by proximity, returns top 2 as `[UpcomingMilestone]`), `nextMilestone` (first upcoming), `vibes` (vault's vibe tags). `recentHints: [HintPreview]` is currently empty — populated when Hints API is connected in Step 4.5. Private helpers: `parseMilestoneDate(_:)` splits "2000-MM-DD" into (month, day) tuple; `daysUntilNextOccurrence(month:day:from:calendar:)` tries current year first, falls back to next year if date passed. Also defines `UpcomingMilestone` (Identifiable, Sendable — id, name, type, month, day, daysUntil, budgetTier; computed `formattedDate`, `countdownText` with Today!/Tomorrow/in X days, `iconName` SF Symbol per milestone type, `urgencyLevel` enum critical/soon/upcoming/distant) and `HintPreview` (Identifiable, Sendable — id, text, source, createdAt). |
 
 ##### `Settings/` — Settings & Profile Editing
 | File | Purpose |
@@ -89,11 +90,11 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | File | Purpose |
 |------|---------|
 | `Constants.swift` | App-wide constants: API URLs, Supabase configuration (`projectURL`, `anonKey`), validation rules, predefined categories (40 interests, 8 vibes, 5 love languages). |
+| `NetworkMonitor.swift` | **Active (Step 4.1).** `@Observable @MainActor` class monitoring network connectivity via `NWPathMonitor` (from `Network` framework). Publishes `isConnected: Bool` updated on the main actor when the network path changes. Creates a dedicated `DispatchQueue` for the monitor's `pathUpdateHandler`. Starts monitoring immediately on `init()`, cancels on `deinit`. Used by `HomeView` to show the offline banner and disable interactive elements. Created as `@State` in `HomeView` — one instance per Home screen lifecycle. |
 | `Theme.swift` | **App-wide design system (Step 3.3).** Centralizes all colors, gradients, and surfaces for the dark purple aesthetic. Contains: `backgroundGradient` (dark purple LinearGradient from `(0.10, 0.05, 0.16)` to `(0.05, 0.02, 0.10)`), `surface` / `surfaceElevated` / `surfaceBorder` (semi-transparent white at 8%/12%/12% opacity), `accent` (Color.pink), `textPrimary` / `textSecondary` / `textTertiary` (white at 100%/60%/35% opacity), and `progressTrack` / `progressFill`. All views MUST use `Theme` constants — never hardcode colors. |
 
 Future files:
 - `Extensions.swift` — Swift type extensions
-- `NetworkMonitor.swift` — Online/offline detection
 
 #### `/Services` — Data & API Layer
 | File | Status | Purpose |
@@ -1102,6 +1103,32 @@ The `signedOut` handler resets `hasCompletedOnboarding = false` so that if a dif
 - Tests verify both the API response AND the database state in all 6 tables
 - The vault existence check is tested by making raw PostgREST requests with the user's JWT (same query the iOS `VaultService.vaultExists()` makes)
 - The returning user test creates two separate sign-in sessions and verifies the vault persists across them
+
+### 88. Network Monitoring via NWPathMonitor (Step 4.1)
+`NetworkMonitor` is an `@Observable @MainActor` class using Apple's `NWPathMonitor` (from the `Network` framework) on a dedicated `DispatchQueue`. The monitor's `pathUpdateHandler` dispatches updates to `@MainActor` via `Task { @MainActor in ... }`, making `isConnected` safe for direct SwiftUI binding. Key design decisions:
+- Created as `@State` in `HomeView` (not injected via environment) because only the Home screen uses it. If future screens need connectivity info, promote to environment injection from `ContentView`.
+- Starts immediately on `init()` and cancels on `deinit` — no manual start/stop lifecycle management needed.
+- The `[weak self]` capture in `pathUpdateHandler` prevents retain cycles with the `Task` closure.
+
+### 89. HomeViewModel Data Loading Pattern (Step 4.1)
+`HomeViewModel` follows the same `@Observable @MainActor` pattern as `OnboardingViewModel` and `AuthViewModel`. It loads vault data via `.task { await viewModel.loadVault() }` on the view's appearance, and refreshes via `.onChange(of: showEditProfile)` when returning from Edit Profile. Key design decisions:
+- `HomeViewModel` is created as `@State` in `HomeView` (not shared via environment) because it's scoped to the Home screen lifecycle. Unlike `AuthViewModel` (which must be shared across the entire app for auth state), the Home screen's data doesn't need cross-feature access.
+- Milestone countdown uses `Calendar.current` for locale-aware date computations. Year rollover is handled by trying the current year first, then falling back to next year if the date has already passed.
+- `vibeDisplayName()` is a private helper in `HomeView` that converts snake_case to Title Case inline. It does NOT use `OnboardingVibesView.displayName(for:)` to avoid coupling the Home feature to the Onboarding module. If more features need vibe display names, extract to a shared utility in `/Core/`.
+
+### 90. Milestone Urgency Color System (Step 4.1)
+Milestones on the Home screen use a 4-tier urgency color system based on `daysUntil`:
+| Days Until | Urgency Level | Color | Purpose |
+|-----------|--------------|-------|---------|
+| 0–3 | `.critical` | Red | Immediate action needed |
+| 4–7 | `.soon` | Orange | Action needed this week |
+| 8–14 | `.upcoming` | Yellow | Plan ahead |
+| 15+ | `.distant` | Pink (accent) | Informational |
+
+This coloring is applied consistently to the countdown badge, milestone subtitle, milestone card icon background, and countdown capsule pill. The `UpcomingMilestone.urgencyLevel` enum centralizes the logic so all components use the same thresholds.
+
+### 91. Backend Server Must Match Code Version (Step 4.1)
+If the uvicorn server was started before certain code changes (e.g., before Step 3.10 vault routes), it continues running the OLD code without the new routes. This causes 404 errors for routes that exist in the source but weren't loaded at server start. Always restart the backend after code changes: `kill $(lsof -i :8000 -t) && cd backend && source venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 8000`. Consider adding `--reload` flag during development: `uvicorn app.main:app --reload` to auto-restart on file changes.
 
 ---
 
