@@ -93,10 +93,9 @@ Future files:
 #### `/Services` — Data & API Layer
 | File | Status | Purpose |
 |------|--------|---------|
-| `SupabaseClient.swift` | **Active** | Singleton `SupabaseManager.client` initialized with `Constants.Supabase.projectURL` and `anonKey`. The Supabase Swift SDK automatically handles Keychain session storage and token refresh. Used by `AuthViewModel` and future service classes. |
-| `APIClient.swift` | Planned | HTTP client for backend API calls |
-| `AuthService.swift` | Planned | Authentication logic (sign in, sign out, session) |
-| `VaultService.swift` | Planned | Partner Vault CRUD operations |
+| `SupabaseClient.swift` | **Active** | Singleton `SupabaseManager.client` initialized with `Constants.Supabase.projectURL` and `anonKey`. The Supabase Swift SDK automatically handles Keychain session storage and token refresh. Used by `AuthViewModel`, `VaultService`, and future service classes. |
+| `VaultService.swift` | **Active (Step 3.11)** | `@MainActor` service for Partner Vault API operations. Two methods: (1) `createVault(_:)` — sends `POST /api/v1/vault` to the FastAPI backend with the Supabase access token as Bearer auth; handles 201 success, 401 auth, 409 duplicate, 422 validation, and network errors with typed `VaultServiceError` enum; parses both string and array `detail` error formats from FastAPI. (2) `vaultExists()` — queries Supabase PostgREST directly (`partner_vaults?select=id&limit=1`) using the anon client (RLS-scoped); returns `Bool`. Uses `JSONEncoder`/`JSONDecoder` for payload serialization, `URLSession.shared` for HTTP. Called by `OnboardingViewModel.submitVault()` and `AuthViewModel.listenForAuthChanges()`. |
+| `APIClient.swift` | Planned | Generic HTTP client for backend API calls (future refactor) |
 | `HintService.swift` | Planned | Hint capture and retrieval |
 | `RecommendationService.swift` | Planned | Recommendation fetching and feedback |
 
@@ -108,7 +107,7 @@ Future files:
 | `HintLocal.swift` | SwiftData `@Model` mirroring `hints` table. Stores captured hints (text, source, isUsed). Deliberately excludes `hint_embedding` (vector(768)) — embeddings are server-side only for semantic search. |
 | `MilestoneLocal.swift` | SwiftData `@Model` mirroring `partner_milestones` table. Stores milestones (type, name, date, recurrence, budgetTier) for Home screen countdown display. |
 | `RecommendationLocal.swift` | SwiftData `@Model` mirroring `recommendations` table. Stores AI-generated recommendations for Choice-of-Three display. `description` renamed to `descriptionText` to avoid Swift protocol conflict. |
-| `DTOs.swift` | Data Transfer Objects for API requests/responses (future) |
+| `DTOs.swift` | **Active (Step 3.11).** Codable data transfer objects for backend API communication. Contains: `VaultCreatePayload` (full onboarding submission with snake_case `CodingKeys` matching backend Pydantic `VaultCreateRequest`), `MilestonePayload` (milestone_type, name, date as `"2000-MM-DD"`, recurrence, budget_tier nullable), `BudgetPayload` (occasion_type, min/max amounts in cents, currency), `LoveLanguagesPayload` (primary + secondary), `VaultCreateResponse` (vault_id, partner_name, summary counts, love_languages dict). All structs conform to `Codable` + `Sendable`. |
 
 #### `/Components` — Reusable UI Components
 Shadcn-inspired, reusable SwiftUI components.
@@ -198,7 +197,8 @@ backend/
 │   ├── test_recommendations_table.py     # Verifies recommendations schema, CHECK (type, price>=0), milestone FK SET NULL, RLS, data integrity, cascades (31 tests)
 │   ├── test_recommendation_feedback_table.py # Verifies recommendation_feedback schema, CHECK (action, rating 1-5), dual FK CASCADE, direct RLS, data integrity, cascades (27 tests)
 │   ├── test_notification_queue_table.py  # Verifies notification_queue schema, CHECK (days_before, status), DEFAULT pending, status transitions, partial index, direct RLS, cascades (26 tests)
-│   └── test_vault_api.py       # Verifies POST /api/v1/vault — valid/minimal payloads, data in all 6 tables, Pydantic validation, auth required, duplicate 409 (40 tests)
+│   ├── test_vault_api.py       # Verifies POST /api/v1/vault — valid/minimal payloads, data in all 6 tables, Pydantic validation, auth required, duplicate 409 (40 tests)
+│   └── test_step_3_11_ios_integration.py  # Verifies iOS → backend flow: exact DTO payload, all 6 tables, PostgREST vault existence check, error handling (409/401), returning user session persistence (9 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -1044,6 +1044,58 @@ All three sources must stay in sync. When adding a new interest category or vibe
 1. Add to the SQL migration (new migration file for DB ALTER)
 2. Add to `VALID_*` in `app/models/vault.py`
 3. Add to `Constants` in `iOS/Knot/Core/Constants.swift`
+
+### 81. iOS-to-Backend Communication Pattern (Step 3.11)
+The iOS app communicates with the FastAPI backend via standard HTTP requests using `URLSession`. The flow:
+1. `VaultService` gets the Supabase access token from `SupabaseManager.client.auth.session`
+2. Sets `Authorization: Bearer {token}` header on the request to the FastAPI backend
+3. FastAPI's `get_current_user_id` middleware validates the token against Supabase Auth's `/auth/v1/user` endpoint
+4. The backend uses `get_service_client()` (bypasses RLS) to insert data on behalf of the validated user
+
+This pattern keeps the iOS app thin (no direct database writes for vault creation) while using the same Supabase JWT for both Supabase PostgREST queries (vault existence check) and FastAPI authentication.
+
+### 82. Vault Existence Check via PostgREST (Step 3.11)
+The `VaultService.vaultExists()` method queries Supabase PostgREST directly from the iOS app (not through the FastAPI backend) to check if the user already has a vault. This is used in two places:
+- `AuthViewModel.initialSession` — On app relaunch, determines whether to show onboarding or Home
+- `AuthViewModel.signedIn` — On returning user sign-in, determines the same
+
+The query uses the anon client with RLS: `SELECT id FROM partner_vaults LIMIT 1`. Row Level Security automatically scopes the result to the authenticated user's vault. This avoids adding a `GET /api/v1/vault` endpoint prematurely (planned for Step 3.12).
+
+### 83. Conditional Backend URL with `#if DEBUG` (Step 3.11)
+`Constants.API.baseURL` uses a Swift `#if DEBUG` conditional:
+- **Debug builds** (Xcode development): `http://127.0.0.1:8000` (local FastAPI server)
+- **Release builds** (App Store): `https://api.knot-app.com` (production Vercel deployment)
+
+This eliminates the need to manually swap URLs before deployment. The `Info.plist` includes `NSAllowsLocalNetworking = true` to permit HTTP for localhost without disabling ATS globally.
+
+### 84. VaultServiceError Typed Error Handling (Step 3.11)
+`VaultServiceError` is a `LocalizedError`-conforming enum with 6 cases. Each case provides a user-friendly `errorDescription` string displayed in the alert. Network errors are further differentiated by `URLError.code` (no internet vs. timeout vs. cannot connect). The error parsing handles two FastAPI response formats:
+- **String detail** (`{"detail": "A partner vault already exists..."}`) — for 409, 500 errors
+- **Array detail** (`{"detail": [{"msg": "..."}]}`) — for 422 Pydantic validation errors
+
+### 85. Loading Overlay and Submission Guard Pattern (Step 3.11)
+The `OnboardingContainerView` uses a layered approach for submission UX:
+1. `viewModel.isSubmitting` drives a full-screen loading overlay (dimmed background + spinner + message)
+2. The "Get Started" button is `.disabled(viewModel.isSubmitting)` to prevent double-taps
+3. On failure, an `.alert` with "Try Again" and "Cancel" buttons appears
+4. "Try Again" re-calls `submitVault()` with the same payload — no data re-entry needed
+5. The `isSubmitting` flag is reset via `defer { isSubmitting = false }` in `submitVault()` to guarantee cleanup even on unexpected errors
+
+### 86. Auth State and Vault Check Ordering (Step 3.11)
+The `AuthViewModel.listenForAuthChanges()` handler was restructured for correct ordering:
+- **Before Step 3.11:** `isCheckingSession = false` was set immediately after `initialSession`
+- **After Step 3.11:** `isCheckingSession = false` is set AFTER the vault existence check completes
+
+This ensures the loading spinner stays visible during both the session restore AND the vault check. Without this ordering, the user would briefly see onboarding flash before being redirected to Home.
+
+The `signedOut` handler resets `hasCompletedOnboarding = false` so that if a different user signs in on the same device, they get their own vault check (not the previous user's state).
+
+### 87. iOS Integration Test Pattern (Step 3.11)
+`test_step_3_11_ios_integration.py` introduces an "iOS simulation" test pattern:
+- `_ios_onboarding_payload()` builds the EXACT JSON the iOS DTOs produce (including `budget_tier: null` for birthday, `"minor_occasion"` for custom milestones, amounts in cents)
+- Tests verify both the API response AND the database state in all 6 tables
+- The vault existence check is tested by making raw PostgREST requests with the user's JWT (same query the iOS `VaultService.vaultExists()` makes)
+- The returning user test creates two separate sign-in sessions and verifies the vault persists across them
 
 ---
 

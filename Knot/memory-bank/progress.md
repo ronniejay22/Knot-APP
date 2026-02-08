@@ -1798,9 +1798,76 @@ iOS/Knot/
 
 ---
 
+### Step 3.11: Connect iOS Onboarding to Backend API ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `DTOs.swift` with Codable structs matching the backend Pydantic models (`VaultCreatePayload`, `MilestonePayload`, `BudgetPayload`, `LoveLanguagesPayload`, `VaultCreateResponse`) with snake_case `CodingKeys` for JSON serialization
+- Created `VaultService.swift` with two methods: `createVault(_:)` (POST to backend with Bearer token) and `vaultExists()` (PostgREST query for vault existence check)
+- Added `buildVaultPayload()` to `OnboardingViewModel` that serializes all 9 steps of onboarding data (partner info, interests, dislikes, milestones, vibes, budgets, love languages) into the API-compatible `VaultCreatePayload`
+- Added `submitVault()` async method to `OnboardingViewModel` with full error handling and loading state
+- Updated `OnboardingContainerView` "Get Started" button to call `submitVault()`, with a loading overlay during submission and an error alert with "Try Again" retry option
+- Updated `AuthViewModel.listenForAuthChanges()` to check vault existence on `initialSession` (app relaunch) and `signedIn` (returning user) events, so returning users skip onboarding
+- Updated `Constants.swift` with `#if DEBUG` conditional for backend URL (`http://127.0.0.1:8000` for dev, `https://api.knot-app.com` for prod)
+- Added `NSAllowsLocalNetworking` to `Info.plist` for localhost HTTP connections during development
+- Created `test_step_3_11_ios_integration.py` — 9 tests simulating the exact iOS-to-backend flow
+
+**Files created:**
+- `iOS/Knot/Models/DTOs.swift` — Codable request/response structs for `POST /api/v1/vault`
+- `iOS/Knot/Services/VaultService.swift` — HTTP client for vault API + PostgREST vault existence check
+- `backend/tests/test_step_3_11_ios_integration.py` — 9 iOS integration tests (payload acceptance, all 6 tables verified, vault existence check, error handling, returning user flow)
+
+**Files modified:**
+- `iOS/Knot/Core/Constants.swift` — `#if DEBUG` backend URL (localhost for dev, production URL for release)
+- `iOS/Knot/Info.plist` — Added `NSAppTransportSecurity` → `NSAllowsLocalNetworking` for HTTP localhost
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `isSubmitting`, `submissionError`, `showSubmissionError` state; `submitVault()` async method; `buildVaultPayload()` serializer; `formatMilestoneDate()` helper
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — "Get Started" button now calls `submitVault()` then `onComplete()` on success; loading overlay with spinner during submission; error alert with "Try Again"/"Cancel" buttons; button disabled during submission
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — `initialSession`: vault existence check before `isCheckingSession = false`; `signedIn`: vault existence check for returning users; `signedOut`: resets `hasCompletedOnboarding = false`
+
+**Payload serialization details:**
+- Birthday milestone: `"birthday"` type, name = `"{partnerName}'s Birthday"`, date = `"2000-MM-DD"` (year 2000 placeholder), `budget_tier: null` (DB trigger sets `major_milestone`)
+- Anniversary milestone: optional, same trigger default
+- Holiday milestones: mapped from `HolidayOption.allHolidays` by ID, `budget_tier: null` (trigger sets based on type)
+- Custom milestones: `budget_tier: "minor_occasion"` (iOS default — the UI does not collect a budget tier for custom milestones)
+- Budgets: 3 tiers, amounts in cents from ViewModel (e.g., `justBecauseMin = 2000` → `$20.00`)
+- Empty location fields serialized as `null` (not empty string)
+- All strings trimmed of whitespace before submission
+
+**Error handling:**
+- `VaultServiceError` enum with 6 cases: `.noAuthSession`, `.networkError`, `.serverError`, `.decodingError`, `.vaultAlreadyExists`, `.validationError`
+- Network errors differentiated by `URLError.code`: no internet, timeout, cannot connect to host
+- Backend responses parsed for two FastAPI error formats: string `detail` (409, 500) and array `detail` (422 Pydantic validation)
+- Loading overlay prevents interaction during submission
+- Error alert offers "Try Again" (re-calls `submitVault()`) and "Cancel" (dismisses, user can re-enter data)
+
+**Test results:**
+- ✅ iOS project builds with zero errors on iPhone 17 Pro Simulator (iOS 26.2)
+- ✅ 40 existing vault API tests still pass (no regressions)
+- ✅ `test_ios_payload_accepted` — Exact iOS DTO payload → 201 with correct summary
+- ✅ `test_ios_data_stored_in_all_6_tables` — All 6 tables populated (vaults, interests, milestones with trigger defaults, vibes, budgets in cents, love languages with priorities)
+- ✅ `test_vault_exists_after_creation` — PostgREST existence check returns vault (simulates `VaultService.vaultExists()`)
+- ✅ `test_vault_not_exists_before_creation` — New user gets empty result (shows onboarding)
+- ✅ `test_duplicate_vault_returns_409` — Double-tap "Get Started" → 409 "already exists"
+- ✅ `test_no_auth_returns_401` — Missing token → 401
+- ✅ `test_invalid_token_returns_401` — Bad token → 401
+- ✅ `test_error_response_has_detail_field` — Error body has `detail` for iOS parsing
+- ✅ `test_vault_persists_after_new_session` — Sign out → sign in → vault still exists (returning user skips onboarding)
+- ✅ Total: 49 tests passed (40 existing + 9 new), 0 failed, 2 warnings (harmless supabase-py deprecation)
+- ✅ Total backend test count is now **354 tests** across 17 test files (345 from Phase 1-2 + Step 3.10, + 9 from Step 3.11)
+
+**Notes:**
+- Custom milestones default to `budget_tier: "minor_occasion"` because the onboarding UI (Step 3.5) does not include a budget tier picker for custom milestones. The implementation plan says "User selects tier during creation" — this should be addressed in Step 3.12 (Edit Vault) or as a future enhancement to the custom milestone sheet
+- The vault existence check uses Supabase PostgREST directly (not the FastAPI backend) because `GET /api/v1/vault` doesn't exist yet (planned for Step 3.12). RLS ensures only the current user's vault is returned
+- `VaultService` is `@MainActor` because it's called from `OnboardingViewModel` (also `@MainActor`). It uses `URLSession.shared` which is safe to call from the main actor
+- The `#if DEBUG` conditional in Constants.swift means release builds automatically use the production URL. No manual URL swapping needed before deployment
+- `NSAllowsLocalNetworking` in Info.plist only permits HTTP for local network (localhost, 127.0.0.1). It does NOT disable ATS globally — external domains still require HTTPS
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.11:** Connect iOS Onboarding to Backend API
+- [ ] **Step 3.12:** Implement Vault Edit Functionality (iOS + Backend)
 
 ---
 
@@ -1930,3 +1997,17 @@ iOS/Knot/
 60. **409 Conflict for duplicate vaults:** The UNIQUE constraint on `partner_vaults.user_id` prevents multiple vaults per user. The endpoint catches this as a `23505` PostgreSQL error code (or "duplicate"/"unique" in the error string) and returns 409 with a message directing users to `PUT /api/v1/vault` (Step 3.12).
 
 61. **Test pattern for vault API tests:** The `test_vault_api.py` tests follow the same fixture pattern as `test_auth_middleware.py`: `test_auth_user_with_token` creates a real auth user, signs them in, and yields the access token. Cleanup deletes the auth user (CASCADE removes all data). The `_valid_vault_payload()` helper returns a complete payload that can be modified per test. `_query_table()` queries PostgREST directly with the service role key to verify data integrity.
+
+62. **VaultService is `@MainActor` (Step 3.11):** `VaultService` is annotated `@MainActor` because it's called from `OnboardingViewModel` and `AuthViewModel` (both `@MainActor`). It uses `URLSession.shared` (which is safe to call from any actor) and `SupabaseManager.client` (also safe). The `@MainActor` annotation satisfies Swift 6 strict concurrency without requiring `nonisolated` workarounds.
+
+63. **Backend URL conditional compilation (Step 3.11):** `Constants.API.baseURL` uses `#if DEBUG` to switch between localhost (development) and the production URL. This is evaluated at compile time — no runtime cost. Release builds (Archive for App Store) automatically use the production URL.
+
+64. **Vault existence check is non-throwing (Step 3.11):** `VaultService.vaultExists()` returns `Bool` (not `throws`). If the PostgREST query fails for any reason (network, table doesn't exist yet, auth expired), it catches the error and returns `false`. This safe default means the user sees onboarding, and if they already have a vault, the submission will return 409 (handled gracefully). Failing open to onboarding is preferable to failing closed to Home with no data.
+
+65. **`isCheckingSession` delayed until vault check completes (Step 3.11):** In `AuthViewModel.listenForAuthChanges()`, `isCheckingSession = false` is set AFTER the `vaultExists()` call (not before). This keeps the loading spinner visible during both session restore and vault existence check. Without this ordering, the user sees a flash of the onboarding screen before being redirected to Home.
+
+66. **`hasCompletedOnboarding` reset on sign-out (Step 3.11):** The `signedOut` handler sets `hasCompletedOnboarding = false`. This is necessary because a different user might sign in on the same device. Without the reset, the second user would skip onboarding based on the first user's vault state.
+
+67. **Custom milestones default to `minor_occasion` budget tier (Step 3.11):** The onboarding UI (Step 3.5) does not include a budget tier picker for custom milestones, but the backend requires one. `buildVaultPayload()` defaults to `"minor_occasion"`. To add budget tier selection for custom milestones, add a picker to the custom milestone sheet in `OnboardingMilestonesView.swift` and a corresponding property on `CustomMilestone`.
+
+68. **`NSAllowsLocalNetworking` scope (Step 3.11):** The `Info.plist` setting only allows HTTP for local network addresses (localhost, 127.0.0.1, link-local). External domains still require HTTPS. This is safe to leave in production builds — it has no effect on App Store apps since they don't connect to localhost.

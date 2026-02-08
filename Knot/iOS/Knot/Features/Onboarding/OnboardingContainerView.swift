@@ -5,6 +5,7 @@
 //  Created on February 7, 2026.
 //  Step 3.1: Multi-step onboarding navigation container.
 //  Step 3.6: Added validation error banner when tapping Next before step is valid.
+//  Step 3.11: Connected "Get Started" to vault submission API with loading overlay.
 //
 
 import SwiftUI
@@ -78,6 +79,48 @@ struct OnboardingContainerView: View {
             dismissTask?.cancel()
             dismissTask = nil
             showValidationError = false
+        }
+        // MARK: - Vault Submission Loading Overlay (Step 3.11)
+        .overlay {
+            if viewModel.isSubmitting {
+                ZStack {
+                    Color.black.opacity(0.6)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(.white)
+
+                        Text("Creating your partner vault...")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white)
+
+                        Text("This may take a moment")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .padding(32)
+                    .background(Theme.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.isSubmitting)
+        // MARK: - Vault Submission Error Alert (Step 3.11)
+        .alert("Unable to Save", isPresented: $viewModel.showSubmissionError) {
+            Button("Try Again") {
+                Task {
+                    let success = await viewModel.submitVault()
+                    if success {
+                        onComplete()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(viewModel.submissionError ?? "An unexpected error occurred. Please try again.")
         }
     }
 
@@ -172,6 +215,7 @@ struct OnboardingContainerView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(.white)
+                .disabled(viewModel.isSubmitting)
             }
 
             Spacer()
@@ -179,8 +223,14 @@ struct OnboardingContainerView: View {
             // Next / Get Started button
             if viewModel.currentStep.isLast {
                 // Completion step — "Get Started" button
+                // Submits vault to backend, then navigates to Home on success (Step 3.11)
                 Button {
-                    onComplete()
+                    Task {
+                        let success = await viewModel.submitVault()
+                        if success {
+                            onComplete()
+                        }
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Text("Get Started")
@@ -198,6 +248,7 @@ struct OnboardingContainerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
+                .disabled(viewModel.isSubmitting)
             } else {
                 // Normal step — "Next" button
                 // Always tappable; shows validation error banner if step isn't valid.

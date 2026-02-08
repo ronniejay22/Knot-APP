@@ -10,8 +10,15 @@ import Foundation
 /// App-wide constants
 enum Constants {
     /// API Configuration
+    ///
+    /// During development, the backend runs locally via `uvicorn`.
+    /// Change `baseURL` to the production Vercel URL before deployment.
     enum API {
+        #if DEBUG
+        static let baseURL = "http://127.0.0.1:8000"
+        #else
         static let baseURL = "https://api.knot-app.com"
+        #endif
         static let version = "v1"
     }
 

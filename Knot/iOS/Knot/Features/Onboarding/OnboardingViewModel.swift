@@ -227,6 +227,17 @@ final class OnboardingViewModel {
     var primaryLoveLanguage: String = ""
     var secondaryLoveLanguage: String = ""
 
+    // MARK: - Vault Submission State (Step 3.11)
+
+    /// Whether the vault is currently being submitted to the backend.
+    var isSubmitting = false
+
+    /// Error message from vault submission, shown in an alert.
+    var submissionError: String?
+
+    /// Controls the visibility of the submission error alert.
+    var showSubmissionError = false
+
     // MARK: - Navigation Actions
 
     /// Advances to the next onboarding step.
@@ -243,6 +254,155 @@ final class OnboardingViewModel {
         guard let prevIndex = OnboardingStep(rawValue: currentStep.rawValue - 1) else { return }
         currentStep = prevIndex
         validateCurrentStep()
+    }
+
+    // MARK: - Validation
+
+    // MARK: - Vault Submission (Step 3.11)
+
+    /// Submits the vault to the backend API.
+    ///
+    /// Builds a `VaultCreatePayload` from all collected onboarding data, sends it
+    /// to `POST /api/v1/vault`, and returns whether the submission succeeded.
+    ///
+    /// On success: returns `true`. The caller (container view) navigates to Home.
+    /// On failure: sets `submissionError` and `showSubmissionError`, returns `false`.
+    /// The user can dismiss the alert and retry.
+    ///
+    /// - Returns: `true` if the vault was created successfully, `false` otherwise.
+    func submitVault() async -> Bool {
+        isSubmitting = true
+        defer { isSubmitting = false }
+
+        let payload = buildVaultPayload()
+        let service = VaultService()
+
+        do {
+            let response = try await service.createVault(payload)
+            print("[Knot] Vault created successfully: \(response.vaultId)")
+            print("[Knot] Partner: \(response.partnerName)")
+            print("[Knot] Interests: \(response.interestsCount), Dislikes: \(response.dislikesCount)")
+            print("[Knot] Milestones: \(response.milestonesCount), Vibes: \(response.vibesCount)")
+            return true
+        } catch let error as VaultServiceError {
+            submissionError = error.errorDescription
+            showSubmissionError = true
+            print("[Knot] Vault submission failed: \(error.errorDescription ?? "Unknown error")")
+            return false
+        } catch {
+            submissionError = "An unexpected error occurred. Please try again."
+            showSubmissionError = true
+            print("[Knot] Vault submission failed: \(error)")
+            return false
+        }
+    }
+
+    /// Builds the vault creation payload from all collected onboarding data.
+    ///
+    /// Serializes partner info, interests, dislikes, milestones, vibes,
+    /// budgets, and love languages into a `VaultCreatePayload` matching
+    /// the backend's `POST /api/v1/vault` schema.
+    func buildVaultPayload() -> VaultCreatePayload {
+        // --- Milestones ---
+        var milestones: [MilestonePayload] = []
+
+        // Birthday (always present — required milestone)
+        milestones.append(MilestonePayload(
+            milestoneType: "birthday",
+            milestoneName: "\(partnerName.trimmingCharacters(in: .whitespacesAndNewlines))'s Birthday",
+            milestoneDate: formatMilestoneDate(month: partnerBirthdayMonth, day: partnerBirthdayDay),
+            recurrence: "yearly",
+            budgetTier: nil  // DB trigger sets major_milestone
+        ))
+
+        // Anniversary (optional)
+        if hasAnniversary {
+            milestones.append(MilestonePayload(
+                milestoneType: "anniversary",
+                milestoneName: "Anniversary",
+                milestoneDate: formatMilestoneDate(month: anniversaryMonth, day: anniversaryDay),
+                recurrence: "yearly",
+                budgetTier: nil  // DB trigger sets major_milestone
+            ))
+        }
+
+        // Holidays
+        for holidayID in selectedHolidays {
+            if let holiday = HolidayOption.allHolidays.first(where: { $0.id == holidayID }) {
+                milestones.append(MilestonePayload(
+                    milestoneType: "holiday",
+                    milestoneName: holiday.displayName,
+                    milestoneDate: formatMilestoneDate(month: holiday.month, day: holiday.day),
+                    recurrence: "yearly",
+                    budgetTier: nil  // DB trigger sets based on holiday type
+                ))
+            }
+        }
+
+        // Custom milestones
+        for custom in customMilestones {
+            milestones.append(MilestonePayload(
+                milestoneType: "custom",
+                milestoneName: custom.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                milestoneDate: formatMilestoneDate(month: custom.month, day: custom.day),
+                recurrence: custom.recurrence,
+                budgetTier: "minor_occasion"  // Default for custom milestones
+            ))
+        }
+
+        // --- Budgets ---
+        let budgets = [
+            BudgetPayload(
+                occasionType: "just_because",
+                minAmount: justBecauseMin,
+                maxAmount: justBecauseMax,
+                currency: "USD"
+            ),
+            BudgetPayload(
+                occasionType: "minor_occasion",
+                minAmount: minorOccasionMin,
+                maxAmount: minorOccasionMax,
+                currency: "USD"
+            ),
+            BudgetPayload(
+                occasionType: "major_milestone",
+                minAmount: majorMilestoneMin,
+                maxAmount: majorMilestoneMax,
+                currency: "USD"
+            ),
+        ]
+
+        // --- Build payload ---
+        let trimmedName = partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCity = locationCity.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedState = locationState.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return VaultCreatePayload(
+            partnerName: trimmedName,
+            relationshipTenureMonths: relationshipTenureMonths,
+            cohabitationStatus: cohabitationStatus,
+            locationCity: trimmedCity.isEmpty ? nil : trimmedCity,
+            locationState: trimmedState.isEmpty ? nil : trimmedState,
+            locationCountry: locationCountry,
+            interests: Array(selectedInterests),
+            dislikes: Array(selectedDislikes),
+            milestones: milestones,
+            vibes: Array(selectedVibes),
+            budgets: budgets,
+            loveLanguages: LoveLanguagesPayload(
+                primary: primaryLoveLanguage,
+                secondary: secondaryLoveLanguage
+            )
+        )
+    }
+
+    /// Formats a month/day pair as an ISO date string with year 2000 placeholder.
+    ///
+    /// Milestones store month+day only. The year 2000 is used as a placeholder
+    /// for yearly recurring milestones; the actual year is computed dynamically
+    /// when calculating next occurrences for notifications.
+    private func formatMilestoneDate(month: Int, day: Int) -> String {
+        String(format: "2000-%02d-%02d", month, day)
     }
 
     // MARK: - Validation

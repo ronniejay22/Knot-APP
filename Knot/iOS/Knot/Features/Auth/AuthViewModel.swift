@@ -6,6 +6,7 @@
 //  Step 2.2: Connects Apple Sign-In credential to Supabase Auth.
 //  Step 2.3: Session persistence — restores session from Keychain on app launch.
 //  Step 2.4: Sign-out — clears Supabase session and Keychain, returns to Sign-In.
+//  Step 3.11: Vault existence check on session restore/sign-in to skip onboarding.
 //
 
 import AuthenticationServices
@@ -44,8 +45,10 @@ final class AuthViewModel {
     /// True when the user has completed the onboarding flow (Partner Vault exists).
     /// When `isAuthenticated` is `true` but `hasCompletedOnboarding` is `false`,
     /// the app shows the onboarding flow instead of the Home screen.
-    /// Set to `true` after the vault is submitted to the backend (Step 3.11)
-    /// or when an existing vault is loaded on session restore.
+    ///
+    /// Set to `true` in two scenarios:
+    /// 1. After the vault is submitted to the backend during onboarding (Step 3.11)
+    /// 2. When an existing vault is detected on session restore or sign-in (Step 3.11)
     var hasCompletedOnboarding = false
 
     /// Human-readable error message shown in an alert on failure.
@@ -84,23 +87,52 @@ final class AuthViewModel {
             switch event {
             case .initialSession:
                 // First event — session restored from Keychain (or nil)
-                isAuthenticated = session != nil
-                isCheckingSession = false
-
                 if let session {
+                    isAuthenticated = true
                     print("[Knot] Session restored from Keychain")
                     print("[Knot] User ID: \(session.user.id)")
                     print("[Knot] Email: \(session.user.email ?? "hidden")")
+
+                    // Check if user already has a vault → skip onboarding (Step 3.11)
+                    let vaultService = VaultService()
+                    let vaultFound = await vaultService.vaultExists()
+                    // Re-check after await: onComplete() may have set this to true
+                    // while vaultExists() was in flight (race across suspension points).
+                    if !hasCompletedOnboarding {
+                        hasCompletedOnboarding = vaultFound
+                    }
+                    print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
                 } else {
+                    isAuthenticated = false
+                    hasCompletedOnboarding = false  // Defensive reset for nil session
                     print("[Knot] No existing session — showing Sign-In")
                 }
+                isCheckingSession = false
 
             case .signedIn:
                 isAuthenticated = true
                 print("[Knot] Auth state: signed in")
 
+                // Check if returning user already has a vault → skip onboarding (Step 3.11)
+                // Guard: don't overwrite if already true (e.g., user just finished onboarding
+                // and the SDK re-emits signedIn, or vaultExists() fails transiently).
+                if !hasCompletedOnboarding {
+                    let vaultService = VaultService()
+                    let vaultFound = await vaultService.vaultExists()
+                    // Re-check after await: onComplete() may have set this to true
+                    // while vaultExists() was in flight (race across suspension points).
+                    if !hasCompletedOnboarding {
+                        hasCompletedOnboarding = vaultFound
+                    }
+                    print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
+                } else {
+                    print("[Knot] Onboarding already completed — skipping vault check")
+                }
+                isCheckingSession = false  // After vault check — prevents onboarding flash
+
             case .signedOut:
                 isAuthenticated = false
+                hasCompletedOnboarding = false  // Reset for next sign-in (Step 3.11)
                 print("[Knot] Auth state: signed out")
 
             case .tokenRefreshed:
