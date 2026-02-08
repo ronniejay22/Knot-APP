@@ -144,7 +144,7 @@ Shadcn-inspired, reusable SwiftUI components.
 backend/
 ├── app/
 │   ├── __init__.py           # App package marker
-│   ├── main.py               # FastAPI entry point, app factory, /health endpoint
+│   ├── main.py               # FastAPI entry point, app factory, /health endpoint, router registration
 │   ├── api/                  # Route handlers (one file per API domain)
 │   │   ├── __init__.py
 │   │   ├── vault.py          # POST/PUT/GET /api/v1/vault — Partner Vault CRUD
@@ -156,7 +156,8 @@ backend/
 │   │   ├── config.py         # App settings (API prefix, project name, env vars)
 │   │   └── security.py       # Auth middleware — validates Supabase JWT Bearer tokens
 │   ├── models/               # Pydantic schemas for request/response validation
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── vault.py          # Vault request/response models with validation constants
 │   ├── services/             # Business logic layer
 │   │   ├── __init__.py
 │   │   └── integrations/     # External API clients
@@ -196,7 +197,8 @@ backend/
 │   ├── test_hints_table.py               # Verifies hints schema, CHECK (source), vector(768) embedding, HNSW index, match_hints() RPC similarity search, RLS, cascades (30 tests)
 │   ├── test_recommendations_table.py     # Verifies recommendations schema, CHECK (type, price>=0), milestone FK SET NULL, RLS, data integrity, cascades (31 tests)
 │   ├── test_recommendation_feedback_table.py # Verifies recommendation_feedback schema, CHECK (action, rating 1-5), dual FK CASCADE, direct RLS, data integrity, cascades (27 tests)
-│   └── test_notification_queue_table.py  # Verifies notification_queue schema, CHECK (days_before, status), DEFAULT pending, status transitions, partial index, direct RLS, cascades (26 tests)
+│   ├── test_notification_queue_table.py  # Verifies notification_queue schema, CHECK (days_before, status), DEFAULT pending, status transitions, partial index, direct RLS, cascades (26 tests)
+│   └── test_vault_api.py       # Verifies POST /api/v1/vault — valid/minimal payloads, data in all 6 tables, Pydantic validation, auth required, duplicate 409 (40 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -210,21 +212,22 @@ backend/
 | Symbol | Purpose |
 |--------|---------|
 | `app` | The FastAPI application instance. Title: "Knot API", version: "0.1.0". |
+| `vault_router` | Imported from `app.api.vault` and registered via `app.include_router(vault_router)`. Provides `POST /api/v1/vault`. |
 | `health_check()` | `GET /health` — Returns `{"status": "ok"}`. Unprotected. Used by deployment platforms for uptime monitoring. |
 | `get_current_user()` | `GET /api/v1/me` — **Protected** endpoint that returns `{"user_id": "<uuid>"}`. Uses `Depends(get_current_user_id)` to validate the Bearer token. Serves as a "who am I" endpoint and auth middleware verification route. Added in Step 2.5. |
 
-API routers from `app/api/` will be registered here via `app.include_router()` as endpoints are implemented.
+API routers from `app/api/` are registered here via `app.include_router()`. Currently registered: `vault_router`. Future: hints, recommendations, users.
 
 ### Route Handlers (`app/api/`)
 
-Each file defines an `APIRouter` with a URL prefix and tag. Routes will be added as features are implemented.
+Each file defines an `APIRouter` with a URL prefix and tag.
 
-| File | Prefix | Responsibility |
-|------|--------|----------------|
-| `vault.py` | `/api/v1/vault` | Partner Vault creation, retrieval, and updates. Accepts the full onboarding payload (basic info, interests, milestones, vibes, budgets, love languages). |
-| `hints.py` | `/api/v1/hints` | Hint capture (text/voice), listing, and deletion. Generates vector embeddings via Vertex AI `text-embedding-004`. |
-| `recommendations.py` | `/api/v1/recommendations` | Triggers the LangGraph pipeline to generate Choice-of-Three. Handles refresh/re-roll with exclusion logic and feedback collection. |
-| `users.py` | `/api/v1/users` | Device token registration (APNs), data export (GDPR), and account deletion. |
+| File | Prefix | Status | Responsibility |
+|------|--------|--------|----------------|
+| `vault.py` | `/api/v1/vault` | **Active (Step 3.10)** | `POST` — Accepts full onboarding payload, validates with Pydantic, inserts into 6 tables (partner_vaults, partner_interests, partner_milestones, partner_vibes, partner_budgets, partner_love_languages). Uses `get_service_client()` to bypass RLS (user identity validated by auth middleware). Returns 201 with vault_id and summary counts. Future: `PUT` (Step 3.12), `GET` (Step 3.12). |
+| `hints.py` | `/api/v1/hints` | Placeholder | Hint capture (text/voice), listing, and deletion. Generates vector embeddings via Vertex AI `text-embedding-004`. |
+| `recommendations.py` | `/api/v1/recommendations` | Placeholder | Triggers the LangGraph pipeline to generate Choice-of-Three. Handles refresh/re-roll with exclusion logic and feedback collection. |
+| `users.py` | `/api/v1/users` | Placeholder | Device token registration (APNs), data export (GDPR), and account deletion. |
 
 ### Configuration (`app/core/`)
 
@@ -238,6 +241,7 @@ Each file defines an `APIRouter` with a URL prefix and tag. Routes will be added
 | Folder/File | Purpose |
 |-------------|---------|
 | `models/` | Pydantic models for API request/response validation. Ensures strict schema adherence (e.g., exactly 5 interests, valid vibe tags). |
+| `models/vault.py` | **Active (Step 3.10).** Vault request/response schemas. Contains: `VALID_INTEREST_CATEGORIES` (40 categories), `VALID_VIBE_TAGS` (8 vibes), `VALID_LOVE_LANGUAGES` (5 languages) — constant `set[str]` values mirroring DB CHECK constraints. Sub-models: `MilestoneCreate` (with `@model_validator` requiring `budget_tier` for custom types), `BudgetCreate` (with `@model_validator` enforcing `max >= min >= 0`), `LoveLanguagesCreate` (with `@model_validator` enforcing different primary/secondary). Main model: `VaultCreateRequest` with field validators for counts (exactly 5/5/3, at least 1), predefined list membership, uniqueness, birthday requirement, and a cross-field `@model_validator` preventing interest/dislike overlap. Response: `VaultCreateResponse` with vault_id and summary counts. |
 | `db/` | Database connection and repository pattern classes. |
 | `db/supabase_client.py` | Provides two lazy-initialized Supabase clients: `get_supabase_client()` uses the anon key (respects RLS for user-scoped queries) and `get_service_client()` uses the service_role key (bypasses RLS for admin/background operations). Also provides `test_connection()` to verify database connectivity. |
 
@@ -368,6 +372,7 @@ Tests are organized by scope in `backend/tests/`:
 - `test_recommendations_table.py` — Integration tests verifying the `public.recommendations` table schema, CHECK constraints (recommendation_type for 3 values, price_cents >= 0), nullable columns (milestone_id, description, external_url, price_cents, merchant_name, image_url), milestone FK SET NULL behavior, RLS enforcement via subquery, data integrity (3 recommendations per vault/"Choice of Three", all fields populated, all 3 types stored, with/without milestone, prices in cents, external URLs, merchant names), milestone FK behavior (SET NULL on milestone delete preserves recommendation history, FK enforcement rejects invalid milestone_id), and CASCADE behavior (Step 1.9). 31 tests across 6 classes: table existence, schema (columns, CHECK constraints, NOT NULL for title/type, nullable for description/url/price/merchant/image/milestone_id, price accepts zero, price rejects negative), RLS (anon blocked, service bypasses, user isolation), data integrity (3 recs stored, all fields verified, types stored, milestone linked, without milestone, prices in cents, URLs, merchants), milestone FK (SET NULL on delete, FK enforcement), and cascades (vault deletion, full auth chain, FK enforcement). Introduces `test_vault_with_milestone` fixture (vault with birthday milestone), `test_vault_with_recommendations` fixture (vault with 3 recommendations: gift/experience/date linked to milestone), `_insert_recommendation_raw` helper for testing failure responses, and sample recommendation constants (`SAMPLE_GIFT_REC`, `SAMPLE_EXPERIENCE_REC`, `SAMPLE_DATE_REC`).
 - `test_recommendation_feedback_table.py` — Integration tests verifying the `public.recommendation_feedback` table schema, CHECK constraints (action for 5 values, rating for 1-5 range), dual FK CASCADE (recommendation_id + user_id), direct RLS enforcement (`user_id = auth.uid()`), data integrity (selected action, rated with text, multiple feedback per recommendation), and CASCADE behavior (Step 1.10). 27 tests across 5 classes: table existence, schema (columns, action CHECK with all 5 values tested, rating range CHECK rejects 0 and 6, rating accepts 1-5, rating nullable, feedback_text nullable/stores value, action NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (selected action queried by recommendation_id, rated with text stored, multiple entries per recommendation), and cascades (recommendation deletion, full auth chain, recommendation_id FK enforcement, user_id FK enforcement). Introduces `test_vault_with_recommendation` fixture (vault with a gift recommendation), `test_feedback_selected` fixture (feedback with action='selected'), `_insert_feedback_raw` helper for testing failure responses, and `_delete_feedback` helper.
 - `test_notification_queue_table.py` — Integration tests verifying the `public.notification_queue` table schema, CHECK constraints (days_before for 14/7/3, status for 4 values), DEFAULT status to 'pending', status transition semantics, direct RLS enforcement (`user_id = auth.uid()`), data integrity (pending stored, 3 per milestone ordered, field values, status update to sent with sent_at, status update to cancelled), and CASCADE behavior (Step 1.11). 26 tests across 5 classes: table existence, schema (columns, days_before CHECK rejects invalid/accepts 14/7/3, status CHECK rejects invalid/accepts all 4, status defaults to pending, sent_at nullable, scheduled_for NOT NULL, days_before NOT NULL), RLS (anon blocked, service bypasses, user isolation), data integrity (pending queryable, 3 per milestone at 14/7/3, field values verified, update to sent with sent_at, update to cancelled), and cascades (milestone deletion, full auth chain, milestone_id FK enforcement, user_id FK enforcement). Introduces `test_vault_with_milestone` fixture (vault with birthday milestone), `test_notification_pending` fixture (single pending at 14 days), `test_three_notifications` fixture (14/7/3 set), `_insert_notification_raw` helper, `_update_notification` helper, and `_future_timestamp` helper for generating ISO 8601 timestamps.
+- `test_vault_api.py` — Integration tests verifying the `POST /api/v1/vault` API endpoint (Step 3.10). 40 tests across 10 classes: valid payload (full and minimal → 201 with vault_id, partner_name, and correct summary counts), data integrity (6 separate tests verifying each database table — partner_vaults basic info, partner_interests 5 likes + 5 dislikes with correct categories, partner_milestones with budget tier auto-defaults from DB trigger, partner_vibes tags, partner_budgets amounts in cents, partner_love_languages primary/secondary priorities), interest validation (4 interests rejected, 6 rejected, invalid category "Golf" rejected, duplicate rejected, 4 dislikes rejected, interest/dislike overlap rejected — all 422), vibe validation (0 vibes rejected, invalid "fancy" rejected, 9 vibes rejected, duplicate rejected — all 422), budget validation (2 tiers rejected, max < min rejected, negative min rejected, duplicate occasion types rejected — all 422), love language validation (same primary/secondary rejected, invalid language rejected, missing secondary rejected — all 422), milestone validation (0 milestones rejected, no birthday rejected, custom without budget_tier rejected, empty name rejected — all 422), missing required fields (partner_name, interests, love_languages, vibes, budgets — all 422), auth required (no token 401, invalid token 401), and duplicate vault (second POST → 409 "already exists"). Uses FastAPI `TestClient`, real Supabase auth users via `test_auth_user_with_token` fixture, `_valid_vault_payload()` helper (complete payload that can be modified per test), `_query_table()` helper (service-role PostgREST queries to verify DB state), and `_auth_headers()` helper.
 
 ### 13. Native iOS Auth Strategy
 Knot uses **native Sign in with Apple** rather than the web OAuth redirect flow. This means:
@@ -978,7 +983,7 @@ With Phase 1 complete, the full database schema consists of 12 tables:
 | 10 | `recommendation_feedback` | `recommendations` + `users` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
 | 11 | `notification_queue` | `users` + `partner_milestones` | CASCADE + CASCADE | Direct (`user_id = auth.uid()`) |
 
-Total test count: **305 tests** across 15 test files (291 database/infrastructure + 14 auth middleware).
+Total test count: **345 tests** across 16 test files (291 database/infrastructure + 14 auth middleware + 40 vault API).
 
 ### 51. Badge overlay pattern (`ZStack` vs inline `HStack`)
 When adding selection badges (e.g., "PRIMARY", "SECONDARY") to cards, **never** place them inline with text content in an `HStack` — long text like "Words of Affirmation" will wrap when the badge appears, causing layout jank. Instead, use a `ZStack(alignment: .topTrailing)` with the badge as a separate overlay layer. The text content (`HStack` with icon + name + description) sits in one layer; the badge floats in the top-right corner in another layer. This pattern keeps text layout completely stable regardless of selection state. Used in `LoveLanguageCard` (Step 3.8); should be adopted for any future card components with dynamic badges.
@@ -991,6 +996,54 @@ The love languages screen implements a two-step selection (primary then secondar
 
 ### 54. Love language gradients are hand-tuned (like vibes)
 Each love language card has a manually defined 2-color gradient that semantically matches the language's meaning (warm peach for affirmation, teal for service, amber for quality time, etc.). This follows the same pattern as vibes (note #46) — with only 5 options, curated colors are worth the effort vs. algorithmic hue rotation.
+
+### 76. Pydantic Validation as First Line of Defense (Step 3.10)
+The `VaultCreateRequest` model in `app/models/vault.py` implements a three-tier validation strategy:
+
+1. **`Literal` type constraints** — FastAPI auto-generates 422 errors for invalid enum values (e.g., `cohabitation_status` must be one of 3 values). No custom validator needed.
+2. **`@field_validator` methods** — Per-field rules: count checks (exactly 5 interests), membership checks (interest must be in `VALID_INTEREST_CATEGORIES`), uniqueness checks (no duplicate vibes). These run before the model validator.
+3. **`@model_validator(mode="after")` methods** — Cross-field rules: `validate_no_interest_overlap` checks that `interests` and `dislikes` are disjoint. This runs after all field validators complete, so it can safely access validated fields.
+
+This mirrors the database's own validation layers (CHECK constraints for enum values, UNIQUE constraints for deduplication) but catches errors earlier with more descriptive error messages. The database constraints serve as a safety net in case the API layer is bypassed.
+
+### 77. Service Client for Multi-Table API Endpoints (Step 3.10)
+The `create_vault()` endpoint uses `get_service_client()` (service_role key, bypasses RLS) rather than the anon client. This design choice:
+
+- **Why not the anon client?** The anon client respects RLS, which requires the user's JWT to be set on the client. The Supabase Python client doesn't have a per-request JWT injection mechanism suitable for a stateless FastAPI endpoint.
+- **Why is it safe?** The user's identity is validated by `get_current_user_id` (the auth middleware dependency). The endpoint only inserts data where `user_id` matches the authenticated user. The service_role client bypasses RLS but the application code enforces the same access boundary.
+- **Pattern for future endpoints:** All vault/hints/recommendations endpoints that need to write data on behalf of an authenticated user should follow this pattern: auth middleware validates identity → service client performs the write with the validated `user_id`.
+
+### 78. Pseudo-Transactional Multi-Table Insert Pattern (Step 3.10)
+PostgREST does not support multi-table transactions. The vault creation endpoint inserts into 6 tables sequentially. If a later insert fails:
+
+1. The `except` block in `create_vault()` calls `_cleanup_vault(client, vault_id)`
+2. `_cleanup_vault()` deletes the vault row from `partner_vaults`
+3. CASCADE on `partner_vaults` automatically removes all child rows (interests, milestones, vibes, budgets, love languages)
+4. The original error is re-raised as an `HTTPException`
+
+This "compensating transaction" pattern is acceptable for MVP volume. For production, consider:
+- A Supabase Edge Function (server-side JS with proper SQL transactions)
+- A PostgreSQL stored procedure called via RPC
+- A Supabase realtime/database function that handles the full insert
+
+### 79. Vault API Test Patterns (Step 3.10)
+The `test_vault_api.py` introduces several test patterns for API endpoint testing:
+
+- **`_valid_vault_payload()` helper:** Returns a complete, valid JSON payload that can be shallow-copied and modified per test. Avoids repeating 40+ lines of setup in each test.
+- **`_query_table(table, vault_id)` helper:** Queries PostgREST directly with the service_role key to verify data integrity in child tables. This is separate from the API response verification — it confirms data actually reached the database.
+- **`_auth_headers(token)` helper:** Simple wrapper to build `{"Authorization": "Bearer ..."}` headers.
+- **Validation tests modify one field at a time:** Each test starts with the valid payload and makes exactly one invalid change, then asserts 422. This isolates the specific validation rule being tested and prevents false negatives.
+- **Data integrity tests verify all 6 tables independently:** Separate tests for each table (interests, milestones, vibes, budgets, love languages) with field-level assertions. This pinpoints exactly which table/field has the issue if a test fails.
+
+### 80. `VALID_*` Constants as Shared Source of Truth (Step 3.10)
+The `app/models/vault.py` file exports `VALID_INTEREST_CATEGORIES`, `VALID_VIBE_TAGS`, and `VALID_LOVE_LANGUAGES` as `set[str]` constants. These serve as the backend's source of truth for valid enum values, mirroring:
+- **Database:** CHECK constraints in the SQL migrations (e.g., `interest_category IN ('Travel', 'Cooking', ...)`)
+- **iOS:** `Constants.interestCategories`, `Constants.vibeOptions`, `Constants.loveLanguages` in `Constants.swift`
+
+All three sources must stay in sync. When adding a new interest category or vibe:
+1. Add to the SQL migration (new migration file for DB ALTER)
+2. Add to `VALID_*` in `app/models/vault.py`
+3. Add to `Constants` in `iOS/Knot/Core/Constants.swift`
 
 ---
 

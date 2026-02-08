@@ -7,6 +7,7 @@ It initializes the FastAPI app and registers all route handlers.
 
 from fastapi import Depends, FastAPI
 
+from app.api.vault import router as vault_router
 from app.core.security import get_current_user_id
 
 app = FastAPI(
@@ -14,6 +15,9 @@ app = FastAPI(
     description="Relational Excellence on Autopilot — Backend API",
     version="0.1.0",
 )
+
+# --- Register API routers ---
+app.include_router(vault_router)
 
 
 @app.get("/health")
