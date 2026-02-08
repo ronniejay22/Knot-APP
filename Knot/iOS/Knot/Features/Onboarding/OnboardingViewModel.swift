@@ -11,6 +11,7 @@
 //  Step 3.6: Added vibes validation (min 1 selection required).
 //          Added validationMessage for user-facing error feedback on Next tap.
 //  Step 3.7: Added budget validation (max >= min for all three tiers).
+//  Step 3.8: Added love languages validation (both primary and secondary required).
 //
 
 import Foundation
@@ -140,6 +141,11 @@ final class OnboardingViewModel {
             return "Custom milestone names can't be empty."
         case .budget:
             return "Maximum budget must be at least the minimum for each tier."
+        case .loveLanguages:
+            if primaryLoveLanguage.isEmpty {
+                return "Choose your partner's primary love language."
+            }
+            return "Now choose a secondary love language."
         default:
             return nil
         }
@@ -275,9 +281,10 @@ final class OnboardingViewModel {
             canProceed = justBecauseMax >= justBecauseMin
                 && minorOccasionMax >= minorOccasionMin
                 && majorMilestoneMax >= majorMilestoneMin
+        case .loveLanguages:
+            canProceed = !primaryLoveLanguage.isEmpty && !secondaryLoveLanguage.isEmpty
         default:
             // Placeholder steps and steps without validation allow proceeding.
-            // Step 3.8 will add a case here when implemented.
             canProceed = true
         }
     }

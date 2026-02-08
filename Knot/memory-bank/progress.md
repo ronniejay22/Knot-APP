@@ -1632,9 +1632,60 @@ iOS/Knot/
 
 ---
 
+### Step 3.8: Build Love Languages Screen (iOS) ✅
+**Date:** February 7, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingLoveLanguagesView` placeholder with a full two-step love language selection screen
+- **5 full-width cards** — one per love language, each with a unique gradient background, Lucide icon, display name, and contextual description:
+  - **Words of Affirmation** (warm peach/coral, `Lucide.messageCircle`) — "They feel loved through compliments, encouragement, and heartfelt messages."
+  - **Acts of Service** (earthy teal/green, `Lucide.heartHandshake`) — "Actions speak louder — they appreciate helpful, thoughtful gestures."
+  - **Receiving Gifts** (rich purple/magenta, `Lucide.gift`) — "Meaningful, well-chosen gifts make them feel truly seen and valued."
+  - **Quality Time** (warm amber/gold, `Lucide.clock`) — "Undivided attention and shared experiences matter most to them."
+  - **Physical Touch** (deep rose/blush, `Lucide.hand`) — "Closeness, comfort, and physical connection bring them joy."
+- **Two-step selection flow:**
+  1. First tap on any card sets it as **Primary** (prominent pink border, "PRIMARY" capsule badge in top-right corner, 1.02x scale)
+  2. Second tap on a *different* card sets it as **Secondary** (muted pink border, "SECONDARY" capsule badge in top-right corner)
+  3. Both set → tapping a third card replaces Secondary
+  4. Tapping current Primary → clears both selections (full reset)
+  5. Tapping current Secondary → clears Secondary only
+  6. Same card cannot be both Primary and Secondary
+- **Badge overlay architecture:** "PRIMARY" / "SECONDARY" capsule badges are positioned in a separate `ZStack` layer (top-right corner), completely independent of the text content. This prevents long names like "Words of Affirmation" from wrapping when a badge appears
+- **Dynamic header subtitle** guides the user through selection states: "Choose their primary love language first." → "Great! Now choose their secondary love language." → "Perfect — you can change either by tapping."
+- **Selection status bar** at the bottom shows contextual state: "Pick primary love language" → "Primary set — pick secondary" (with `1.circle.fill` icon) → "Both selected" (with `checkmark.circle.fill` icon)
+- **Personalized header** using the partner's name from Step 3.2 (e.g., "How does Alex feel loved?")
+- Added `.loveLanguages` validation case to `OnboardingViewModel.validateCurrentStep()` — requires both `primaryLoveLanguage` and `secondaryLoveLanguage` to be non-empty
+- Added `.loveLanguages` case to `validationMessage` — "Choose your partner's primary love language." or "Now choose a secondary love language." depending on state
+- 3 preview variants: empty, primary only, both selected
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingLoveLanguagesView.swift` — Full rewrite from placeholder to complete love languages screen (~420 lines). Contains `OnboardingLoveLanguagesView` (main view with header, card list, selection logic, display/description/icon/gradient static mappings), `LoveLanguageSelectionState` (private enum: unselected/primary/secondary), and `LoveLanguageCard` (private struct with ZStack overlay layout)
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added `.loveLanguages` validation case (`!primaryLoveLanguage.isEmpty && !secondaryLoveLanguage.isEmpty`) and validation message
+
+**Test results:**
+- ✅ Select a primary love language — highlighted with pink border + "PRIMARY" badge in top-right corner + 1.02x scale
+- ✅ Tap the same card again (primary) — clears both selections (full reset), "Next" disables
+- ✅ Select a different card as secondary — "SECONDARY" badge appears, both cards highlighted, "Next" enables
+- ✅ Tap "Next" with nothing selected — error banner appears with "Choose your partner's primary love language."
+- ✅ Tap "Next" with only primary selected — error banner appears with "Now choose a secondary love language."
+- ✅ Navigate back and forward — both love language selections persist
+- ✅ Header subtitle updates dynamically through all 3 states
+- ✅ Selection status bar updates with icon + text through all 3 states
+- ✅ Long names ("Words of Affirmation") display cleanly without wrapping — badge is in independent overlay layer
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Notes:**
+- The badge was initially placed inline (HStack) with the display name, but this caused text wrapping for longer names like "Words of Affirmation". Moved to a `ZStack(alignment: .topTrailing)` overlay approach — the badge floats in the top-right corner of the card, completely independent of the text layout. Future card designs should use this overlay pattern when adding badges that shouldn't affect content flow
+- `LoveLanguageSelectionState` is a private `Equatable` enum (not `Sendable` needed since it's only used in view code). The `.animation()` modifier on `LoveLanguageCard` uses this as its `value:` parameter for smooth state transitions
+- Love language gradients are hand-tuned (like vibes) rather than auto-generated, since there are only 5 options and each gradient should semantically match the love language's meaning
+- The `selectLanguage()` method handles all 5 selection flow branches in a single function with clear priority: primary tap → secondary tap → no primary → no secondary → replace secondary
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.8:** Build Love Languages Screen (iOS)
+- [ ] **Step 3.9:** Build Onboarding Completion Screen (iOS)
 
 ---
 
