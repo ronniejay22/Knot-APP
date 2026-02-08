@@ -182,6 +182,18 @@ final class OnboardingViewModel {
     /// User-created custom milestones (e.g., "First Date", "Gotcha Day").
     var customMilestones: [CustomMilestone] = []
 
+    /// Original birthday milestone name from the backend (set during edit flow).
+    /// When `nil` (initial onboarding), `buildVaultPayload()` auto-generates
+    /// the name as "\(partnerName)'s Birthday". When set (edit flow), the
+    /// original name is preserved so changing the partner name doesn't
+    /// silently rename the milestone.
+    var birthdayMilestoneName: String?
+
+    /// Original anniversary milestone name from the backend (set during edit flow).
+    /// When `nil` (initial onboarding), `buildVaultPayload()` uses "Anniversary".
+    /// When set (edit flow), the original name is preserved.
+    var anniversaryMilestoneName: String?
+
     /// Returns the valid day range for a given month (accounts for month length).
     /// Does not account for leap years — uses a fixed 28 days for February
     /// since milestones store month+day only (year is computed dynamically).
@@ -307,19 +319,26 @@ final class OnboardingViewModel {
         var milestones: [MilestonePayload] = []
 
         // Birthday (always present — required milestone)
+        // Use the stored name from the backend (edit flow) if available,
+        // otherwise auto-generate from the partner name (onboarding flow).
+        let birthdayName = birthdayMilestoneName
+            ?? "\(partnerName.trimmingCharacters(in: .whitespacesAndNewlines))'s Birthday"
         milestones.append(MilestonePayload(
             milestoneType: "birthday",
-            milestoneName: "\(partnerName.trimmingCharacters(in: .whitespacesAndNewlines))'s Birthday",
+            milestoneName: birthdayName,
             milestoneDate: formatMilestoneDate(month: partnerBirthdayMonth, day: partnerBirthdayDay),
             recurrence: "yearly",
             budgetTier: nil  // DB trigger sets major_milestone
         ))
 
         // Anniversary (optional)
+        // Use the stored name from the backend (edit flow) if available,
+        // otherwise default to "Anniversary" (onboarding flow).
         if hasAnniversary {
+            let anniversaryName = anniversaryMilestoneName ?? "Anniversary"
             milestones.append(MilestonePayload(
                 milestoneType: "anniversary",
-                milestoneName: "Anniversary",
+                milestoneName: anniversaryName,
                 milestoneDate: formatMilestoneDate(month: anniversaryMonth, day: anniversaryDay),
                 recurrence: "yearly",
                 budgetTier: nil  // DB trigger sets major_milestone

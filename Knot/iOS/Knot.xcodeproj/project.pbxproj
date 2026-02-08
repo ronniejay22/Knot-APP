@@ -17,6 +17,7 @@
 		1B4412F26699FA868AFF5E30 /* OnboardingMilestonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B1EA1A3CFCD077D2E7D7C3 /* OnboardingMilestonesView.swift */; };
 		1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */; };
 		21AC0A3B7B2A0C0D3FAC50CE /* OnboardingBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */; };
+		22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */; };
 		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
 		4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB2C0E473B2693C71D80BC2 /* SignInView.swift */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
@@ -88,6 +89,7 @@
 		8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingInterestsView.swift; sourceTree = "<group>"; };
 		9576279FACB0210014A38F96 /* MilestoneLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneLocal.swift; sourceTree = "<group>"; };
 		A2AE7970627763281E43105B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditVaultView.swift; sourceTree = "<group>"; };
 		ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITests.swift; sourceTree = "<group>"; };
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 				73D13FA821039CA70FDE1394 /* Auth */,
 				382C2703C6A06770F2DF2C25 /* Home */,
 				FDB0DCE8F9ED7B6634F3A030 /* Onboarding */,
+				96DB102DFA213372B3D2248D /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -203,6 +206,14 @@
 				FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		96DB102DFA213372B3D2248D /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		9AF3884073380A3E5D074FA8 /* Components */ = {
@@ -427,6 +438,7 @@
 				06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */,
 				80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */,
 				D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */,
+				22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */,
 				F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */,
 				029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */,
 				07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */,

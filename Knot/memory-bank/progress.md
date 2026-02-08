@@ -1865,9 +1865,91 @@ iOS/Knot/
 
 ---
 
+### Step 3.12: Implement Vault Edit Functionality (iOS + Backend) ✅
+**Date:** February 8, 2026  
+**Status:** Complete
+
+**What was done:**
+
+**Backend — GET /api/v1/vault (Retrieve Vault):**
+- Created `GET /api/v1/vault` endpoint that loads the authenticated user's full vault data from all 6 tables (partner_vaults, partner_interests, partner_milestones, partner_vibes, partner_budgets, partner_love_languages)
+- Returns 200 with full vault data, 401 without auth, 404 if no vault exists
+- Separates interests into `interests` (likes) and `dislikes` arrays based on `interest_type` column
+- Milestones include their database `id` for future reference
+- Budgets include their database `id` for future reference
+- Love languages returned as array with `language` + `priority` (1=primary, 2=secondary)
+
+**Backend — PUT /api/v1/vault (Update Vault):**
+- Created `PUT /api/v1/vault` endpoint that accepts the same `VaultCreateRequest` payload as POST
+- Uses "replace all" strategy: updates the vault row, then deletes and re-inserts all child rows
+- Preserves the `vault_id` (updates in place, not recreated)
+- Same Pydantic validation as POST (exactly 5 interests, 5 dislikes, no overlap, valid categories, etc.)
+- Returns 200 with updated summary, 401 without auth, 404 if no vault exists, 422 for validation errors
+
+**Backend — Pydantic Models:**
+- Added `MilestoneResponse`, `BudgetResponse`, `LoveLanguageResponse` sub-models for GET response
+- Added `VaultGetResponse` — full vault data with all related tables
+- Added `VaultUpdateResponse` — summary counts after update (mirrors `VaultCreateResponse`)
+
+**iOS — VaultService Additions:**
+- Added `getVault()` — `GET /api/v1/vault` with full error handling (200, 401, 404)
+- Added `updateVault(_:)` — `PUT /api/v1/vault` with full error handling (200, 401, 404, 422)
+- Both methods follow the same pattern as `createVault()`: Bearer token auth, typed `VaultServiceError`, network error differentiation
+
+**iOS — DTOs:**
+- Added `VaultGetResponse`, `MilestoneGetResponse`, `BudgetGetResponse`, `LoveLanguageGetResponse` — for deserializing GET response with snake_case `CodingKeys`
+- Added `VaultUpdateResponse` — for deserializing PUT response
+
+**iOS — EditVaultView (New):**
+- Created `Features/Settings/EditVaultView.swift` — full-screen Edit Profile screen
+- Loads existing vault data via `getVault()` into a fresh `OnboardingViewModel`
+- Populates all ViewModel properties from GET response (basic info, interests, dislikes, milestones, vibes, budgets, love languages)
+- Shows sectioned list with icon, title, and subtitle for each vault section
+- Tapping a section opens the corresponding onboarding step view in a sheet (reuses existing views via `.environment(vm)`)
+- "Save" toolbar button builds payload via `buildVaultPayload()` and calls `updateVault()`
+- Handles loading, error, saving, and success states
+- Uses `EditSection` enum (Identifiable) for sheet presentation
+- Parses milestone dates ("2000-MM-DD") back into month/day integers
+- Holiday milestones matched back to `HolidayOption.allHolidays` by month/day
+
+**iOS — HomeView Update:**
+- Added "Edit Partner Profile" button with Lucide `userPen` icon
+- Added toolbar button (top-left) for quick access
+- Presents `EditVaultView` as `.fullScreenCover`
+- Temporary placement until Settings screen in Step 11.1
+
+**Files created:**
+- `iOS/Knot/Features/Settings/EditVaultView.swift` — Edit Profile screen with section navigation and vault CRUD
+- `backend/tests/test_vault_edit_api.py` — 32 tests for GET and PUT vault endpoints
+
+**Files modified:**
+- `backend/app/api/vault.py` — Added `get_vault()` and `update_vault()` endpoints
+- `backend/app/models/vault.py` — Added GET response models (`MilestoneResponse`, `BudgetResponse`, `LoveLanguageResponse`, `VaultGetResponse`) and `VaultUpdateResponse`
+- `iOS/Knot/Models/DTOs.swift` — Added `VaultGetResponse`, `MilestoneGetResponse`, `BudgetGetResponse`, `LoveLanguageGetResponse`, `VaultUpdateResponse`
+- `iOS/Knot/Services/VaultService.swift` — Added `getVault()` and `updateVault(_:)` methods
+- `iOS/Knot/Features/Home/HomeView.swift` — Added Edit Profile button + toolbar icon + fullScreenCover
+
+**Test results:**
+- ✅ 32 new tests, all passing, 2 warnings (harmless supabase-py deprecation)
+- ✅ **GET tests (13):** 200 response, partner_name, basic_info, vault_id match, interests (5), dislikes (5), milestones (2 with all fields), vibes, budgets (3 tiers with amounts), love_languages (primary/secondary), 404 no vault, 401 no auth, 401 invalid token
+- ✅ **PUT tests (19):** 200 response, name persists, basic info persists, interests replaced, dislikes replaced, milestones replaced (count change OK), vibes replaced, budgets replaced (amounts verified), love languages replaced, vault_id preserved, response summary, 404 no vault, 401 no auth, 401 invalid token, 422 interests count, 422 interest/dislike overlap, 422 empty name, multiple sequential updates, single field change
+- ✅ iOS project builds with zero errors on iPhone 17 Pro Simulator (iOS 26.2)
+- ✅ Total backend test count is now **386 tests** across 18 test files (354 from Step 3.11 + 32 from Step 3.12)
+
+**Notes:**
+- PUT uses "replace all" strategy (delete + re-insert child rows) rather than granular diffs. This is simpler and avoids tracking which specific interests/milestones changed. Acceptable for MVP — the overhead is minimal since child tables have at most ~15 rows each
+- The `VaultCreateRequest` Pydantic model is reused for PUT (same validation rules). No separate `VaultUpdateRequest` model was created since the same constraints apply
+- The `vault_id` is preserved across updates (the vault row is updated, not deleted and recreated). All child rows get new UUIDs on each update, which is fine — they are not referenced externally
+- `GET /api/v1/vault` now exists, so the vault existence check in `AuthViewModel` could be refactored to use it instead of direct PostgREST. However, the current approach (PostgREST `select id limit 1`) is lighter weight and doesn't require parsing the full response — leaving as-is for now
+- The Edit Profile screen reuses all existing onboarding step views by injecting a pre-populated `OnboardingViewModel` into the environment. No step views were modified
+- Budget range IDs in the edit view are set to the exact min-max from the database (e.g., `"3000-8000"`), which may not match the preset range IDs from onboarding (e.g., `"2000-5000"`). The budget view's preset buttons won't appear "selected" for custom ranges — this is acceptable for MVP and can be refined later
+- The `EditSection` enum conforms to `Identifiable` (via `rawValue: String`) to support SwiftUI's `.sheet(item:)` modifier
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.12:** Implement Vault Edit Functionality (iOS + Backend)
+- [ ] **Step 4.1:** Build Home Screen Layout (iOS)
 
 ---
 
@@ -2011,3 +2093,19 @@ iOS/Knot/
 67. **Custom milestones default to `minor_occasion` budget tier (Step 3.11):** The onboarding UI (Step 3.5) does not include a budget tier picker for custom milestones, but the backend requires one. `buildVaultPayload()` defaults to `"minor_occasion"`. To add budget tier selection for custom milestones, add a picker to the custom milestone sheet in `OnboardingMilestonesView.swift` and a corresponding property on `CustomMilestone`.
 
 68. **`NSAllowsLocalNetworking` scope (Step 3.11):** The `Info.plist` setting only allows HTTP for local network addresses (localhost, 127.0.0.1, link-local). External domains still require HTTPS. This is safe to leave in production builds — it has no effect on App Store apps since they don't connect to localhost.
+
+69. **PUT uses "replace all" strategy (Step 3.12):** The `PUT /api/v1/vault` endpoint deletes all child rows (interests, milestones, vibes, budgets, love languages) and re-inserts new ones, rather than diffing changes. This is simpler, avoids tracking which specific rows changed, and the overhead is minimal (~15 rows per table). The vault row itself is updated in place (not deleted), preserving the `vault_id`. If granular updates become needed (e.g., for performance with large datasets), switch to a diff-based approach with `UPSERT` operations.
+
+70. **`VaultCreateRequest` is reused for PUT (Step 3.12):** No separate `VaultUpdateRequest` Pydantic model was created because the same validation rules apply (exactly 5 interests, 5 dislikes, valid categories, etc.). The endpoint function signature uses `VaultCreateRequest` directly. If PUT ever needs different validation (e.g., optional fields that POST requires), create a `VaultUpdateRequest` extending or modifying the base.
+
+71. **Edit Profile reuses onboarding step views (Step 3.12):** `EditVaultView` creates a fresh `OnboardingViewModel`, populates it from the GET response, and injects it via `.environment()`. The onboarding step views (InterestsView, VibesView, etc.) read from `@Environment(OnboardingViewModel.self)` and work identically in both onboarding and edit contexts. No step views were modified. This pattern works because step views are pure functions of ViewModel state.
+
+72. **Budget range IDs don't round-trip perfectly (Step 3.12):** When loading vault data for editing, budget min/max are set on the ViewModel directly (e.g., `justBecauseMin = 3000`, `justBecauseMax = 8000`), and the range ID is set to `"\(min)-\(max)"` (e.g., `"3000-8000"`). This may not match the preset range IDs from onboarding (e.g., `"2000-5000"`). As a result, the budget view's preset buttons won't appear "selected" for custom or previously saved ranges. The effective min/max values are still correct. To fix: map saved ranges back to nearest presets, or add visual indicator for custom ranges.
+
+73. **Holiday milestones matched by month/day (Step 3.12):** When loading vault data, holiday milestones are matched back to `HolidayOption.allHolidays` by comparing `(month, day)` — not by name or ID. This works because each holiday has a unique month/day combination. If two holidays share a date in the future, add a `holiday_id` column to `partner_milestones` for unambiguous matching.
+
+74. **`EditSection` enum is `Identifiable` via `rawValue` (Step 3.12):** The `EditSection` enum uses `rawValue: String` and `var id: String { rawValue }` to conform to `Identifiable`. This enables SwiftUI's `.sheet(item: $activeSection)` modifier to present the correct sheet for each section. The `title` computed property provides human-readable names for navigation bar titles.
+
+75. **Edit Profile uses `.fullScreenCover` not `.sheet` (Step 3.12):** The Edit Profile is presented as `.fullScreenCover(isPresented:)` from HomeView, not `.sheet`. This provides a full-screen experience matching onboarding and prevents accidental dismissal by swiping down. The "Cancel" button in the navigation bar is the only way to dismiss.
+
+76. **`CustomMilestone` and `HolidayOption` stay in OnboardingViewModel.swift (Step 3.12):** Note #39 mentioned extracting these if vault editing needed them. `EditVaultView` accesses them just fine since they're public structs in the same module. No extraction was necessary. If they're ever needed by backend code or a separate framework target, extract them to `/Models/`.

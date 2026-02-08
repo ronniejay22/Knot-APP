@@ -4,6 +4,7 @@
 //
 //  Created on February 7, 2026.
 //  Step 3.11: Connect iOS Onboarding to Backend API.
+//  Step 3.12: Added getVault() and updateVault() for Vault Edit functionality.
 //
 
 import Foundation
@@ -137,6 +138,152 @@ final class VaultService: Sendable {
 
         case 409:
             throw VaultServiceError.vaultAlreadyExists
+
+        case 422:
+            let message = parseErrorMessage(from: data)
+            throw VaultServiceError.validationError(message)
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw VaultServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Get Vault (Step 3.12)
+
+    /// Fetches the full Partner Vault data from the backend.
+    ///
+    /// Sends a `GET /api/v1/vault` request to retrieve all vault data
+    /// including interests, dislikes, milestones, vibes, budgets, and love languages.
+    ///
+    /// - Returns: The full vault data response
+    /// - Throws: `VaultServiceError` if the request fails
+    func getVault() async throws -> VaultGetResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/vault") else {
+            throw VaultServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                throw VaultServiceError.networkError("No internet connection. Please check your connection and try again.")
+            case .timedOut:
+                throw VaultServiceError.networkError("The request timed out. Please try again.")
+            case .cannotConnectToHost, .cannotFindHost:
+                throw VaultServiceError.networkError("Unable to reach the server. Please try again later.")
+            default:
+                throw VaultServiceError.networkError(urlError.localizedDescription)
+            }
+        } catch {
+            throw VaultServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VaultServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(VaultGetResponse.self, from: data)
+            } catch {
+                throw VaultServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw VaultServiceError.noAuthSession
+
+        case 404:
+            throw VaultServiceError.networkError("No vault found. Complete onboarding first.")
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw VaultServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Update Vault (Step 3.12)
+
+    /// Updates the Partner Vault with new data.
+    ///
+    /// Sends a `PUT /api/v1/vault` request with the full vault payload.
+    /// The backend replaces all existing data with the new values.
+    ///
+    /// - Parameter payload: The vault update payload (same structure as creation)
+    /// - Returns: The updated vault response with summary counts
+    /// - Throws: `VaultServiceError` if the request fails
+    func updateVault(_ payload: VaultCreatePayload) async throws -> VaultUpdateResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/vault") else {
+            throw VaultServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        do {
+            request.httpBody = try encoder.encode(payload)
+        } catch {
+            throw VaultServiceError.decodingError("Failed to encode request: \(error.localizedDescription)")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                throw VaultServiceError.networkError("No internet connection. Please check your connection and try again.")
+            case .timedOut:
+                throw VaultServiceError.networkError("The request timed out. Please try again.")
+            case .cannotConnectToHost, .cannotFindHost:
+                throw VaultServiceError.networkError("Unable to reach the server. Please try again later.")
+            default:
+                throw VaultServiceError.networkError(urlError.localizedDescription)
+            }
+        } catch {
+            throw VaultServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VaultServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(VaultUpdateResponse.self, from: data)
+            } catch {
+                throw VaultServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw VaultServiceError.noAuthSession
+
+        case 404:
+            throw VaultServiceError.networkError("No vault found. Create one first.")
 
         case 422:
             let message = parseErrorMessage(from: data)

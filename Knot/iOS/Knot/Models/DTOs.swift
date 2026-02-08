@@ -105,3 +105,103 @@ struct VaultCreateResponse: Codable, Sendable {
         case loveLanguages = "love_languages"
     }
 }
+
+// MARK: - Vault GET Response (Step 3.12)
+
+/// Full vault data returned by `GET /api/v1/vault`.
+/// Matches the backend Pydantic `VaultGetResponse`.
+struct VaultGetResponse: Codable, Sendable {
+    let vaultId: String
+    let partnerName: String
+    let relationshipTenureMonths: Int?
+    let cohabitationStatus: String?
+    let locationCity: String?
+    let locationState: String?
+    let locationCountry: String?
+
+    let interests: [String]
+    let dislikes: [String]
+    let milestones: [MilestoneGetResponse]
+    let vibes: [String]
+    let budgets: [BudgetGetResponse]
+    let loveLanguages: [LoveLanguageGetResponse]
+
+    enum CodingKeys: String, CodingKey {
+        case vaultId = "vault_id"
+        case partnerName = "partner_name"
+        case relationshipTenureMonths = "relationship_tenure_months"
+        case cohabitationStatus = "cohabitation_status"
+        case locationCity = "location_city"
+        case locationState = "location_state"
+        case locationCountry = "location_country"
+        case interests, dislikes, milestones, vibes, budgets
+        case loveLanguages = "love_languages"
+    }
+}
+
+/// A single milestone in the vault GET response.
+struct MilestoneGetResponse: Codable, Sendable {
+    let id: String
+    let milestoneType: String
+    let milestoneName: String
+    let milestoneDate: String
+    let recurrence: String
+    let budgetTier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case milestoneType = "milestone_type"
+        case milestoneName = "milestone_name"
+        case milestoneDate = "milestone_date"
+        case recurrence
+        case budgetTier = "budget_tier"
+    }
+}
+
+/// A single budget tier in the vault GET response.
+struct BudgetGetResponse: Codable, Sendable {
+    let id: String
+    let occasionType: String
+    let minAmount: Int
+    let maxAmount: Int
+    let currency: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case occasionType = "occasion_type"
+        case minAmount = "min_amount"
+        case maxAmount = "max_amount"
+        case currency
+    }
+}
+
+/// A single love language entry in the vault GET response.
+struct LoveLanguageGetResponse: Codable, Sendable {
+    let language: String
+    let priority: Int
+}
+
+// MARK: - Vault Update Response (Step 3.12)
+
+/// Response from `PUT /api/v1/vault` — matches the backend Pydantic `VaultUpdateResponse`.
+struct VaultUpdateResponse: Codable, Sendable {
+    let vaultId: String
+    let partnerName: String
+    let interestsCount: Int
+    let dislikesCount: Int
+    let milestonesCount: Int
+    let vibesCount: Int
+    let budgetsCount: Int
+    let loveLanguages: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case vaultId = "vault_id"
+        case partnerName = "partner_name"
+        case interestsCount = "interests_count"
+        case dislikesCount = "dislikes_count"
+        case milestonesCount = "milestones_count"
+        case vibesCount = "vibes_count"
+        case budgetsCount = "budgets_count"
+        case loveLanguages = "love_languages"
+    }
+}

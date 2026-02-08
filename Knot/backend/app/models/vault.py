@@ -1,11 +1,16 @@
 """
 Vault Models — Pydantic schemas for Partner Vault API.
 
-Defines request/response models for the POST /api/v1/vault endpoint.
+Defines request/response models for the vault CRUD endpoints:
+- POST /api/v1/vault — Create vault (Step 3.10)
+- GET /api/v1/vault — Retrieve vault (Step 3.12)
+- PUT /api/v1/vault — Update vault (Step 3.12)
+
 Validates all partner profile data against predefined categories, counts,
-and business rules before database insertion.
+and business rules before database insertion/update.
 
 Step 3.10: Create Vault Submission API Endpoint (Backend)
+Step 3.12: Vault Edit Functionality (GET + PUT endpoints)
 """
 
 from __future__ import annotations
@@ -265,6 +270,80 @@ class VaultCreateRequest(BaseModel):
 
 class VaultCreateResponse(BaseModel):
     """Response after successful vault creation."""
+
+    vault_id: str
+    partner_name: str
+    interests_count: int
+    dislikes_count: int
+    milestones_count: int
+    vibes_count: int
+    budgets_count: int
+    love_languages: dict[str, str]
+
+
+# ======================================================================
+# GET Response Models (Step 3.12)
+# ======================================================================
+
+class MilestoneResponse(BaseModel):
+    """A single milestone in the vault GET response."""
+
+    id: str
+    milestone_type: str
+    milestone_name: str
+    milestone_date: str
+    recurrence: str
+    budget_tier: Optional[str] = None
+
+
+class BudgetResponse(BaseModel):
+    """A single budget tier in the vault GET response."""
+
+    id: str
+    occasion_type: str
+    min_amount: int
+    max_amount: int
+    currency: str
+
+
+class LoveLanguageResponse(BaseModel):
+    """A single love language entry in the vault GET response."""
+
+    language: str
+    priority: int
+
+
+class VaultGetResponse(BaseModel):
+    """
+    Full Partner Vault data returned by GET /api/v1/vault.
+
+    Includes all related data from all 6 tables: partner_vaults,
+    partner_interests, partner_milestones, partner_vibes,
+    partner_budgets, and partner_love_languages.
+    """
+
+    vault_id: str
+    partner_name: str
+    relationship_tenure_months: Optional[int] = None
+    cohabitation_status: Optional[str] = None
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: Optional[str] = None
+
+    interests: list[str]
+    dislikes: list[str]
+    milestones: list[MilestoneResponse]
+    vibes: list[str]
+    budgets: list[BudgetResponse]
+    love_languages: list[LoveLanguageResponse]
+
+
+# ======================================================================
+# PUT Response Model (Step 3.12)
+# ======================================================================
+
+class VaultUpdateResponse(BaseModel):
+    """Response after successful vault update."""
 
     vault_id: str
     partner_name: str
