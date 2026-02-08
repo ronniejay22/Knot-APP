@@ -4,6 +4,8 @@
 //
 //  Created on February 8, 2026.
 //  Step 4.1: Home screen data management — vault loading, milestone countdowns, hints preview.
+//  Step 4.2: Added hint submission (submitHint), recent hints loading (loadRecentHints),
+//            success/error state for hint capture, ISO 8601 date parsing for hint timestamps.
 //
 
 import Foundation
@@ -13,6 +15,9 @@ import Foundation
 /// Loads the partner vault from the backend via `VaultService.getVault()` and provides
 /// computed properties for the UI: partner name, upcoming milestones with countdown,
 /// recent hints preview, and vibes summary.
+///
+/// Handles hint submission via `HintService.createHint()` and loads recent hints
+/// from `HintService.listHints()`.
 ///
 /// Refreshes data automatically on appear and when returning from Edit Profile.
 @Observable
@@ -30,9 +35,17 @@ final class HomeViewModel {
     /// The full vault data from the backend.
     var vault: VaultGetResponse?
 
-    /// Recent hints (last 3). Populated when hints API is available (Step 4.5).
-    /// For now, this is an empty array — the UI shows an empty state.
+    /// Recent hints (last 3), loaded from the backend.
     var recentHints: [HintPreview] = []
+
+    /// `true` while a hint is being submitted to the backend.
+    var isSubmittingHint = false
+
+    /// `true` briefly after a hint is successfully submitted (drives checkmark animation).
+    var showHintSuccess = false
+
+    /// Error message if hint submission fails.
+    var hintErrorMessage: String?
 
     // MARK: - Computed Properties
 
@@ -97,6 +110,65 @@ final class HomeViewModel {
         isLoading = false
     }
 
+    /// Loads recent hints from the backend (last 3, for Home screen preview).
+    func loadRecentHints() async {
+        do {
+            let service = HintService()
+            let response = try await service.listHints(limit: 3, offset: 0)
+            recentHints = response.hints.map { hint in
+                HintPreview(
+                    id: hint.id,
+                    text: hint.hintText,
+                    source: hint.source,
+                    createdAt: Self.parseISO8601(hint.createdAt) ?? Date()
+                )
+            }
+        } catch {
+            // Don't block the UI for hints loading failure — just log it.
+            print("[Knot] HomeViewModel: Failed to load recent hints — \(error)")
+        }
+    }
+
+    /// Submits a new hint to the backend via `HintService.createHint()`.
+    ///
+    /// On success:
+    /// 1. Sets `showHintSuccess = true` (drives the checkmark animation)
+    /// 2. Refreshes the recent hints list
+    /// 3. Resets `showHintSuccess` after a short delay
+    ///
+    /// - Parameters:
+    ///   - text: The hint text to submit
+    ///   - source: The source of the hint ("text_input" or "voice_transcription")
+    /// - Returns: `true` if the hint was submitted successfully, `false` otherwise
+    @discardableResult
+    func submitHint(text: String, source: String = "text_input") async -> Bool {
+        isSubmittingHint = true
+        hintErrorMessage = nil
+
+        do {
+            let service = HintService()
+            _ = try await service.createHint(text: text, source: source)
+
+            // Success — show the checkmark animation
+            showHintSuccess = true
+
+            // Refresh recent hints to include the new one
+            await loadRecentHints()
+
+            // Auto-dismiss the success indicator after 1.5 seconds
+            try? await Task.sleep(for: .seconds(1.5))
+            showHintSuccess = false
+
+            isSubmittingHint = false
+            return true
+        } catch {
+            hintErrorMessage = error.localizedDescription
+            print("[Knot] HomeViewModel: Failed to submit hint — \(error)")
+            isSubmittingHint = false
+            return false
+        }
+    }
+
     // MARK: - Date Helpers
 
     /// Parses a milestone date string ("2000-MM-DD") into (month, day).
@@ -137,6 +209,22 @@ final class HomeViewModel {
         }
 
         return 365
+    }
+
+    /// Parses an ISO 8601 timestamp string into a `Date`.
+    ///
+    /// Handles Supabase-style timestamps like "2026-02-08T12:34:56.789012+00:00"
+    /// and also simpler formats without fractional seconds.
+    static func parseISO8601(_ string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: string) {
+            return date
+        }
+
+        // Fallback without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: string)
     }
 }
 

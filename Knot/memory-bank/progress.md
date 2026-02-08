@@ -2004,9 +2004,70 @@ iOS/Knot/
 
 ---
 
+### Step 4.2: Implement Text Hint Capture (iOS + Backend) ✅
+**Date:** February 8, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/models/hints.py` — Pydantic schemas for hint API: `HintCreateRequest` (with 500-char validation via `@field_validator`), `HintCreateResponse`, `HintListResponse`, `HintResponse`
+- Rewrote `backend/app/api/hints.py` — Two authenticated endpoints:
+  - `POST /api/v1/hints` — Validates hint text (non-empty, ≤500 chars), looks up the user's vault_id from `partner_vaults`, inserts into the `hints` table. Returns 201 on success, 404 if no vault, 422 if validation fails. `hint_embedding` is stored as NULL (deferred to Step 4.4 for Vertex AI embedding generation)
+  - `GET /api/v1/hints` — Lists hints in reverse chronological order with `limit`/`offset` pagination. Selects only display columns (excludes `hint_embedding` for performance). Returns total count via `count="exact"` for pagination
+- Registered the hints router in `backend/app/main.py`
+- Added hint DTOs to `iOS/Knot/Models/DTOs.swift`: `HintCreatePayload`, `HintCreateResponse`, `HintItemResponse`, `HintListResponse` — all with snake_case `CodingKeys` matching backend Pydantic schemas
+- Created `iOS/Knot/Services/HintService.swift` — `@MainActor` service following the same patterns as `VaultService`: Bearer token auth via `SupabaseManager.client.auth.session`, typed error enum (`HintServiceError` with 6 cases), URL error mapping, two FastAPI error format parsers (string detail + array detail)
+- Updated `HomeViewModel.swift`:
+  - Added `submitHint(text:source:)` — Calls `HintService.createHint()`, sets `showHintSuccess` flag for checkmark animation, refreshes recent hints via `loadRecentHints()`, auto-dismisses success after 1.5 seconds
+  - Added `loadRecentHints()` — Fetches last 3 hints from `GET /api/v1/hints?limit=3`
+  - Added state properties: `isSubmittingHint`, `showHintSuccess`, `hintErrorMessage`
+  - Added `parseISO8601(_:)` static helper for Supabase timestamp parsing (with/without fractional seconds)
+- Updated `HomeView.swift` — Wired up the hint capture section:
+  - Submit button calls `viewModel.submitHint()` via the real `HintService` API
+  - **Success animation:** Green checkmark + "Hint saved!" text with `.scale.combined(with: .opacity)` transition overlays the input field, auto-dismisses after 1.5s
+  - **Loading state:** `ProgressView` spinner replaces arrow icon in submit button while `isSubmittingHint`
+  - **Haptic feedback:** Light impact on tap, notification success/error on completion via `UINotificationFeedbackGenerator`
+  - **Error display:** Red error message shown below input (left-aligned), character counter remains (right-aligned)
+  - Input clears immediately on submit for responsiveness (API call is async in background)
+  - `.task` now also calls `loadRecentHints()` on appear
+  - `.onChange(of: showEditProfile)` also refreshes hints on dismiss
+- Regenerated Xcode project via `xcodegen generate` to include `HintService.swift`
+
+**Files created:**
+- `backend/app/models/hints.py` — Pydantic schemas for hint API (request/response models)
+- `iOS/Knot/Services/HintService.swift` — Hint capture and listing service
+
+**Files modified:**
+- `backend/app/api/hints.py` — Rewritten from placeholder to full POST + GET endpoints
+- `backend/app/main.py` — Added `hints_router` registration
+- `iOS/Knot/Models/DTOs.swift` — Added 4 hint DTOs (HintCreatePayload, HintCreateResponse, HintItemResponse, HintListResponse)
+- `iOS/Knot/Features/Home/HomeViewModel.swift` — Added submitHint(), loadRecentHints(), parseISO8601(), 3 new state properties
+- `iOS/Knot/Features/Home/HomeView.swift` — Wired up API call, success animation, loading state, error display, haptics
+- `iOS/Knot.xcodeproj/` — Regenerated via `xcodegen generate` with HintService.swift
+
+**Test results:**
+- ✅ Type a hint and submit — hint appears in "Recent Hints" section below
+- ✅ Submit an empty string — submit button is disabled (cannot tap)
+- ✅ Type 501 characters — counter turns red and submit button is disabled
+- ✅ Type exactly 500 characters — submit works successfully
+- ✅ Success animation: green checkmark + "Hint saved!" appears, auto-dismisses after 1.5s
+- ✅ Recent Hints section updates immediately after submission
+- ✅ Backend `POST /api/v1/hints` returns 201 with created hint data
+- ✅ Backend `GET /api/v1/hints` returns hints in reverse chronological order
+- ✅ Build succeeds with zero errors after `xcodegen generate`
+
+**Notes:**
+- The backend server MUST be restarted after adding the hints router. The old server process doesn't know about `POST /api/v1/hints` and returns a generic 404, which the iOS app misinterprets as "No partner vault found." Always restart: `kill $(lsof -i :8000 -t) && cd backend && source venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 8000`
+- Consider using `uvicorn app.main:app --reload` during development to auto-restart on file changes
+- `hint_embedding` is stored as NULL for now — Step 4.4 will add Vertex AI `text-embedding-004` embedding generation
+- `HintService` follows the same `@MainActor` pattern as `VaultService` (see architectural note #62)
+- The `HintServiceError` enum mirrors `VaultServiceError` structure. If more services are added, consider extracting a shared `APIServiceError` base
+- `ISO8601DateFormatter` with `.withFractionalSeconds` handles Supabase's microsecond-precision timestamps. The fallback without fractional seconds handles simpler formats
+
+---
+
 ## Next Steps
 
-- [ ] **Step 4.2:** Implement Text Hint Capture (iOS)
+- [ ] **Step 4.3:** Implement Voice Hint Capture (iOS)
 
 ---
 

@@ -4,6 +4,7 @@
 //
 //  Created on February 7, 2026.
 //  Step 3.11: Data Transfer Objects for backend API communication.
+//  Step 4.2: Added Hint DTOs (HintCreatePayload, HintCreateResponse, HintListResponse, HintItemResponse).
 //
 
 import Foundation
@@ -203,5 +204,62 @@ struct VaultUpdateResponse: Codable, Sendable {
         case vibesCount = "vibes_count"
         case budgetsCount = "budgets_count"
         case loveLanguages = "love_languages"
+    }
+}
+
+// MARK: - Hint Creation Request (Step 4.2)
+
+/// Payload for `POST /api/v1/hints` — matches the backend Pydantic `HintCreateRequest`.
+struct HintCreatePayload: Codable, Sendable {
+    let hintText: String
+    let source: String  // "text_input" or "voice_transcription"
+
+    enum CodingKeys: String, CodingKey {
+        case hintText = "hint_text"
+        case source
+    }
+}
+
+// MARK: - Hint Creation Response (Step 4.2)
+
+/// Response from `POST /api/v1/hints` — matches the backend Pydantic `HintCreateResponse`.
+struct HintCreateResponse: Codable, Sendable {
+    let id: String
+    let hintText: String
+    let source: String
+    let isUsed: Bool
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case hintText = "hint_text"
+        case source
+        case isUsed = "is_used"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Hint List Response (Step 4.2)
+
+/// Response from `GET /api/v1/hints` — matches the backend Pydantic `HintListResponse`.
+struct HintListResponse: Codable, Sendable {
+    let hints: [HintItemResponse]
+    let total: Int
+}
+
+/// A single hint in the list response.
+struct HintItemResponse: Codable, Sendable {
+    let id: String
+    let hintText: String
+    let source: String
+    let isUsed: Bool
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case hintText = "hint_text"
+        case source
+        case isUsed = "is_used"
+        case createdAt = "created_at"
     }
 }

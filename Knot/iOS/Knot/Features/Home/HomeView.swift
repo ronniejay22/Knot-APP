@@ -7,6 +7,8 @@
 //  Step 2.4: Added Sign Out button in navigation toolbar.
 //  Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1).
 //  Step 4.1: Full Home screen with header, hint capture, milestones, hints preview, network monitoring.
+//  Step 4.2: Wired up text hint submission via HintService API, success checkmark animation,
+//            haptic feedback, recent hints loading from backend, error handling.
 //
 
 import SwiftUI
@@ -131,13 +133,17 @@ struct HomeView: View {
                 EditVaultView()
             }
             .onChange(of: showEditProfile) { _, isPresented in
-                // Refresh vault data when returning from Edit Profile
+                // Refresh vault and hints data when returning from Edit Profile
                 if !isPresented {
-                    Task { await viewModel.loadVault() }
+                    Task {
+                        await viewModel.loadVault()
+                        await viewModel.loadRecentHints()
+                    }
                 }
             }
             .task {
                 await viewModel.loadVault()
+                await viewModel.loadRecentHints()
             }
         }
     }
@@ -261,36 +267,56 @@ struct HomeView: View {
 
             // Input area
             HStack(alignment: .bottom, spacing: 10) {
-                // Text field
-                ZStack(alignment: .topLeading) {
-                    if hintText.isEmpty {
-                        Text("What did they mention today?")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.textTertiary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 10)
-                    }
+                // Text field with success overlay
+                ZStack {
+                    ZStack(alignment: .topLeading) {
+                        if hintText.isEmpty && !viewModel.showHintSuccess {
+                            Text("What did they mention today?")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textTertiary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 10)
+                        }
 
-                    TextEditor(text: $hintText)
-                        .font(.subheadline)
-                        .foregroundStyle(.white)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 40, maxHeight: 80)
-                        .focused($isHintFieldFocused)
+                        TextEditor(text: $hintText)
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 40, maxHeight: 80)
+                            .focused($isHintFieldFocused)
+                            .opacity(viewModel.showHintSuccess ? 0 : 1)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Theme.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(
+                                        viewModel.showHintSuccess
+                                            ? Color.green.opacity(0.5)
+                                            : (isHintFieldFocused ? Theme.accent.opacity(0.5) : Theme.surfaceBorder),
+                                        lineWidth: 1
+                                    )
+                            )
+                    )
+
+                    // Success checkmark overlay
+                    if viewModel.showHintSuccess {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.green)
+
+                            Text("Hint saved!")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.green)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Theme.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    isHintFieldFocused ? Theme.accent.opacity(0.5) : Theme.surfaceBorder,
-                                    lineWidth: 1
-                                )
-                        )
-                )
+                .animation(.easeInOut(duration: 0.3), value: viewModel.showHintSuccess)
 
                 // Action buttons
                 VStack(spacing: 8) {
@@ -315,36 +341,53 @@ struct HomeView: View {
                             )
                     }
 
-                    // Submit button (active when text is entered)
+                    // Submit button (active when text is entered and not submitting)
                     Button {
                         submitHint()
                     } label: {
-                        Image(uiImage: Lucide.arrowUp)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(
-                                Circle()
-                                    .fill(canSubmitHint ? Theme.accent : Theme.surface)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(
-                                                canSubmitHint ? Theme.accent : Theme.surfaceBorder,
-                                                lineWidth: 1
-                                            )
-                                    )
-                            )
+                        ZStack {
+                            if viewModel.isSubmittingHint {
+                                ProgressView()
+                                    .tint(.white)
+                                    .scaleEffect(0.7)
+                            } else {
+                                Image(uiImage: Lucide.arrowUp)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 18, height: 18)
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .frame(width: 40, height: 40)
+                        .background(
+                            Circle()
+                                .fill(canSubmitHint ? Theme.accent : Theme.surface)
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            canSubmitHint ? Theme.accent : Theme.surfaceBorder,
+                                            lineWidth: 1
+                                        )
+                                )
+                        )
                     }
-                    .disabled(!canSubmitHint)
+                    .disabled(!canSubmitHint || viewModel.isSubmittingHint)
                 }
             }
 
-            // Character counter
+            // Character counter + error message
             HStack {
+                // Error message (left-aligned)
+                if let error = viewModel.hintErrorMessage {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
+
                 Spacer()
+
                 Text("\(hintText.count)/\(Constants.Validation.maxHintLength)")
                     .font(.caption2)
                     .foregroundStyle(hintCharacterCountColor)
@@ -659,18 +702,41 @@ struct HomeView: View {
         }
     }
 
-    /// Submits the current hint text.
-    /// Full implementation in Step 4.2 — currently clears the input as placeholder.
+    /// Submits the current hint text to the backend via `HintService`.
+    ///
+    /// Flow:
+    /// 1. Validate the hint text is submittable
+    /// 2. Provide light haptic feedback on tap
+    /// 3. Call `viewModel.submitHint()` which sends to `POST /api/v1/hints`
+    /// 4. On success: clear input, show checkmark animation, refresh Recent Hints
+    /// 5. On failure: show error message below the input, provide error haptic
     private func submitHint() {
         guard canSubmitHint else { return }
 
-        // Step 4.2 will call the hint capture API here.
-        // For now, just clear the input with haptic feedback.
+        let textToSubmit = hintText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Haptic feedback on submit tap
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
 
+        // Clear the input immediately for responsiveness
         hintText = ""
         isHintFieldFocused = false
+
+        // Submit to the backend
+        Task {
+            let success = await viewModel.submitHint(text: textToSubmit)
+
+            if success {
+                // Success haptic (notification-style)
+                let successGenerator = UINotificationFeedbackGenerator()
+                successGenerator.notificationOccurred(.success)
+            } else {
+                // Error haptic
+                let errorGenerator = UINotificationFeedbackGenerator()
+                errorGenerator.notificationOccurred(.error)
+            }
+        }
     }
 
     /// Returns the display name for a vibe tag (e.g., "quiet_luxury" → "Quiet Luxury").
