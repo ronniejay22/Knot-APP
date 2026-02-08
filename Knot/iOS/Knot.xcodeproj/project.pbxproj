@@ -32,6 +32,7 @@
 		868B2F83C136C7392D9DEF5B /* PartnerVaultLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B33AEA969A81935AC17974 /* PartnerVaultLocal.swift */; };
 		87887A63D053FC1A6B023981 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 2AB9DA03F64ECAF39D6C01B3 /* Auth */; };
 		897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8706879774F71CFAE5954F25 /* KnotTests.swift */; };
+		9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */; };
 		950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */; };
 		A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9576279FACB0210014A38F96 /* MilestoneLocal.swift */; };
 		B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */; };
@@ -39,6 +40,7 @@
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
 		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
+		DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554263B4D803E9B67716AEEF /* NetworkMonitor.swift */; };
 		E4833E28863AD353409A7973 /* VaultService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693B88ED4559E3D46BAC3E5D /* VaultService.swift */; };
 		E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */; };
 		F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65623696E83EBB3DD785BD2D /* FlowLayout.swift */; };
@@ -70,10 +72,12 @@
 		2DB2C0E473B2693C71D80BC2 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBudgetView.swift; sourceTree = "<group>"; };
 		2E3B473EB33D90B1F3C92FA0 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
+		3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		42C0DFE789B202C84A0F6646 /* HintLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintLocal.swift; sourceTree = "<group>"; };
 		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		48B33AEA969A81935AC17974 /* PartnerVaultLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerVaultLocal.swift; sourceTree = "<group>"; };
 		4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		554263B4D803E9B67716AEEF /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDislikesView.swift; sourceTree = "<group>"; };
 		63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -142,6 +146,7 @@
 			isa = PBXGroup;
 			children = (
 				A2AE7970627763281E43105B /* HomeView.swift */,
+				3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -194,6 +199,7 @@
 			isa = PBXGroup;
 			children = (
 				8A501D3EBBEA7CF8A2C828AD /* Constants.swift */,
+				554263B4D803E9B67716AEEF /* NetworkMonitor.swift */,
 				B9D8B67046D026EDEC88D850 /* Theme.swift */,
 			);
 			path = Core;
@@ -442,8 +448,10 @@
 				F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */,
 				029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */,
 				07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */,
+				9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */,
 				BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
+				DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */,
 				FC338B6E021C99D643D630B8 /* OnboardingBasicInfoView.swift in Sources */,
 				21AC0A3B7B2A0C0D3FAC50CE /* OnboardingBudgetView.swift in Sources */,
 				70E8556AAF899368A188BFDC /* OnboardingCompletionView.swift in Sources */,
