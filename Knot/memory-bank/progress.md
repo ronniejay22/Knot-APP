@@ -1683,9 +1683,54 @@ iOS/Knot/
 
 ---
 
+### Step 3.9: Build Onboarding Completion Screen (iOS) ✅
+**Date:** February 8, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the `OnboardingCompletionView` placeholder with a full scrollable partner profile summary screen
+- **Success header** — Party popper Lucide icon with personalized message (e.g., "Alex's vault is ready.")
+- **6 summary sections** using a reusable `SummaryCard` generic component (private struct with Lucide icon + title header + `@ViewBuilder` content):
+  1. **Partner Info** — Name, relationship tenure (formatted as "2y 2m"), cohabitation status, location
+  2. **Interests & Dislikes** — Likes shown as accent-colored `CompactTag` capsule pills, dislikes as muted pills, both using `FlowLayout` wrapping. Sub-headers with Lucide `heart`/`ban` icons and count labels
+  3. **Milestones** — Birthday, anniversary, holidays, custom milestones with SF Symbol icons and formatted dates (e.g., "Mar 15"). One-time milestones show "once" capsule badge. Includes computed "Next up" indicator showing days until nearest milestone
+  4. **Aesthetic Vibes** — Displayed as accent-colored capsule pills with Lucide icons, using `OnboardingVibesView.displayName(for:)` and `.vibeIcon(for:)` for consistency
+  5. **Budget Tiers** — Just Because / Minor Occasion / Major Milestone rows with Lucide icons and formatted dollar ranges (e.g., "$20 – $50")
+  6. **Love Languages** — Primary and secondary with Lucide icons and "PRIMARY"/"SECONDARY" capsule badges, using `OnboardingLoveLanguagesView.displayName(for:)` and `.languageIcon(for:)`
+- **Navigation button fix** — All 3 buttons (Back, Next, Get Started) updated with `.fixedSize(horizontal: true, vertical: false)` to prevent text wrapping, reduced from `.body` to `.subheadline` font, height from 50 to 44, and tighter horizontal padding
+- **3 preview variants** — Empty, Full Profile (Alex with all data), Minimal Profile (Jordan with sparse data)
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — Full rewrite from placeholder to comprehensive summary (~630 lines). Contains `OnboardingCompletionView` (main view with 6 sections, formatting helpers, milestone computation), `SummaryCard` (private generic struct), `CompactTag` (private struct with `.accent`/`.muted` styles), and file-level `formatDollars()` function
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — All 3 navigation buttons updated: added `.fixedSize()`, reduced font/height/padding to prevent text wrapping on smaller screens
+
+**New private components (inside OnboardingCompletionView.swift):**
+- `SummaryCard<Content: View>` — Reusable card container with Lucide icon + title header + generic content slot
+- `CompactTag` — Small capsule pill with `.accent` (pink-tinted) and `.muted` (gray) styles for interests/dislikes
+- `formatDollars()` — File-level cents-to-dollar formatter (same pattern as BudgetView, avoids `@MainActor` isolation)
+
+**Test results:**
+- ✅ All entered data displays correctly on completion screen (partner name, interests, dislikes, vibes, milestones, budget, love languages)
+- ✅ "Get Started" navigates to Home screen
+- ✅ Upcoming milestone indicator shows correct "Next up: Birthday in X days"
+- ✅ Vibes display with correct icons and display names
+- ✅ Love languages show Primary/Secondary badges
+- ✅ Budget tiers show formatted dollar ranges
+- ✅ Navigation buttons no longer wrap text on any screen width
+- ✅ Build verified on iPhone 17 Pro Simulator (iOS 26.2) with zero errors
+
+**Notes:**
+- `FlowLayout` uses `horizontalSpacing` and `verticalSpacing` named parameters (not a single `spacing` parameter). Always use `FlowLayout(horizontalSpacing: 6, verticalSpacing: 6)`, not `FlowLayout(spacing: 6)`
+- The completion view references static methods from other step views (`OnboardingVibesView.displayName(for:)`, `OnboardingVibesView.vibeIcon(for:)`, `OnboardingLoveLanguagesView.displayName(for:)`, `OnboardingLoveLanguagesView.languageIcon(for:)`). These must remain `static` (not `private static`) for cross-view access
+- `nextUpcomingMilestone()` computes the nearest future milestone from all entered milestones (birthday, anniversary, holidays, custom). It checks the current year first, then rolls to next year if the date has passed. Returns `nil` if no milestones exist
+- `SummaryCard` and `CompactTag` are `private` to the file — they are tightly coupled to the completion screen and not intended for reuse in `/Components/`. If future screens need similar card layouts, extract to `/Components/` at that point
+- Navigation buttons were reduced from `.body` to `.subheadline` font and from height 50 to 44 to prevent text wrapping. `.fixedSize(horizontal: true, vertical: false)` is the key modifier — it tells SwiftUI to use the text's ideal width rather than compressing it
+
+---
+
 ## Next Steps
 
-- [ ] **Step 3.9:** Build Onboarding Completion Screen (iOS)
+- [ ] **Step 3.10:** Create Vault Submission API Endpoint (Backend)
 
 ---
 
@@ -1793,3 +1838,13 @@ iOS/Knot/
 49. **Validation error banner pattern (Step 3.6):** The `OnboardingContainerView` now shows a red error banner when the user taps Next while `canProceed` is false. The message comes from `OnboardingViewModel.validationMessage` — a computed property with a `switch` on `currentStep`. To add validation messages for new steps: (1) add a case to `validateCurrentStep()`, (2) add a matching case to `validationMessage`. The container handles display, animation, and auto-dismiss automatically.
 
 50. **Next button is always tappable (post-Step 3.6):** The Next button no longer uses `.disabled(!viewModel.canProceed)`. Instead, it's always tappable and checks `canProceed` in its action closure. When invalid, it shows the error banner. When valid, it advances normally. The button tint dims to `Theme.accent.opacity(0.4)` when invalid as a visual hint. This change applies to ALL onboarding steps, not just vibes.
+
+51. **`FlowLayout` named parameters:** The custom `FlowLayout` component uses `horizontalSpacing` and `verticalSpacing` named parameters, NOT a single `spacing` parameter. Always call `FlowLayout(horizontalSpacing: 6, verticalSpacing: 6)`. Using `FlowLayout(spacing: 6)` will not compile.
+
+52. **Cross-view static method references for display names/icons:** The completion screen calls `OnboardingVibesView.displayName(for:)`, `.vibeIcon(for:)`, `OnboardingLoveLanguagesView.displayName(for:)`, and `.languageIcon(for:)`. These must stay `static` (not `private static`). Any step view that exposes display names or icon mappings should follow this pattern for cross-view reuse.
+
+53. **`SummaryCard` and `CompactTag` are private to OnboardingCompletionView.swift:** These are not in `/Components/` because they are tightly coupled to the completion screen. If future screens need similar card layouts or tag components, extract them to `/Components/` at that point.
+
+54. **`.fixedSize(horizontal: true, vertical: false)` for non-wrapping buttons:** Applied to all navigation button `HStack` labels in `OnboardingContainerView`. This tells SwiftUI to use the text's ideal width and never compress or wrap. Essential for short labels ("Back", "Next", "Get Started") that should always remain on one line.
+
+55. **Navigation button sizing (post-Step 3.9):** Buttons use `.subheadline` font (not `.body`), height 44 (not 50), and reduced horizontal padding (Back: 14, Next/Get Started: 20) to fit comfortably side-by-side without text wrapping on any screen size.

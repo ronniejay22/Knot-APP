@@ -156,18 +156,19 @@ struct OnboardingContainerView: View {
                 Button {
                     viewModel.goToPreviousStep()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(uiImage: Lucide.chevronLeft)
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
+                            .frame(width: 16, height: 16)
 
                         Text("Back")
-                            .font(.body.weight(.medium))
+                            .font(.subheadline.weight(.medium))
                     }
-                    .frame(height: 50)
-                    .padding(.horizontal, 20)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: 44)
+                    .padding(.horizontal, 14)
                 }
                 .buttonStyle(.bordered)
                 .tint(.white)
@@ -181,18 +182,19 @@ struct OnboardingContainerView: View {
                 Button {
                     onComplete()
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Text("Get Started")
-                            .font(.body.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
 
                         Image(uiImage: Lucide.arrowRight)
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
+                            .frame(width: 16, height: 16)
                     }
-                    .frame(height: 50)
-                    .padding(.horizontal, 28)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: 44)
+                    .padding(.horizontal, 20)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
@@ -217,16 +219,17 @@ struct OnboardingContainerView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Text("Next")
-                            .font(.body.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
 
                         Image(uiImage: Lucide.chevronRight)
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
+                            .frame(width: 16, height: 16)
                     }
-                    .frame(height: 50)
-                    .padding(.horizontal, 28)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(height: 44)
+                    .padding(.horizontal, 20)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(viewModel.canProceed ? Theme.accent : Theme.accent.opacity(0.4))
