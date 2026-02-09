@@ -2065,9 +2065,52 @@ iOS/Knot/
 
 ---
 
+### Step 4.4: Create Hint Submission API Endpoint with Embedding (Backend) ✅
+**Date:** February 9, 2026  
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/services/embedding.py` — Embedding service wrapping Vertex AI `text-embedding-004` model. Lazy-initializes the model on first use, generates 768-dimension embeddings asynchronously via `asyncio.to_thread()` to avoid blocking the FastAPI event loop, and degrades gracefully (returns `None`) when Vertex AI is not configured or the API call fails
+- Updated `backend/app/api/hints.py` — `POST /api/v1/hints` now calls `generate_embedding()` after Pydantic validation and vault lookup. If embedding succeeds, formats it via `format_embedding_for_pgvector()` (converts `list[float]` to pgvector string `"[0.1,0.2,...,0.768]"`) and stores in the `hint_embedding` column. If it fails or Vertex AI is unconfigured, the hint is still saved with `hint_embedding = NULL`
+- Updated `backend/app/core/config.py` — Added `validate_vertex_ai_config()` (returns `bool`, non-fatal) and `is_vertex_ai_configured()` (checks `GOOGLE_CLOUD_PROJECT` presence) for credential checking by tests and services
+- Created `backend/tests/test_hint_submission_api.py` — 35 tests across 9 test classes:
+  - `TestValidHintSubmission` (8 tests): 201 response, hint data, source types, default source, 500-char boundary, DB storage, multiple hints
+  - `TestEmbeddingGeneration` (4 tests, requires Vertex AI): non-NULL embedding, 768 dimensions, different texts → different embeddings, voice transcription gets embedding
+  - `TestGracefulDegradation` (2 tests): hint saved with NULL embedding when Vertex AI mocked as unavailable, 201 response unchanged
+  - `TestValidationErrors` (6 tests): empty text, whitespace-only, 501 chars with "Hint too long", 1000 chars, missing field, invalid source
+  - `TestAuthRequired` (3 tests): no token, invalid token, malformed header → 401
+  - `TestNoVault` (1 test): user without vault → 404
+  - `TestEmbeddingWithMock` (4 tests): mocked embedding stored in DB, 768 dimensions verified, called with exact hint text, stripped text
+  - `TestEmbeddingUtilities` (5 tests): pgvector format, 768-dim format, empty list, constants, reset state
+  - `TestHintListAfterEmbedding` (2 tests): GET excludes embedding, correct count regardless of embedding status
+
+**Files created:**
+- `backend/app/services/embedding.py` — Vertex AI text-embedding-004 embedding service
+- `backend/tests/test_hint_submission_api.py` — 35 tests for Step 4.4
+
+**Files modified:**
+- `backend/app/api/hints.py` — Integrated embedding generation into POST endpoint
+- `backend/app/core/config.py` — Added Vertex AI config validation helpers
+
+**Test results:**
+- ✅ `pytest tests/test_hint_submission_api.py -v` — 31 passed, 4 skipped, 2 warnings
+- ✅ 4 Vertex AI live tests skipped (GOOGLE_CLOUD_PROJECT not configured) — will pass once GCP credentials are added to `.env`
+- ✅ 2 warnings are harmless supabase-py deprecation (third-party code)
+- ✅ Full test suite: `pytest tests/ -v` — **417 passed**, 4 skipped, 2 warnings (386 existing + 31 new, 0 regressions)
+
+**Notes:**
+- The embedding service uses **lazy initialization** — the Vertex AI model is only loaded once, on first `generate_embedding()` call. Subsequent calls reuse the cached model. `_reset_model()` is exposed for tests only
+- **Graceful degradation is the key design pattern:** If `GOOGLE_CLOUD_PROJECT` is empty or Vertex AI fails, `generate_embedding()` returns `None`. The hint API saves the hint with `hint_embedding = NULL`. No error is raised to the client — the 201 response is identical whether or not an embedding was generated. This means the iOS app and existing tests work identically regardless of Vertex AI configuration
+- `asyncio.to_thread()` wraps the synchronous Vertex AI SDK call to avoid blocking the FastAPI event loop. This is the recommended pattern for CPU-bound or IO-bound synchronous operations in async FastAPI endpoints
+- `format_embedding_for_pgvector()` converts `list[float]` → `"[0.1,0.2,...,0.768]"` string. PostgREST accepts this format for `vector(768)` columns. The Supabase Python client sends it as a string in the JSON payload
+- The `requires_vertex_ai` pytest marker gates the 4 live embedding tests. To run them: set `GOOGLE_CLOUD_PROJECT` in `.env` and ensure GCP Application Default Credentials are configured (`gcloud auth application-default login`)
+- The mocked tests (`TestEmbeddingWithMock`, `TestGracefulDegradation`) use `unittest.mock.patch` + `AsyncMock` to override `app.api.hints.generate_embedding` at the import location. This lets them verify embedding storage and API contract without real GCP credentials
+
+---
+
 ## Next Steps
 
-- [ ] **Step 4.3:** Implement Voice Hint Capture (iOS)
+- [ ] **Step 4.5:** Implement Hint List View (iOS)
 
 ---
 
@@ -2227,3 +2270,15 @@ iOS/Knot/
 75. **Edit Profile uses `.fullScreenCover` not `.sheet` (Step 3.12):** The Edit Profile is presented as `.fullScreenCover(isPresented:)` from HomeView, not `.sheet`. This provides a full-screen experience matching onboarding and prevents accidental dismissal by swiping down. The "Cancel" button in the navigation bar is the only way to dismiss.
 
 76. **`CustomMilestone` and `HolidayOption` stay in OnboardingViewModel.swift (Step 3.12):** Note #39 mentioned extracting these if vault editing needed them. `EditVaultView` accesses them just fine since they're public structs in the same module. No extraction was necessary. If they're ever needed by backend code or a separate framework target, extract them to `/Models/`.
+
+77. **Embedding service uses lazy initialization (Step 4.4):** `app/services/embedding.py` initializes the Vertex AI model only once, on the first call to `generate_embedding()`. The `_initialized` flag ensures initialization is attempted only once — if it fails, subsequent calls skip immediately (return `None`). Use `_reset_model()` in tests to force re-initialization.
+
+78. **Graceful degradation for embeddings (Step 4.4):** The entire embedding pipeline is designed to be non-fatal. If `GOOGLE_CLOUD_PROJECT` is empty, the model isn't loaded. If the API call fails, the exception is caught and logged. In all failure cases, `generate_embedding()` returns `None`, and the hint is saved with `hint_embedding = NULL`. The 201 response is identical to the client whether or not embedding succeeded. This means the iOS app works identically with or without Vertex AI configured.
+
+79. **`asyncio.to_thread()` for synchronous SDK calls (Step 4.4):** The Vertex AI Python SDK's `model.get_embeddings()` is synchronous. Wrapping it in `asyncio.to_thread()` runs it in the default thread pool executor, preventing it from blocking the FastAPI async event loop. This is the standard pattern for calling synchronous libraries from async FastAPI endpoints.
+
+80. **pgvector string format for PostgREST (Step 4.4):** `format_embedding_for_pgvector()` converts `list[float]` to the string `"[0.1,0.2,...,0.768]"`. PostgREST (and by extension the Supabase Python client) accepts this format for `vector(768)` columns. The database stores it as a native pgvector type. When reading back via PostgREST, the column returns as a string in the same format.
+
+81. **Mocking pattern for embedding tests (Step 4.4):** Tests use `unittest.mock.patch("app.api.hints.generate_embedding", new_callable=AsyncMock)` to mock at the import location in `hints.py`. This is the correct pattern because `hints.py` does `from app.services.embedding import generate_embedding` — patching at `app.services.embedding.generate_embedding` would not affect the already-imported reference in `hints.py`. Always patch at the import site, not the definition site.
+
+82. **`requires_vertex_ai` test marker (Step 4.4):** The 4 live Vertex AI tests are gated by `requires_vertex_ai = pytest.mark.skipif(not _vertex_ai_configured(), ...)`. To enable them: (1) set `GOOGLE_CLOUD_PROJECT=your-project-id` in `.env`, (2) ensure Application Default Credentials are configured (`gcloud auth application-default login`). The `GOOGLE_APPLICATION_CREDENTIALS` env var is optional if ADC is configured.

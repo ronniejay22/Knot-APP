@@ -4,10 +4,13 @@ Hints API — Hint capture and retrieval.
 Handles creating, listing, and deleting hints.
 Hint embeddings are generated via Vertex AI text-embedding-004 (Step 4.4).
 
-Step 4.2: POST /api/v1/hints — Create hint (text stored, embedding deferred to 4.4)
+Step 4.2: POST /api/v1/hints — Create hint with text storage
+Step 4.4: POST /api/v1/hints — Now generates 768-dim embeddings via Vertex AI
           GET /api/v1/hints — List hints for the authenticated user
 Step 4.6: DELETE /api/v1/hints/{hint_id} — Delete a hint
 """
+
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -19,6 +22,9 @@ from app.models.hints import (
     HintListResponse,
     HintResponse,
 )
+from app.services.embedding import generate_embedding, format_embedding_for_pgvector
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/hints", tags=["hints"])
 
@@ -39,14 +45,19 @@ async def create_hint(
     """
     Create a new hint for the authenticated user's partner vault.
 
-    Validates hint_text is not empty and <= 500 characters.
-    Looks up the user's vault_id, then inserts into the hints table.
+    Processing steps:
+    1. Validate hint_text is not empty and <= 500 characters (Pydantic)
+    2. Look up the user's vault_id from partner_vaults
+    3. Generate embedding using Vertex AI text-embedding-004 (768 dimensions)
+    4. Store hint_text, embedding, and source in the hints table
+    5. Return the created hint with ID
 
-    Embedding generation (Vertex AI text-embedding-004) will be added
-    in Step 4.4. For now, hint_embedding is stored as NULL.
+    Embedding generation is async (via asyncio.to_thread) to avoid blocking.
+    If Vertex AI is not configured or fails, the hint is still saved with
+    a NULL embedding — graceful degradation.
 
     Returns:
-        201: Hint created successfully.
+        201: Hint created successfully (with or without embedding).
         401: Missing or invalid authentication token.
         404: User has no partner vault (must complete onboarding first).
         422: Validation error (empty text, text too long).
@@ -70,14 +81,30 @@ async def create_hint(
 
     vault_id = vault_result.data[0]["id"]
 
-    # --- 2. Insert the hint ---
-    hint_data = {
+    # --- 2. Generate embedding via Vertex AI (async, non-blocking) ---
+    embedding = await generate_embedding(payload.hint_text)
+
+    if embedding is not None:
+        logger.info(
+            f"Generated {len(embedding)}-dim embedding for hint "
+            f"(user={user_id[:8]}...)"
+        )
+    else:
+        logger.info(
+            f"Hint stored without embedding "
+            f"(user={user_id[:8]}..., Vertex AI unavailable or failed)"
+        )
+
+    # --- 3. Insert the hint with embedding ---
+    hint_data: dict = {
         "vault_id": vault_id,
         "hint_text": payload.hint_text,
         "source": payload.source,
         "is_used": False,
-        # hint_embedding: NULL for now — Step 4.4 adds Vertex AI embedding
     }
+
+    if embedding is not None:
+        hint_data["hint_embedding"] = format_embedding_for_pgvector(embedding)
 
     try:
         hint_result = (

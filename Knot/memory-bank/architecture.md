@@ -166,6 +166,7 @@ backend/
 │   │   └── hints.py          # Hint request/response models (Step 4.2) — HintCreateRequest (500-char validation), HintCreateResponse, HintListResponse, HintResponse
 │   ├── services/             # Business logic layer
 │   │   ├── __init__.py
+│   │   ├── embedding.py      # Vertex AI text-embedding-004 service (Step 4.4) — generates 768-dim embeddings for hints
 │   │   └── integrations/     # External API clients
 │   │       └── __init__.py   # (Yelp, Ticketmaster, Amazon, Shopify, Firecrawl)
 │   ├── agents/               # LangGraph recommendation pipeline
@@ -206,7 +207,8 @@ backend/
 │   ├── test_notification_queue_table.py  # Verifies notification_queue schema, CHECK (days_before, status), DEFAULT pending, status transitions, partial index, direct RLS, cascades (26 tests)
 │   ├── test_vault_api.py       # Verifies POST /api/v1/vault — valid/minimal payloads, data in all 6 tables, Pydantic validation, auth required, duplicate 409 (40 tests)
 │   ├── test_step_3_11_ios_integration.py  # Verifies iOS → backend flow: exact DTO payload, all 6 tables, PostgREST vault existence check, error handling (409/401), returning user session persistence (9 tests)
-│   └── test_vault_edit_api.py  # Verifies GET + PUT /api/v1/vault — full vault retrieval (all 6 tables, all fields), update persistence (each data type verified via GET after PUT), vault_id preserved, validation (same as POST), auth required, 404 handling, multiple sequential updates (32 tests)
+│   ├── test_vault_edit_api.py  # Verifies GET + PUT /api/v1/vault — full vault retrieval (all 6 tables, all fields), update persistence (each data type verified via GET after PUT), vault_id preserved, validation (same as POST), auth required, 404 handling, multiple sequential updates (32 tests)
+│   └── test_hint_submission_api.py  # Step 4.4: Verifies POST /api/v1/hints with embedding — valid submissions (201, DB storage), Vertex AI embedding generation (768-dim, conditional), graceful degradation (mocked), validation (422), auth (401), no vault (404), mocked embedding integration, utility unit tests, GET compatibility (35 tests: 31 pass + 4 skip without GCP)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -234,7 +236,7 @@ Each file defines an `APIRouter` with a URL prefix and tag.
 | File | Prefix | Status | Responsibility |
 |------|--------|--------|----------------|
 | `vault.py` | `/api/v1/vault` | **Active (Step 3.12)** | Three endpoints: (1) `POST` — Accepts full onboarding payload, validates with Pydantic, inserts into 6 tables. Returns 201/409/422. (2) `GET` — Loads user's vault from all 6 tables, separates interests into likes/dislikes, returns milestones/budgets with DB `id`s, love languages with priority. Returns 200/404. (3) `PUT` — Accepts same payload as POST, uses "replace all" strategy (update vault row, delete + re-insert all child rows), preserves vault_id. Returns 200/404/422. All endpoints use `get_service_client()` (bypasses RLS) with user identity validated by auth middleware. Private helper `_cleanup_vault()` handles partial failure cleanup for POST. |
-| `hints.py` | `/api/v1/hints` | **Active (Step 4.2)** | Two endpoints: (1) `POST` — Validates hint text (non-empty, ≤500 chars via Pydantic `@field_validator`), looks up user's vault_id from `partner_vaults`, inserts into `hints` table with `hint_embedding = NULL` (deferred to Step 4.4). Returns 201/404/422/500. (2) `GET` — Lists hints in reverse chronological order (`ORDER BY created_at DESC`), selects display columns only (excludes `hint_embedding`), supports `limit`/`offset` pagination via Query params, returns total count via `count="exact"`. Returns 200/404. Both endpoints use `get_service_client()` with auth via `get_current_user_id`. Future: Step 4.6 adds `DELETE /api/v1/hints/{hint_id}`. |
+| `hints.py` | `/api/v1/hints` | **Active (Step 4.4)** | Two endpoints: (1) `POST` — Validates hint text (non-empty, ≤500 chars via Pydantic `@field_validator`), looks up user's vault_id from `partner_vaults`, generates 768-dim embedding via `generate_embedding()` from `app.services.embedding` (Vertex AI `text-embedding-004`, async via `asyncio.to_thread()`), formats via `format_embedding_for_pgvector()`, inserts into `hints` table. If embedding generation fails or Vertex AI is unconfigured, hint is still saved with `hint_embedding = NULL` (graceful degradation). Logs embedding status via `logging.getLogger`. Returns 201/404/422/500. (2) `GET` — Lists hints in reverse chronological order (`ORDER BY created_at DESC`), selects display columns only (excludes `hint_embedding`), supports `limit`/`offset` pagination via Query params, returns total count via `count="exact"`. Returns 200/404. Both endpoints use `get_service_client()` with auth via `get_current_user_id`. Future: Step 4.6 adds `DELETE /api/v1/hints/{hint_id}`. |
 | `recommendations.py` | `/api/v1/recommendations` | Placeholder | Triggers the LangGraph pipeline to generate Choice-of-Three. Handles refresh/re-roll with exclusion logic and feedback collection. |
 | `users.py` | `/api/v1/users` | Placeholder | Device token registration (APNs), data export (GDPR), and account deletion. |
 
@@ -242,7 +244,7 @@ Each file defines an `APIRouter` with a URL prefix and tag.
 
 | File | Purpose |
 |------|---------|
-| `config.py` | Loads environment variables from `.env` via `python-dotenv`. Exposes `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and future API keys. Provides `validate_supabase_config()` to check required vars are present. |
+| `config.py` | Loads environment variables from `.env` via `python-dotenv`. Exposes `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`, and future API keys. Provides `validate_supabase_config()` to check required Supabase vars, `validate_vertex_ai_config()` to check Vertex AI vars (non-fatal, returns `bool`), and `is_vertex_ai_configured()` for quick `GOOGLE_CLOUD_PROJECT` presence check (used by tests and embedding service). |
 | `security.py` | **Auth middleware (Step 2.5).** Exports `get_current_user_id` — a FastAPI dependency that extracts the Bearer token from the `Authorization` header via `HTTPBearer(auto_error=False)`, validates it against Supabase Auth's `/auth/v1/user` endpoint using `httpx.AsyncClient`, and returns the authenticated user's UUID string. Raises `HTTPException(401)` with `WWW-Authenticate: Bearer` header for all failure cases: missing token, invalid/expired token, network errors, and malformed responses. Uses a private `_get_apikey()` helper with lazy import of `SUPABASE_ANON_KEY` to avoid circular dependencies. Usage: `async def route(user_id: str = Depends(get_current_user_id))`. |
 
 ### Data Layer (`app/models/`, `app/db/`)
@@ -276,10 +278,11 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 
 ### Business Logic (`app/services/`)
 
-| Folder | Purpose |
-|--------|---------|
-| `services/` | Core business logic (vault operations, hint processing, notification scheduling). |
-| `services/integrations/` | External API clients. Each integration (Yelp, Ticketmaster, Amazon, Shopify, Firecrawl) gets its own service class returning normalized `CandidateRecommendation` objects. |
+| File/Folder | Status | Purpose |
+|-------------|--------|---------|
+| `services/` | | Core business logic (vault operations, hint processing, notification scheduling). |
+| `services/embedding.py` | **Active (Step 4.4)** | Vertex AI `text-embedding-004` embedding service. **Constants:** `EMBEDDING_MODEL_NAME = "text-embedding-004"`, `EMBEDDING_DIMENSION = 768`, `VERTEX_AI_LOCATION = "us-central1"`. **Lazy initialization:** `_get_model()` initializes `vertexai` and loads `TextEmbeddingModel.from_pretrained()` on first call; caches result (model or `None`) via module-level `_initialized` flag — never retries after first attempt. Returns `None` silently when `GOOGLE_CLOUD_PROJECT` is empty or initialization fails (logs warning). **Main function:** `generate_embedding(text: str) -> Optional[list[float]]` — async, calls `model.get_embeddings([text])` via `asyncio.to_thread()` to avoid blocking the event loop. Validates the result is exactly 768 dimensions. Returns `None` on any failure (API error, wrong dimensions, unconfigured). **Helper:** `format_embedding_for_pgvector(embedding: list[float]) -> str` — converts to `"[0.1,0.2,...,0.768]"` string for PostgREST. **Test helper:** `_reset_model()` — clears cached state for test re-initialization. Called by `app.api.hints.create_hint()`. |
+| `services/integrations/` | Planned | External API clients. Each integration (Yelp, Ticketmaster, Amazon, Shopify, Firecrawl) gets its own service class returning normalized `CandidateRecommendation` objects. |
 
 ### AI Pipeline (`app/agents/`)
 

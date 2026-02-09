@@ -42,3 +42,28 @@ def validate_supabase_config() -> bool:
             f"Please fill in your .env file at: {_env_path}"
         )
     return True
+
+
+def validate_vertex_ai_config() -> bool:
+    """
+    Check that Vertex AI credentials are configured.
+
+    Only GOOGLE_CLOUD_PROJECT is required. GOOGLE_APPLICATION_CREDENTIALS
+    is optional — when absent, the Vertex AI SDK falls back to Application
+    Default Credentials (ADC) configured via `gcloud auth application-default login`.
+
+    Returns True if configured, False if not (non-fatal — embedding
+    generation will be disabled but the app will still function).
+    """
+    if not GOOGLE_CLOUD_PROJECT:
+        return False
+    return True
+
+
+def is_vertex_ai_configured() -> bool:
+    """
+    Check if Vertex AI is available without raising exceptions.
+
+    Used by tests and services to conditionally enable embedding features.
+    """
+    return bool(GOOGLE_CLOUD_PROJECT)
