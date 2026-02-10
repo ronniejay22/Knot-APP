@@ -2230,9 +2230,63 @@ iOS/Knot/
 
 ---
 
+### Step 5.2: Create Hint Retrieval Node (Backend) ✅
+**Date:** February 9, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/hint_retrieval.py` — LangGraph node for retrieving semantically relevant hints from pgvector
+- **`_build_query_text(state)`** — Constructs a natural-language query from the recommendation state. Uses milestone name and type when available (e.g., "Alex's Birthday birthday gift ideas"), includes an occasion-type label ("casual date or small gift" / "thoughtful gift or fun outing" / "special gift or memorable experience"), and appends the top 3 partner interests for better semantic matching. Works with or without a milestone context (supports "just because" browsing).
+- **`retrieve_relevant_hints(state)`** — The main LangGraph node function. Takes `RecommendationState`, builds a query, generates an embedding via Vertex AI `text-embedding-004`, calls `match_hints()` RPC for the top 10 similar hints, and returns `{"relevant_hints": list[RelevantHint]}`. Falls back to chronological ordering when embedding generation is unavailable.
+- **`_semantic_search(vault_id, query_embedding)`** — Calls Supabase `match_hints()` RPC via `get_service_client().rpc()`, passing the embedding string, vault_id, threshold, and max_count. Maps response rows to `RelevantHint` Pydantic models with similarity scores.
+- **`_chronological_fallback(vault_id)`** — Fallback when Vertex AI is not configured or embedding generation fails. Queries the `hints` table directly via PostgREST, ordered by `created_at DESC`, limited to 10 results. Returns `RelevantHint` objects with `similarity_score=0.0`.
+- Created `backend/tests/test_hint_retrieval_node.py` — 29 tests across 5 test classes
+
+**Files created:**
+- `backend/app/agents/hint_retrieval.py` — Hint retrieval LangGraph node (3 public functions + 1 private helper)
+- `backend/tests/test_hint_retrieval_node.py` — Hint retrieval test suite (29 tests, 5 classes)
+
+**Test results:**
+- ✅ `pytest tests/test_hint_retrieval_node.py -v` — 29 passed, 0 failed, 51.72s, 2 warnings (supabase library deprecation)
+- ✅ `_build_query_text` with milestone context includes milestone name, type, occasion label, and interests
+- ✅ `_build_query_text` without milestone uses occasion label and interests only
+- ✅ `_build_query_text` handles all 3 occasion types (just_because, minor_occasion, major_milestone)
+- ✅ `_build_query_text` handles empty interests list and fewer than 3 interests
+- ✅ `_build_query_text` handles all 4 milestone types (birthday, anniversary, holiday, custom)
+- ✅ `_semantic_search` returns hints ordered by cosine similarity (1.0 > 0.707 > 0.110)
+- ✅ `_semantic_search` returns properly typed `RelevantHint` objects with all fields
+- ✅ `_semantic_search` respects `max_count` parameter (limits to 1 result)
+- ✅ `_semantic_search` respects similarity `threshold` (filters out hints below 0.5)
+- ✅ `_semantic_search` skips hints with NULL embeddings (only returns embedded hints)
+- ✅ `_semantic_search` returns empty list for vault with no hints
+- ✅ `_semantic_search` returns empty list for nonexistent vault_id (no error)
+- ✅ `_chronological_fallback` returns hints in reverse chronological order (most recent first)
+- ✅ `_chronological_fallback` respects `max_count` (default 10, configurable)
+- ✅ `_chronological_fallback` returns correct `RelevantHint` fields with `similarity_score=0.0`
+- ✅ `_chronological_fallback` returns empty list for empty vault and nonexistent vault
+- ✅ `retrieve_relevant_hints` uses semantic path when embedding generation succeeds (mocked)
+- ✅ `retrieve_relevant_hints` uses chronological fallback when embedding returns None (mocked)
+- ✅ `retrieve_relevant_hints` returns empty list for vault with no hints
+- ✅ `retrieve_relevant_hints` result dict compatible with `state.model_copy(update=result)`
+- ✅ `retrieve_relevant_hints` passes correct query text to `generate_embedding`
+- ✅ `retrieve_relevant_hints` works without milestone context (just_because browsing)
+- ✅ `RelevantHint` model round-trip serialization
+- ✅ All existing tests still pass (37 from Step 5.1)
+
+**Notes:**
+- **Node return type is `dict[str, Any]`**, not a full `RecommendationState`. This follows the LangGraph convention where nodes return partial state updates. The returned dict `{"relevant_hints": [...]}` can be merged into the state via `state.model_copy(update=result)`. When the full graph is composed in Step 5.8, LangGraph will handle the merge automatically.
+- **Semantic search uses `get_service_client()` (bypasses RLS):** The node runs server-side in the recommendation pipeline, not in a user-facing request. The vault_id is already validated by the time the pipeline runs. Using the service client avoids needing to set a user JWT on the Supabase client for RPC calls.
+- **Graceful degradation pattern:** If Vertex AI is not configured (`GOOGLE_CLOUD_PROJECT` not set) or embedding generation fails for any reason, the node falls back to chronological hint retrieval. This means the recommendation pipeline can still function (with less precision) even without Vertex AI credentials configured.
+- **Query text construction strategy:** The query combines milestone name ("Alex's Birthday"), milestone type keywords ("birthday gift ideas"), occasion label ("special gift or memorable experience"), and top 3 interests ("Cooking, Travel, Music"). This produces a rich semantic query that matches hints about gift ideas, activities, and partner preferences. The embedding model captures the semantic meaning, so hints like "she mentioned wanting pottery classes" will match a "birthday gift ideas" query.
+- **Integration tests use crafted vectors, not real Vertex AI:** The semantic search tests insert hints with hand-crafted 768-dim vectors (`[1.0, 0, ...]`, `[0.7, 0.7, ...]`, `[0.1, 0.9, ...]`) to verify the `match_hints()` RPC ordering without requiring Vertex AI credentials. The full node tests mock `generate_embedding` to return crafted vectors. This means the test suite runs without GCP credentials.
+- **Constants `MAX_HINTS=10` and `DEFAULT_SIMILARITY_THRESHOLD=0.0`:** These are module-level constants in `hint_retrieval.py`. The threshold of 0.0 means all hints are returned by default (no minimum similarity). These can be tuned based on real-world embedding distributions once the pipeline is running with real Vertex AI embeddings.
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_hint_retrieval_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.2:** Create Hint Retrieval Node (Backend)
+- [ ] **Step 5.3:** Create External API Aggregation Node (Backend)
 
 ---
 
