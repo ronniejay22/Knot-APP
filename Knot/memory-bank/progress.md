@@ -2284,9 +2284,99 @@ iOS/Knot/
 
 ---
 
+### Step 5.3: Create External API Aggregation Node (Backend) ✅
+**Date:** February 9, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/aggregation.py` — LangGraph node for aggregating recommendation candidates from external APIs (stubbed initially)
+- **`_INTEREST_GIFTS`** — Stub catalog mapping all 40 predefined interest categories to 2-3 gift product ideas each (~104 gift entries total). Each entry includes title, description, price in cents, merchant name, and source (`amazon` or `shopify`). Price range spans $22–$249 across entries for realistic budget filtering
+- **`_VIBE_EXPERIENCES`** — Stub catalog mapping all 8 aesthetic vibes to 3 experience/date ideas each (24 experience entries total). Each entry includes title, description, price in cents, merchant name, source (`yelp` or `ticketmaster`), and recommendation type (`experience` or `date`). Price range spans $30–$350
+- **`_build_gift_candidate(interest, entry)`** — Constructs a `CandidateRecommendation` from a gift catalog tuple. Generates a unique UUID, builds a slug-based URL, records the matched interest in metadata, and sets `location=None` (gifts are shipped, not location-bound)
+- **`_build_experience_candidate(vibe, entry, location)`** — Constructs a `CandidateRecommendation` from an experience catalog tuple. Generates a unique UUID, attaches the vault's location data, and records the matched vibe in metadata
+- **`_fetch_gift_candidates(interests, budget_min, budget_max)`** — Async function that looks up gifts for each of the vault's interests from the stub catalog. Filters out candidates whose `price_cents` falls outside the budget range. Caps at `MAX_GIFTS_PER_INTEREST=3` per interest. In Phase 8, this will call `AmazonService` and `ShopifyService`
+- **`_fetch_experience_candidates(vibes, budget_min, budget_max, location)`** — Async function that looks up experiences/dates for each vibe. Filters by budget range and attaches location. Caps at `MAX_EXPERIENCES_PER_VIBE=3` per vibe. In Phase 8, this will call `YelpService` and `TicketmasterService`
+- **`aggregate_external_data(state)`** — The main LangGraph node function. Takes `RecommendationState`, extracts interests/vibes/budget/location from vault data (location guard checks city, state, or country), calls `_fetch_gift_candidates` and `_fetch_experience_candidates` in parallel via `asyncio.gather(return_exceptions=True)`, handles partial failures (if one fetch fails, the other's results are still returned), interleaves gifts and experiences before capping at `TARGET_CANDIDATE_COUNT=20`, and returns `{"candidate_recommendations": list[CandidateRecommendation]}`. Sets `{"error": "No candidates found matching budget and criteria"}` when zero candidates survive filtering. All logger calls use lazy `%s`/`%d` formatting
+- Created `backend/tests/test_aggregation_node.py` — 54 tests across 5 test classes
+
+**Files created:**
+- `backend/app/agents/aggregation.py` — External API aggregation LangGraph node (stub catalogs + node function)
+- `backend/tests/test_aggregation_node.py` — Aggregation node test suite (54 tests, 5 classes)
+
+**Test results:**
+- ✅ `pytest tests/test_aggregation_node.py -v` — 54 passed, 0 failed, 0.07s
+- ✅ All 40 interests have gift catalog entries (2-3 each)
+- ✅ All 8 vibes have experience catalog entries (3 each)
+- ✅ All gift entries use valid source ('amazon' or 'shopify')
+- ✅ All experience entries use valid source ('yelp' or 'ticketmaster')
+- ✅ All experience entries use valid type ('experience' or 'date')
+- ✅ All catalog prices are positive integers (cents)
+- ✅ Gift candidate has all required fields (title, description, price, URL, merchant, source, type)
+- ✅ Gift candidates get unique UUIDs
+- ✅ Gift candidate metadata records matched interest
+- ✅ Gift candidates have no location (null)
+- ✅ Experience candidate has all required fields
+- ✅ Experience candidate includes location when provided
+- ✅ Experience candidate metadata records matched vibe
+- ✅ Experience candidate 'date' type works correctly
+- ✅ Experience candidate accepts null location gracefully
+- ✅ Fetch returns candidates for known interests
+- ✅ Budget range filters out candidates outside min/max
+- ✅ Narrow budget (1-2 cents) returns empty list
+- ✅ Unknown interest returns empty list (no crash)
+- ✅ Multiple interests combine results from all interests
+- ✅ All gift candidates typed as 'gift'
+- ✅ Gift sources are 'amazon' or 'shopify'
+- ✅ Fetch returns experience candidates for known vibes
+- ✅ Experience budget filtering works correctly
+- ✅ Location attached to experience candidates
+- ✅ Null location accepted for experiences
+- ✅ Experience sources are 'yelp' or 'ticketmaster'
+- ✅ Node returns 'candidate_recommendations' key
+- ✅ All candidates are CandidateRecommendation instances
+- ✅ All candidates have title, price_cents > 0, external_url, merchant_name
+- ✅ All candidates within budget range
+- ✅ Result includes both gifts and experiences/dates
+- ✅ Gift candidates match vault interests (subset check)
+- ✅ Experience candidates match vault vibes (subset check)
+- ✅ Experience candidates carry vault location
+- ✅ Missing city/state handled gracefully (experiences get LocationData with country only when country defaults to "US")
+- ✅ All candidates have unique IDs
+- ✅ Reasonable candidate count (10-20 for standard vault)
+- ✅ Capped at TARGET_CANDIDATE_COUNT=20 when all 8 vibes selected
+- ✅ Result compatible with state.model_copy(update=result)
+- ✅ No error set on normal run
+- ✅ Error set when budget excludes all candidates ("No candidates found matching budget and criteria")
+- ✅ Gift sources correct on full node run
+- ✅ Experience sources correct on full node run
+- ✅ All URLs start with https://
+- ✅ All candidates have descriptions
+- ✅ All scoring fields default to 0.0 (scoring happens in later nodes)
+- ✅ Just-because budget ($20-$50) returns affordable candidates
+- ✅ Single interest + single vibe returns candidates from each
+- ✅ Different currency (EUR) passes through without affecting filtering
+- ✅ All 8 vibes selected: result capped at 20
+- ✅ CandidateRecommendation JSON round-trip serialization works
+- ✅ All existing tests still pass (66 from Steps 5.1-5.2)
+
+**Notes:**
+- **Stub catalogs are intentionally comprehensive:** All 40 interests and 8 vibes have catalog entries with realistic product/experience data. This ensures downstream nodes (Steps 5.4-5.6: filter_by_interests, match_vibes_and_love_languages, select_diverse_three) will have meaningful candidates to work with during pipeline development. In Phase 8, the stub catalogs will be replaced by real API calls
+- **Budget filtering happens at aggregation time:** Candidates outside `[budget_range.min_amount, budget_range.max_amount]` are excluded before returning. This is efficient (avoids sending irrelevant candidates through the scoring pipeline) and mirrors real API behavior where budget is passed as a query parameter
+- **Node return type is `dict[str, Any]`**, following the same LangGraph convention as `retrieve_relevant_hints`. Returns `{"candidate_recommendations": [...]}` and optionally `{"error": "..."}`. Merged into state via `state.model_copy(update=result)`
+- **Parallel fetching with `asyncio.gather(return_exceptions=True)`:** Gift and experience fetches run concurrently. If one fails, the other's results are still returned (partial failure tolerance). This pattern will be critical in Phase 8 when real API calls may have independent failure modes
+- **Interleaved candidate merging:** Gifts and experiences are interleaved (gift, experience, gift, experience, ...) before the cap is applied. This prevents biased truncation where one type would be systematically dropped when the total exceeds `TARGET_CANDIDATE_COUNT`
+- **No external dependencies:** The stub catalogs are pure Python dictionaries. The entire node runs without network access, database queries, or API credentials. This makes the test suite fast (0.07s) and reliable
+- **Metadata tracks provenance:** Each candidate records `{"matched_interest": "Cooking"}` or `{"matched_vibe": "romantic"}` in its metadata dict. This enables downstream nodes to trace why a candidate was selected and supports the refresh/exclusion logic in Step 5.10
+- **Location is attached to experiences only:** Gift candidates always have `location=None` (they're shipped products). Experience/date candidates carry the vault's location when available. Location is constructed when any of `location_city`, `location_state`, or `location_country` is set (country defaults to `"US"` in VaultData, so location is almost always present). This matches real-world API behavior (Yelp/Ticketmaster are location-aware; Amazon/Shopify are not)
+- **Lazy logger formatting:** All `logger.info/error/warning` calls use `%s`/`%d` placeholders instead of f-strings, avoiding string formatting overhead when log levels are disabled
+- **`TARGET_CANDIDATE_COUNT=20`:** The node caps total results at 20 via interleaved merging. For a typical vault (5 interests × 2-3 gifts + 2 vibes × 3 experiences = 16-21 before budget filtering), the cap rarely applies. It becomes relevant when all 8 vibes are selected (up to 15 gifts + 24 experiences = 39 pre-filter). Interleaving ensures both types are represented proportionally after capping
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_aggregation_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.3:** Create External API Aggregation Node (Backend)
+- [ ] **Step 5.4:** Create Semantic Filtering Node (Backend)
 
 ---
 
