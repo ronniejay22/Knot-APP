@@ -2108,9 +2108,48 @@ iOS/Knot/
 
 ---
 
+### Step 4.5: Implement Hint List View (iOS) ✅
+**Date:** February 9, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `iOS/Knot/Features/Home/HintsListViewModel.swift` — ViewModel managing hints list state and deletion. Loads all hints via `HintService.listHints(limit: 100)`, maps backend DTOs to local `HintItem` model (with parsed ISO 8601 dates), and includes placeholder `deleteHint(id:)` for Step 4.6 (currently removes from local state only)
+- Created `iOS/Knot/Features/Home/HintsListView.swift` — Full-screen hints list UI with swipe-to-delete. Displays hints in reverse chronological order using a `List` view, shows hint text, source icon (keyboard/microphone), date, time, and "Used" badge for hints in recommendations. Swipe-to-delete with haptic feedback, pull-to-refresh, empty state with "Back to Home" button, and X button navigation
+- Updated `iOS/Knot/Features/Home/HomeView.swift` — Added `showHintsList` state variable, connected "View All" button to open hints list sheet, and added `.onChange` handler to refresh recent hints when returning from the list
+- **Fixed swipe-to-delete implementation:** Initial ScrollView + LazyVStack approach did not support SwiftUI's `.swipeActions()`. Converted to `List` with `.listStyle(.plain)`, `.listRowBackground(.clear)`, `.listRowSeparator(.hidden)`, and custom insets for consistent spacing
+
+**Files created:**
+- `iOS/Knot/Features/Home/HintsListViewModel.swift` — State management for hints list (loading, deletion placeholder, error handling)
+- `iOS/Knot/Features/Home/HintsListView.swift` — Full hints list UI with swipe-to-delete
+
+**Files modified:**
+- `iOS/Knot/Features/Home/HomeView.swift` — Added sheet presentation and "View All" button wiring
+
+**Test results:**
+- ✅ Navigate to hints list via "View All" button — sheet opens with title "All Hints"
+- ✅ All hints display in reverse chronological order (newest first)
+- ✅ Each hint shows: text (3-line limit), source icon, date, time, and "Used" badge if applicable
+- ✅ Swipe right-to-left on any hint → red "Delete" button appears
+- ✅ Tap delete or full swipe → hint removed with haptic feedback (local state only, Step 4.6 will add backend DELETE)
+- ✅ Pull-to-refresh reloads hints from backend
+- ✅ Add new hint from Home → tap "View All" → new hint appears at top of list
+- ✅ Empty state displays when all hints deleted with icon, message, and "Back to Home" button
+- ✅ X button (top-left) dismisses sheet and returns to Home
+- ✅ Recent hints on Home screen refresh automatically when returning from hints list
+
+**Notes:**
+- **SwiftUI List vs ScrollView for swipe actions:** `.swipeActions()` requires a `List` view to function properly. The initial implementation used `ScrollView` + `LazyVStack`, which caused swipe gestures to fail. Converted to `List` with transparent background (`.listRowBackground(Color.clear)`) and hidden separators for custom card styling
+- **Swipe direction:** iOS swipe actions appear on the trailing edge, requiring **right-to-left swipe** (not left-to-right). This is standard iOS behavior
+- **Deletion is local-only for now:** The `deleteHint()` method in `HintsListViewModel` currently only removes hints from the local `hints` array. Step 4.6 will add the `DELETE /api/v1/hints/{id}` API endpoint and connect it to `HintService.deleteHint(id:)`
+- **HintItem model:** Created as a local struct in `HintsListViewModel.swift` (not in `/Models/DTOs.swift`) since it's specific to the list view display. Contains parsed `Date` instead of raw ISO 8601 string for easy relative formatting
+- **ISO 8601 parsing:** The ViewModel handles both fractional seconds (`2026-02-09T10:35:42.123456Z`) and non-fractional formats (`2026-02-09T10:35:42Z`) via `ISO8601DateFormatter` with `.withFractionalSeconds` fallback
+- **Backend server must be running:** The app requires the FastAPI backend at `http://127.0.0.1:8000` to load hints. If connection fails, an error alert displays with the message from `HintService.networkError`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 4.5:** Implement Hint List View (iOS)
+- [ ] **Step 4.6:** Create Hint Deletion API Endpoint (Backend)
 
 ---
 

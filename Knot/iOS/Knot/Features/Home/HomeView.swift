@@ -36,6 +36,9 @@ struct HomeView: View {
     /// Controls the Edit Profile sheet presentation.
     @State private var showEditProfile = false
 
+    /// Controls the Hints List sheet presentation.
+    @State private var showHintsList = false
+
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
 
@@ -137,6 +140,17 @@ struct HomeView: View {
                 if !isPresented {
                     Task {
                         await viewModel.loadVault()
+                        await viewModel.loadRecentHints()
+                    }
+                }
+            }
+            .sheet(isPresented: $showHintsList) {
+                HintsListView()
+            }
+            .onChange(of: showHintsList) { _, isPresented in
+                // Refresh recent hints when returning from Hints List
+                if !isPresented {
+                    Task {
                         await viewModel.loadRecentHints()
                     }
                 }
@@ -461,10 +475,10 @@ struct HomeView: View {
 
                 Spacer()
 
-                // View all button (future: navigate to HintsListView in Step 4.5)
+                // View all button (Step 4.5)
                 if !viewModel.recentHints.isEmpty {
                     Button {
-                        // Navigate to full hints list — Step 4.5
+                        showHintsList = true
                     } label: {
                         Text("View All")
                             .font(.caption.weight(.medium))
