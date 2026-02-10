@@ -69,18 +69,17 @@ final class HintsListViewModel {
 
     // MARK: - Deletion (Step 4.6)
 
-    /// Deletes a hint from the backend.
-    ///
-    /// Step 4.6: This will call `DELETE /api/v1/hints/{id}` once the endpoint is implemented.
-    /// For now, it's a placeholder that removes the hint from local state.
+    /// Deletes a hint via `DELETE /api/v1/hints/{id}` and removes it from local state.
     func deleteHint(id: String) async {
         isDeletingHintId = id
 
-        // TODO: Step 4.6 — Call HintService.deleteHint(id:)
-        // For now, just remove from local state
-        try? await Task.sleep(for: .milliseconds(300)) // Simulate network delay
+        do {
+            try await hintService.deleteHint(id: id)
+            hints.removeAll { $0.id == id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
 
-        hints.removeAll { $0.id == id }
         isDeletingHintId = nil
     }
 

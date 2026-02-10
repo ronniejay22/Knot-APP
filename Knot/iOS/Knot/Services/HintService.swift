@@ -205,6 +205,61 @@ final class HintService: Sendable {
         }
     }
 
+    // MARK: - Delete Hint
+
+    /// Deletes a hint from the backend.
+    ///
+    /// Sends a `DELETE /api/v1/hints/{id}` request to permanently remove the hint.
+    /// The backend validates that the hint belongs to the authenticated user's vault.
+    ///
+    /// - Parameter id: The hint ID to delete
+    /// - Throws: `HintServiceError` if the request fails
+    func deleteHint(id: String) async throws {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/hints/\(id)") else {
+            throw HintServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw HintServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw HintServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw HintServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 204:
+            return // Success — hint deleted
+
+        case 401:
+            throw HintServiceError.noAuthSession
+
+        case 404:
+            let message = parseErrorMessage(from: data)
+            throw HintServiceError.serverError(statusCode: 404, message: message)
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw HintServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Gets the current Supabase access token from the stored session.

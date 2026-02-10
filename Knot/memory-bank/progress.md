@@ -2147,9 +2147,49 @@ iOS/Knot/
 
 ---
 
+### Step 4.6: Create Hint Deletion API Endpoint (Backend + iOS) ✅
+**Date:** February 9, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `DELETE /api/v1/hints/{hint_id}` endpoint to `backend/app/api/hints.py` — validates the hint exists AND belongs to the authenticated user's vault before hard-deleting. Returns 204 on success, 404 if hint not found or belongs to another user. Uses the same vault ownership pattern as POST and GET endpoints
+- Added `deleteHint(id:)` method to `iOS/Knot/Services/HintService.swift` — sends `DELETE /api/v1/hints/{id}` with Bearer auth. Handles 204 success, 401 auth errors, 404 not found. Follows the same error handling pattern as `createHint()` and `listHints()`
+- Updated `iOS/Knot/Features/Home/HintsListViewModel.swift` — replaced the placeholder `deleteHint(id:)` (which only removed from local state after a simulated delay) with a real API call via `HintService.deleteHint(id:)`. On success removes from local `hints` array; on failure sets `errorMessage` for the alert
+- Created `backend/tests/test_hint_deletion_api.py` — 12 tests across 5 test classes
+
+**Files created:**
+- `backend/tests/test_hint_deletion_api.py` — Hint deletion API test suite (12 tests)
+
+**Files modified:**
+- `backend/app/api/hints.py` — Added DELETE endpoint (Step 4.6)
+- `iOS/Knot/Services/HintService.swift` — Added `deleteHint(id:)` method
+- `iOS/Knot/Features/Home/HintsListViewModel.swift` — Connected deletion to real API
+
+**Test results:**
+- ✅ `pytest tests/test_hint_deletion_api.py -v` — 12 passed, 0 failed, 32.94s
+- ✅ Delete a hint → 204 No Content
+- ✅ Deleted hint removed from database (verified via direct PostgREST query)
+- ✅ Deleted hint excluded from GET /api/v1/hints response
+- ✅ Deleting one hint does not affect other hints
+- ✅ Attempt to delete another user's hint → 404 (hint persists)
+- ✅ Attempt to delete non-existent hint ID → 404
+- ✅ Double-delete → 204 on first, 404 on second
+- ✅ No auth token → 401
+- ✅ Invalid auth token → 401
+- ✅ Hint persists after failed authentication delete attempt
+- ✅ User without vault → 404 with "vault" in message
+
+**Notes:**
+- **Hard-delete, not soft-delete:** The endpoint permanently removes the hint from the database. The implementation plan left the choice open ("soft-deletes or hard-deletes") — hard-delete was chosen because hints have no downstream dependencies that would break (unlike recommendations which reference milestones). If soft-delete is needed later, add an `is_deleted` column and filter in GET queries
+- **Ownership validation uses vault_id join:** The endpoint verifies `hint.vault_id == user's vault_id` rather than checking a direct `user_id` on the hints table. This matches the RLS pattern — hints don't have a `user_id` column, only `vault_id`, and vault ownership is checked via `partner_vaults.user_id`
+- **404 for unauthorized access (not 403):** Returns 404 (not 403) when a user tries to delete another user's hint. This prevents information leakage — the attacker cannot distinguish "hint exists but isn't yours" from "hint doesn't exist"
+- **Test file uses mocked embeddings:** All hint creation in tests patches `generate_embedding` to return `None`, so tests run without GCP credentials
+
+---
+
 ## Next Steps
 
-- [ ] **Step 4.6:** Create Hint Deletion API Endpoint (Backend)
+- [ ] **Step 5.1:** Define Recommendation State Schema (Backend)
 
 ---
 

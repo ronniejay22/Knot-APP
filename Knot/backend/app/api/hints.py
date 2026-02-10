@@ -211,3 +211,69 @@ async def list_hints(
     ]
 
     return HintListResponse(hints=hints, total=total)
+
+
+# ===================================================================
+# DELETE /api/v1/hints/{hint_id} — Delete Hint (Step 4.6)
+# ===================================================================
+
+@router.delete(
+    "/{hint_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_hint(
+    hint_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> None:
+    """
+    Delete a hint belonging to the authenticated user.
+
+    Validates that the hint exists and belongs to the user's vault
+    before deleting. Returns 204 on success.
+
+    Returns:
+        204: Hint deleted successfully.
+        401: Missing or invalid authentication token.
+        404: Hint not found or does not belong to the authenticated user.
+    """
+    client = get_service_client()
+
+    # --- 1. Look up the user's vault_id ---
+    vault_result = (
+        client.table("partner_vaults")
+        .select("id")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No partner vault found. Complete onboarding first.",
+        )
+
+    vault_id = vault_result.data[0]["id"]
+
+    # --- 2. Verify the hint exists and belongs to this user's vault ---
+    hint_result = (
+        client.table("hints")
+        .select("id")
+        .eq("id", hint_id)
+        .eq("vault_id", vault_id)
+        .execute()
+    )
+
+    if not hint_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Hint not found.",
+        )
+
+    # --- 3. Delete the hint ---
+    try:
+        client.table("hints").delete().eq("id", hint_id).execute()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete hint: {exc}",
+        )
