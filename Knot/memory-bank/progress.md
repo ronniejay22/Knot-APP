@@ -2187,9 +2187,52 @@ iOS/Knot/
 
 ---
 
+### Step 5.1: Define Recommendation State Schema (Backend) ✅
+**Date:** February 9, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/state.py` — 8 Pydantic models defining the complete LangGraph recommendation pipeline state
+- `BudgetRange` — min/max budget for the active occasion (in cents, with currency)
+- `VaultBudget` — budget tier from the partner vault (adds occasion_type label to BudgetRange)
+- `VaultData` — full partner profile: basic info, interests/dislikes, vibes, love languages, and all 3 budget tiers
+- `RelevantHint` — a hint retrieved via pgvector semantic search (includes similarity_score)
+- `MilestoneContext` — the milestone being planned for (type, name, date, budget_tier, days_until)
+- `LocationData` — optional location info for experience/date recommendations
+- `CandidateRecommendation` — external API result with 4 scoring fields (interest, vibe, love_language, final) that accumulate as the candidate passes through graph nodes
+- `RecommendationState` — the main LangGraph state tying all components together: vault_data, occasion_type, milestone_context (optional), budget_range, and 4 list fields (relevant_hints, candidate_recommendations, filtered_recommendations, final_three) that are progressively populated by graph nodes
+- Created `backend/tests/test_recommendation_state.py` — 37 tests across 9 test classes
+
+**Files created:**
+- `backend/app/agents/state.py` — Recommendation pipeline state schema (8 Pydantic models)
+- `backend/tests/test_recommendation_state.py` — State schema test suite (37 tests, 9 classes)
+
+**Test results:**
+- ✅ `pytest tests/test_recommendation_state.py -v` — 37 passed, 0 failed, 0.05s
+- ✅ BudgetRange: instantiation, currency default, JSON serialization
+- ✅ VaultBudget: instantiation, rejects invalid occasion_type
+- ✅ VaultData: full profile instantiation, optional field defaults, rejects invalid cohabitation_status, budgets are VaultBudget instances, JSON serialization
+- ✅ RelevantHint: full instantiation, defaults, rejects invalid source, JSON serialization
+- ✅ MilestoneContext: full instantiation, days_until default, rejects invalid milestone_type/budget_tier/recurrence, JSON serialization
+- ✅ LocationData: all fields optional, full instantiation
+- ✅ CandidateRecommendation: full instantiation, scoring defaults to zero, optional field defaults, rejects invalid source/type, location is LocationData instance, JSON serialization
+- ✅ RecommendationState: full state instantiation, minimal state with defaults, rejects invalid occasion_type, error field, JSON serialization, round-trip JSON serialization, model_dump dict output, final_three diverse types
+
+**Notes:**
+- **Literal types over Enum:** Follows the existing project pattern (vault.py, hints.py) of using `Literal["value1", "value2"]` instead of Python `Enum` classes. This keeps the schema compatible with Pydantic's JSON serialization without custom serializers
+- **Scoring fields on CandidateRecommendation:** Four `float` fields (`interest_score`, `vibe_score`, `love_language_score`, `final_score`) default to 0.0 and are populated incrementally as the candidate flows through filtering/matching graph nodes. This avoids separate "scored" vs "unscored" model variants
+- **VaultData vs VaultGetResponse:** `VaultData` is a flattened, pipeline-optimized view of the vault (love languages as `primary_love_language`/`secondary_love_language` strings, budgets as `list[VaultBudget]`). It is NOT the same as `VaultGetResponse` (which uses nested response models). A conversion function will be needed in Step 5.2+ to transform the GET response into `VaultData`
+- **BudgetRange vs VaultBudget:** `BudgetRange` is the min/max for the *current occasion* (no occasion_type label). `VaultBudget` stores all 3 tiers from the vault (with occasion_type). The `RecommendationState.budget_range` is derived from the vault's `VaultBudget` matching the `occasion_type`
+- **`RecommendationState.error`:** Optional string field for pipeline error tracking. If any node encounters a non-fatal error (e.g., external API timeout), it sets this field. Downstream nodes can check it and adjust behavior (e.g., skip availability verification if aggregation failed)
+- **`Field(default_factory=list)`:** All list fields on `RecommendationState` use `default_factory` to avoid the mutable default argument pitfall. This ensures each state instance gets its own empty list
+- **No LangGraph-specific annotations yet:** The state is a plain Pydantic `BaseModel`. LangGraph `Annotated[..., reducer]` annotations for state merging will be added in Step 5.2+ when the graph nodes are implemented and the merge strategy is known
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_recommendation_state.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.1:** Define Recommendation State Schema (Backend)
+- [ ] **Step 5.2:** Create Hint Retrieval Node (Backend)
 
 ---
 

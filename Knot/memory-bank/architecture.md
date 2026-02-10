@@ -172,7 +172,8 @@ backend/
 │   │   └── integrations/     # External API clients
 │   │       └── __init__.py   # (Yelp, Ticketmaster, Amazon, Shopify, Firecrawl)
 │   ├── agents/               # LangGraph recommendation pipeline
-│   │   └── __init__.py       # (hint retrieval → aggregation → filtering → scoring → selection)
+│   │   ├── __init__.py       # Package marker
+│   │   └── state.py          # Recommendation pipeline state schema (Step 5.1) — 8 Pydantic models
 │   └── db/                   # Database connection and repository pattern classes
 │       ├── __init__.py
 │       └── supabase_client.py # Lazy-initialized Supabase clients (anon + service role)
@@ -211,7 +212,8 @@ backend/
 │   ├── test_step_3_11_ios_integration.py  # Verifies iOS → backend flow: exact DTO payload, all 6 tables, PostgREST vault existence check, error handling (409/401), returning user session persistence (9 tests)
 │   ├── test_vault_edit_api.py  # Verifies GET + PUT /api/v1/vault — full vault retrieval (all 6 tables, all fields), update persistence (each data type verified via GET after PUT), vault_id preserved, validation (same as POST), auth required, 404 handling, multiple sequential updates (32 tests)
 │   ├── test_hint_submission_api.py  # Step 4.4: Verifies POST /api/v1/hints with embedding — valid submissions (201, DB storage), Vertex AI embedding generation (768-dim, conditional), graceful degradation (mocked), validation (422), auth (401), no vault (404), mocked embedding integration, utility unit tests, GET compatibility (35 tests: 31 pass + 4 skip without GCP)
-│   └── test_hint_deletion_api.py   # Step 4.6: Verifies DELETE /api/v1/hints/{hint_id} — successful deletion (204, DB removal, list exclusion), cross-user deletion blocked (404, hint persists), non-existent hint (404), double-delete (404), auth required (401), no vault (404) (12 tests)
+│   ├── test_hint_deletion_api.py   # Step 4.6: Verifies DELETE /api/v1/hints/{hint_id} — successful deletion (204, DB removal, list exclusion), cross-user deletion blocked (404, hint persists), non-existent hint (404), double-delete (404), auth required (401), no vault (404) (12 tests)
+│   └── test_recommendation_state.py # Step 5.1: Verifies recommendation pipeline state schema — all 8 Pydantic models (BudgetRange, VaultBudget, VaultData, RelevantHint, MilestoneContext, LocationData, CandidateRecommendation, RecommendationState), instantiation, typing, defaults, Literal validation, JSON serialization, round-trip serialization, model_dump dict output (37 tests)
 ├── venv/                     # Python 3.13 virtual environment (gitignored)
 ├── requirements.txt          # Python dependencies (all packages for MVP)
 ├── pyproject.toml            # Pytest configuration (asyncio mode, warning filters)
@@ -289,9 +291,10 @@ SQL migration files to be run in the Supabase SQL Editor or via `supabase db pus
 
 ### AI Pipeline (`app/agents/`)
 
-| Folder | Purpose |
-|--------|---------|
-| `agents/` | LangGraph agent definitions for the recommendation pipeline. The graph chains: hint retrieval → external API aggregation → interest filtering → vibe/love language scoring → diversity selection → availability verification. |
+| File | Status | Purpose |
+|------|--------|---------|
+| `agents/__init__.py` | Package marker | Package marker with pipeline description comment. |
+| `agents/state.py` | **Active (Step 5.1)** | Recommendation pipeline state schema — 8 Pydantic models defining the complete LangGraph state. **Sub-models:** `BudgetRange` (min/max cents + currency for active occasion), `VaultBudget` (extends BudgetRange with `occasion_type` Literal), `VaultData` (full partner profile — basic info, interests/dislikes as `list[str]`, vibes as `list[str]`, `primary_love_language`/`secondary_love_language` strings, budgets as `list[VaultBudget]`), `RelevantHint` (pgvector search result with `similarity_score: float`, source Literal, `is_used`, `created_at`), `MilestoneContext` (milestone being planned for — type/name/date/recurrence/budget_tier Literals, optional `days_until: int`), `LocationData` (all-optional city/state/country/address for experience/date recs), `CandidateRecommendation` (external API result with source Literal `yelp\|ticketmaster\|amazon\|shopify\|firecrawl`, type Literal `gift\|experience\|date`, title, optional description/price_cents/image_url/merchant_name/location, `metadata: dict[str, Any]`, and 4 scoring floats: `interest_score`, `vibe_score`, `love_language_score`, `final_score` — all default 0.0). **Main state:** `RecommendationState` — `vault_data: VaultData`, `occasion_type` Literal, optional `milestone_context: MilestoneContext`, `budget_range: BudgetRange`, and 4 list fields populated by graph nodes: `relevant_hints`, `candidate_recommendations`, `filtered_recommendations`, `final_three` (all `Field(default_factory=list)`), plus optional `error: str` for pipeline error tracking. |
 
 ### Environment Variables (`backend/.env.example`)
 
