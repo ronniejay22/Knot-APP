@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */; };
 		029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0DFE789B202C84A0F6646 /* HintLocal.swift */; };
 		06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A501D3EBBEA7CF8A2C828AD /* Constants.swift */; };
 		07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AE7970627763281E43105B /* HomeView.swift */; };
@@ -21,6 +22,7 @@
 		2320F84E7581775AE98DBDF9 /* HintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DD62D4760696C298A091D4 /* HintService.swift */; };
 		30BEBF0DA0A5471020C9D32F /* HintsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB188ECFF10A408FE1C50697 /* HintsListView.swift */; };
 		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
+		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
 		4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB2C0E473B2693C71D80BC2 /* SignInView.swift */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
 		4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */ = {isa = PBXBuildFile; productRef = 15C498B5F04CB77F50A32471 /* LucideIcons */; };
@@ -100,6 +102,7 @@
 		A2AE7970627763281E43105B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditVaultView.swift; sourceTree = "<group>"; };
 		ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITests.swift; sourceTree = "<group>"; };
+		AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCard.swift; sourceTree = "<group>"; };
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		BB188ECFF10A408FE1C50697 /* HintsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintsListView.swift; sourceTree = "<group>"; };
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
@@ -109,6 +112,7 @@
 		DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCardTests.swift; sourceTree = "<group>"; };
 		FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -144,6 +148,7 @@
 				73D13FA821039CA70FDE1394 /* Auth */,
 				382C2703C6A06770F2DF2C25 /* Home */,
 				FDB0DCE8F9ED7B6634F3A030 /* Onboarding */,
+				67749E220DB8B979F8EC6C57 /* Recommendations */,
 				96DB102DFA213372B3D2248D /* Settings */,
 			);
 			path = Features;
@@ -167,6 +172,14 @@
 				63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */,
 			);
 			path = KnotUITests;
+			sourceTree = "<group>";
+		};
+		67749E220DB8B979F8EC6C57 /* Recommendations */ = {
+			isa = PBXGroup;
+			children = (
+				AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */,
+			);
+			path = Recommendations;
 			sourceTree = "<group>";
 		};
 		7062DE402C1FEC3B1A06BB94 /* Steps */ = {
@@ -291,6 +304,7 @@
 			isa = PBXGroup;
 			children = (
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
+				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 			);
 			path = KnotTests;
 			sourceTree = "<group>";
@@ -433,6 +447,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
+				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -476,6 +491,7 @@
 				165A8F6527B1F20D47746B69 /* OnboardingViewModel.swift in Sources */,
 				13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */,
 				868B2F83C136C7392D9DEF5B /* PartnerVaultLocal.swift in Sources */,
+				3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */,
 				6298CD41C2C411EDCD7C8E37 /* RecommendationLocal.swift in Sources */,
 				4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */,
 				950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */,

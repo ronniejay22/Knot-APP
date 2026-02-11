@@ -47,7 +47,7 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | `Auth/` | **Active** | Apple Sign-In flow, session management, auth state |
 | `Home/` | **Active** | Full Home screen with header, hint capture, milestone countdown, recent hints, offline banner (Step 4.1). |
 | `Onboarding/` | **Active** | Partner Vault creation (9-step wizard). Container + ViewModel at root, step views in `Steps/` subfolder. |
-| `Recommendations/` | Planned | Choice-of-Three UI, refresh flow |
+| `Recommendations/` | **Active (Step 6.1)** | Choice-of-Three UI, recommendation cards, refresh flow |
 | `HintCapture/` | Planned | Text and voice hint input |
 | `Settings/` | **Active (Step 3.12)** | Edit Profile screen. Future: full settings (notifications, account, privacy) in Step 11.1. |
 
@@ -69,6 +69,11 @@ Organized by feature, each containing Views, ViewModels, and feature-specific co
 | File | Purpose |
 |------|---------|
 | `EditVaultView.swift` | **Active (Step 3.12).** Full-screen Edit Profile screen accessible from HomeView via `.fullScreenCover`. On appear, calls `VaultService.getVault()` to load existing vault data from `GET /api/v1/vault`, then creates a fresh `OnboardingViewModel` and populates all its properties (basic info, interests, dislikes, milestones, vibes, budgets, love languages) from the response. Displays a sectioned list of 7 `editSectionButton` cards (icon + title + subtitle + chevron), each opening the corresponding onboarding step view in a `.sheet(item: $activeSection)`. Uses `EditSection` enum (Identifiable, 7 cases) for sheet routing. Sheet content wraps the step view in `NavigationStack` with a "Done" dismiss button and injects the ViewModel via `.environment(vm)`. "Save" toolbar button calls `vm.buildVaultPayload()` and `VaultService.updateVault(_:)` (`PUT /api/v1/vault`). Handles 4 states: loading (spinner), error (retry button), content (sectioned list), saving (disabled toolbar). Success alert auto-dismisses the view. Private helpers: `parseMilestoneDate()` converts `"2000-MM-DD"` back to (month, day) ints; subtitle functions summarize each section's data. Holiday milestones matched back to `HolidayOption.allHolidays` by month/day comparison. |
+
+##### `Recommendations/` — Choice-of-Three UI
+| File | Purpose |
+|------|---------|
+| `RecommendationCard.swift` | **Active (Step 6.1).** Standalone SwiftUI view displaying a single recommendation card for the Choice-of-Three horizontal scroll. Layout: (1) **Hero section** (200pt tall, clipped) — `AsyncImage` with 3-phase handling (loading: gradient + spinner, success: resizable fill image, failure: gradient fallback). Fallback gradients are type-specific: pink/purple for gifts, blue/indigo for experiences, orange/pink for dates, with a large semi-transparent SF Symbol centered. Bottom gradient overlay (clear→black 40%) for badge readability. (2) **Type badge** — `Capsule` with `.ultraThinMaterial` fill positioned top-left over the hero, Lucide icon (gift/sparkles/heart) + uppercase label ("GIFT"/"EXPERIENCE"/"DATE"). (3) **Details section** (16pt padding) — Title (`.headline.weight(.semibold)`, 2-line limit, `fixedSize` vertical), merchant name (Lucide `store` icon + name in `Theme.textSecondary`, 1-line limit, hidden when nil/empty), description (`.subheadline`, 3-line limit, `Theme.textSecondary`, hidden when nil/empty). (4) **Bottom row** — Price badge (`Capsule` with `Theme.surfaceElevated` fill, 1pt `surfaceBorder` stroke; shows "Price varies" in `Theme.textTertiary` when `priceCents` is nil), "Select →" button (`Capsule` with `Theme.accent` fill, `.buttonStyle(.plain)`). **Price formatting:** `formattedPrice(cents:currency:)` converts integer cents to locale-aware currency strings via `NumberFormatter` with `.currency` style. Omits decimals for whole-dollar amounts (`maximumFractionDigits = 0` when `cents % 100 == 0`). Supports international currencies via `currencyCode`. Method is `internal` (not private) for unit test access. **Concurrency:** `onSelect` closure typed as `@MainActor @Sendable () -> Void` for Swift 6 strict concurrency compliance. Card corner radius: 18pt (larger than 14pt home cards for premium feel). 4 `#Preview` variants (gift, experience with image URL, date with no price, minimal data). |
 
 ##### `Onboarding/` — Partner Vault Onboarding Flow
 | File | Purpose |
@@ -140,7 +145,7 @@ Shadcn-inspired, reusable SwiftUI components.
 
 | Folder | Purpose |
 |--------|---------|
-| `KnotTests/` | Unit tests for business logic, services, and utilities |
+| `KnotTests/` | Unit tests for business logic, services, and utilities. Contains `KnotTests.swift` (constants validation) and `RecommendationCardTests.swift` (Step 6.1 — 12 tests: rendering with full/minimal/all-type/unknown-type data, price formatting for whole dollar/cents/GBP/zero/large amounts, select callback, long text truncation). Test class is `@MainActor` for Swift 6 concurrency compliance. |
 | `KnotUITests/` | UI tests for critical user flows (onboarding, hint capture) |
 
 ---

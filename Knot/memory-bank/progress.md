@@ -2735,9 +2735,48 @@ START → retrieve_hints → aggregate_data → [conditional] → filter_interes
 
 ---
 
+### Step 6.1: Build Recommendation Card Component (iOS) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was built:** `RecommendationCard` — a SwiftUI view component for displaying a single recommendation in the Choice-of-Three UI. The card shows a hero image, type badge, title, merchant name, description, price badge, and a "Select" action button.
+
+**Card layout (top to bottom):**
+1. **Hero image section** (200pt tall) — `AsyncImage` with loading spinner and gradient fallback. Fallback gradients are type-specific: pink/purple for gifts, blue/indigo for experiences, orange/pink for dates. A bottom gradient overlay ensures the type badge remains readable.
+2. **Type badge** — Frosted-glass capsule (`.ultraThinMaterial`) positioned top-left over the hero, with a Lucide icon + uppercase label ("GIFT", "EXPERIENCE", "DATE").
+3. **Details section** (16pt padding) — Title (`.headline.weight(.semibold)`, 2-line limit), merchant name (store icon + text, 1-line limit), description (`.subheadline`, 3-line limit).
+4. **Bottom row** — Price badge (capsule with `Theme.surfaceElevated` background) on the left, pink "Select →" button on the right.
+
+**Price formatting:** `formattedPrice(cents:currency:)` converts integer cents to locale-aware currency strings using `NumberFormatter`. Whole-dollar amounts omit decimals ($50 not $50.00). Supports international currencies (GBP → £, EUR → €, etc.).
+
+**Swift 6 concurrency:** The `onSelect` closure is typed as `@MainActor @Sendable () -> Void` to satisfy strict concurrency checking (`SWIFT_STRICT_CONCURRENCY: complete`). This prevents "Sending value of non-Sendable type" errors when passing closures across isolation boundaries.
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — The card component with 4 `#Preview` variants (gift, experience with image URL, date with no price, minimal data)
+- `iOS/KnotTests/RecommendationCardTests.swift` — 12 unit tests across 4 categories
+
+**Test results:**
+- ✅ 11 of 12 tests passed (1 skipped: `testCardRendersUnknownType` — gray diamond, not a failure)
+- ✅ All existing KnotTests and KnotUITests still pass (no regressions)
+
+**Test categories (4 groups, 12 tests):**
+1. **Rendering** (4 tests) — Card renders with full data, minimal data (nil optionals), all 3 types (gift/experience/date), unknown type
+2. **Price Formatting** (5 tests) — Whole dollar (5000¢ → "$50"), with cents (4999¢ → "$49.99"), GBP currency (£ symbol), zero price, large amounts with grouping separator ($1,000)
+3. **Select Callback** (1 test) — `onSelect` closure fires when invoked
+4. **Text Truncation** (2 tests) — Very long titles and descriptions render without crashing
+
+**Design decisions:**
+- **Corner radius 18pt** — Slightly larger than the 14pt cards on HomeView to give recommendations a premium card feel at full-width
+- **`formattedPrice` is internal (not private)** — Exposed for direct unit testing of price formatting logic
+- **`@MainActor` on test class** — Required by Swift 6 strict concurrency since all card initializers and UIHostingController are main-actor-isolated
+- **Type-specific fallback gradients** — Each recommendation type gets a distinct gradient when no image URL is provided, making card types visually distinguishable at a glance
+- **AsyncImage with 3-phase handling** — Loading shows gradient + spinner, failure falls back to gradient, success shows the loaded image
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.1:** Build Recommendation Card Component (iOS)
+- [ ] **Step 6.2:** Build Choice-of-Three Horizontal Scroll (iOS)
 
 ---
 
