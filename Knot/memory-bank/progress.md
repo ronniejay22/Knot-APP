@@ -2631,9 +2631,56 @@ START → retrieve_hints → aggregate_data → [conditional] → filter_interes
 
 ---
 
+### Step 5.9: Create Recommendations API Endpoint (Backend) ✅
+
+**Status:** Complete
+**Branch:** `main`
+**What was built:** `POST /api/v1/recommendations/generate` — a fully authenticated FastAPI endpoint that loads the user's vault data, runs the LangGraph recommendation pipeline, stores results in the database, and returns 3 personalized recommendations as JSON.
+
+**Endpoint flow (7 steps):**
+1. **Load vault** — Queries `partner_vaults` by `user_id` (from auth). Returns 404 if no vault exists.
+2. **Load all related vault data** — Queries `partner_interests` (split into likes/dislikes by `interest_type`), `partner_vibes`, `partner_budgets` (mapped to `VaultBudget`), and `partner_love_languages` (parsed into primary/secondary by `priority`).
+3. **Determine budget range** — `_find_budget_range()` looks up vault budgets matching `occasion_type`; falls back to sensible defaults: just_because ($20–$50), minor_occasion ($50–$150), major_milestone ($100–$500).
+4. **Load milestone context** — If `milestone_id` is provided, queries `partner_milestones` (validates vault ownership). Returns 404 if not found. Browsing mode (no milestone) is fully supported.
+5. **Build state and run pipeline** — Constructs `RecommendationState` with all vault data and runs `run_recommendation_pipeline()` (the Step 5.8 LangGraph pipeline). Pipeline exceptions → 500; pipeline error state → 500; empty results → 500.
+6. **Store recommendations** — Inserts the 3 results into the `recommendations` table. DB storage failure is non-fatal — recommendations are still returned (logged as error).
+7. **Build response** — Uses DB-generated UUIDs (not pipeline candidate IDs) when available. Includes all scoring metadata (interest_score, vibe_score, love_language_score, final_score) and optional location data.
+
+**Files created:**
+- `backend/app/models/recommendations.py` — Pydantic request/response models (4 models: `RecommendationGenerateRequest`, `LocationResponse`, `RecommendationItemResponse`, `RecommendationGenerateResponse`)
+- `backend/tests/test_recommendations_api.py` — 43 tests across 7 test classes
+
+**Files modified:**
+- `backend/app/api/recommendations.py` — Rewritten from placeholder to full endpoint implementation
+- `backend/app/main.py` — Added `recommendations_router` registration
+
+**Test results:**
+- ✅ `pytest tests/test_recommendations_api.py -v` — 43 passed, 0 failed
+- ✅ All existing tests still pass (full suite)
+
+**Test categories (7 classes, 43 tests):**
+1. **TestRecommendationModels** (6 tests) — Pydantic model validation: valid request, invalid occasion_type, default milestone_id, required fields on response, location response optional fields, response model count
+2. **TestBudgetRangeHelper** (5 tests) — `_find_budget_range()`: matching budget found, fallback defaults (just_because, minor_occasion, major_milestone), currency preserved from vault, unknown occasion fallback
+3. **TestGenerateRecommendations** (11 tests) — Integration with mocked pipeline: 200 response, exactly 3 recommendations, required fields present, scoring metadata, occasion_type echoed, milestone_id echoed, browsing mode (no milestone), DB storage verification, vault_id in DB rows, DB-generated IDs used, location data included
+4. **TestGenerateAuth** (6 tests) — Auth & validation: no token → 401, invalid token → 401, no vault → 404, invalid occasion_type → 422, missing occasion_type → 422, milestone not found → 404
+5. **TestPipelineErrors** (4 tests) — Error handling: pipeline exception → 500, pipeline error state → 500, empty results → 500, partial results (2 of 3) → 200
+6. **TestPipelineState** (8 tests) — State verification: correct vault_data passed, interests list, vibes list, love languages, budget_range, milestone_context, no milestone in browsing mode, location data
+7. **TestOccasionTypes** (3 tests) — All three occasion types (just_because, minor_occasion, major_milestone) produce valid responses
+
+**Design decisions:**
+- **Pipeline is mocked in all integration tests:** Uses `unittest.mock.patch` on `app.api.recommendations.run_recommendation_pipeline` (the import site) with `AsyncMock`. Tests focus on endpoint logic (vault loading, data parsing, error handling, response formatting), not pipeline correctness (tested in `test_pipeline.py`)
+- **State capture pattern for verification:** Tests use `side_effect=capture_pipeline` to intercept the `RecommendationState` passed to the pipeline, verifying that vault data is correctly loaded and transformed before reaching the pipeline
+- **DB storage is non-fatal:** If the `recommendations` table insert fails, the endpoint still returns the 3 recommendations (error is logged). This prevents transient DB issues from blocking the user experience
+- **DB-generated UUIDs in response:** The response uses the `id` field from the database insert result (not the pipeline's temporary candidate IDs), ensuring the client has the correct ID for future operations (feedback, refresh, etc.)
+- **Budget range fallback defaults:** Sensible defaults are provided in cents when no matching vault budget is found — this prevents pipeline failures for users who haven't configured all budget tiers
+- **Follows existing endpoint patterns:** Same auth (`Depends(get_current_user_id)`), DB access (`get_service_client()`), error handling, and test fixture patterns as `vault.py` and `hints.py`
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_recommendations_api.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.9:** Create Recommendations API Endpoint (Backend)
+- [ ] **Step 5.10:** Implement Refresh/Re-roll Logic (Backend)
 
 ---
 
