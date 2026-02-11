@@ -2574,9 +2574,66 @@ iOS/Knot/
 
 ---
 
+### Step 5.8: Compose Full LangGraph Pipeline (Backend) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/pipeline.py` — Composes all 6 LangGraph nodes into an executable `RecommendationGraph` using `langgraph.graph.StateGraph`
+- **`build_recommendation_graph()`** — Constructs the uncompiled `StateGraph` with 6 nodes and edges. Two conditional edges short-circuit the pipeline on error states
+- **`recommendation_graph`** — Module-level pre-compiled `CompiledStateGraph`, ready for direct invocation via `.invoke()` or `.ainvoke()`
+- **`run_recommendation_pipeline(state)`** — Async convenience function wrapping `recommendation_graph.ainvoke()` with structured logging of pipeline start, completion, and error states
+- **`_check_after_aggregation(state)`** — Conditional edge function: routes to END if `candidate_recommendations` is empty (no results from external APIs)
+- **`_check_after_filtering(state)`** — Conditional edge function: routes to END if `filtered_recommendations` is empty (all candidates matched dislikes)
+- Created `backend/tests/test_pipeline.py` — 39 tests across 8 test classes
+
+**Pipeline graph structure:**
+```
+START → retrieve_hints → aggregate_data → [conditional] → filter_interests → [conditional] → match_vibes_ll → select_diverse → verify_urls → END
+```
+
+**Conditional edge logic:**
+- After `aggregate_data`: if 0 candidates → short-circuit to END (error already set by aggregation node)
+- After `filter_interests`: if 0 candidates survived → short-circuit to END (error already set by filtering node)
+- `verify_urls` handles partial results internally (returns fewer than 3 with warning log, no special graph routing needed)
+
+**Files created:**
+- `backend/app/agents/pipeline.py` — Full LangGraph recommendation pipeline
+- `backend/tests/test_pipeline.py` — 39 tests
+
+**Test results:**
+- ✅ `pytest tests/test_pipeline.py -v` — 39 passed, 0 failed, 0.52s
+- ✅ All 3 spec tests pass:
+  1. Full graph with complete vault and milestone returns exactly 3 recommendations
+  2. All recommendations match interests, vibes, and love language preferences
+  3. Short-circuits correctly on aggregation/filtering errors, returns partial results on availability issues
+- ✅ All existing tests still pass (351 total across all test files)
+
+**Test categories (8 classes, 39 tests):**
+1. **TestGraphStructure** (5 tests) — All 6 nodes present, correct count, StateGraph type, CompiledStateGraph type, compilable
+2. **TestConditionalEdges** (4 tests) — Aggregation check with/without candidates, filtering check with/without candidates
+3. **TestFullPipeline** (9 tests) — Returns 3 recommendations, no error on success, all intermediate state populated, required fields present, interest/vibe matching, budget adherence, browsing mode (no milestone), vault data preservation, non-zero final scores
+4. **TestPipelineErrors** (3 tests) — Aggregation empty short-circuits, filtering empty short-circuits, availability partial results
+5. **TestRunRecommendationPipeline** (3 tests) — Runner returns dict, returns final_three, handles error state
+6. **TestSpecRequirements** (5 tests) — The 5 spec-derived tests (returns 3, matches preferences, aggregation error, filtering error, availability partial)
+7. **TestNodeOrdering** (4 tests) — Hints populated, candidates populated, filtered populated, final_three is subset of candidates
+8. **TestPipelineDiversityAndScoring** (3 tests) — Merchant diversity, type validity, score monotonicity in filtered list
+9. **TestStateCompatibility** (3 tests) — All state keys present, result reconstructable to RecommendationState, error state reconstructable
+
+**Design decisions:**
+- **Pre-compiled module-level graph:** `recommendation_graph = build_recommendation_graph().compile()` is created at import time. This avoids recompiling on every request. The `build_recommendation_graph()` function is also exported for testing or custom configuration
+- **Conditional edges, not exceptions:** Error handling uses LangGraph conditional edges to route to END, rather than raising exceptions mid-pipeline. Nodes set `error` in their return dict and return empty lists — the conditional edge functions simply check list emptiness. This keeps the graph framework in control of flow
+- **`ainvoke()` for async execution:** All 6 nodes are async functions (they use `await` for embedding generation, DB queries, and HTTP calls). The pipeline uses `ainvoke()` (not `invoke()`) to run them properly in the async event loop
+- **Convenience runner wraps graph:** `run_recommendation_pipeline()` adds structured logging around `ainvoke()` and returns the raw result dict. This is the entry point for Step 5.9's API endpoint — it logs vault_id, occasion_type, recommendation count, and any errors
+- **Result is a dict, not a Pydantic model:** LangGraph's `ainvoke()` returns a `dict[str, Any]` (not a `RecommendationState` instance). Each value is a Pydantic model instance (e.g., `CandidateRecommendation`), but the container is a plain dict. The result can be reconstructed into `RecommendationState(**result)` if needed
+- **All external calls mocked in tests:** Tests mock 3 external dependencies: (1) `generate_embedding` → returns `None` (forces chronological hint fallback), (2) `get_service_client` → returns mock with empty results, (3) `_check_url` → returns `True` (all URLs valid). This makes tests fast (0.52s) and deterministic — no Vertex AI, Supabase, or HTTP calls
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_pipeline.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.8:** Compose Full LangGraph Pipeline (Backend)
+- [ ] **Step 5.9:** Create Recommendations API Endpoint (Backend)
 
 ---
 
@@ -2770,3 +2827,11 @@ iOS/Knot/
 91. **`used_ids` tracks both selected and tried candidates (Step 5.7):** The `used_ids` set starts with IDs from `final_three` and grows as replacement candidates are tried (whether they succeed or fail). This prevents the same candidate from being tried twice and prevents a backup from duplicating an already-verified recommendation.
 
 92. **Partial results over empty results (Step 5.7):** If replacement attempts are exhausted, the node returns fewer than 3 recommendations rather than failing entirely. The pipeline should handle 1-2 results gracefully — showing fewer cards is better than showing an error. The warning log flags partial results for monitoring.
+
+93. **LangGraph StateGraph with Pydantic BaseModel (Step 5.8):** `StateGraph(RecommendationState)` accepts a Pydantic `BaseModel` as the state schema. Each node returns a `dict[str, Any]` with the fields to update — LangGraph merges these into the state automatically. The `ainvoke()` method returns a plain `dict`, not a Pydantic instance. Reconstruct with `RecommendationState(**result)` if needed.
+
+94. **Conditional edges for error short-circuiting (Step 5.8):** Rather than using exceptions or special return values, the pipeline uses LangGraph conditional edges. The nodes already set `error` and return empty lists on failure — the conditional edge functions (`_check_after_aggregation`, `_check_after_filtering`) simply inspect the state and route to `END` or `"continue"`. This keeps error flow within the graph framework.
+
+95. **Pre-compiled graph at module level (Step 5.8):** `recommendation_graph = build_recommendation_graph().compile()` is executed once at import time. The `CompiledStateGraph` is thread-safe and reusable across requests. The separate `build_recommendation_graph()` function is exported for testing or creating custom graph variants.
+
+96. **Interest-matched gifts dominate filtering (Step 5.8 observation):** With 5 interests × 3 gifts each = 15 gift candidates (all with positive `interest_score`), and experience candidates getting `interest_score = 0.0`, the filtering node's top 9 (`MAX_FILTERED_CANDIDATES`) will be almost entirely gifts. Experience candidates only survive if there are fewer than 9 interest-matched gifts within budget. This is by design — the matching node's `max(interest_score, 1.0)` floor partially compensates, but experiences need to be in the top 9 first. In Phase 8 with real API data, this balance may shift.
