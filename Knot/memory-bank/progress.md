@@ -2532,9 +2532,51 @@ iOS/Knot/
 
 ---
 
+### Step 5.7: Create Availability Verification Node (Backend) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/availability.py` — LangGraph node for verifying that the 3 selected recommendations have valid, reachable external URLs
+- **`_check_url(url, client)`** — Async helper that sends an HTTP HEAD request to the external URL. Falls back to GET if HEAD returns 405 (Method Not Allowed). Any 2xx or 3xx status is considered valid. Handles `TimeoutException`, `ConnectError`, and `HTTPError` gracefully (returns `False`)
+- **`_get_backup_candidates(filtered, excluded_ids)`** — Returns candidates from the filtered pool that aren't in the excluded set, sorted by `final_score` descending (best first)
+- **`verify_availability(state)`** — Async LangGraph node. For each of the 3 selected recommendations: (1) checks the external URL via `_check_url`, (2) if unavailable, attempts up to `MAX_REPLACEMENT_ATTEMPTS` (3) replacements from `filtered_recommendations`, verifying each replacement URL before accepting it. Returns `{"final_three": list[CandidateRecommendation]}`. Returns partial results (fewer than 3) with a warning if valid replacements cannot be found
+- Uses `httpx.AsyncClient` with a 5-second timeout per URL check
+- Created `backend/tests/test_availability_node.py` — 35 tests across 7 test classes
+
+**Files created:**
+- `backend/app/agents/availability.py` — Availability verification node
+- `backend/tests/test_availability_node.py` — 35 tests
+
+**Test results:**
+- ✅ `pytest tests/test_availability_node.py -v` — 35 passed, 0 failed, 0.16s
+- ✅ Both spec tests pass:
+  1. Invalid URL recommendation is replaced with backup candidate from pool
+  2. All 3 final recommendations have verified URLs
+
+**Test categories (7 classes, 35 tests):**
+1. **TestCheckUrl** (9 tests) — 200 OK, 301 redirect, 404/500 errors, 405 HEAD→GET fallback, 405+GET failure, timeout, connection error, generic HTTP error
+2. **TestGetBackupCandidates** (4 tests) — ID exclusion, score-descending sort, all excluded, empty pool
+3. **TestVerifyAvailability** (6 tests) — All available pass-through, unavailable replaced, replacement also URL-checked, no ID reuse, max attempt limit, correct return key
+4. **TestSpecRequirements** (2 tests) — The 2 spec tests from the implementation plan
+5. **TestEdgeCases** (6 tests) — Empty input, all unavailable with no backups, single candidate, partial results, empty backup pool, input state immutability
+6. **TestStateCompatibility** (3 tests) — State update, filtered preservation, replaced candidate field integrity
+7. **TestConstants** (5 tests) — Timeout range, max attempts positive, valid status range includes 200, excludes 400/500
+
+**Design decisions:**
+- **HEAD first, GET fallback:** HEAD is lightweight (no response body) and sufficient for availability checks. Some servers don't support HEAD (return 405), so GET is used as fallback. This avoids downloading large response bodies unnecessarily while still working with servers that reject HEAD
+- **5-second timeout:** Long enough for most production servers, short enough to not block the pipeline. The 3 URL checks run sequentially (not in parallel) to avoid overwhelming target servers and to simplify replacement logic
+- **2xx and 3xx are valid:** Redirects (301, 302) are followed automatically by httpx. A redirect to a valid page still means the recommendation is reachable. Only 4xx (client errors like 404) and 5xx (server errors) are treated as unavailable
+- **Max 3 replacement attempts per slot:** Prevents infinite loops if the backup pool is full of dead links. After 3 failed replacements, the slot is dropped and partial results are returned with a warning log
+- **Replacement candidates come from `filtered_recommendations`:** The full ranked pool (not just `final_three`) is the backup source. Candidates already in `final_three` or already tried are excluded via `used_ids` tracking. Backups are sorted by `final_score` descending so the best available replacement is always tried first
+- **All HTTP calls are mocked in tests:** Tests use `unittest.mock.patch("app.agents.availability._check_url")` to mock at the function level. No actual HTTP requests are made during testing. This makes tests fast (0.16s total) and deterministic
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_availability_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.7:** Create Availability Verification Node (Backend)
+- [ ] **Step 5.8:** Compose Full LangGraph Pipeline (Backend)
 
 ---
 
@@ -2720,3 +2762,11 @@ iOS/Knot/
 87. **Selection node writes to `final_three`, not `filtered_recommendations` (Step 5.6):** Unlike the matching node (Step 5.5) which re-scores and overwrites `filtered_recommendations`, the selection node writes to a new state field `final_three`. This preserves the full ranked pool in `filtered_recommendations` for potential re-selection (e.g., the refresh/re-roll flow in Step 5.10 needs the original pool to pick replacements).
 
 88. **Merchant comparison is case-insensitive and None-safe (Step 5.6):** `_diversity_score()` normalizes merchant names to lowercase and treats `None` as empty string. This prevents "Amazon" and "AMAZON" from being counted as different merchants, and prevents crashes when merchant_name is missing from a candidate.
+
+89. **HEAD-first URL verification strategy (Step 5.7):** `_check_url()` sends HEAD first (no response body = faster), falls back to GET only if HEAD returns 405 (Method Not Allowed). Some CDNs and API servers block HEAD requests but accept GET. The fallback ensures compatibility without wasting bandwidth on servers that support HEAD.
+
+90. **Sequential URL checks, not parallel (Step 5.7):** The 3 URL checks in `verify_availability()` run sequentially (not via `asyncio.gather()`). This simplifies replacement logic — if slot 2 fails, the replacement is immediately resolved before checking slot 3. Parallel checks would require more complex state management to handle cascading replacements. With a 5-second timeout per check, worst case is ~15 seconds (all 3 timeout + replacements), which is acceptable within the recommendation pipeline.
+
+91. **`used_ids` tracks both selected and tried candidates (Step 5.7):** The `used_ids` set starts with IDs from `final_three` and grows as replacement candidates are tried (whether they succeed or fail). This prevents the same candidate from being tried twice and prevents a backup from duplicating an already-verified recommendation.
+
+92. **Partial results over empty results (Step 5.7):** If replacement attempts are exhausted, the node returns fewer than 3 recommendations rather than failing entirely. The pipeline should handle 1-2 results gracefully — showing fewer cards is better than showing an error. The warning log flags partial results for monitoring.
