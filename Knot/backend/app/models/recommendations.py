@@ -3,15 +3,17 @@ Recommendation Models — Pydantic schemas for Recommendations API.
 
 Defines request/response models for the recommendation endpoints:
 - POST /api/v1/recommendations/generate — Generate Choice-of-Three (Step 5.9)
+- POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions (Step 5.10)
 
 Step 5.9: Create Recommendations API Endpoint
+Step 5.10: Implement Refresh (Re-roll) Logic
 """
 
 from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 # ======================================================================
@@ -29,6 +31,32 @@ class RecommendationGenerateRequest(BaseModel):
 
     milestone_id: Optional[str] = None
     occasion_type: Literal["just_because", "minor_occasion", "major_milestone"]
+
+
+class RecommendationRefreshRequest(BaseModel):
+    """
+    Payload for POST /api/v1/recommendations/refresh.
+
+    Accepts the IDs of rejected recommendations and a rejection reason
+    that determines what exclusion filters to apply when generating
+    replacement recommendations.
+    """
+
+    rejected_recommendation_ids: list[str]
+    rejection_reason: Literal[
+        "too_expensive",
+        "too_cheap",
+        "not_their_style",
+        "already_have_similar",
+        "show_different",
+    ]
+
+    @field_validator("rejected_recommendation_ids")
+    @classmethod
+    def validate_non_empty(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("rejected_recommendation_ids must not be empty")
+        return v
 
 
 # ======================================================================
@@ -77,3 +105,16 @@ class RecommendationGenerateResponse(BaseModel):
     count: int
     milestone_id: Optional[str] = None
     occasion_type: str
+
+
+class RecommendationRefreshResponse(BaseModel):
+    """
+    Response for POST /api/v1/recommendations/refresh.
+
+    Returns 3 new recommendations after applying exclusion filters
+    based on the rejection reason.
+    """
+
+    recommendations: list[RecommendationItemResponse]
+    count: int
+    rejection_reason: str

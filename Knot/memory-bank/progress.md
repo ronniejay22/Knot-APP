@@ -2678,9 +2678,66 @@ START → retrieve_hints → aggregate_data → [conditional] → filter_interes
 
 ---
 
+### Step 5.10: Implement Refresh (Re-roll) Logic (Backend) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was built:** `POST /api/v1/recommendations/refresh` — a fully authenticated FastAPI endpoint that accepts rejected recommendation IDs and a rejection reason, stores feedback, re-runs the LangGraph pipeline, applies exclusion filters based on the rejection reason, and returns 3 new replacement recommendations.
+
+**Endpoint flow (8 steps):**
+1. **Load vault** — Queries `partner_vaults` by `user_id` (from auth). Returns 404 if no vault exists.
+2. **Load rejected recommendations** — Queries `recommendations` table by vault_id and the provided IDs. Returns 404 if none found (prevents cross-user access).
+3. **Store feedback** — Inserts `action='refreshed'` + `feedback_text=rejection_reason` into `recommendation_feedback` for each rejected recommendation. Non-fatal on failure (logged as warning).
+4. **Load all vault data** — Same 6-table load as the generate endpoint (interests, vibes, budgets, love languages). Determines occasion_type from the original recommendation's milestone or defaults to `just_because`.
+5. **Re-run pipeline** — Builds fresh `RecommendationState` and runs `run_recommendation_pipeline()` to get a new candidate pool.
+6. **Apply exclusion filters** — `_apply_exclusion_filters()` removes candidates based on the rejection reason (see table below). Uses the `filtered_recommendations` pool (broader than `final_three`).
+7. **Store new recommendations** — Inserts the 3 new results into the `recommendations` table.
+8. **Build response** — Returns 3 new recommendations with DB-generated IDs, scoring metadata, and the echoed `rejection_reason`.
+
+**Rejection reasons and exclusion logic:**
+
+| Reason | Exclusion Logic |
+|--------|-----------------|
+| `too_expensive` | Exclude candidates at or above the rejected price tier (low/mid/high); favor lower prices |
+| `too_cheap` | Exclude candidates at or below the rejected price tier; favor higher prices |
+| `not_their_style` | Exclude candidates with the same `matched_vibe` metadata as rejected items |
+| `already_have_similar` | Exclude candidates with the same merchant name AND recommendation type |
+| `show_different` | Exclude only the exact same items (by title match) |
+
+**Price tier classification:** `_classify_price_tier()` splits the budget range into 3 equal bands (low/mid/high). A budget of $20–$50 → low: $20–$30, mid: $30–$40, high: $40–$50. Items without a price default to "mid".
+
+**Files created:**
+- `backend/tests/test_refresh_api.py` — 30 tests across 6 test classes
+
+**Files modified:**
+- `backend/app/models/recommendations.py` — Added `RecommendationRefreshRequest` (with `field_validator` for non-empty IDs), `RecommendationRefreshResponse`
+- `backend/app/api/recommendations.py` — Added `refresh_recommendations()` endpoint, `_apply_exclusion_filters()`, `_classify_price_tier()`, `_build_response_items()` shared helper. Refactored generate endpoint to use the shared helper (no behavior change)
+
+**Test results:**
+- ✅ `pytest tests/test_refresh_api.py -v` — 30 passed, 0 failed
+- ✅ All existing Step 5.9 tests still pass (no regressions)
+
+**Test categories (6 classes, 30 tests):**
+1. **TestRefreshModels** (5 tests) — Pydantic validation: valid request, all 5 reasons valid, invalid reason rejected, empty IDs rejected, response model serialization
+2. **TestExclusionFilters** (6 tests) — Unit tests for `_apply_exclusion_filters()`: show_different excludes exact items only, too_expensive excludes high tier, too_cheap excludes low tier, not_their_style excludes matching vibes, already_have_similar excludes merchant+type combos, price tier classification
+3. **TestRefreshEndpoint** (6 tests) — Integration with mocked pipeline: 200 response, 3 recommendations returned, rejection_reason echoed, feedback stored in DB with action='refreshed', new recommendations stored in DB, required fields present
+4. **TestRefreshAuth** (6 tests) — Auth & validation: no token → 401, invalid token → 401, no vault → 404, invalid reason → 422, empty IDs → 422, non-existent rec IDs → 404
+5. **TestRefreshPipelineErrors** (2 tests) — Pipeline exception → 500, pipeline error state → 500
+6. **TestAllRejectionReasons** (5 tests, parametrized) — All 5 rejection reasons produce valid 200 responses with candidates
+
+**Design decisions:**
+- **Re-runs full pipeline (not cached):** Each refresh re-runs the entire LangGraph pipeline to get a fresh candidate pool. The implementation plan mentioned "load the original candidate pool (or re-aggregate if not cached)" — we always re-aggregate since stub data is fast and caching adds complexity for MVP
+- **Exclusion by title match (not ID):** The `show_different` and other filters use title matching between DB rows (rejected_recs) and pipeline candidates. This is because pipeline candidates get new UUIDs on each run, so DB-stored IDs don't match candidate IDs
+- **`not_their_style` looks up vibes from the candidate pool:** Since DB recommendation rows don't store vibe metadata, the filter matches rejected titles against the candidate pool to discover their `matched_vibe` metadata, then excludes all candidates with the same vibe
+- **Feedback stored before pipeline re-run:** Feedback is stored in step 3 (before the pipeline in step 5). This ensures feedback is recorded even if the pipeline fails or returns no results
+- **`_build_response_items()` shared helper:** Extracted from the generate endpoint to avoid code duplication. Both generate and refresh use the same response-building logic (DB ID resolution, location mapping, scoring metadata)
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_refresh_api.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.10:** Implement Refresh/Re-roll Logic (Backend)
+- [ ] **Step 6.1:** Build Recommendation Card Component (iOS)
 
 ---
 
