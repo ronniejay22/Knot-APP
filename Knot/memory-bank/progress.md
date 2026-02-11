@@ -2446,9 +2446,56 @@ iOS/Knot/
 
 ---
 
+### Step 5.5: Create Vibe and Love Language Matching Node ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/matching.py` — LangGraph node for scoring candidates by vibe alignment and love language preferences
+- **`_normalize(text)`** — Lowercases and strips strings for comparison (same pattern as filtering node)
+- **`_candidate_matches_vibe(candidate, vibe)`** — Checks if a candidate matches a vibe via 2 signals: (1) metadata `matched_vibe` exact match (strongest — from stub catalogs), (2) title/description keyword match against `_VIBE_KEYWORDS` dict (8 vibes, each with 6-9 keywords). Returns `True` on first match
+- **`_compute_vibe_boost(candidate, vault_vibes)`** — Stacks +30% (`VIBE_MATCH_BOOST = 0.30`) per matching vibe. Multiple matching vibes are additive (e.g., 2 matches = +0.60)
+- **`_candidate_matches_love_language(candidate, love_language)`** — Type-based matching for `receiving_gifts` (gift type) and `quality_time` (experience/date type). Keyword-based matching for `acts_of_service` (tool, kit, repair, practical...), `words_of_affirmation` (personalized, custom, portrait...), `physical_touch` (couples, massage, spa, dance class...)
+- **`_compute_love_language_boost(candidate, primary, secondary)`** — Applies primary boost if candidate matches primary love language, secondary boost if matches secondary. `receiving_gifts`/`quality_time` get +40% primary / +20% secondary. `acts_of_service`/`words_of_affirmation`/`physical_touch` get +20% primary / +10% secondary. Boosts stack if both match
+- **`match_vibes_and_love_languages(state)`** — Async LangGraph node. For each filtered candidate: computes vibe_boost and love_language_boost, calculates `final_score = max(interest_score, 1.0) × (1 + vibe_boost) × (1 + love_language_boost)`. Uses `model_copy()` for immutable updates (`vibe_score`, `love_language_score`, `final_score`). Sorts by `(-final_score, title)` for deterministic ordering. Returns `{"filtered_recommendations": re-ranked list}`
+- Created `backend/tests/test_matching_node.py` — 57 tests across 9 test classes
+
+**Files created:**
+- `backend/app/agents/matching.py` — Vibe and love language matching node
+- `backend/tests/test_matching_node.py` — 57 tests
+
+**Test results:**
+- ✅ `pytest tests/test_matching_node.py -v` — 57 passed, 0 failed
+- ✅ All 3 spec tests pass:
+  1. Vibes "quiet_luxury" + "minimalist" → matching candidates rank above flashy/loud ones
+  2. Primary "receiving_gifts" → gift-type recommendations rank above experiences
+  3. Primary "quality_time" + secondary "receiving_gifts" → experiences rank highest, gifts rank second
+- ✅ Full suite regression: 617 passed, 4 skipped, 1 pre-existing flaky timeout (unrelated `test_recommendation_feedback_table.py::test_user_isolation_between_feedback` — SSL handshake timeout)
+
+**Test categories (9 classes, 57 tests):**
+1. **TestNormalize** (3 tests) — `_normalize` helper
+2. **TestCandidateMatchesVibe** (10 tests) — Metadata match, keyword match, case-insensitive, no match, None description
+3. **TestComputeVibeBoost** (5 tests) — Single/double/no match, empty vibes, partial match
+4. **TestCandidateMatchesLoveLanguage** (13 tests) — Type-based (receiving_gifts, quality_time) and keyword-based (acts_of_service, words_of_affirmation, physical_touch) matching
+5. **TestComputeLoveLanguageBoost** (8 tests) — Primary/secondary boosts, stacking, no match
+6. **TestFinalScoring** (3 tests) — Formula verification with zero/positive interest scores, no boosts
+7. **TestMatchVibesAndLoveLanguages** (7 tests) — End-to-end node: re-ranking, score population, immutability, state compatibility, deterministic ordering
+8. **TestSpecRequirements** (3 tests) — The 3 spec tests from the implementation plan
+9. **TestEdgeCases** (5 tests) — Same scores, single candidate, many vibes, no metadata, all positive final scores
+
+**Design decisions:**
+- **`max(interest_score, 1.0)` floor instead of `interest_score + 1.0` offset:** The spec formula `base × (1 + vibe_boost) × (1 + love_language_boost)` collapses to 0 when `interest_score = 0.0` (the default for experience candidates from the filtering node). Using `max(1.0)` gives experiences a fair baseline while preserving the interest_score advantage for gifts with scores > 1.0. This ensures love language preferences (e.g., quality_time boosting experiences) can outweigh moderate interest scores, satisfying the spec requirement that experiences rank above gifts when quality_time is primary
+- **"premium" removed from quiet_luxury vibe keywords:** "Premium" was too generic — "Premium Wireless Headphones" falsely matched quiet_luxury. Replaced with "spa" which is a better quiet_luxury signal. Remaining keywords: luxury, fine dining, exclusive, upscale, boutique, sommelier, omakase, artisan, spa
+- **Love language matching is dual-path:** `receiving_gifts` and `quality_time` use simple type checks (gift/experience/date), while `acts_of_service`, `words_of_affirmation`, and `physical_touch` use keyword matching against title/description. This mirrors the filtering node's approach of using deterministic matching now, with Gemini 1.5 Pro semantic classification coming in Phase 8
+- **Both primary and secondary boosts can stack on a single candidate:** A couples spa experience with primary=quality_time (+40%) and secondary=physical_touch (+10%) gets a combined +50% love language boost. This rewards candidates that align with multiple aspects of the partner's preferences
+- **Node never removes candidates — only re-scores and re-ranks:** Unlike the filtering node (which removes dislike matches), the matching node keeps all candidates and assigns them scores. Removal/selection happens in Step 5.6 (`select_diverse_three`)
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_matching_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.5:** Create Vibe and Love Language Matching Node (Backend)
+- [ ] **Step 5.6:** Create Diversity Selection Node (Backend)
 
 ---
 
