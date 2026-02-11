@@ -2374,9 +2374,81 @@ iOS/Knot/
 
 ---
 
+### Step 5.4: Create Semantic Filtering Node (Backend) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/filtering.py` — LangGraph node for filtering candidate recommendations by interests and dislikes
+- **`_normalize(text)`** — Helper to lowercase and strip strings for case-insensitive comparison
+- **`_matches_category(candidate, category)`** — Checks if a candidate matches a given interest/dislike category via 3 signals (in order of strength): (1) metadata `matched_interest` exact match, (2) title keyword substring match, (3) description keyword substring match. All comparisons are case-insensitive. Returns `True` on first match. Ignores `matched_vibe` metadata (that's for Step 5.5)
+- **`_score_candidate(candidate, interests, dislikes)`** — Scores a candidate against interests and dislikes. Dislike match → returns `-1.0` (removed). Each matching interest → `+1.0`. Metadata-tagged interest gets bonus `+0.5` (stronger signal than keyword-only). Candidates matching neither → `0.0` (neutral, kept but low rank). Dislikes checked first — any dislike match causes immediate rejection, even if interests also match
+- **`filter_by_interests(state)`** — The main async LangGraph node function. Takes `RecommendationState`, extracts interests/dislikes from vault data, scores each candidate, removes dislike matches (score < 0), uses `model_copy(update={"interest_score": score})` to set scores immutably, sorts by score descending (then title for deterministic ordering), returns top `MAX_FILTERED_CANDIDATES=9` as `{"filtered_recommendations": list[CandidateRecommendation]}`. Sets `{"error": "All candidates filtered out — try adjusting your preferences"}` when zero candidates survive. Handles empty input gracefully
+- Created `backend/tests/test_filtering_node.py` — 48 tests across 9 test classes
+
+**Files created:**
+- `backend/app/agents/filtering.py` — Semantic filtering LangGraph node (scoring + filtering logic)
+- `backend/tests/test_filtering_node.py` — Filtering node test suite (48 tests, 9 classes)
+
+**Test results:**
+- ✅ `pytest tests/test_filtering_node.py -v` — 48 passed, 0 failed, 0.04s
+- ✅ `_normalize` lowercases, strips whitespace, handles already-lowercase
+- ✅ `_matches_category` detects metadata `matched_interest` (case-insensitive)
+- ✅ `_matches_category` detects title keyword (case-insensitive, substring)
+- ✅ `_matches_category` detects description keyword (case-insensitive, substring)
+- ✅ `_matches_category` returns False for unrelated candidates
+- ✅ `_matches_category` handles empty metadata and None descriptions
+- ✅ `_matches_category` ignores `matched_vibe` (not an interest signal)
+- ✅ Dislike match returns -1.0 score
+- ✅ Interest match returns positive score (1.0 + 0.5 bonus for metadata)
+- ✅ No match returns 0.0 (neutral, kept)
+- ✅ Multiple interest matches accumulate (e.g., Cooking + Travel + Hiking → 2.5+)
+- ✅ Dislike takes priority over interest when both match same candidate
+- ✅ Experience candidates (vibe-only metadata) get 0.0 from interest scoring
+- ✅ Title-only match without metadata gets 1.0 (no bonus)
+- ✅ Candidates matching dislike in metadata are removed
+- ✅ Candidates matching dislike in title are removed
+- ✅ Multiple disliked candidates are all removed
+- ✅ Experience candidates matching dislike in description are removed
+- ✅ Interest-matched candidates rank above no-match candidates
+- ✅ Multi-interest matches rank above single-interest matches
+- ✅ `interest_score` field populated on all filtered candidates
+- ✅ At most 9 candidates returned (MAX_FILTERED_CANDIDATES enforced)
+- ✅ Fewer than 9 returned when few survive filtering
+- ✅ Highest-scored candidates are kept (not arbitrary 9)
+- ✅ Result dict contains `filtered_recommendations` key
+- ✅ All returned items are `CandidateRecommendation` instances
+- ✅ Result compatible with `state.model_copy(update=result)`
+- ✅ All original candidate fields preserved after filtering
+- ✅ Both gifts and experiences survive filtering correctly
+- ✅ No error key on normal run
+- ✅ Unique IDs preserved through filtering
+- ✅ Empty candidates returns empty filtered list
+- ✅ All candidates filtered → error message set ("try adjusting")
+- ✅ Neutral candidates (score=0) are kept, not removed
+- ✅ Single non-disliked candidate survives
+- ✅ Dislike keyword in description only is still caught
+- ✅ Deterministic ordering by title for same-score candidates
+- ✅ MAX_FILTERED_CANDIDATES constant equals 9
+- ✅ Realistic candidate mix (from aggregation node output) filtered correctly
+- ✅ Interest keyword in experience title gets boosted (e.g., "Cooking Class")
+- ✅ JSON round-trip serialization via Pydantic model_dump_json/model_validate_json
+- ✅ All existing tests still pass
+
+**Notes:**
+- **Keyword/metadata matching (not Gemini) for stub phase:** The implementation plan calls for Gemini 1.5 Pro scoring. With stub catalog data, each candidate already has `metadata["matched_interest"]` or `metadata["matched_vibe"]` — Gemini would add latency without improving accuracy. Keyword/metadata matching is used now as a deterministic, fast, testable approach. In Phase 8 when real API data (without pre-tagged metadata) flows through, Gemini semantic scoring will be slotted in to handle ambiguous matches
+- **Dislike checking uses the same 3 signals as interest matching:** metadata, title, and description substring. A candidate mentioning "gaming" in its description will be removed if "Gaming" is a dislike, even if it wasn't tagged with `matched_interest: "Gaming"`
+- **`model_copy()` for immutable score updates:** Instead of mutating `candidate.interest_score` directly, the node uses `candidate.model_copy(update={"interest_score": score})`. This follows Pydantic best practices for immutable models and avoids side effects on the original state's candidate list
+- **Deterministic sort for reproducible results:** Candidates are sorted by `(-score, title)`. The title tiebreaker ensures the same input always produces the same output order, which is essential for testing and debugging
+- **9 candidates (not 3) passed to diversity selection:** The node returns up to 9 to give the next node (`select_diverse_three` in Step 5.6) enough variety to pick 3 diverse recommendations across price, type, and merchant
+- **Experience candidates get 0.0 interest score by default:** Experience candidates tagged with `matched_vibe` (not `matched_interest`) pass through with a neutral score. Their ranking happens in Step 5.5 (`match_vibes_and_love_languages`). The exception is when an experience title/description contains an interest keyword (e.g., "Candlelit Cooking Class" for a Cooking interest), which earns a positive score
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_filtering_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.4:** Create Semantic Filtering Node (Backend)
+- [ ] **Step 5.5:** Create Vibe and Love Language Matching Node (Backend)
 
 ---
 
@@ -2546,5 +2618,11 @@ iOS/Knot/
 80. **pgvector string format for PostgREST (Step 4.4):** `format_embedding_for_pgvector()` converts `list[float]` to the string `"[0.1,0.2,...,0.768]"`. PostgREST (and by extension the Supabase Python client) accepts this format for `vector(768)` columns. The database stores it as a native pgvector type. When reading back via PostgREST, the column returns as a string in the same format.
 
 81. **Mocking pattern for embedding tests (Step 4.4):** Tests use `unittest.mock.patch("app.api.hints.generate_embedding", new_callable=AsyncMock)` to mock at the import location in `hints.py`. This is the correct pattern because `hints.py` does `from app.services.embedding import generate_embedding` — patching at `app.services.embedding.generate_embedding` would not affect the already-imported reference in `hints.py`. Always patch at the import site, not the definition site.
+
+82. **`model_copy()` for immutable Pydantic updates (Step 5.4):** When LangGraph nodes need to update a field on a `CandidateRecommendation` (e.g., setting `interest_score`), use `candidate.model_copy(update={"interest_score": score})` instead of direct mutation. This creates a new instance without side effects on the original state. The `model_copy()` approach is Pydantic v2 best practice and prevents subtle bugs where mutating a candidate in one node's output affects the previous node's state.
+
+83. **Deterministic sort tiebreaker (Step 5.4):** When sorting candidates by score, always add a secondary sort key (e.g., `title`) for deterministic ordering. `scored.sort(key=lambda x: (-x[1], x[0].title))` ensures candidates with equal scores appear in the same order across runs. Without a tiebreaker, Python's `sort()` preserves insertion order (stable sort), but insertion order may vary across different execution paths or test scenarios.
+
+84. **Filtering node returns 9 candidates, not 3 (Step 5.4):** `MAX_FILTERED_CANDIDATES = 9` gives the downstream `select_diverse_three` node (Step 5.6) a pool of candidates to choose from. The diversity selection node picks 3 that maximize variety across price tier, type (gift vs experience), and merchant. If filtering returned only 3, there would be no room for diversity optimization.
 
 82. **`requires_vertex_ai` test marker (Step 4.4):** The 4 live Vertex AI tests are gated by `requires_vertex_ai = pytest.mark.skipif(not _vertex_ai_configured(), ...)`. To enable them: (1) set `GOOGLE_CLOUD_PROJECT=your-project-id` in `.env`, (2) ensure Application Default Credentials are configured (`gcloud auth application-default login`). The `GOOGLE_APPLICATION_CREDENTIALS` env var is optional if ADC is configured.
