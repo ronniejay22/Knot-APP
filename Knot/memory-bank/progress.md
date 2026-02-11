@@ -2493,9 +2493,48 @@ iOS/Knot/
 
 ---
 
+### Step 5.6: Create Diversity Selection Node (Backend) ✅
+**Date:** February 10, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/agents/selection.py` — LangGraph node for selecting 3 diverse recommendations from the ranked candidate pool
+- **`_classify_price_tier(price_cents, budget_min, budget_max)`** — Splits the budget range into three equal bands and returns `"low"`, `"mid"`, or `"high"`. `None` price or zero-width range defaults to `"mid"` (neutral)
+- **`_diversity_score(candidate, already_selected, budget_min, budget_max)`** — Awards 0–3 points for how many dimensions (price tier, type, merchant) differ from ALL already-selected items. Merchant comparison is case-insensitive and None-safe
+- **`select_diverse_three(state)`** — Async LangGraph node. Greedy selection algorithm: (1) pick the highest-scored candidate first, (2) for each subsequent pick, select the candidate maximizing diversity score, breaking ties by `final_score` (higher wins) then alphabetical title. Returns `{"final_three": list[CandidateRecommendation]}`. Writes to `final_three` (not `filtered_recommendations`) to preserve the full ranked pool for re-roll in Step 5.10
+- Created `backend/tests/test_selection_node.py` — 41 tests across 6 test classes
+
+**Files created:**
+- `backend/app/agents/selection.py` — Diversity selection node
+- `backend/tests/test_selection_node.py` — 41 tests
+
+**Test results:**
+- ✅ `pytest tests/test_selection_node.py -v` — 41 passed, 0 failed
+- ✅ All 3 spec tests pass:
+  1. Final 3 span different price points from a pool of 9 varying candidates
+  2. At least one gift and one experience included when both types are available
+  3. No two recommendations from the same merchant
+
+**Test categories (6 classes, 41 tests):**
+1. **TestClassifyPriceTier** (10 tests) — Low/mid/high classification, boundary values, None price, zero range, narrow range
+2. **TestDiversityScore** (9 tests) — Empty selected, all different (3), same everything (0), single-dimension differences, multi-selected comparison, None merchant, case-insensitive merchant
+3. **TestSelectDiverseThree** (7 tests) — Exact count, first pick is highest-scored, type diversity preference, merchant uniqueness, price tier spread, input immutability, correct return key
+4. **TestSpecRequirements** (3 tests) — The 3 spec tests from the implementation plan
+5. **TestEdgeCases** (9 tests) — Empty input, 1/2/3 candidates, all-same-type/merchant/price, None prices, tiebreaker ordering
+6. **TestStateCompatibility** (3 tests) — State update, key isolation, original pool preservation
+
+**Design decisions:**
+- **Greedy algorithm over combinatorial optimization:** With a pool of 9 candidates and 3 picks, a brute-force approach (84 combinations) would work but the greedy approach is simpler, O(n×k), and produces good-enough results. The first pick is always the highest-scored candidate, ensuring quality isn't sacrificed for diversity
+- **Writes to `final_three`, not `filtered_recommendations`:** Unlike the matching node which overwrites `filtered_recommendations`, the selection node writes to a separate field. This preserves the full ranked pool for the refresh/re-roll flow (Step 5.10), which needs the original pool to pick replacement candidates
+- **Price tier classification uses equal bands:** The budget range is split into 3 equal-width bands. This is simple and predictable. An alternative would be percentile-based tiers from the actual candidate prices, but that adds complexity and could be unstable with small pools
+- **Merchant comparison is case-insensitive and None-safe:** Prevents "Amazon" and "AMAZON" from counting as different merchants. `None` merchant names are treated as empty strings to avoid crashes
+- Run tests with: `cd backend && source venv/bin/activate && pytest tests/test_selection_node.py -v`
+
+---
+
 ## Next Steps
 
-- [ ] **Step 5.6:** Create Diversity Selection Node (Backend)
+- [ ] **Step 5.7:** Create Availability Verification Node (Backend)
 
 ---
 
