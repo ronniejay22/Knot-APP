@@ -263,3 +263,104 @@ struct HintItemResponse: Codable, Sendable {
         case createdAt = "created_at"
     }
 }
+
+// MARK: - Recommendation Generate Request (Step 6.2)
+
+/// Payload for `POST /api/v1/recommendations/generate`.
+struct RecommendationGeneratePayload: Codable, Sendable {
+    let milestoneId: String?
+    let occasionType: String
+
+    enum CodingKeys: String, CodingKey {
+        case milestoneId = "milestone_id"
+        case occasionType = "occasion_type"
+    }
+}
+
+// MARK: - Recommendation Refresh Request (Step 6.2)
+
+/// Payload for `POST /api/v1/recommendations/refresh`.
+struct RecommendationRefreshPayload: Codable, Sendable {
+    let rejectedRecommendationIds: [String]
+    let rejectionReason: String
+
+    enum CodingKeys: String, CodingKey {
+        case rejectedRecommendationIds = "rejected_recommendation_ids"
+        case rejectionReason = "rejection_reason"
+    }
+}
+
+// MARK: - Recommendation Generate Response (Step 6.2)
+
+/// Response from `POST /api/v1/recommendations/generate`.
+struct RecommendationGenerateResponse: Codable, Sendable {
+    let recommendations: [RecommendationItemResponse]
+    let count: Int
+    let milestoneId: String?
+    let occasionType: String
+
+    enum CodingKeys: String, CodingKey {
+        case recommendations, count
+        case milestoneId = "milestone_id"
+        case occasionType = "occasion_type"
+    }
+}
+
+// MARK: - Recommendation Refresh Response (Step 6.2)
+
+/// Response from `POST /api/v1/recommendations/refresh`.
+struct RecommendationRefreshResponse: Codable, Sendable {
+    let recommendations: [RecommendationItemResponse]
+    let count: Int
+    let rejectionReason: String
+
+    enum CodingKeys: String, CodingKey {
+        case recommendations, count
+        case rejectionReason = "rejection_reason"
+    }
+}
+
+// MARK: - Recommendation Item Response (Step 6.2)
+
+/// A single recommendation in the Choice-of-Three response.
+struct RecommendationItemResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let recommendationType: String
+    let title: String
+    let description: String?
+    let priceCents: Int?
+    let currency: String
+    let externalUrl: String
+    let imageUrl: String?
+    let merchantName: String?
+    let source: String
+    let location: RecommendationLocationResponse?
+    let interestScore: Double
+    let vibeScore: Double
+    let loveLanguageScore: Double
+    let finalScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recommendationType = "recommendation_type"
+        case title, description
+        case priceCents = "price_cents"
+        case currency
+        case externalUrl = "external_url"
+        case imageUrl = "image_url"
+        case merchantName = "merchant_name"
+        case source, location
+        case interestScore = "interest_score"
+        case vibeScore = "vibe_score"
+        case loveLanguageScore = "love_language_score"
+        case finalScore = "final_score"
+    }
+}
+
+/// Location info for experience/date recommendations.
+struct RecommendationLocationResponse: Codable, Sendable {
+    let city: String?
+    let state: String?
+    let country: String?
+    let address: String?
+}

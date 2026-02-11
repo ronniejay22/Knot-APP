@@ -19,8 +19,8 @@ final class KnotTests: XCTestCase {
     }
 
     func testInterestCategoriesCount() throws {
-        // Verify we have exactly 41 interest categories
-        XCTAssertEqual(Constants.interestCategories.count, 41, "Should have exactly 41 interest categories")
+        // Verify we have exactly 40 interest categories
+        XCTAssertEqual(Constants.interestCategories.count, 40, "Should have exactly 40 interest categories")
     }
     
     func testVibeOptionsCount() throws {

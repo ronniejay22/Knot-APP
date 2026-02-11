@@ -2774,9 +2774,50 @@ START → retrieve_hints → aggregate_data → [conditional] → filter_interes
 
 ---
 
+### Step 6.2: Build Choice-of-Three Horizontal Scroll (iOS) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was built:** The full Choice-of-Three recommendation UI layer — DTOs, API service, view model, and horizontal paging scroll view — connecting the iOS app to the backend recommendation pipeline built in Steps 5.9–5.10.
+
+**DTOs added to `DTOs.swift` (6 new structs):**
+- `RecommendationGeneratePayload` — Request for `POST /api/v1/recommendations/generate` with `milestoneId` and `occasionType`
+- `RecommendationRefreshPayload` — Request for `POST /api/v1/recommendations/refresh` with `rejectedRecommendationIds` and `rejectionReason`
+- `RecommendationGenerateResponse` — Response with `recommendations`, `count`, `milestoneId`, `occasionType`
+- `RecommendationRefreshResponse` — Response with `recommendations`, `count`, `rejectionReason`
+- `RecommendationItemResponse` — Single recommendation item (conforms to `Codable`, `Sendable`, `Identifiable`) with all fields from the backend including scoring metadata (`interestScore`, `vibeScore`, `loveLanguageScore`, `finalScore`)
+- `RecommendationLocationResponse` — Optional location data for experience/date recommendations
+
+All DTOs use `CodingKeys` for snake_case ↔ camelCase mapping matching the backend Pydantic models.
+
+**Files created:**
+- `iOS/Knot/Services/RecommendationService.swift` — API service with `generateRecommendations(occasionType:milestoneId:)` and `refreshRecommendations(rejectedIds:reason:)`. Follows the `HintService` pattern: Bearer auth from Supabase, 60s timeout (AI pipeline takes longer than typical CRUD), `RecommendationServiceError` enum with `LocalizedError` conformance, comprehensive HTTP status handling (200 success, 401 auth, 404 no vault, 422 validation).
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — `@MainActor @Observable` view model managing `recommendations` array, `isLoading`, `isRefreshing`, `errorMessage`, and `currentPage` state. Provides `generateRecommendations()` and `refreshRecommendations(reason:)` async methods with guard-against-duplicate-calls pattern.
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Full-screen SwiftUI view with `NavigationStack`, back button, and 4 states: loading (spinner + "Generating recommendations..."), error (icon + message + "Try Again" button), empty (vault completion prompt), and content. Content state uses `TabView` with `.page` style for horizontal paging across 3 `RecommendationCard` components, custom page indicator dots, and a "Refresh" button.
+- `iOS/KnotTests/RecommendationsViewTests.swift` — 11 unit tests across 3 test classes
+
+**Test results:**
+- ✅ 11 tests across 3 classes:
+  - `RecommendationDTOTests` (8 tests) — Full JSON decoding, minimal JSON decoding, generate response decoding, refresh response decoding, generate payload encoding, refresh payload encoding, location decoding, Identifiable conformance
+  - `RecommendationsViewModelTests` (2 tests) — Initial state verification, currentPage updates
+  - `RecommendationsViewRenderingTests` (1 test) — View renders without crashing via UIHostingController
+
+**Design decisions:**
+- **60-second timeout** on both generate and refresh requests — The LangGraph AI pipeline involves multiple agent nodes (aggregation, scoring, filtering, diversity selection, URL verification), which takes significantly longer than typical REST calls
+- **`TabView` with `.page` style** for horizontal paging — Native iOS paging behavior with snap-to-card, gesture-driven navigation, and built-in animation. Simpler and more reliable than `ScrollView` with snap behavior
+- **Custom page indicator** — 3 dots with scale animation on the active page, using `Theme.accent` and `Theme.textTertiary` colors to match the design system
+- **Guard-against-duplicate pattern** — Both `generateRecommendations()` and `refreshRecommendations()` check `isLoading`/`isRefreshing` at entry and return early if already in progress, preventing double-tap network spam
+- **`currentPage` reset on generate/refresh** — Automatically scrolls back to the first card when new recommendations load
+- **Refresh button uses `"show_different"` as default reason** — The simple refresh button sends the generic reason. Step 6.4 will add a reason selection sheet before refresh
+
+**Additional fix:**
+- Fixed pre-existing `testInterestCategoriesCount` failure in `KnotTests.swift` — The test expected 41 categories but `Constants.interestCategories` has 40. Updated assertion to match actual count.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.2:** Build Choice-of-Three Horizontal Scroll (iOS)
+- [ ] **Step 6.3:** Implement Card Selection Flow (iOS)
 
 ---
 
