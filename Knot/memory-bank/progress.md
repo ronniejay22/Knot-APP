@@ -2994,9 +2994,54 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 7.2: Create Notification Scheduling Logic (Backend) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was done:**
+- Created notification scheduler service with milestone date computation, floating holiday resolution, and notification queue population
+- Implemented `compute_next_occurrence()` to resolve yearly milestones (year-2000 placeholder dates) to their next real-world date, including floating holidays (Mother's Day = 2nd Sunday of May, Father's Day = 3rd Sunday of June) and leap year Feb 29 clamping
+- Implemented `schedule_milestone_notifications()` to create `notification_queue` entries for 14, 7, and 3 days before a milestone, skipping intervals that are already in the past
+- Implemented `schedule_notifications_for_milestones()` as a batch wrapper for processing all milestones after vault creation or update
+- Added `not_before` parameter to `publish_to_qstash()` using the `Upstash-Not-Before` header, which accepts a Unix timestamp with no 7-day duration limit (unlike `Upstash-Delay`)
+- Added `WEBHOOK_BASE_URL` environment variable to config for QStash callback destination, and updated `is_qstash_configured()` and `validate_qstash_config()` to require it
+- Wired notification scheduling into both POST and PUT vault endpoints as best-effort, fire-and-forget calls — scheduling failures do not block vault creation/update
+- Old notifications are automatically cleaned up via CASCADE when milestones are deleted during vault updates
+
+**Files created:**
+- `backend/app/services/notification_scheduler.py` — Core scheduling logic: `_mothers_day()`, `_fathers_day()`, `_is_floating_holiday()`, `compute_next_occurrence()`, `schedule_milestone_notifications()`, `schedule_notifications_for_milestones()`
+- `backend/tests/test_notification_scheduler.py` — 34 tests across 6 categories
+
+**Files modified:**
+- `backend/app/core/config.py` — Added `WEBHOOK_BASE_URL` env var, updated `is_qstash_configured()` and `validate_qstash_config()` to also require `WEBHOOK_BASE_URL`
+- `backend/app/services/qstash.py` — Added `not_before: int | None` parameter to `publish_to_qstash()` with `Upstash-Not-Before` header support
+- `backend/app/api/vault.py` — Added `import logging` and `schedule_notifications_for_milestones` import; captured milestone insert results in both POST and PUT endpoints; added best-effort notification scheduling after all inserts complete
+- `backend/.env.example` — Added `WEBHOOK_BASE_URL=` in webhook section
+
+**Test results:**
+- ✅ 34 tests passing, 0 failures (Step 7.2)
+- ✅ 25 tests passing, 0 failures (Step 7.1 regression check)
+- `TestFloatingHolidayDetection` (5 tests) — Mother's Day detected, Father's Day detected, case-insensitive detection, non-floating returns None, birthday returns None
+- `TestFloatingHolidayDates` (6 tests) — Mother's Day 2026 = May 10, Father's Day 2026 = June 21, Mother's Day 2027 = May 9, Father's Day 2027 = June 20, always Sunday (2024-2030)
+- `TestComputeNextOccurrence` (10 tests) — Yearly birthday future/past, one-time future/past, Mother's Day floating, Father's Day floating, Feb 29 leap/non-leap, today returns next year, Christmas
+- `TestScheduleMilestoneNotifications` (8 tests) — 20-day milestone creates 3 notifications, 10-day creates 2, 5-day creates 1, 2-day creates 0, past one-time creates 0, QStash unconfigured still creates DB entries, correct not_before timestamps, deduplication ID format
+- `TestScheduleNotificationsForMilestones` (2 tests) — Batch creates correct total, parses string dates from Supabase
+- `TestModuleImports` (3 tests) — All scheduler exports importable, publish_to_qstash has not_before param, config has WEBHOOK_BASE_URL
+
+**Design decisions:**
+- **`Upstash-Not-Before` over `Upstash-Delay`:** The `Upstash-Delay` header is capped at 7 days (604800 seconds). For a milestone 60 days out, the 14-day notification would need a 46-day delay — exceeding that limit. `Upstash-Not-Before` accepts a Unix timestamp with no duration limit, making it the correct choice for notification scheduling.
+- **Floating holiday detection by name:** Uses case-insensitive substring matching on `milestone_name` ("mother" → `mothers_day`, "father" → `fathers_day`). The iOS app sets `milestone_name` to `holiday.displayName` which is "Mother's Day" / "Father's Day", so this is reliable. No need to check month/day since the name is authoritative.
+- **CASCADE cleanup on vault update:** When `update_vault()` deletes old milestones, the `ON DELETE CASCADE` foreign key on `notification_queue.milestone_id` automatically removes associated notification entries. Orphaned QStash messages (already published but whose notification_queue row was deleted) will get a 404 from the process endpoint, which is acceptable — QStash stops retrying after the configured retry count.
+- **Fire-and-forget scheduling:** Notification scheduling in vault endpoints is wrapped in try/except. A QStash API failure should never cause vault creation to fail. Errors are logged with `exc_info=True` for full tracebacks.
+- **Graceful degradation without QStash:** `notification_queue` entries are always created in the database regardless of QStash availability. Only the `publish_to_qstash()` call is skipped when `is_qstash_configured()` returns `False`. This enables local development without QStash credentials and provides a fallback path (a future cron could process pending notifications).
+- **All parameters passed in (no extra DB queries):** `schedule_milestone_notifications()` takes all needed data as function parameters. The calling vault endpoint already has the user_id and milestone data from the insert result, so no additional database queries are needed.
+- **Deduplication ID format:** `"{milestone_id}-{days_before}"` ensures exactly one QStash message per milestone per interval. Since milestones get new UUIDs on re-insert during vault updates, there is no collision between old and new notifications.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 7.2:** Create Notification Scheduling Logic (Backend)
+- [ ] **Step 7.3:** Create Notification Processing Endpoint (Backend)
 
 ---
 
@@ -3204,3 +3249,13 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 98. **QStash webhook test pattern (Step 7.1):** Tests use `unittest.mock.patch` to inject a known `TEST_SIGNING_KEY` into the service module, then create valid/invalid JWTs with `_create_qstash_signature()`. This allows full signature verification testing without real QStash credentials. Integration tests (class `TestWebhookProcessing`) also create real Supabase notification_queue entries to test end-to-end processing.
 
 99. **Notification endpoint reads raw body before Pydantic parsing (Step 7.1):** The `POST /api/v1/notifications/process` handler calls `request.body()` first to get the exact bytes for signature verification, then manually `json.loads()` and constructs the Pydantic model. It does NOT use FastAPI's automatic body parsing (`payload: NotificationProcessRequest`) because that would consume the body stream and prevent raw byte access for hash comparison.
+
+100. **`Upstash-Not-Before` header for unlimited-duration scheduling (Step 7.2):** `publish_to_qstash()` now supports a `not_before: int | None` parameter that sets the `Upstash-Not-Before` header with a Unix timestamp. Unlike `Upstash-Delay` (capped at 7 days / 604800s), `Upstash-Not-Before` has no duration limit. The notification scheduler uses this exclusively — a milestone 60 days out needs a 46-day delay for its 14-day notification, which exceeds the `Upstash-Delay` cap.
+
+101. **Floating holiday dates are computed at scheduling time, not onboarding (Step 7.2):** `compute_next_occurrence()` in `notification_scheduler.py` dynamically computes Mother's Day (2nd Sunday of May) and Father's Day (3rd Sunday of June) for the target year. Detection uses case-insensitive substring matching on `milestone_name` — "mother" triggers `_mothers_day()`, "father" triggers `_fathers_day()`. The onboarding step stores approximate fixed dates (May 11, Jun 15) as the milestone identity, not the exact date. Specific 2026 values: Mother's Day = May 10, Father's Day = June 21.
+
+102. **WEBHOOK_BASE_URL required for QStash scheduling (Step 7.2):** A new `WEBHOOK_BASE_URL` environment variable was added to `config.py`. This is the public URL of the backend that QStash POSTs to (e.g., `https://knot-api.vercel.app`). `is_qstash_configured()` and `validate_qstash_config()` now require it in addition to `UPSTASH_QSTASH_TOKEN` and `QSTASH_CURRENT_SIGNING_KEY`. The notification scheduler constructs the webhook destination as `{WEBHOOK_BASE_URL}/api/v1/notifications/process`.
+
+103. **Notification scheduling is fire-and-forget from vault endpoints (Step 7.2):** Both `POST /api/v1/vault` and `PUT /api/v1/vault` call `schedule_notifications_for_milestones()` after all inserts complete, wrapped in `try/except`. A scheduling failure (QStash timeout, misconfigured credentials, etc.) is logged but does not fail the vault operation. The milestone insert result is captured (`milestone_result = client.table(...).insert(...).execute()`) so the returned rows (with auto-generated UUIDs) can be passed directly to the scheduler — no extra DB queries needed.
+
+104. **CASCADE handles notification cleanup on vault update (Step 7.2):** When `update_vault()` deletes old milestones, `ON DELETE CASCADE` on `notification_queue.milestone_id` automatically removes all associated notification entries. No manual cancellation is needed. Orphaned QStash messages get 404 at delivery time. New milestones receive new UUIDs, so deduplication IDs (`{milestone_id}-{days_before}`) never collide.

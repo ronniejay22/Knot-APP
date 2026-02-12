@@ -9,6 +9,8 @@ Step 3.12: GET /api/v1/vault — Retrieve Partner Vault
            PUT /api/v1/vault — Update Partner Vault
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.security import get_current_user_id
@@ -22,6 +24,10 @@ from app.models.vault import (
     VaultGetResponse,
     VaultUpdateResponse,
 )
+
+from app.services.notification_scheduler import schedule_notifications_for_milestones
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/vault", tags=["vault"])
 
@@ -116,8 +122,13 @@ async def create_vault(
             }
             for m in payload.milestones
         ]
+        milestone_result = None
         if milestone_rows:
-            client.table("partner_milestones").insert(milestone_rows).execute()
+            milestone_result = (
+                client.table("partner_milestones")
+                .insert(milestone_rows)
+                .execute()
+            )
 
         # =============================================================
         # 4. Insert vibes
@@ -159,6 +170,22 @@ async def create_vault(
             },
         ]
         client.table("partner_love_languages").insert(love_language_rows).execute()
+
+        # =============================================================
+        # 7. Schedule milestone notifications (best-effort)
+        # =============================================================
+        if milestone_result and milestone_result.data:
+            try:
+                await schedule_notifications_for_milestones(
+                    milestones=milestone_result.data,
+                    user_id=user_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to schedule notifications for vault "
+                    f"{vault_id}: {exc}",
+                    exc_info=True,
+                )
 
         # =============================================================
         # Build response
@@ -480,8 +507,13 @@ async def update_vault(
             }
             for m in payload.milestones
         ]
+        milestone_result = None
         if milestone_rows:
-            client.table("partner_milestones").insert(milestone_rows).execute()
+            milestone_result = (
+                client.table("partner_milestones")
+                .insert(milestone_rows)
+                .execute()
+            )
 
         # =============================================================
         # 6. Replace vibes (delete old, insert new)
@@ -529,6 +561,24 @@ async def update_vault(
             },
         ]
         client.table("partner_love_languages").insert(love_language_rows).execute()
+
+        # =============================================================
+        # 9. Schedule milestone notifications (best-effort)
+        # =============================================================
+        # Old notification_queue entries were automatically removed by
+        # CASCADE when partner_milestones rows were deleted above.
+        if milestone_result and milestone_result.data:
+            try:
+                await schedule_notifications_for_milestones(
+                    milestones=milestone_result.data,
+                    user_id=user_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to schedule notifications for vault "
+                    f"{vault_id}: {exc}",
+                    exc_info=True,
+                )
 
         # =============================================================
         # Build response

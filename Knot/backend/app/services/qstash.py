@@ -137,6 +137,7 @@ async def publish_to_qstash(
     body: dict[str, Any],
     *,
     delay_seconds: int | None = None,
+    not_before: int | None = None,
     deduplication_id: str | None = None,
     retries: int = 3,
 ) -> dict:
@@ -145,12 +146,17 @@ async def publish_to_qstash(
 
     QStash will deliver the message to the destination URL as a POST
     request with the provided JSON body. Optionally schedule delivery
-    after a delay.
+    after a delay or at a specific time.
 
     Args:
         destination_url: The webhook URL QStash should POST to.
         body: The JSON payload to deliver.
         delay_seconds: Optional delay before delivery (in seconds).
+                       Limited to 7 days (604800s) by QStash.
+        not_before: Optional Unix timestamp (seconds) for scheduled
+                    delivery. Unlike delay_seconds, this has no
+                    maximum duration limit. Mutually exclusive with
+                    delay_seconds.
         deduplication_id: Optional ID to prevent duplicate deliveries.
         retries: Number of delivery retries on failure (default 3).
 
@@ -176,6 +182,9 @@ async def publish_to_qstash(
     if delay_seconds is not None and delay_seconds > 0:
         headers["Upstash-Delay"] = f"{delay_seconds}s"
 
+    if not_before is not None:
+        headers["Upstash-Not-Before"] = str(not_before)
+
     if deduplication_id:
         headers["Upstash-Deduplication-Id"] = deduplication_id
 
@@ -193,6 +202,7 @@ async def publish_to_qstash(
     result = response.json()
     logger.info(
         f"Published message to QStash: messageId={result.get('messageId')}, "
-        f"destination={destination_url}, delay={delay_seconds}s"
+        f"destination={destination_url}, delay={delay_seconds}s, "
+        f"not_before={not_before}"
     )
     return result

@@ -33,6 +33,9 @@ UPSTASH_QSTASH_URL: str = os.getenv("UPSTASH_QSTASH_URL", "https://qstash.upstas
 QSTASH_CURRENT_SIGNING_KEY: str = os.getenv("QSTASH_CURRENT_SIGNING_KEY", "")
 QSTASH_NEXT_SIGNING_KEY: str = os.getenv("QSTASH_NEXT_SIGNING_KEY", "")
 
+# --- Webhook Configuration ---
+WEBHOOK_BASE_URL: str = os.getenv("WEBHOOK_BASE_URL", "")
+
 
 def validate_supabase_config() -> bool:
     """Check that all required Supabase credentials are present and non-empty."""
@@ -83,7 +86,7 @@ def validate_qstash_config() -> bool:
     Returns True if configured, False if not (non-fatal — notification
     scheduling will be disabled but the app will still function).
     """
-    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY)
+    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY and WEBHOOK_BASE_URL)
 
 
 def is_qstash_configured() -> bool:
@@ -92,4 +95,4 @@ def is_qstash_configured() -> bool:
 
     Used by tests and services to conditionally enable notification features.
     """
-    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY)
+    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY and WEBHOOK_BASE_URL)
