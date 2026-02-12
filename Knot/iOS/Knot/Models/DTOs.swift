@@ -5,6 +5,7 @@
 //  Created on February 7, 2026.
 //  Step 3.11: Data Transfer Objects for backend API communication.
 //  Step 4.2: Added Hint DTOs (HintCreatePayload, HintCreateResponse, HintListResponse, HintItemResponse).
+//  Step 6.5: Added vibeOverride to RecommendationRefreshPayload for manual vibe override.
 //
 
 import Foundation
@@ -283,10 +284,12 @@ struct RecommendationGeneratePayload: Codable, Sendable {
 struct RecommendationRefreshPayload: Codable, Sendable {
     let rejectedRecommendationIds: [String]
     let rejectionReason: String
+    let vibeOverride: [String]?
 
     enum CodingKeys: String, CodingKey {
         case rejectedRecommendationIds = "rejected_recommendation_ids"
         case rejectionReason = "rejection_reason"
+        case vibeOverride = "vibe_override"
     }
 }
 

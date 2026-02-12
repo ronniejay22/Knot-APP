@@ -6,6 +6,7 @@
 //  Step 6.2: Choice-of-Three horizontal scroll with paging, loading state, and Refresh button.
 //  Step 6.3: Card selection flow with confirmation bottom sheet.
 //  Step 6.4: Refresh flow with reason selection sheet and card animations.
+//  Step 6.5: Manual vibe override — Adjust Vibe button and VibeOverrideSheet.
 //
 
 import SwiftUI
@@ -101,6 +102,22 @@ struct RecommendationsView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $viewModel.showVibeOverrideSheet) {
+                VibeOverrideSheet(
+                    selectedVibes: viewModel.vibeOverride ?? [],
+                    onSave: { vibes in
+                        Task {
+                            await viewModel.saveVibeOverride(vibes)
+                        }
+                    },
+                    onClear: {
+                        viewModel.clearVibeOverride()
+                        viewModel.showVibeOverrideSheet = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
@@ -157,11 +174,49 @@ struct RecommendationsView: View {
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.isRefreshing)
 
-            // Refresh button
-            refreshButton
-                .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+            // Action buttons (Step 6.5: Adjust Vibe + Refresh)
+            HStack(spacing: 12) {
+                adjustVibeButton
+                refreshButton
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
         }
+    }
+
+    // MARK: - Adjust Vibe Button (Step 6.5)
+
+    private var adjustVibeButton: some View {
+        Button {
+            viewModel.requestVibeOverride()
+        } label: {
+            HStack(spacing: 8) {
+                Image(uiImage: Lucide.sparkles)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+
+                Text("Adjust Vibe")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(viewModel.hasVibeOverride ? .white : Theme.textSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(viewModel.hasVibeOverride ? Theme.accent.opacity(0.3) : Theme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(
+                                viewModel.hasVibeOverride ? Theme.accent : Theme.surfaceBorder,
+                                lineWidth: viewModel.hasVibeOverride ? 1.5 : 1
+                            )
+                    )
+            )
+        }
+        .disabled(viewModel.isRefreshing || !viewModel.cardsVisible)
+        .opacity(viewModel.isRefreshing || !viewModel.cardsVisible ? 0.6 : 1.0)
     }
 
     // MARK: - Page Indicator
@@ -580,6 +635,239 @@ struct RefreshReasonSheet: View {
     }
 }
 
+// MARK: - Vibe Override Sheet (Step 6.5)
+
+/// Bottom sheet for temporarily overriding vibe preferences for this session only.
+/// Displays the 8 vibe options in a 2-column grid matching the onboarding vibes aesthetic.
+/// The override does not modify the partner vault — it only affects the current recommendation session.
+struct VibeOverrideSheet: View {
+    @State private var selectedVibes: Set<String>
+    let onSave: @MainActor (Set<String>) -> Void
+    let onClear: @MainActor () -> Void
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+
+    init(
+        selectedVibes: Set<String>,
+        onSave: @escaping @MainActor (Set<String>) -> Void,
+        onClear: @escaping @MainActor () -> Void
+    ) {
+        self._selectedVibes = State(initialValue: selectedVibes)
+        self.onSave = onSave
+        self.onClear = onClear
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("Adjust Vibe")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+
+                    Text("Temporarily change vibes for this session.\nYour vault preferences won't be modified.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 16)
+
+                // Vibe grid
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(Constants.vibeOptions, id: \.self) { vibe in
+                            VibeOverrideCard(
+                                vibe: vibe,
+                                displayName: OnboardingVibesView.displayName(for: vibe),
+                                description: OnboardingVibesView.vibeDescription(for: vibe),
+                                icon: OnboardingVibesView.vibeIcon(for: vibe),
+                                gradient: OnboardingVibesView.vibeGradient(for: vibe),
+                                isSelected: selectedVibes.contains(vibe)
+                            ) {
+                                toggleVibe(vibe)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                }
+
+                // Counter + buttons
+                VStack(spacing: 12) {
+                    // Selection counter
+                    HStack(spacing: 4) {
+                        Text("\(selectedVibes.count) selected")
+                            .fontWeight(.semibold)
+
+                        if selectedVibes.isEmpty {
+                            Text("(pick at least 1)")
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.subheadline)
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.accent)
+
+                    // Save button
+                    Button {
+                        onSave(selectedVibes)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(uiImage: Lucide.sparkles)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+
+                            Text("Apply & Refresh")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Theme.accent)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selectedVibes.isEmpty)
+                    .opacity(selectedVibes.isEmpty ? 0.5 : 1.0)
+
+                    // Clear override button
+                    Button {
+                        onClear()
+                    } label: {
+                        Text("Reset to Vault Defaults")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(Theme.surface)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .stroke(Theme.surfaceBorder, lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+
+    private func toggleVibe(_ vibe: String) {
+        if selectedVibes.contains(vibe) {
+            selectedVibes.remove(vibe)
+        } else {
+            selectedVibes.insert(vibe)
+        }
+    }
+}
+
+// MARK: - Vibe Override Card
+
+/// A compact vibe card for the override sheet, matching the onboarding vibe card aesthetic.
+private struct VibeOverrideCard: View {
+    let vibe: String
+    let displayName: String
+    let description: String
+    let icon: UIImage
+    let gradient: LinearGradient
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                gradient
+
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.40)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Large icon watermark
+                Image(uiImage: icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 32, height: 32)
+                    .foregroundStyle(.white.opacity(0.18))
+                    .offset(x: 28, y: -16)
+
+                // Content
+                VStack(alignment: .leading, spacing: 3) {
+                    Spacer()
+
+                    Image(uiImage: icon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .foregroundStyle(.white.opacity(0.85))
+
+                    Text(displayName)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+
+                    Text(description)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.70))
+                        .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+
+                // Checkmark badge
+                if isSelected {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Circle()
+                                .fill(Color.pink)
+                                .frame(width: 22, height: 22)
+                                .overlay {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .aspectRatio(1.4, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        isSelected ? Color.pink : Color.white.opacity(0.06),
+                        lineWidth: isSelected ? 2.5 : 0.5
+                    )
+            )
+            .scaleEffect(isSelected ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.25), value: isSelected)
+    }
+}
+
 // MARK: - Previews
 
 #Preview("Loading") {
@@ -661,4 +949,24 @@ private let _previewExperienceItem: RecommendationItemResponse = {
 #Preview("Refresh Reason Sheet") {
     RefreshReasonSheet(onSelectReason: { _ in })
         .preferredColorScheme(.dark)
+}
+
+// MARK: - Vibe Override Sheet Previews (Step 6.5)
+
+#Preview("Vibe Override — Empty") {
+    VibeOverrideSheet(
+        selectedVibes: [],
+        onSave: { _ in },
+        onClear: {}
+    )
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Vibe Override — 2 Selected") {
+    VibeOverrideSheet(
+        selectedVibes: ["quiet_luxury", "romantic"],
+        onSave: { _ in },
+        onClear: {}
+    )
+    .preferredColorScheme(.dark)
 }

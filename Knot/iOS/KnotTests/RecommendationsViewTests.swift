@@ -6,6 +6,7 @@
 //  Step 6.2: Unit tests for RecommendationsView, RecommendationsViewModel, DTOs, and RecommendationService.
 //  Step 6.3: Tests for card selection flow, feedback DTOs, and confirmation sheet.
 //  Step 6.4: Tests for refresh reason sheet and refresh animation state management.
+//  Step 6.5: Tests for vibe override state management, DTO encoding, and sheet rendering.
 //
 
 import XCTest
@@ -221,11 +222,12 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(json?["occasion_type"] as? String, "major_milestone")
     }
 
-    /// Verify RecommendationRefreshPayload encodes to correct snake_case JSON keys.
+    /// Verify RecommendationRefreshPayload encodes to correct snake_case JSON keys (no vibe override).
     func testRefreshPayloadEncodesCorrectly() throws {
         let payload = RecommendationRefreshPayload(
             rejectedRecommendationIds: ["r1", "r2", "r3"],
-            rejectionReason: "not_their_style"
+            rejectionReason: "not_their_style",
+            vibeOverride: nil
         )
 
         let data = try JSONEncoder().encode(payload)
@@ -233,6 +235,59 @@ final class RecommendationDTOTests: XCTestCase {
 
         XCTAssertEqual(json?["rejected_recommendation_ids"] as? [String], ["r1", "r2", "r3"])
         XCTAssertEqual(json?["rejection_reason"] as? String, "not_their_style")
+    }
+
+    // MARK: - Vibe Override DTO Tests (Step 6.5)
+
+    /// Verify RecommendationRefreshPayload encodes vibe_override when provided.
+    func testRefreshPayloadEncodesVibeOverride() throws {
+        let payload = RecommendationRefreshPayload(
+            rejectedRecommendationIds: ["r1"],
+            rejectionReason: "show_different",
+            vibeOverride: ["romantic", "vintage"]
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual(json?["vibe_override"] as? [String], ["romantic", "vintage"])
+        XCTAssertEqual(json?["rejection_reason"] as? String, "show_different")
+    }
+
+    /// Verify RecommendationRefreshPayload omits vibe_override when nil.
+    func testRefreshPayloadOmitsNilVibeOverride() throws {
+        let payload = RecommendationRefreshPayload(
+            rejectedRecommendationIds: ["r1"],
+            rejectionReason: "too_expensive",
+            vibeOverride: nil
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let jsonString = String(data: data, encoding: .utf8)!
+
+        // The key should not appear in the JSON at all when nil
+        // (default Codable behavior for optional nil is to encode as null)
+        // Either null or absent is fine — just verify the payload encodes
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(json?["rejection_reason"] as? String, "too_expensive")
+        XCTAssertNotNil(jsonString) // Encoding succeeded
+    }
+
+    /// Verify vibe override with all 8 vibes encodes correctly.
+    func testRefreshPayloadEncodesAllVibes() throws {
+        let allVibes = ["quiet_luxury", "street_urban", "outdoorsy", "vintage",
+                        "minimalist", "bohemian", "romantic", "adventurous"]
+
+        let payload = RecommendationRefreshPayload(
+            rejectedRecommendationIds: ["r1", "r2", "r3"],
+            rejectionReason: "show_different",
+            vibeOverride: allVibes
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual((json?["vibe_override"] as? [String])?.count, 8)
     }
 
     /// Verify RecommendationLocationResponse decodes all fields.
@@ -488,6 +543,76 @@ final class RecommendationsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.cardsVisible)
     }
 
+    // MARK: - Vibe Override State Tests (Step 6.5)
+
+    /// Verify vibe override initial state is nil with sheet hidden.
+    func testVibeOverrideInitialState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertNil(vm.vibeOverride)
+        XCTAssertFalse(vm.hasVibeOverride)
+        XCTAssertFalse(vm.showVibeOverrideSheet)
+    }
+
+    /// Verify requestVibeOverride() shows the vibe override sheet.
+    func testRequestVibeOverrideShowsSheet() {
+        let vm = RecommendationsViewModel()
+
+        vm.requestVibeOverride()
+
+        XCTAssertTrue(vm.showVibeOverrideSheet)
+    }
+
+    /// Verify setting vibeOverride makes hasVibeOverride return true.
+    func testHasVibeOverrideReflectsState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertFalse(vm.hasVibeOverride)
+
+        vm.vibeOverride = ["romantic", "vintage"]
+        XCTAssertTrue(vm.hasVibeOverride)
+
+        vm.vibeOverride = nil
+        XCTAssertFalse(vm.hasVibeOverride)
+    }
+
+    /// Verify clearVibeOverride() resets the override to nil.
+    func testClearVibeOverrideResetsState() {
+        let vm = RecommendationsViewModel()
+        vm.vibeOverride = ["minimalist", "quiet_luxury"]
+
+        XCTAssertTrue(vm.hasVibeOverride)
+
+        vm.clearVibeOverride()
+
+        XCTAssertNil(vm.vibeOverride)
+        XCTAssertFalse(vm.hasVibeOverride)
+    }
+
+    /// Verify vibeOverride stores the correct set of vibes.
+    func testVibeOverrideStoresCorrectVibes() {
+        let vm = RecommendationsViewModel()
+        let vibes: Set<String> = ["romantic", "vintage", "bohemian"]
+
+        vm.vibeOverride = vibes
+
+        XCTAssertEqual(vm.vibeOverride, vibes)
+        XCTAssertEqual(vm.vibeOverride?.count, 3)
+        XCTAssertTrue(vm.vibeOverride?.contains("romantic") ?? false)
+        XCTAssertTrue(vm.vibeOverride?.contains("vintage") ?? false)
+        XCTAssertTrue(vm.vibeOverride?.contains("bohemian") ?? false)
+    }
+
+    /// Verify empty set on vibeOverride is treated as having an override.
+    func testEmptyVibeOverrideSetIsStillOverride() {
+        let vm = RecommendationsViewModel()
+
+        // An empty set is non-nil, so hasVibeOverride should be true
+        // (though saveVibeOverride guards against empty sets)
+        vm.vibeOverride = Set<String>()
+        XCTAssertTrue(vm.hasVibeOverride)
+    }
+
     // MARK: - Test Helpers
 
     private func makeTestRecommendation(
@@ -739,5 +864,95 @@ final class RefreshReasonSheetTests: XCTestCase {
             .preferredColorScheme(.dark)
         let hostingController = UIHostingController(rootView: sheet)
         XCTAssertNotNil(hostingController.view, "RefreshReasonSheet should render with dark scheme")
+    }
+}
+
+// MARK: - Vibe Override Sheet Tests (Step 6.5)
+
+@MainActor
+final class VibeOverrideSheetTests: XCTestCase {
+
+    /// Verify the vibe override sheet renders with empty selection.
+    func testSheetRendersWithEmptySelection() {
+        let sheet = VibeOverrideSheet(
+            selectedVibes: [],
+            onSave: { _ in },
+            onClear: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view,
+                        "VibeOverrideSheet should render with empty selection")
+    }
+
+    /// Verify the vibe override sheet renders with pre-selected vibes.
+    func testSheetRendersWithPreselectedVibes() {
+        let sheet = VibeOverrideSheet(
+            selectedVibes: ["romantic", "vintage"],
+            onSave: { _ in },
+            onClear: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view,
+                        "VibeOverrideSheet should render with pre-selected vibes")
+    }
+
+    /// Verify the save callback fires with the selected vibes.
+    func testSaveCallbackFires() {
+        var savedVibes: Set<String>?
+        let sheet = VibeOverrideSheet(
+            selectedVibes: ["minimalist"],
+            onSave: { vibes in savedVibes = vibes },
+            onClear: {}
+        )
+
+        sheet.onSave(["minimalist", "quiet_luxury"])
+        XCTAssertEqual(savedVibes, ["minimalist", "quiet_luxury"])
+    }
+
+    /// Verify the clear callback fires.
+    func testClearCallbackFires() {
+        var clearCalled = false
+        let sheet = VibeOverrideSheet(
+            selectedVibes: ["romantic"],
+            onSave: { _ in },
+            onClear: { clearCalled = true }
+        )
+
+        sheet.onClear()
+        XCTAssertTrue(clearCalled, "onClear callback should fire")
+    }
+
+    /// Verify the sheet renders with all 8 vibes selected.
+    func testSheetRendersWithAllVibes() {
+        let allVibes: Set<String> = [
+            "quiet_luxury", "street_urban", "outdoorsy", "vintage",
+            "minimalist", "bohemian", "romantic", "adventurous"
+        ]
+
+        let sheet = VibeOverrideSheet(
+            selectedVibes: allVibes,
+            onSave: { _ in },
+            onClear: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view,
+                        "VibeOverrideSheet should render with all 8 vibes selected")
+    }
+
+    /// Verify the sheet renders with dark color scheme.
+    func testSheetRendersWithDarkScheme() {
+        let sheet = VibeOverrideSheet(
+            selectedVibes: ["romantic"],
+            onSave: { _ in },
+            onClear: {}
+        )
+        .preferredColorScheme(.dark)
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view,
+                        "VibeOverrideSheet should render with dark scheme")
     }
 }

@@ -4,6 +4,7 @@
 //
 //  Created on February 10, 2026.
 //  Step 6.2: Service for generating and refreshing AI recommendations via backend API.
+//  Step 6.5: Added vibeOverride parameter to refreshRecommendations for manual vibe override.
 //
 
 import Foundation
@@ -164,11 +165,13 @@ final class RecommendationService: Sendable {
     /// - Parameters:
     ///   - rejectedIds: IDs of the current recommendations being rejected
     ///   - reason: The rejection reason for exclusion filtering
+    ///   - vibeOverride: Optional vibe tags to use instead of vault vibes (session-only override)
     /// - Returns: The refresh response with up to 3 new recommendations
     /// - Throws: `RecommendationServiceError` if the request fails
     func refreshRecommendations(
         rejectedIds: [String],
-        reason: String
+        reason: String,
+        vibeOverride: [String]? = nil
     ) async throws -> RecommendationRefreshResponse {
         let token = try await getAccessToken()
 
@@ -184,7 +187,8 @@ final class RecommendationService: Sendable {
 
         let payload = RecommendationRefreshPayload(
             rejectedRecommendationIds: rejectedIds,
-            rejectionReason: reason
+            rejectionReason: reason,
+            vibeOverride: vibeOverride
         )
 
         do {

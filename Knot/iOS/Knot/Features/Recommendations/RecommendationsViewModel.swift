@@ -6,6 +6,7 @@
 //  Step 6.2: State management for the Choice-of-Three recommendation UI.
 //  Step 6.3: Card selection flow with confirmation sheet and feedback recording.
 //  Step 6.4: Refresh flow with reason selection and card exit/entry animations.
+//  Step 6.5: Manual vibe override — session-scoped vibe selection and refresh.
 //
 
 import Foundation
@@ -51,6 +52,19 @@ final class RecommendationsViewModel {
 
     /// Controls card visibility for entry/exit animations during refresh.
     var cardsVisible = true
+
+    // MARK: - Vibe Override State (Step 6.5)
+
+    /// Whether the vibe override sheet is presented.
+    var showVibeOverrideSheet = false
+
+    /// Temporarily overridden vibe tags for this session only.
+    /// When non-nil, these vibes are sent on refresh calls instead of the vault's vibes.
+    /// Cleared when the user navigates away from the recommendations screen.
+    var vibeOverride: Set<String>?
+
+    /// Whether the user has an active vibe override for this session.
+    var hasVibeOverride: Bool { vibeOverride != nil }
 
     // MARK: - Dependencies
 
@@ -130,7 +144,8 @@ final class RecommendationsViewModel {
     /// Refreshes recommendations by rejecting the current set with a reason.
     ///
     /// The backend applies exclusion filters based on the rejection reason
-    /// and returns a new set of 3 recommendations.
+    /// and returns a new set of 3 recommendations. If a vibe override is active,
+    /// the overridden vibes are sent to the backend instead of the vault's vibes.
     ///
     /// - Parameter reason: The rejection reason for filtering
     func refreshRecommendations(reason: String) async {
@@ -143,10 +158,14 @@ final class RecommendationsViewModel {
         errorMessage = nil
         currentPage = 0
 
+        // Pass vibe override as sorted array if active, nil otherwise
+        let vibeOverrideArray = vibeOverride.map { Array($0).sorted() }
+
         do {
             let response = try await service.refreshRecommendations(
                 rejectedIds: rejectedIds,
-                reason: reason
+                reason: reason,
+                vibeOverride: vibeOverrideArray
             )
             recommendations = response.recommendations
         } catch {
@@ -154,6 +173,53 @@ final class RecommendationsViewModel {
         }
 
         isRefreshing = false
+    }
+
+    // MARK: - Vibe Override (Step 6.5)
+
+    /// Shows the vibe override sheet.
+    func requestVibeOverride() {
+        showVibeOverrideSheet = true
+    }
+
+    /// Saves the vibe override and triggers a refresh with the new vibes.
+    /// Called when the user taps "Save" in the vibe override sheet.
+    ///
+    /// - Parameter vibes: The selected vibe tags (must have at least 1)
+    func saveVibeOverride(_ vibes: Set<String>) async {
+        guard !vibes.isEmpty else { return }
+
+        // Store the override
+        vibeOverride = vibes
+
+        // Dismiss the sheet
+        showVibeOverrideSheet = false
+
+        // Haptic feedback
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        // Wait for sheet dismissal animation
+        try? await Task.sleep(for: .milliseconds(300))
+
+        // Animate cards out
+        cardsVisible = false
+
+        // Wait for exit animation
+        try? await Task.sleep(for: .milliseconds(350))
+
+        // Refresh with the new vibes using "show_different" reason
+        await refreshRecommendations(reason: "show_different")
+
+        // Animate new cards in
+        cardsVisible = true
+
+        // Success haptic
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /// Clears the vibe override, reverting to the vault's default vibes.
+    func clearVibeOverride() {
+        vibeOverride = nil
     }
 
     // MARK: - Selection (Step 6.3)
