@@ -397,3 +397,16 @@ struct RecommendationFeedbackResponse: Codable, Sendable {
         case createdAt = "created_at"
     }
 }
+
+// MARK: - Device Token Registration (Step 7.4)
+
+/// Payload for `POST /api/v1/users/device-token`.
+struct DeviceTokenPayload: Codable, Sendable {
+    let deviceToken: String
+    let platform: String
+
+    enum CodingKeys: String, CodingKey {
+        case deviceToken = "device_token"
+        case platform
+    }
+}

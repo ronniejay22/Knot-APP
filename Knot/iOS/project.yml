@@ -42,6 +42,7 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        aps-environment: development
     settings:
       base:
         INFOPLIST_FILE: Knot/Info.plist

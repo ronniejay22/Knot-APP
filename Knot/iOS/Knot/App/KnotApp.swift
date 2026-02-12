@@ -11,6 +11,8 @@ import SwiftData
 
 @main
 struct KnotApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             PartnerVaultLocal.self,

@@ -7,11 +7,14 @@
 //  Step 2.3: Session persistence — restores session from Keychain on app launch.
 //  Step 2.4: Sign-out — clears Supabase session and Keychain, returns to Sign-In.
 //  Step 3.11: Vault existence check on session restore/sign-in to skip onboarding.
+//  Step 7.4: Push notification permission request after authentication.
 //
 
 import AuthenticationServices
 import CryptoKit
 import Supabase
+import UIKit
+import UserNotifications
 
 /// Manages authentication state for the entire app.
 ///
@@ -102,6 +105,9 @@ final class AuthViewModel {
                         hasCompletedOnboarding = vaultFound
                     }
                     print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
+
+                    // Request push notification permission (Step 7.4)
+                    requestPushNotificationPermission()
                 } else {
                     isAuthenticated = false
                     hasCompletedOnboarding = false  // Defensive reset for nil session
@@ -128,6 +134,10 @@ final class AuthViewModel {
                 } else {
                     print("[Knot] Onboarding already completed — skipping vault check")
                 }
+
+                // Request push notification permission (Step 7.4)
+                requestPushNotificationPermission()
+
                 isCheckingSession = false  // After vault check — prevents onboarding flash
 
             case .signedOut:
@@ -268,6 +278,35 @@ final class AuthViewModel {
             signInError = "Sign-out failed. Please try again."
             showError = true
             print("[Knot] Sign-out error: \(error)")
+        }
+    }
+
+    // MARK: - Push Notification Registration (Step 7.4)
+
+    /// Requests notification permissions and registers for remote notifications.
+    ///
+    /// Called after successful authentication (both session restore and fresh sign-in).
+    /// If the user has already granted permission, this is a no-op on the permission
+    /// side but still triggers `registerForRemoteNotifications()` to get the latest
+    /// device token (tokens can change between app launches).
+    ///
+    /// If the user denies permission, the app continues normally without push
+    /// notifications — this is a non-blocking feature.
+    private func requestPushNotificationPermission() {
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                if granted {
+                    print("[Knot] Push notification permission granted")
+                    UIApplication.shared.registerForRemoteNotifications()
+                } else {
+                    print("[Knot] Push notification permission denied")
+                }
+            } catch {
+                print("[Knot] Push notification permission request failed: \(error.localizedDescription)")
+            }
         }
     }
 
