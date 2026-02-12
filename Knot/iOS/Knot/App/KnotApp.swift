@@ -17,6 +17,7 @@ struct KnotApp: App {
             HintLocal.self,
             MilestoneLocal.self,
             RecommendationLocal.self,
+            SavedRecommendation.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

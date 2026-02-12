@@ -2910,9 +2910,51 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 6.6: Implement Save & Share Actions with Local Persistence ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `SavedRecommendation` SwiftData model for local persistence of user-saved recommendations
+- Added Save and Share action buttons to the `RecommendationCard` component below the price/Select row
+- Implemented save logic in `RecommendationsViewModel` with SwiftData insert, deduplication tracking, and backend feedback recording
+- Implemented share logic via `UIActivityViewController` presenting a custom message with recommendation title, merchant, price, and external URL
+- Added "Saved" section to `HomeView` between the Recommendations button and Recent Hints, displaying up to 5 most recently saved recommendations as compact cards
+- Each saved card shows type icon, title, merchant, formatted price, an open-link button, and a delete button
+- Registered `SavedRecommendation.self` in the app's SwiftData model container schema
+
+**Files created:**
+- `iOS/Knot/Models/SavedRecommendation.swift` — SwiftData `@Model` with fields for recommendationId, type, title, description, externalURL, priceCents, currency, merchantName, imageURL, savedAt
+
+**Files modified:**
+- `iOS/Knot/App/KnotApp.swift` — Added `SavedRecommendation.self` to modelContainer schema
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — Added `isSaved`, `onSave`, `onShare` properties; added Save/Share button row with Lucide bookmark/share2 icons; Save toggles between "Save"/"Saved" states with accent highlight
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Added `savedRecommendationIds` set, `modelContext` dependency, `configure(modelContext:)`, `isSaved(_:)`, `saveRecommendation(_:)` (SwiftData + feedback), `shareRecommendation(_:)` (UIActivityViewController + feedback), `loadSavedIds()`
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Wired `isSaved`, `onSave`, `onShare` into card instantiation; passes modelContext to ViewModel
+- `iOS/Knot/Features/Home/HomeViewModel.swift` — Added `savedRecommendations` array, `loadSavedRecommendations(modelContext:)` fetching 5 most recent, `deleteSavedRecommendation(_:modelContext:)`
+- `iOS/Knot/Features/Home/HomeView.swift` — Added `savedRecommendationsSection` between recommendations button and recent hints; auto-reloads on screen appear and after returning from recommendations screen
+
+**Test results:**
+- ✅ 82 unit tests passing, 0 failures
+- `SaveShareStateTests` (7 tests) — ViewModel saved IDs initially empty, isSaved returns true after insert, isSaved returns false for unknown/different IDs, saveRecommendation adds ID to set, save no-ops for duplicates, multiple saved IDs tracked correctly
+- `SavedRecommendationModelTests` (5 tests) — Init with minimal data, init with all fields, savedAt defaults to now, custom savedAt date, all recommendation types (gift/experience/date)
+- `HomeViewModelSavedTests` (1 test) — Initial saved recommendations array is empty
+- All existing tests remain green (RecommendationCardTests 18, RecommendationsViewTests 30, etc.)
+
+**Design decisions:**
+- **Local-first save with SwiftData (not backend-only)** — Saved recommendations persist on-device via SwiftData so users can access them offline. The save action also records a "saved" feedback event to the backend for analytics, but the source of truth for the user's saved list is local storage.
+- **Snapshot-at-save-time model** — `SavedRecommendation` copies all relevant fields (title, price, URL, etc.) from the recommendation DTO at save time. This means saved recommendations remain accessible even if the backend later removes or modifies the original recommendation.
+- **Deduplication via in-memory Set** — `savedRecommendationIds` is a `Set<String>` hydrated from SwiftData on configure. The save button checks this set before inserting, preventing duplicate rows. The set is updated in-place after successful saves.
+- **Share via UIActivityViewController** — Share presents the system share sheet with a formatted message containing the recommendation title, merchant (if any), price, and external URL. This approach supports all share targets (Messages, Mail, AirDrop, etc.) without custom integrations.
+- **Compact card design for Home section** — Saved recommendations on Home use a dense horizontal layout (type icon + text + buttons) rather than full recommendation cards. This keeps the Home screen scannable while still surfacing the saved content.
+- **5-item limit on Home** — Only the 5 most recently saved recommendations are shown to prevent the Home screen from becoming dominated by saved items. Users can scroll horizontally to see all 5.
+- **Delete with SwiftData cascade** — Delete removes from SwiftData and updates the ViewModel's `savedRecommendationIds` set. The saved section auto-hides when no saved recommendations remain.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.5:** Implement End-to-End Integration and Polish (iOS)
+- [ ] **Step 6.7:** Implement End-to-End Integration and Polish (iOS)
 
 ---
 

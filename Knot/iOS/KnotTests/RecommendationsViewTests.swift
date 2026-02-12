@@ -7,9 +7,11 @@
 //  Step 6.3: Tests for card selection flow, feedback DTOs, and confirmation sheet.
 //  Step 6.4: Tests for refresh reason sheet and refresh animation state management.
 //  Step 6.5: Tests for vibe override state management, DTO encoding, and sheet rendering.
+//  Step 6.6: Tests for save/share state management and SavedRecommendation model.
 //
 
 import XCTest
+import SwiftData
 import SwiftUI
 @testable import Knot
 
@@ -954,5 +956,218 @@ final class VibeOverrideSheetTests: XCTestCase {
         let hostingController = UIHostingController(rootView: sheet)
         XCTAssertNotNil(hostingController.view,
                         "VibeOverrideSheet should render with dark scheme")
+    }
+}
+
+// MARK: - Save/Share State Tests (Step 6.6)
+
+@MainActor
+final class SaveShareStateTests: XCTestCase {
+
+    /// Verify saved recommendation IDs set is empty on init.
+    func testSavedIdsInitiallyEmpty() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertTrue(vm.savedRecommendationIds.isEmpty)
+    }
+
+    /// Verify isSaved returns false for unknown IDs.
+    func testIsSavedReturnsFalseForUnknown() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertFalse(vm.isSaved("unknown-id"))
+    }
+
+    /// Verify isSaved returns true after adding an ID to savedRecommendationIds.
+    func testIsSavedReturnsTrueAfterInsert() {
+        let vm = RecommendationsViewModel()
+        vm.savedRecommendationIds.insert("rec-123")
+
+        XCTAssertTrue(vm.isSaved("rec-123"))
+    }
+
+    /// Verify isSaved returns false for a different ID than what was inserted.
+    func testIsSavedReturnsFalseForDifferentId() {
+        let vm = RecommendationsViewModel()
+        vm.savedRecommendationIds.insert("rec-123")
+
+        XCTAssertFalse(vm.isSaved("rec-456"))
+    }
+
+    /// Verify multiple IDs can be tracked simultaneously.
+    func testMultipleSavedIds() {
+        let vm = RecommendationsViewModel()
+        vm.savedRecommendationIds.insert("rec-1")
+        vm.savedRecommendationIds.insert("rec-2")
+        vm.savedRecommendationIds.insert("rec-3")
+
+        XCTAssertEqual(vm.savedRecommendationIds.count, 3)
+        XCTAssertTrue(vm.isSaved("rec-1"))
+        XCTAssertTrue(vm.isSaved("rec-2"))
+        XCTAssertTrue(vm.isSaved("rec-3"))
+        XCTAssertFalse(vm.isSaved("rec-4"))
+    }
+
+    /// Verify saveRecommendation adds the ID to savedRecommendationIds (without model context).
+    func testSaveRecommendationAddsId() {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "save-test-1", title: "Test Save")
+
+        // No model context configured — still updates the in-memory set
+        vm.saveRecommendation(item)
+
+        XCTAssertTrue(vm.isSaved("save-test-1"))
+    }
+
+    /// Verify saveRecommendation is a no-op for already-saved IDs.
+    func testSaveRecommendationNoOpForDuplicate() {
+        let vm = RecommendationsViewModel()
+        vm.savedRecommendationIds.insert("already-saved")
+
+        let item = makeTestRecommendation(id: "already-saved", title: "Already Saved")
+
+        // Should not crash or duplicate
+        vm.saveRecommendation(item)
+
+        XCTAssertEqual(vm.savedRecommendationIds.count, 1)
+        XCTAssertTrue(vm.isSaved("already-saved"))
+    }
+
+    // MARK: - Helpers
+
+    private func makeTestRecommendation(
+        id: String,
+        title: String
+    ) -> RecommendationItemResponse {
+        let json = """
+        {
+            "id": "\(id)",
+            "recommendation_type": "gift",
+            "title": "\(title)",
+            "description": "Test description",
+            "price_cents": 5000,
+            "currency": "USD",
+            "external_url": "https://example.com/test",
+            "image_url": null,
+            "merchant_name": "Test Store",
+            "source": "test",
+            "location": null,
+            "interest_score": 0.8,
+            "vibe_score": 0.7,
+            "love_language_score": 0.6,
+            "final_score": 0.7
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }
+}
+
+// MARK: - SavedRecommendation Model Tests (Step 6.6)
+
+final class SavedRecommendationModelTests: XCTestCase {
+
+    /// Verify SavedRecommendation initializes with all fields.
+    func testInitWithAllFields() {
+        let saved = SavedRecommendation(
+            recommendationId: "rec-001",
+            recommendationType: "gift",
+            title: "Pottery Class",
+            descriptionText: "A fun pottery class",
+            externalURL: "https://example.com/pottery",
+            priceCents: 8500,
+            currency: "USD",
+            merchantName: "Clay Studio",
+            imageURL: "https://example.com/image.jpg"
+        )
+
+        XCTAssertEqual(saved.recommendationId, "rec-001")
+        XCTAssertEqual(saved.recommendationType, "gift")
+        XCTAssertEqual(saved.title, "Pottery Class")
+        XCTAssertEqual(saved.descriptionText, "A fun pottery class")
+        XCTAssertEqual(saved.externalURL, "https://example.com/pottery")
+        XCTAssertEqual(saved.priceCents, 8500)
+        XCTAssertEqual(saved.currency, "USD")
+        XCTAssertEqual(saved.merchantName, "Clay Studio")
+        XCTAssertEqual(saved.imageURL, "https://example.com/image.jpg")
+        XCTAssertNotNil(saved.savedAt)
+    }
+
+    /// Verify SavedRecommendation initializes with minimal data (nil optionals).
+    func testInitWithMinimalData() {
+        let saved = SavedRecommendation(
+            recommendationId: "rec-002",
+            recommendationType: "experience",
+            title: "Sunset Sailing",
+            externalURL: "https://example.com/sailing"
+        )
+
+        XCTAssertEqual(saved.recommendationId, "rec-002")
+        XCTAssertEqual(saved.recommendationType, "experience")
+        XCTAssertEqual(saved.title, "Sunset Sailing")
+        XCTAssertNil(saved.descriptionText)
+        XCTAssertEqual(saved.externalURL, "https://example.com/sailing")
+        XCTAssertNil(saved.priceCents)
+        XCTAssertEqual(saved.currency, "USD")
+        XCTAssertNil(saved.merchantName)
+        XCTAssertNil(saved.imageURL)
+    }
+
+    /// Verify savedAt defaults to approximately now.
+    func testSavedAtDefaultsToNow() {
+        let before = Date()
+        let saved = SavedRecommendation(
+            recommendationId: "rec-003",
+            recommendationType: "date",
+            title: "Dinner",
+            externalURL: "https://example.com/dinner"
+        )
+        let after = Date()
+
+        XCTAssertGreaterThanOrEqual(saved.savedAt, before)
+        XCTAssertLessThanOrEqual(saved.savedAt, after)
+    }
+
+    /// Verify all recommendation types are accepted.
+    func testAllRecommendationTypes() {
+        let types = ["gift", "experience", "date"]
+
+        for type in types {
+            let saved = SavedRecommendation(
+                recommendationId: "rec-\(type)",
+                recommendationType: type,
+                title: "Test \(type)",
+                externalURL: "https://example.com/\(type)"
+            )
+
+            XCTAssertEqual(saved.recommendationType, type,
+                           "Should accept recommendation type: \(type)")
+        }
+    }
+
+    /// Verify custom savedAt date is preserved.
+    func testCustomSavedAtDate() {
+        let customDate = Date(timeIntervalSince1970: 1000000)
+        let saved = SavedRecommendation(
+            recommendationId: "rec-004",
+            recommendationType: "gift",
+            title: "Custom Date Test",
+            externalURL: "https://example.com",
+            savedAt: customDate
+        )
+
+        XCTAssertEqual(saved.savedAt, customDate)
+    }
+}
+
+// MARK: - HomeViewModel Saved Recommendations Tests (Step 6.6)
+
+@MainActor
+final class HomeViewModelSavedTests: XCTestCase {
+
+    /// Verify savedRecommendations is empty on init.
+    func testSavedRecommendationsInitiallyEmpty() {
+        let vm = HomeViewModel()
+
+        XCTAssertTrue(vm.savedRecommendations.isEmpty)
     }
 }

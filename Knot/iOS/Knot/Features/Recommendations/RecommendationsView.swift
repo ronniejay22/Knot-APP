@@ -7,6 +7,7 @@
 //  Step 6.3: Card selection flow with confirmation bottom sheet.
 //  Step 6.4: Refresh flow with reason selection sheet and card animations.
 //  Step 6.5: Manual vibe override — Adjust Vibe button and VibeOverrideSheet.
+//  Step 6.6: Save and Share action buttons wired into RecommendationCard.
 //
 
 import SwiftUI
@@ -32,6 +33,7 @@ import LucideIcons
 /// ```
 struct RecommendationsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var viewModel = RecommendationsViewModel()
 
@@ -74,6 +76,7 @@ struct RecommendationsView: View {
                 }
             }
             .task {
+                viewModel.configure(modelContext: modelContext)
                 await viewModel.generateRecommendations()
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
@@ -143,8 +146,15 @@ struct RecommendationsView: View {
                                 currency: item.currency,
                                 merchantName: item.merchantName,
                                 imageURL: item.imageUrl,
+                                isSaved: viewModel.isSaved(item.id),
                                 onSelect: {
                                     viewModel.selectRecommendation(item)
+                                },
+                                onSave: {
+                                    viewModel.saveRecommendation(item)
+                                },
+                                onShare: {
+                                    viewModel.shareRecommendation(item)
                                 }
                             )
                             .padding(.horizontal, 20)

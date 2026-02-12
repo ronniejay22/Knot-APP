@@ -6,9 +6,11 @@
 //  Step 4.1: Home screen data management — vault loading, milestone countdowns, hints preview.
 //  Step 4.2: Added hint submission (submitHint), recent hints loading (loadRecentHints),
 //            success/error state for hint capture, ISO 8601 date parsing for hint timestamps.
+//  Step 6.6: Added saved recommendations loading from SwiftData for the Home screen Saved section.
 //
 
 import Foundation
+import SwiftData
 
 /// Manages data for the Home screen.
 ///
@@ -46,6 +48,9 @@ final class HomeViewModel {
 
     /// Error message if hint submission fails.
     var hintErrorMessage: String?
+
+    /// Saved recommendations from SwiftData (most recent first, up to 5).
+    var savedRecommendations: [SavedRecommendation] = []
 
     // MARK: - Computed Properties
 
@@ -108,6 +113,29 @@ final class HomeViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Loads saved recommendations from SwiftData (most recent first, up to 5).
+    func loadSavedRecommendations(modelContext: ModelContext) {
+        var descriptor = FetchDescriptor<SavedRecommendation>(
+            sortBy: [SortDescriptor(\.savedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 5
+
+        do {
+            savedRecommendations = try modelContext.fetch(descriptor)
+        } catch {
+            print("[Knot] HomeViewModel: Failed to load saved recommendations — \(error)")
+        }
+    }
+
+    /// Deletes a saved recommendation from SwiftData.
+    func deleteSavedRecommendation(_ saved: SavedRecommendation, modelContext: ModelContext) {
+        modelContext.delete(saved)
+        try? modelContext.save()
+
+        // Remove from the local array
+        savedRecommendations.removeAll { $0.recommendationId == saved.recommendationId }
     }
 
     /// Loads recent hints from the backend (last 3, for Home screen preview).

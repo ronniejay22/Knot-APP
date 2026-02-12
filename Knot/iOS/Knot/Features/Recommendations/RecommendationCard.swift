@@ -4,6 +4,7 @@
 //
 //  Created on February 10, 2026.
 //  Step 6.1: Recommendation card component for the Choice-of-Three UI.
+//  Step 6.6: Added Save and Share action buttons below the Select row.
 //
 
 import SwiftUI
@@ -30,6 +31,10 @@ import LucideIcons
 /// │  ┌─ Price ─┐         ┌─ Select ─┐│
 /// │  │  $49.99 │         │  Select  ││
 /// │  └─────────┘         └──────────┘│
+/// │                                   │
+/// │  ┌─ Save ─┐   ┌─ Share ─┐       │
+/// │  │ 🔖 Save│   │ 📤 Share│       │
+/// │  └────────┘   └─────────┘       │
 /// └───────────────────────────────────┘
 /// ```
 struct RecommendationCard: View {
@@ -43,7 +48,10 @@ struct RecommendationCard: View {
     let currency: String
     let merchantName: String?
     let imageURL: String?
+    let isSaved: Bool
     let onSelect: @MainActor @Sendable () -> Void
+    let onSave: @MainActor @Sendable () -> Void
+    let onShare: @MainActor @Sendable () -> Void
 
     // MARK: - Constants
 
@@ -212,7 +220,7 @@ struct RecommendationCard: View {
             HStack {
                 // Price badge
                 if let priceCents {
-                    Text(formattedPrice(cents: priceCents, currency: currency))
+                    Text(Self.formattedPrice(cents: priceCents, currency: currency))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
@@ -252,6 +260,63 @@ struct RecommendationCard: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            // Save / Share row (Step 6.6)
+            HStack(spacing: 12) {
+                // Save button
+                Button(action: onSave) {
+                    HStack(spacing: 6) {
+                        Image(uiImage: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
+
+                        Text(isSaved ? "Saved" : "Save")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(isSaved ? Theme.accent : Theme.textSecondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(isSaved ? Theme.accent.opacity(0.15) : Theme.surfaceElevated)
+                            .overlay(
+                                Capsule()
+                                    .stroke(isSaved ? Theme.accent.opacity(0.4) : Theme.surfaceBorder, lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Share button
+                Button(action: onShare) {
+                    HStack(spacing: 6) {
+                        Image(uiImage: Lucide.share2)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
+
+                        Text("Share")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Theme.surfaceElevated)
+                            .overlay(
+                                Capsule()
+                                    .stroke(Theme.surfaceBorder, lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
         }
         .padding(16)
     }
@@ -289,7 +354,7 @@ struct RecommendationCard: View {
     }
 
     /// Formats price from cents to a currency string (e.g., 4999 → "$49.99").
-    func formattedPrice(cents: Int, currency: String) -> String {
+    static func formattedPrice(cents: Int, currency: String) -> String {
         let amount = Double(cents) / 100.0
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -311,7 +376,10 @@ struct RecommendationCard: View {
             currency: "USD",
             merchantName: "Clay Studio Brooklyn",
             imageURL: nil,
-            onSelect: {}
+            isSaved: false,
+            onSelect: {},
+            onSave: {},
+            onShare: {}
         )
         .padding(20)
     }
@@ -319,7 +387,7 @@ struct RecommendationCard: View {
     .preferredColorScheme(.dark)
 }
 
-#Preview("Experience Card with Image") {
+#Preview("Experience Card — Saved") {
     ScrollView {
         RecommendationCard(
             title: "Private Sunset Sailing Experience on the Bay",
@@ -329,7 +397,10 @@ struct RecommendationCard: View {
             currency: "USD",
             merchantName: "Bay Sailing Co.",
             imageURL: "https://images.unsplash.com/photo-1500514966906-fe245eea9344?w=600",
-            onSelect: {}
+            isSaved: true,
+            onSelect: {},
+            onSave: {},
+            onShare: {}
         )
         .padding(20)
     }
@@ -347,7 +418,10 @@ struct RecommendationCard: View {
             currency: "USD",
             merchantName: "Skyline Restaurant",
             imageURL: nil,
-            onSelect: {}
+            isSaved: false,
+            onSelect: {},
+            onSave: {},
+            onShare: {}
         )
         .padding(20)
     }
@@ -365,7 +439,10 @@ struct RecommendationCard: View {
             currency: "USD",
             merchantName: nil,
             imageURL: nil,
-            onSelect: {}
+            isSaved: false,
+            onSelect: {},
+            onSave: {},
+            onShare: {}
         )
         .padding(20)
     }

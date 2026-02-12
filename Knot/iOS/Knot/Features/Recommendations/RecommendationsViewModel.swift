@@ -7,9 +7,11 @@
 //  Step 6.3: Card selection flow with confirmation sheet and feedback recording.
 //  Step 6.4: Refresh flow with reason selection and card exit/entry animations.
 //  Step 6.5: Manual vibe override — session-scoped vibe selection and refresh.
+//  Step 6.6: Save/Share actions with local persistence and feedback recording.
 //
 
 import Foundation
+import SwiftData
 import UIKit
 
 /// State container for the recommendations screen.
@@ -66,12 +68,25 @@ final class RecommendationsViewModel {
     /// Whether the user has an active vibe override for this session.
     var hasVibeOverride: Bool { vibeOverride != nil }
 
+    // MARK: - Save/Share State (Step 6.6)
+
+    /// IDs of recommendations the user has saved in this session (for instant UI feedback).
+    /// Populated on launch from SwiftData and updated when the user taps Save.
+    var savedRecommendationIds: Set<String> = []
+
     // MARK: - Dependencies
 
     private let service: RecommendationService
+    private var modelContext: ModelContext?
 
     init(service: RecommendationService = RecommendationService()) {
         self.service = service
+    }
+
+    /// Configures the model context for local persistence. Called from the view.
+    func configure(modelContext: ModelContext) {
+        self.modelContext = modelContext
+        loadSavedIds()
     }
 
     // MARK: - Generate
@@ -258,5 +273,105 @@ final class RecommendationsViewModel {
     func dismissSelection() {
         showConfirmationSheet = false
         selectedRecommendation = nil
+    }
+
+    // MARK: - Save (Step 6.6)
+
+    /// Returns whether the recommendation with the given ID has been saved.
+    func isSaved(_ recommendationId: String) -> Bool {
+        savedRecommendationIds.contains(recommendationId)
+    }
+
+    /// Saves a recommendation locally via SwiftData and records "saved" feedback.
+    ///
+    /// If the recommendation is already saved, this is a no-op (the button toggles
+    /// to "Saved" state and stays there — unsave is not supported in the MVP).
+    func saveRecommendation(_ item: RecommendationItemResponse) {
+        guard !isSaved(item.id) else { return }
+
+        // Insert into SwiftData
+        if let modelContext {
+            let saved = SavedRecommendation(
+                recommendationId: item.id,
+                recommendationType: item.recommendationType,
+                title: item.title,
+                descriptionText: item.description,
+                externalURL: item.externalUrl,
+                priceCents: item.priceCents,
+                currency: item.currency,
+                merchantName: item.merchantName,
+                imageURL: item.imageUrl
+            )
+            modelContext.insert(saved)
+            try? modelContext.save()
+        }
+
+        // Update local set for instant UI
+        savedRecommendationIds.insert(item.id)
+
+        // Haptic feedback
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Record feedback (fire-and-forget)
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "saved"
+            )
+        }
+    }
+
+    // MARK: - Share (Step 6.6)
+
+    /// Presents the system share sheet with the recommendation URL and a custom message.
+    ///
+    /// Records "shared" feedback on the backend only when the user completes the share
+    /// (not on cancellation).
+    func shareRecommendation(_ item: RecommendationItemResponse) {
+        let title = item.title
+        let merchantText = item.merchantName.map { " from \($0)" } ?? ""
+        let message = "Check out this recommendation\(merchantText): \(title)"
+
+        var items: [Any] = [message]
+        if let url = URL(string: item.externalUrl) {
+            items.append(url)
+        }
+
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+
+        // Record feedback only on successful share (not cancellation)
+        let service = self.service
+        let itemId = item.id
+        activityVC.completionWithItemsHandler = { activityType, completed, _, _ in
+            guard completed, activityType != nil else { return }
+            Task {
+                try? await service.recordFeedback(
+                    recommendationId: itemId,
+                    action: "shared"
+                )
+            }
+        }
+
+        // Present the share sheet from the top-most view controller
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            topVC.present(activityVC, animated: true)
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    /// Loads saved recommendation IDs from SwiftData on init.
+    private func loadSavedIds() {
+        guard let modelContext else { return }
+
+        let descriptor = FetchDescriptor<SavedRecommendation>()
+        if let saved = try? modelContext.fetch(descriptor) {
+            savedRecommendationIds = Set(saved.map(\.recommendationId))
+        }
     }
 }
