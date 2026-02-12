@@ -2815,9 +2815,64 @@ All DTOs use `CodingKeys` for snake_case ↔ camelCase mapping matching the back
 
 ---
 
+### Step 6.3: Implement Card Selection Flow (iOS) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was built:** The full card selection flow — from tapping "Select" on a recommendation card through a confirmation bottom sheet to recording feedback and opening the merchant's external URL. Includes a new backend endpoint for feedback recording and comprehensive iOS-side UI, state management, and service integration.
+
+**Backend — Feedback Endpoint:**
+- Added `RecommendationFeedbackRequest` and `RecommendationFeedbackResponse` Pydantic models to `backend/app/models/recommendations.py`. Request validates `action` as a `Literal["selected", "saved", "shared", "rated"]` with optional `rating` (1–5 validated) and `feedback_text`. Response returns `id`, `recommendation_id`, `action`, `created_at`.
+- Added `POST /api/v1/recommendations/feedback` endpoint to `backend/app/api/recommendations.py`. Verifies the recommendation exists, verifies the vault belongs to the authenticated user (via RLS-bypassing service client), inserts into `recommendation_feedback` table, and returns 201. Handles 404 (recommendation not found or not owned), 401 (auth), and 500 (DB error).
+
+**iOS DTOs added to `DTOs.swift` (2 new structs):**
+- `RecommendationFeedbackPayload` — Request for `POST /api/v1/recommendations/feedback` with `recommendationId` and `action`
+- `RecommendationFeedbackResponse` — Response with `id`, `recommendationId`, `action`, `createdAt`
+
+Both use `CodingKeys` for snake_case ↔ camelCase mapping.
+
+**iOS Service — `RecommendationService.swift`:**
+- Added `recordFeedback(recommendationId:action:)` method. Marked `@discardableResult` since feedback is fire-and-forget (should not block the user from opening the merchant URL). Uses 15-second timeout (shorter than the 60s generate/refresh timeout). Expects 201 status code (not 200) matching the backend endpoint.
+
+**iOS ViewModel — `RecommendationsViewModel.swift`:**
+- Added 3 new state properties: `selectedRecommendation: RecommendationItemResponse?`, `showConfirmationSheet: Bool`, `isRecordingFeedback: Bool`
+- Added `selectRecommendation(_:)` — stores the tapped item and sets `showConfirmationSheet = true`
+- Added `confirmSelection()` — records feedback via service (fire-and-forget with error swallowing), opens external URL via `UIApplication.shared.open()`, then dismisses the sheet and clears state
+- Added `dismissSelection()` — clears selection state without recording feedback
+- Added `import UIKit` for `UIApplication.shared.open()`
+
+**iOS View — `RecommendationsView.swift`:**
+- Wired `onSelect` callback on each `RecommendationCard` to call `viewModel.selectRecommendation(item)`
+- Added `.sheet(isPresented: $viewModel.showConfirmationSheet)` presenting `SelectionConfirmationSheet`
+- Created `SelectionConfirmationSheet` struct — full confirmation bottom sheet with:
+  - "Confirm Selection" header
+  - Type badge (gift/experience/date with SF Symbol icon)
+  - Title, description, merchant + price row, location row (for experiences/dates)
+  - "Open in [Merchant]" confirm button (or "Open Link" if no merchant name), "Cancel" button
+  - Loading state with spinner when `isRecordingFeedback` is true
+  - Uses Lucide icons: `store`, `mapPin`, `externalLink`
+  - Helper methods: `formattedPrice(cents:currency:)`, `typeIconSystemName`, `typeLabel`, `confirmButtonLabel`
+- Added 3 `#Preview` blocks: Gift confirmation, Experience with location, Loading state
+- Preview data uses file-level `_previewGiftItem` and `_previewExperienceItem` constants with full JSON decoding
+
+**Test results:**
+- ✅ 15 new tests across 3 test classes in `RecommendationsViewTests.swift`:
+  - `RecommendationDTOTests` (4 tests) — Feedback payload encoding, all action types encoding, feedback response decoding, all action types decoding
+  - `RecommendationsViewModelTests` (4 tests) — Initial selection state nil, select sets state and shows sheet, dismiss clears state and hides sheet, selecting new item replaces previous selection
+  - `SelectionConfirmationSheetTests` (7 tests) — Full data rendering, minimal data rendering, recording/loading state rendering, all recommendation types rendering, location data rendering, confirm callback fires, cancel callback fires
+
+**Design decisions:**
+- **Fire-and-forget feedback recording** — `confirmSelection()` calls `recordFeedback()` but catches and swallows errors. The user should always be able to open the merchant URL even if feedback recording fails. The external URL opening and sheet dismissal happen regardless of feedback success/failure.
+- **`@discardableResult` on `recordFeedback()`** — Since callers don't need to inspect the response (fire-and-forget pattern), the return value can be safely ignored without compiler warnings.
+- **15-second timeout for feedback** — Feedback is a simple INSERT, not an AI pipeline call. 15 seconds is generous but much shorter than the 60-second generate/refresh timeout.
+- **`.presentationDetents([.medium])` for bottom sheet** — Half-screen sheet provides enough room for recommendation details without obscuring the card scroll behind it. Uses `.presentationDragIndicator(.visible)` for discoverability.
+- **Separate `showConfirmationSheet` boolean** — Rather than deriving sheet presentation from `selectedRecommendation != nil`, uses a dedicated boolean. This avoids SwiftUI sheet animation issues where the item is cleared before the sheet finishes dismissing.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.3:** Implement Card Selection Flow (iOS)
+- [ ] **Step 6.4:** Implement Rejection Reason Sheet (iOS)
 
 ---
 

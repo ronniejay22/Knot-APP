@@ -6,6 +6,7 @@ refresh/re-roll with exclusion logic, and feedback collection.
 
 Step 5.9: POST /api/v1/recommendations/generate — Generate recommendations
 Step 5.10: POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions
+Step 6.3: POST /api/v1/recommendations/feedback — Record user feedback
 """
 
 import logging
@@ -25,6 +26,8 @@ from app.core.security import get_current_user_id
 from app.db.supabase_client import get_service_client
 from app.models.recommendations import (
     LocationResponse,
+    RecommendationFeedbackRequest,
+    RecommendationFeedbackResponse,
     RecommendationGenerateRequest,
     RecommendationGenerateResponse,
     RecommendationItemResponse,
@@ -574,6 +577,98 @@ async def refresh_recommendations(
         recommendations=response_items,
         count=len(response_items),
         rejection_reason=payload.rejection_reason,
+    )
+
+
+# ===================================================================
+# POST /api/v1/recommendations/feedback — Record User Feedback
+# ===================================================================
+
+@router.post(
+    "/feedback",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RecommendationFeedbackResponse,
+)
+async def record_feedback(
+    payload: RecommendationFeedbackRequest,
+    user_id: str = Depends(get_current_user_id),
+) -> RecommendationFeedbackResponse:
+    """
+    Record user feedback on a recommendation.
+
+    Stores the user's action (selected, saved, shared, rated) in the
+    recommendation_feedback table. Used to track user engagement and
+    improve future recommendations.
+
+    Returns:
+        201: Feedback recorded successfully.
+        401: Missing or invalid authentication token.
+        404: Recommendation not found or does not belong to this user.
+        422: Validation error in the request payload.
+    """
+    client = get_service_client()
+
+    # Verify the recommendation exists and belongs to this user's vault
+    rec_result = (
+        client.table("recommendations")
+        .select("id, vault_id")
+        .eq("id", payload.recommendation_id)
+        .execute()
+    )
+
+    if not rec_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recommendation not found.",
+        )
+
+    # Verify the vault belongs to this user
+    vault_result = (
+        client.table("partner_vaults")
+        .select("id")
+        .eq("id", rec_result.data[0]["vault_id"])
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recommendation does not belong to this user.",
+        )
+
+    # Store the feedback
+    feedback_row = {
+        "recommendation_id": payload.recommendation_id,
+        "user_id": user_id,
+        "action": payload.action,
+        "rating": payload.rating,
+        "feedback_text": payload.feedback_text,
+    }
+
+    try:
+        result = (
+            client.table("recommendation_feedback")
+            .insert(feedback_row)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to store feedback for rec %s: %s",
+            payload.recommendation_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record feedback.",
+        )
+
+    row = result.data[0]
+    return RecommendationFeedbackResponse(
+        id=row["id"],
+        recommendation_id=row["recommendation_id"],
+        action=row["action"],
+        created_at=row["created_at"],
     )
 
 

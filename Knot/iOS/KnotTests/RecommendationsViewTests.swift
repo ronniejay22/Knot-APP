@@ -4,6 +4,7 @@
 //
 //  Created on February 10, 2026.
 //  Step 6.2: Unit tests for RecommendationsView, RecommendationsViewModel, DTOs, and RecommendationService.
+//  Step 6.3: Tests for card selection flow, feedback DTOs, and confirmation sheet.
 //
 
 import XCTest
@@ -279,6 +280,79 @@ final class RecommendationDTOTests: XCTestCase {
         // Identifiable conformance uses `id` property
         XCTAssertEqual(item.id, "unique-id")
     }
+
+    // MARK: - Feedback DTO Tests (Step 6.3)
+
+    /// Verify RecommendationFeedbackPayload encodes to correct snake_case JSON keys.
+    func testFeedbackPayloadEncodesCorrectly() throws {
+        let payload = RecommendationFeedbackPayload(
+            recommendationId: "rec-abc-123",
+            action: "selected"
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual(json?["recommendation_id"] as? String, "rec-abc-123")
+        XCTAssertEqual(json?["action"] as? String, "selected")
+    }
+
+    /// Verify RecommendationFeedbackPayload encodes all action types.
+    func testFeedbackPayloadEncodesAllActions() throws {
+        let actions = ["selected", "saved", "shared", "rated"]
+
+        for action in actions {
+            let payload = RecommendationFeedbackPayload(
+                recommendationId: "rec-123",
+                action: action
+            )
+
+            let data = try JSONEncoder().encode(payload)
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+            XCTAssertEqual(json?["action"] as? String, action,
+                           "Feedback payload should encode action '\(action)'")
+        }
+    }
+
+    /// Verify RecommendationFeedbackResponse decodes correctly from JSON.
+    func testFeedbackResponseDecodes() throws {
+        let json = """
+        {
+            "id": "fb-001",
+            "recommendation_id": "rec-abc-123",
+            "action": "selected",
+            "created_at": "2026-02-11T12:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RecommendationFeedbackResponse.self, from: json)
+
+        XCTAssertEqual(response.id, "fb-001")
+        XCTAssertEqual(response.recommendationId, "rec-abc-123")
+        XCTAssertEqual(response.action, "selected")
+        XCTAssertEqual(response.createdAt, "2026-02-11T12:00:00Z")
+    }
+
+    /// Verify RecommendationFeedbackResponse decodes all action types.
+    func testFeedbackResponseDecodesAllActions() throws {
+        let actions = ["selected", "saved", "shared", "rated"]
+
+        for action in actions {
+            let json = """
+            {
+                "id": "fb-\(action)",
+                "recommendation_id": "rec-123",
+                "action": "\(action)",
+                "created_at": "2026-02-11T12:00:00Z"
+            }
+            """.data(using: .utf8)!
+
+            let response = try JSONDecoder().decode(RecommendationFeedbackResponse.self, from: json)
+            XCTAssertEqual(response.action, action,
+                           "Feedback response should decode action '\(action)'")
+        }
+    }
 }
 
 // MARK: - ViewModel Tests
@@ -307,6 +381,91 @@ final class RecommendationsViewModelTests: XCTestCase {
         vm.currentPage = 0
         XCTAssertEqual(vm.currentPage, 0)
     }
+
+    // MARK: - Selection State Tests (Step 6.3)
+
+    /// Verify initial selection state is nil/false.
+    func testSelectionInitialState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertNil(vm.selectedRecommendation)
+        XCTAssertFalse(vm.showConfirmationSheet)
+    }
+
+    /// Verify selectRecommendation sets the selected item and shows the sheet.
+    func testSelectRecommendationSetsState() {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "test-1", title: "Test Gift")
+
+        vm.selectRecommendation(item)
+
+        XCTAssertNotNil(vm.selectedRecommendation)
+        XCTAssertEqual(vm.selectedRecommendation?.id, "test-1")
+        XCTAssertEqual(vm.selectedRecommendation?.title, "Test Gift")
+        XCTAssertTrue(vm.showConfirmationSheet)
+    }
+
+    /// Verify dismissSelection clears the selection and hides the sheet.
+    func testDismissSelectionClearsState() {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "test-1", title: "Test Gift")
+
+        // First select
+        vm.selectRecommendation(item)
+        XCTAssertTrue(vm.showConfirmationSheet)
+
+        // Then dismiss
+        vm.dismissSelection()
+
+        XCTAssertNil(vm.selectedRecommendation)
+        XCTAssertFalse(vm.showConfirmationSheet)
+    }
+
+    /// Verify selecting a different recommendation replaces the previous selection.
+    func testSelectNewRecommendationReplacesOld() {
+        let vm = RecommendationsViewModel()
+        let item1 = makeTestRecommendation(id: "test-1", title: "Gift 1")
+        let item2 = makeTestRecommendation(id: "test-2", title: "Gift 2")
+
+        vm.selectRecommendation(item1)
+        XCTAssertEqual(vm.selectedRecommendation?.id, "test-1")
+
+        vm.selectRecommendation(item2)
+        XCTAssertEqual(vm.selectedRecommendation?.id, "test-2")
+        XCTAssertTrue(vm.showConfirmationSheet)
+    }
+
+    // MARK: - Test Helpers
+
+    private func makeTestRecommendation(
+        id: String,
+        title: String,
+        type: String = "gift",
+        merchantName: String? = "Test Store",
+        priceCents: Int? = 5000,
+        externalUrl: String = "https://example.com/test"
+    ) -> RecommendationItemResponse {
+        let json = """
+        {
+            "id": "\(id)",
+            "recommendation_type": "\(type)",
+            "title": "\(title)",
+            "description": "Test description",
+            "price_cents": \(priceCents.map { String($0) } ?? "null"),
+            "currency": "USD",
+            "external_url": "\(externalUrl)",
+            "image_url": null,
+            "merchant_name": \(merchantName.map { "\"\($0)\"" } ?? "null"),
+            "source": "test",
+            "location": null,
+            "interest_score": 0.8,
+            "vibe_score": 0.7,
+            "love_language_score": 0.6,
+            "final_score": 0.7
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }
 }
 
 // MARK: - View Rendering Tests
@@ -319,5 +478,159 @@ final class RecommendationsViewRenderingTests: XCTestCase {
         let view = RecommendationsView()
         let hostingController = UIHostingController(rootView: view)
         XCTAssertNotNil(hostingController.view, "RecommendationsView should render a valid view")
+    }
+}
+
+// MARK: - Selection Confirmation Sheet Tests (Step 6.3)
+
+@MainActor
+final class SelectionConfirmationSheetTests: XCTestCase {
+
+    /// Verify the confirmation sheet renders with full recommendation data.
+    func testSheetRendersWithFullData() {
+        let item = makeTestItem(
+            merchantName: "Clay Studio Brooklyn",
+            priceCents: 8500
+        )
+
+        let sheet = SelectionConfirmationSheet(
+            item: item,
+            onConfirm: {},
+            onCancel: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "Confirmation sheet should render with full data")
+    }
+
+    /// Verify the confirmation sheet renders with minimal data (nil optionals).
+    func testSheetRendersWithMinimalData() {
+        let item = makeTestItem(merchantName: nil, priceCents: nil)
+
+        let sheet = SelectionConfirmationSheet(
+            item: item,
+            onConfirm: {},
+            onCancel: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "Confirmation sheet should render with minimal data")
+    }
+
+    /// Verify the sheet renders for all recommendation types.
+    func testSheetRendersAllTypes() {
+        let types = ["gift", "experience", "date"]
+
+        for type in types {
+            let item = makeTestItem(type: type, merchantName: "Test", priceCents: 5000)
+
+            let sheet = SelectionConfirmationSheet(
+                item: item,
+                onConfirm: {},
+                onCancel: {}
+            )
+
+            let hostingController = UIHostingController(rootView: sheet)
+            XCTAssertNotNil(hostingController.view,
+                            "Confirmation sheet should render for type: \(type)")
+        }
+    }
+
+    /// Verify the sheet renders with location data.
+    func testSheetRendersWithLocation() {
+        let json = """
+        {
+            "id": "loc-test",
+            "recommendation_type": "experience",
+            "title": "Sunset Sailing",
+            "description": "A beautiful sailing trip.",
+            "price_cents": 24900,
+            "currency": "USD",
+            "external_url": "https://example.com/sailing",
+            "image_url": null,
+            "merchant_name": "Bay Sailing Co.",
+            "source": "yelp",
+            "location": {
+                "city": "San Francisco",
+                "state": "CA",
+                "country": "US",
+                "address": "Pier 39"
+            },
+            "interest_score": 0.9,
+            "vibe_score": 0.8,
+            "love_language_score": 0.7,
+            "final_score": 0.8
+        }
+        """.data(using: .utf8)!
+
+        let item = try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+
+        let sheet = SelectionConfirmationSheet(
+            item: item,
+            onConfirm: {},
+            onCancel: {}
+        )
+
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "Confirmation sheet should render with location data")
+    }
+
+    /// Verify the confirm callback fires when invoked.
+    func testConfirmCallbackFires() {
+        var confirmed = false
+        let item = makeTestItem(merchantName: "Test Store", priceCents: 5000)
+
+        let sheet = SelectionConfirmationSheet(
+            item: item,
+            onConfirm: { confirmed = true },
+            onCancel: {}
+        )
+
+        sheet.onConfirm()
+        XCTAssertTrue(confirmed, "onConfirm callback should fire")
+    }
+
+    /// Verify the cancel callback fires when invoked.
+    func testCancelCallbackFires() {
+        var cancelled = false
+        let item = makeTestItem(merchantName: "Test Store", priceCents: 5000)
+
+        let sheet = SelectionConfirmationSheet(
+            item: item,
+            onConfirm: {},
+            onCancel: { cancelled = true }
+        )
+
+        sheet.onCancel()
+        XCTAssertTrue(cancelled, "onCancel callback should fire")
+    }
+
+    // MARK: - Helpers
+
+    private func makeTestItem(
+        type: String = "gift",
+        merchantName: String?,
+        priceCents: Int?
+    ) -> RecommendationItemResponse {
+        let json = """
+        {
+            "id": "test-item",
+            "recommendation_type": "\(type)",
+            "title": "Test Recommendation",
+            "description": "A test recommendation for unit testing.",
+            "price_cents": \(priceCents.map { String($0) } ?? "null"),
+            "currency": "USD",
+            "external_url": "https://example.com/test",
+            "image_url": null,
+            "merchant_name": \(merchantName.map { "\"\($0)\"" } ?? "null"),
+            "source": "test",
+            "location": null,
+            "interest_score": 0.8,
+            "vibe_score": 0.7,
+            "love_language_score": 0.6,
+            "final_score": 0.7
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
     }
 }

@@ -236,6 +236,91 @@ final class RecommendationService: Sendable {
         }
     }
 
+    // MARK: - Record Feedback
+
+    /// Records user feedback on a recommendation.
+    ///
+    /// Sends `POST /api/v1/recommendations/feedback` with the recommendation ID
+    /// and the action taken (e.g., "selected"). Used when the user confirms
+    /// a card selection before opening the external merchant URL.
+    ///
+    /// - Parameters:
+    ///   - recommendationId: The ID of the recommendation being acted on
+    ///   - action: The feedback action ("selected", "saved", "shared", "rated")
+    /// - Returns: The feedback response with the stored record ID
+    /// - Throws: `RecommendationServiceError` if the request fails
+    @discardableResult
+    func recordFeedback(
+        recommendationId: String,
+        action: String
+    ) async throws -> RecommendationFeedbackResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/recommendations/feedback") else {
+            throw RecommendationServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let payload = RecommendationFeedbackPayload(
+            recommendationId: recommendationId,
+            action: action
+        )
+
+        do {
+            request.httpBody = try encoder.encode(payload)
+        } catch {
+            throw RecommendationServiceError.decodingError(
+                "Failed to encode request: \(error.localizedDescription)"
+            )
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw RecommendationServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw RecommendationServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RecommendationServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 201:
+            do {
+                return try decoder.decode(RecommendationFeedbackResponse.self, from: data)
+            } catch {
+                throw RecommendationServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw RecommendationServiceError.noAuthSession
+
+        case 404:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.validationError(message)
+
+        case 422:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.validationError(message)
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func getAccessToken() async throws -> String {

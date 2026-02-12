@@ -4,13 +4,15 @@
 //
 //  Created on February 10, 2026.
 //  Step 6.2: State management for the Choice-of-Three recommendation UI.
+//  Step 6.3: Card selection flow with confirmation sheet and feedback recording.
 //
 
 import Foundation
+import UIKit
 
 /// State container for the recommendations screen.
 ///
-/// Manages loading, displaying, and refreshing the Choice-of-Three
+/// Manages loading, displaying, refreshing, and selecting the Choice-of-Three
 /// recommendation cards. Communicates with the backend via `RecommendationService`.
 @MainActor
 @Observable
@@ -32,6 +34,14 @@ final class RecommendationsViewModel {
 
     /// The currently selected page index in the horizontal scroll.
     var currentPage = 0
+
+    // MARK: - Selection State (Step 6.3)
+
+    /// The recommendation the user tapped "Select" on. Non-nil triggers the confirmation sheet.
+    var selectedRecommendation: RecommendationItemResponse?
+
+    /// Whether the confirmation bottom sheet is presented.
+    var showConfirmationSheet = false
 
     // MARK: - Dependencies
 
@@ -100,5 +110,43 @@ final class RecommendationsViewModel {
         }
 
         isRefreshing = false
+    }
+
+    // MARK: - Selection (Step 6.3)
+
+    /// Called when the user taps "Select" on a recommendation card.
+    /// Stores the selected item and presents the confirmation sheet.
+    func selectRecommendation(_ item: RecommendationItemResponse) {
+        selectedRecommendation = item
+        showConfirmationSheet = true
+    }
+
+    /// Called when the user confirms their selection in the bottom sheet.
+    /// Records feedback (fire-and-forget) and immediately opens the external URL.
+    func confirmSelection() async {
+        guard let item = selectedRecommendation else { return }
+
+        // Record feedback (fire-and-forget — don't block the user)
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "selected"
+            )
+        }
+
+        // Open the external merchant URL immediately
+        if let url = URL(string: item.externalUrl) {
+            await UIApplication.shared.open(url)
+        }
+
+        // Dismiss the sheet
+        showConfirmationSheet = false
+        selectedRecommendation = nil
+    }
+
+    /// Dismisses the confirmation sheet without confirming.
+    func dismissSelection() {
+        showConfirmationSheet = false
+        selectedRecommendation = nil
     }
 }

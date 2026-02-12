@@ -364,3 +364,33 @@ struct RecommendationLocationResponse: Codable, Sendable {
     let country: String?
     let address: String?
 }
+
+// MARK: - Recommendation Feedback Request (Step 6.3)
+
+/// Payload for `POST /api/v1/recommendations/feedback`.
+struct RecommendationFeedbackPayload: Codable, Sendable {
+    let recommendationId: String
+    let action: String  // "selected", "saved", "shared", "rated"
+
+    enum CodingKeys: String, CodingKey {
+        case recommendationId = "recommendation_id"
+        case action
+    }
+}
+
+// MARK: - Recommendation Feedback Response (Step 6.3)
+
+/// Response from `POST /api/v1/recommendations/feedback`.
+struct RecommendationFeedbackResponse: Codable, Sendable {
+    let id: String
+    let recommendationId: String
+    let action: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recommendationId = "recommendation_id"
+        case action
+        case createdAt = "created_at"
+    }
+}

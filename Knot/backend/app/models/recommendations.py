@@ -4,9 +4,11 @@ Recommendation Models — Pydantic schemas for Recommendations API.
 Defines request/response models for the recommendation endpoints:
 - POST /api/v1/recommendations/generate — Generate Choice-of-Three (Step 5.9)
 - POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions (Step 5.10)
+- POST /api/v1/recommendations/feedback — Record user feedback (Step 6.3)
 
 Step 5.9: Create Recommendations API Endpoint
 Step 5.10: Implement Refresh (Re-roll) Logic
+Step 6.3: Implement Card Selection Flow
 """
 
 from __future__ import annotations
@@ -118,3 +120,36 @@ class RecommendationRefreshResponse(BaseModel):
     recommendations: list[RecommendationItemResponse]
     count: int
     rejection_reason: str
+
+
+# ======================================================================
+# Feedback Models (Step 6.3)
+# ======================================================================
+
+class RecommendationFeedbackRequest(BaseModel):
+    """
+    Payload for POST /api/v1/recommendations/feedback.
+
+    Records a user action on a recommendation (selected, saved, shared, rated).
+    """
+
+    recommendation_id: str
+    action: Literal["selected", "saved", "shared", "rated"]
+    rating: Optional[int] = None
+    feedback_text: Optional[str] = None
+
+    @field_validator("rating")
+    @classmethod
+    def validate_rating(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 1 or v > 5):
+            raise ValueError("rating must be between 1 and 5")
+        return v
+
+
+class RecommendationFeedbackResponse(BaseModel):
+    """Response for POST /api/v1/recommendations/feedback."""
+
+    id: str
+    recommendation_id: str
+    action: str
+    created_at: str
