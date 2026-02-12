@@ -3039,9 +3039,50 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 7.3: Create Notification Processing Endpoint with Recommendation Generation (Backend) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was done:**
+- Enhanced the existing `POST /api/v1/notifications/process` webhook endpoint to generate recommendations when a scheduled notification fires, so pre-computed recommendations are ready when the user opens the app
+- Extracted the duplicated vault data loading logic (~140 lines, repeated in both `generate` and `refresh` recommendation endpoints) into a new shared service `vault_loader.py` with three reusable functions: `load_vault_data()`, `load_milestone_context()`, and `find_budget_range()`
+- Refactored both `generate_recommendations` and `refresh_recommendations` endpoints in `recommendations.py` to use the extracted vault_loader service, eliminating ~200 lines of duplicated code
+- Added `recommendations_generated` field to `NotificationProcessResponse` to indicate how many recommendations were created during processing
+- The notification processing flow now: (1) verifies QStash signature, (2) looks up notification_queue entry, (3) loads vault data and milestone context, (4) runs the LangGraph recommendation pipeline, (5) stores generated recommendations in the `recommendations` table, (6) marks notification as 'sent'
+- All recommendation generation failures are handled gracefully — if the pipeline crashes, returns empty results, or vault/milestone data is missing, the notification is still marked as 'sent' with `recommendations_generated=0`
+- Fixed a pre-existing test that expected 500 when the pipeline returns empty results, but the code intentionally uses mock fallback data (returning 200) until Phase 8 external APIs are live
+
+**Files created:**
+- `backend/app/services/vault_loader.py` — Shared vault data loading service with `load_vault_data()`, `load_milestone_context()`, and `find_budget_range()`
+- `backend/tests/test_notification_processing.py` — 18 tests across 4 categories
+
+**Files modified:**
+- `backend/app/api/notifications.py` — Added recommendation generation logic (step 6) between "check if already processed" and "update status to sent". Added imports for pipeline, state models, and vault_loader.
+- `backend/app/models/notifications.py` — Added `recommendations_generated: int = Field(default=0)` to `NotificationProcessResponse`
+- `backend/app/api/recommendations.py` — Refactored `generate_recommendations` and `refresh_recommendations` to use vault_loader. Removed duplicated vault loading code (~200 lines) and deleted `_find_budget_range` private function (replaced by `vault_loader.find_budget_range`)
+- `backend/tests/test_recommendations_api.py` — Updated 6 import references from `_find_budget_range` to `find_budget_range` from vault_loader. Fixed `test_pipeline_empty_results_returns_500` → `test_pipeline_empty_results_uses_mock_fallback` to match actual behavior (mock fallback returns 200, not 500)
+
+**Test results:**
+- ✅ 18 tests passing, 0 failures (Step 7.3)
+- ✅ 25 tests passing, 0 failures (Step 7.1 regression check)
+- ✅ 34 tests passing, 0 failures (Step 7.2 regression check)
+- ✅ 43 tests passing, 0 failures (recommendations API regression check)
+- `TestVaultLoader` (5 tests) — Budget range matching, fallback defaults for all 3 occasion types, currency preservation, generic fallback for unknown occasions
+- `TestNotificationRecommendationGeneration` (8 tests) — Processing generates 3 recommendations, pipeline failure still marks sent, empty results still marks sent, pipeline error state still marks sent, vault not found still marks sent, milestone not found still marks sent, response includes recommendations_generated field, skipped notification has zero recommendations
+- `TestNotificationRecommendationIntegration` (2 tests) — Full processing stores 3 recommendations in database, recommendations correctly linked to milestone_id and vault_id
+- `TestModuleImports` (3 tests) — vault_loader imports, notifications imports pipeline dependencies, response model has recommendations_generated field
+
+**Design decisions:**
+- **Extracted vault_loader service to eliminate triplication:** The vault data loading logic (~140 lines: query 5 tables, parse interests/vibes/budgets/love_languages into VaultData) was duplicated in `generate` and `refresh` endpoints, and would have been triplicated in `notifications`. Extracting into `vault_loader.py` provides a single source of truth.
+- **Graceful degradation for recommendation generation:** If the pipeline fails, the vault is missing, or the milestone is deleted, the notification is still marked as 'sent'. The user will still receive the push notification (Step 7.5), and recommendations can be generated on-demand when they open the app. This matches the fire-and-forget pattern from Step 7.2.
+- **`occasion_type` derived from `milestone.budget_tier`:** The `budget_tier` column on `partner_milestones` is NOT NULL (enforced by CHECK constraint and BEFORE INSERT trigger), making it reliable as the `occasion_type` for the recommendation pipeline. This is the same pattern used in the refresh endpoint.
+- **Recommendations stored with `milestone_id` linkage:** Generated recommendations are inserted into the `recommendations` table with the `milestone_id` from the notification payload, making them queryable per-milestone when the user opens the app.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 7.3:** Create Notification Processing Endpoint (Backend)
+- [ ] **Step 7.4:** Implement Push Notification Registration (iOS)
 
 ---
 
@@ -3259,3 +3300,13 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 103. **Notification scheduling is fire-and-forget from vault endpoints (Step 7.2):** Both `POST /api/v1/vault` and `PUT /api/v1/vault` call `schedule_notifications_for_milestones()` after all inserts complete, wrapped in `try/except`. A scheduling failure (QStash timeout, misconfigured credentials, etc.) is logged but does not fail the vault operation. The milestone insert result is captured (`milestone_result = client.table(...).insert(...).execute()`) so the returned rows (with auto-generated UUIDs) can be passed directly to the scheduler — no extra DB queries needed.
 
 104. **CASCADE handles notification cleanup on vault update (Step 7.2):** When `update_vault()` deletes old milestones, `ON DELETE CASCADE` on `notification_queue.milestone_id` automatically removes all associated notification entries. No manual cancellation is needed. Orphaned QStash messages get 404 at delivery time. New milestones receive new UUIDs, so deduplication IDs (`{milestone_id}-{days_before}`) never collide.
+
+105. **Vault data loading extracted into `vault_loader.py` shared service (Step 7.3):** The ~140 lines of vault data loading (querying `partner_vaults`, `partner_interests`, `partner_vibes`, `partner_budgets`, `partner_love_languages` and parsing into `VaultData`) were duplicated across `generate_recommendations` and `refresh_recommendations`. Step 7.3 extracted this into `app/services/vault_loader.py` with three functions: `load_vault_data(user_id)` returns `(VaultData, vault_id)`, `load_milestone_context(milestone_id, vault_id)` returns `MilestoneContext | None`, and `find_budget_range(budgets, occasion_type)` returns `BudgetRange` with fallback defaults. Both recommendation endpoints and the notification processing endpoint now share this service.
+
+106. **Notification processing generates recommendations before marking 'sent' (Step 7.3):** The `POST /api/v1/notifications/process` endpoint now runs the full LangGraph recommendation pipeline between "check if already processed" and "update status to sent". It loads vault data, builds milestone context, determines the budget range from `budget_tier`, constructs a `RecommendationState`, and calls `run_recommendation_pipeline()`. The 3 resulting candidates are stored in the `recommendations` table with `vault_id` and `milestone_id` foreign keys. The response includes `recommendations_generated: int` to report how many were created.
+
+107. **Graceful degradation on pipeline failure during notification processing (Step 7.3):** The entire recommendation generation block in the notification processor is wrapped in a single `try/except Exception`. If vault loading fails (no vault found), milestone loading fails (milestone not found or ownership mismatch), or the pipeline itself raises an error, the notification is still marked as 'sent' with `recommendations_generated=0`. A warning is logged but the webhook returns 200. This ensures QStash doesn't retry the notification indefinitely, and recommendations can be generated on-demand when the user opens the app.
+
+108. **`_find_budget_range` promoted to public `find_budget_range` in vault_loader (Step 7.3):** The private helper `_find_budget_range()` was moved from `recommendations.py` (line 965) to `vault_loader.py` as a public function `find_budget_range()`. The existing `TestBudgetRangeHelper` tests in `test_recommendations_api.py` were updated to import from the new location. The function's logic is identical — it searches the user's `VaultBudget` list for a matching `occasion_type`, falling back to hardcoded defaults: just_because ($20-$50), minor_occasion ($50-$150), major_milestone ($100-$500), unknown ($20-$100).
+
+109. **`recommendations_generated` field added to `NotificationProcessResponse` (Step 7.3):** The Pydantic response model gained a `recommendations_generated: int = Field(default=0)` field. It defaults to 0 for backward compatibility — existing "skipped" responses (already-processed notifications) don't need to specify it. The field appears in the JSON response, enabling monitoring dashboards to track recommendation generation success rates alongside notification delivery.

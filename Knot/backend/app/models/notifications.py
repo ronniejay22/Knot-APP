@@ -53,3 +53,7 @@ class NotificationProcessResponse(BaseModel):
         default="",
         description="Human-readable description of the processing result.",
     )
+    recommendations_generated: int = Field(
+        default=0,
+        description="Number of recommendations generated for this milestone.",
+    )

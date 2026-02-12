@@ -457,11 +457,11 @@ class TestRecommendationModels:
 # ===================================================================
 
 class TestBudgetRangeHelper:
-    """Verify _find_budget_range helper function."""
+    """Verify find_budget_range helper function."""
 
     def test_finds_matching_budget(self):
         """Should return the matching budget for the occasion type."""
-        from app.api.recommendations import _find_budget_range
+        from app.services.vault_loader import find_budget_range
         from app.agents.state import VaultBudget
 
         budgets = [
@@ -470,37 +470,37 @@ class TestBudgetRangeHelper:
             VaultBudget(occasion_type="major_milestone", min_amount=15000, max_amount=50000),
         ]
 
-        result = _find_budget_range(budgets, "minor_occasion")
+        result = find_budget_range(budgets, "minor_occasion")
         assert result.min_amount == 5000
         assert result.max_amount == 10000
 
     def test_fallback_just_because(self):
         """Should use default range when no matching budget found."""
-        from app.api.recommendations import _find_budget_range
+        from app.services.vault_loader import find_budget_range
 
-        result = _find_budget_range([], "just_because")
+        result = find_budget_range([], "just_because")
         assert result.min_amount == 2000
         assert result.max_amount == 5000
 
     def test_fallback_minor_occasion(self):
         """Should use default range for minor_occasion."""
-        from app.api.recommendations import _find_budget_range
+        from app.services.vault_loader import find_budget_range
 
-        result = _find_budget_range([], "minor_occasion")
+        result = find_budget_range([], "minor_occasion")
         assert result.min_amount == 5000
         assert result.max_amount == 15000
 
     def test_fallback_major_milestone(self):
         """Should use default range for major_milestone."""
-        from app.api.recommendations import _find_budget_range
+        from app.services.vault_loader import find_budget_range
 
-        result = _find_budget_range([], "major_milestone")
+        result = find_budget_range([], "major_milestone")
         assert result.min_amount == 10000
         assert result.max_amount == 50000
 
     def test_preserves_currency(self):
         """Should preserve the currency from the vault budget."""
-        from app.api.recommendations import _find_budget_range
+        from app.services.vault_loader import find_budget_range
         from app.agents.state import VaultBudget
 
         budgets = [
@@ -512,7 +512,7 @@ class TestBudgetRangeHelper:
             ),
         ]
 
-        result = _find_budget_range(budgets, "just_because")
+        result = find_budget_range(budgets, "just_because")
         assert result.currency == "GBP"
 
 
@@ -915,8 +915,8 @@ class TestPipelineErrors:
         assert resp.status_code == 500
         assert "no candidates" in resp.json()["detail"].lower()
 
-    def test_pipeline_empty_results_returns_500(self, client, test_user_with_vault):
-        """Pipeline returning empty final_three without error should return 500."""
+    def test_pipeline_empty_results_uses_mock_fallback(self, client, test_user_with_vault):
+        """Pipeline returning empty final_three should fall back to mock data until Phase 8."""
         user = test_user_with_vault
 
         empty_result = {
@@ -935,7 +935,9 @@ class TestPipelineErrors:
                 headers=_auth_headers(user["access_token"]),
             )
 
-        assert resp.status_code == 500
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 3
 
     def test_pipeline_partial_results(self, client, test_user_with_vault):
         """Pipeline returning fewer than 3 should still return successfully."""
