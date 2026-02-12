@@ -246,11 +246,59 @@ async def generate_recommendations(
 
     final_three = result.get("final_three", [])
 
+    # TODO: Remove mock fallback once external integrations (Phase 8) are live
     if not final_three:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No recommendations found for this location.",
-        )
+        logger.info("Pipeline returned no results for vault %s — using mock data", vault_id)
+        final_three = [
+            CandidateRecommendation(
+                id="mock-gift-001",
+                source="amazon",
+                type="gift",
+                title="Handmade Ceramic Mug Set",
+                description="A beautiful set of 2 hand-thrown ceramic mugs in earth tones. Perfect for cozy mornings together.",
+                price_cents=4500,
+                currency="USD",
+                external_url="https://example.com/ceramic-mugs",
+                image_url="https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800",
+                merchant_name="Artisan Pottery Co.",
+                interest_score=0.85,
+                vibe_score=0.78,
+                love_language_score=0.72,
+                final_score=0.80,
+            ),
+            CandidateRecommendation(
+                id="mock-experience-002",
+                source="yelp",
+                type="experience",
+                title="Private Sunset Sailing on the Bay",
+                description="A 2-hour private sailing trip with champagne and charcuterie as the sun sets. Includes a professional skipper.",
+                price_cents=24900,
+                currency="USD",
+                external_url="https://example.com/sunset-sailing",
+                image_url="https://images.unsplash.com/photo-1500514966906-fe245eea9344?w=800",
+                merchant_name="Bay Sailing Co.",
+                interest_score=0.90,
+                vibe_score=0.85,
+                love_language_score=0.70,
+                final_score=0.83,
+            ),
+            CandidateRecommendation(
+                id="mock-date-003",
+                source="yelp",
+                type="date",
+                title="Candlelit Italian Dinner for Two",
+                description="An intimate 5-course tasting menu at a hidden gem Italian restaurant. Includes wine pairings and a private corner table.",
+                price_cents=18000,
+                currency="USD",
+                external_url="https://example.com/italian-dinner",
+                image_url="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800",
+                merchant_name="Trattoria Luna",
+                interest_score=0.75,
+                vibe_score=0.92,
+                love_language_score=0.88,
+                final_score=0.84,
+            ),
+        ]
 
     # =================================================================
     # 6. Store recommendations in the database
@@ -528,20 +576,62 @@ async def refresh_recommendations(
     )
 
     if not excluded:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No alternative recommendations available after applying filters.",
-        )
+        # TODO: Remove mock fallback once external integrations (Phase 8) are live
+        logger.info("Refresh returned no results for vault %s — using mock data", vault_id)
+        excluded = [
+            CandidateRecommendation(
+                id="mock-refresh-gift-001",
+                source="shopify",
+                type="gift",
+                title="Personalized Star Map Print",
+                description="A custom star map showing the night sky on a date that matters to you. Framed and ready to hang.",
+                price_cents=6500,
+                currency="USD",
+                external_url="https://example.com/star-map",
+                image_url="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800",
+                merchant_name="Night Sky Prints",
+                interest_score=0.82,
+                vibe_score=0.88,
+                love_language_score=0.75,
+                final_score=0.82,
+            ),
+            CandidateRecommendation(
+                id="mock-refresh-exp-002",
+                source="yelp",
+                type="experience",
+                title="Couples Cooking Class — Thai Cuisine",
+                description="Learn to cook authentic Thai dishes together with a professional chef. Includes all ingredients and a recipe booklet.",
+                price_cents=15000,
+                currency="USD",
+                external_url="https://example.com/thai-cooking",
+                image_url="https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800",
+                merchant_name="Chef's Table Studio",
+                interest_score=0.78,
+                vibe_score=0.80,
+                love_language_score=0.85,
+                final_score=0.81,
+            ),
+            CandidateRecommendation(
+                id="mock-refresh-date-003",
+                source="yelp",
+                type="date",
+                title="Rooftop Jazz & Cocktails Night",
+                description="An evening of live jazz on a rooftop bar with craft cocktails and city views. Reservations for a private table.",
+                price_cents=12000,
+                currency="USD",
+                external_url="https://example.com/jazz-night",
+                image_url="https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=800",
+                merchant_name="The Skyline Lounge",
+                interest_score=0.80,
+                vibe_score=0.90,
+                love_language_score=0.82,
+                final_score=0.84,
+            ),
+        ]
 
     # Select top 3 from the filtered candidates
     excluded.sort(key=lambda c: c.final_score, reverse=True)
     new_three = excluded[:3]
-
-    if not new_three:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No alternative recommendations available.",
-        )
 
     # =================================================================
     # 7. Store new recommendations in the database

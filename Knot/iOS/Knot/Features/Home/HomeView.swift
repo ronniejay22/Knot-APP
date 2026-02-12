@@ -39,6 +39,9 @@ struct HomeView: View {
     /// Controls the Hints List sheet presentation.
     @State private var showHintsList = false
 
+    /// Controls the Recommendations screen presentation.
+    @State private var showRecommendations = false
+
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
 
@@ -67,6 +70,11 @@ struct HomeView: View {
 
                         // MARK: - Upcoming Milestones
                         upcomingMilestonesSection
+                            .disabled(!networkMonitor.isConnected)
+                            .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
+
+                        // MARK: - Recommendations
+                        recommendationsButton
                             .disabled(!networkMonitor.isConnected)
                             .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
 
@@ -134,6 +142,9 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showEditProfile) {
                 EditVaultView()
+            }
+            .fullScreenCover(isPresented: $showRecommendations) {
+                RecommendationsView()
             }
             .onChange(of: showEditProfile) { _, isPresented in
                 // Refresh vault and hints data when returning from Edit Profile
@@ -681,6 +692,58 @@ struct HomeView: View {
                         .stroke(Theme.surfaceBorder, lineWidth: 1)
                 )
         )
+    }
+
+    // MARK: - Recommendations Button
+
+    /// Button that presents the Recommendations screen.
+    private var recommendationsButton: some View {
+        Button {
+            showRecommendations = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(uiImage: Lucide.sparkles)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Theme.accent.opacity(0.2))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Get Recommendations")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    Text("AI-powered gift & experience ideas")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                Image(uiImage: Lucide.chevronRight)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Theme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Theme.accent.opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Helpers

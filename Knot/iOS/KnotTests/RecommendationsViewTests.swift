@@ -5,6 +5,7 @@
 //  Created on February 10, 2026.
 //  Step 6.2: Unit tests for RecommendationsView, RecommendationsViewModel, DTOs, and RecommendationService.
 //  Step 6.3: Tests for card selection flow, feedback DTOs, and confirmation sheet.
+//  Step 6.4: Tests for refresh reason sheet and refresh animation state management.
 //
 
 import XCTest
@@ -435,6 +436,58 @@ final class RecommendationsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.showConfirmationSheet)
     }
 
+    // MARK: - Refresh Reason State Tests (Step 6.4)
+
+    /// Verify refresh reason sheet initial state is false and cards are visible.
+    func testRefreshReasonSheetInitialState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertFalse(vm.showRefreshReasonSheet)
+        XCTAssertTrue(vm.cardsVisible)
+    }
+
+    /// Verify requestRefresh() shows the refresh reason sheet.
+    func testRequestRefreshShowsSheet() {
+        let vm = RecommendationsViewModel()
+
+        vm.requestRefresh()
+
+        XCTAssertTrue(vm.showRefreshReasonSheet)
+    }
+
+    /// Verify requestRefresh() is guarded when isRefreshing is true.
+    func testRequestRefreshGuardedDuringRefresh() {
+        let vm = RecommendationsViewModel()
+        vm.isRefreshing = true
+
+        vm.requestRefresh()
+
+        XCTAssertFalse(vm.showRefreshReasonSheet)
+    }
+
+    /// Verify requestRefresh() is guarded when cards are not visible (animating).
+    func testRequestRefreshGuardedDuringAnimation() {
+        let vm = RecommendationsViewModel()
+        vm.cardsVisible = false
+
+        vm.requestRefresh()
+
+        XCTAssertFalse(vm.showRefreshReasonSheet)
+    }
+
+    /// Verify cardsVisible can be toggled for animation control.
+    func testCardsVisibleToggle() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertTrue(vm.cardsVisible)
+
+        vm.cardsVisible = false
+        XCTAssertFalse(vm.cardsVisible)
+
+        vm.cardsVisible = true
+        XCTAssertTrue(vm.cardsVisible)
+    }
+
     // MARK: - Test Helpers
 
     private func makeTestRecommendation(
@@ -632,5 +685,59 @@ final class SelectionConfirmationSheetTests: XCTestCase {
         }
         """.data(using: .utf8)!
         return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }
+}
+
+// MARK: - Refresh Reason Sheet Tests (Step 6.4)
+
+@MainActor
+final class RefreshReasonSheetTests: XCTestCase {
+
+    /// Verify the refresh reason sheet renders without crashing.
+    func testSheetRenders() {
+        let sheet = RefreshReasonSheet(onSelectReason: { _ in })
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "RefreshReasonSheet should render a valid view")
+    }
+
+    /// Verify the reason callback fires with the correct reason string.
+    func testReasonCallbackFires() {
+        var selectedReason: String?
+        let sheet = RefreshReasonSheet(onSelectReason: { reason in
+            selectedReason = reason
+        })
+
+        sheet.onSelectReason("too_expensive")
+        XCTAssertEqual(selectedReason, "too_expensive")
+    }
+
+    /// Verify all 5 rejection reasons can be passed via the callback.
+    func testAllReasonsPassViaCallback() {
+        let expectedReasons = [
+            "too_expensive",
+            "too_cheap",
+            "not_their_style",
+            "already_have_similar",
+            "show_different"
+        ]
+
+        for reason in expectedReasons {
+            var selectedReason: String?
+            let sheet = RefreshReasonSheet(onSelectReason: { r in
+                selectedReason = r
+            })
+
+            sheet.onSelectReason(reason)
+            XCTAssertEqual(selectedReason, reason,
+                           "Callback should pass reason '\(reason)'")
+        }
+    }
+
+    /// Verify the sheet renders with dark color scheme (matching app theme).
+    func testSheetRendersWithDarkScheme() {
+        let sheet = RefreshReasonSheet(onSelectReason: { _ in })
+            .preferredColorScheme(.dark)
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "RefreshReasonSheet should render with dark scheme")
     }
 }

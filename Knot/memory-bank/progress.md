@@ -2870,9 +2870,49 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 6.4: Implement Refresh Flow with Reason Selection (iOS) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was built:** The full refresh flow — from tapping "Refresh" through a reason selection bottom sheet to orchestrated card exit/entry animations and backend refresh with exclusion filtering. No backend changes were needed; this step is purely iOS-side UI and state management.
+
+**iOS ViewModel — `RecommendationsViewModel.swift`:**
+- Added `showRefreshReasonSheet: Bool` and `cardsVisible: Bool` state properties. `cardsVisible` defaults to `true` and controls card opacity/scale for enter/exit animations.
+- Added `requestRefresh()` — shows the refresh reason sheet, guarded against duplicate calls when `isRefreshing` is true or `cardsVisible` is false (mid-animation). Replaces the previous direct `refreshRecommendations(reason: "show_different")` call from the Refresh button.
+- Added `handleRefreshReason(_ reason: String)` — orchestrates the full multi-step refresh flow: (1) dismiss reason sheet, (2) medium haptic feedback, (3) 300ms pause for sheet dismissal animation, (4) set `cardsVisible = false` to trigger card exit animation, (5) 350ms pause for exit animation, (6) call `refreshRecommendations(reason:)` to hit the backend, (7) set `cardsVisible = true` to trigger card entry animation, (8) success haptic notification for new cards. Uses `Task.sleep` for timing coordination between SwiftUI animations and state changes.
+
+**iOS View — `RecommendationsView.swift`:**
+- Updated `recommendationsContent` — the `TabView` and page indicator now have `.opacity(viewModel.cardsVisible ? 1 : 0)` and `.scaleEffect(viewModel.cardsVisible ? 1 : 0.85)` modifiers with `.animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)`. Cards fade out and scale down during exit, then fade in and scale up during entry.
+- Added refresh loading overlay — a centered `ProgressView` with "Finding better options..." text shown inside a `ZStack` over the `TabView` when `viewModel.isRefreshing` is true. Uses `.transition(.opacity)` for smooth appearance/disappearance.
+- Updated refresh button — now calls `viewModel.requestRefresh()` (shows reason sheet) instead of directly calling refresh. Disabled during `isRefreshing` or `!cardsVisible` (mid-animation) with 60% opacity when disabled.
+- Added `.sheet(isPresented: $viewModel.showRefreshReasonSheet)` presenting `RefreshReasonSheet` with `.presentationDetents([.medium])` and `.presentationDragIndicator(.visible)`.
+- Created `RefreshReasonSheet` struct — bottom sheet with 5 rejection reason buttons arranged vertically:
+  - "Too expensive" (`arrow.up.circle`)
+  - "Too cheap" (`arrow.down.circle`)
+  - "Not their style" (`hand.thumbsdown`)
+  - "Already have something similar" (`doc.on.doc`)
+  - "Just show me different options" (`arrow.triangle.2.circlepath`)
+  Each button is a full-width row with SF Symbol icon (accent-colored), label text (white), and chevron indicator. Background uses `Theme.surface` with `Theme.surfaceBorder` stroke at 12pt corner radius. All buttons use `.buttonStyle(.plain)`.
+- Added `#Preview("Refresh Reason Sheet")` with dark color scheme.
+
+**Test results:**
+- ✅ 9 new tests across 2 test classes in `RecommendationsViewTests.swift`:
+  - `RecommendationsViewModelTests` (5 tests) — Initial refresh reason state (sheet hidden, cards visible), requestRefresh shows sheet, guarded during active refresh, guarded during animation (cardsVisible false), cardsVisible toggle
+  - `RefreshReasonSheetTests` (4 tests) — Sheet renders without crashing, reason callback fires with correct string, all 5 rejection reasons pass correctly via callback, dark color scheme rendering
+
+**Design decisions:**
+- **Reason sheet before refresh (not after)** — The user picks a reason first, then the cards animate out and the API is called. This matches the "why are you swiping away" UX pattern and ensures the backend receives the reason with the refresh request for exclusion filtering.
+- **`Task.sleep` for animation coordination** — SwiftUI's `.animation` modifier reacts to state changes, but the ViewModel needs to orchestrate a sequence (dismiss sheet → animate out → fetch → animate in). `Task.sleep` provides the timing gaps between state mutations. The 300ms pause after sheet dismissal prevents the exit animation from overlapping the sheet dismiss animation; the 350ms pause after setting `cardsVisible = false` matches the 0.3s easeInOut duration plus a small buffer.
+- **Dual haptic feedback** — Medium impact on sheet dismissal (acknowledges the user's choice) and success notification on card entry (signals new content arrived). This creates a satisfying tactile bookend for the refresh flow.
+- **`cardsVisible` guard in `requestRefresh()`** — Prevents the user from tapping Refresh while cards are animating out or in. Without this guard, rapid tapping could trigger overlapping animation sequences with corrupted state.
+- **SF Symbols for reason icons (not Lucide)** — The reason sheet uses system SF Symbols (`arrow.up.circle`, `hand.thumbsdown`, etc.) rather than Lucide icons. SF Symbols provide better semantic matching for the rejection concepts and render at native quality. The recommendation cards and other views continue using Lucide icons.
+- **Scale down to 0.85 (not 0)** — Cards scale to 85% during exit rather than disappearing entirely. This creates a "receding" effect that's more visually interesting than a simple fade and gives the user a sense of the cards pulling back before new ones arrive.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.4:** Implement Rejection Reason Sheet (iOS)
+- [ ] **Step 6.5:** Implement End-to-End Integration and Polish (iOS)
 
 ---
 

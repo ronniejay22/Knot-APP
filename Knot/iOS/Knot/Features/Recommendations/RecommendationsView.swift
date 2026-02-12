@@ -5,6 +5,7 @@
 //  Created on February 10, 2026.
 //  Step 6.2: Choice-of-Three horizontal scroll with paging, loading state, and Refresh button.
 //  Step 6.3: Card selection flow with confirmation bottom sheet.
+//  Step 6.4: Refresh flow with reason selection sheet and card animations.
 //
 
 import SwiftUI
@@ -91,6 +92,15 @@ struct RecommendationsView: View {
                     .presentationDragIndicator(.visible)
                 }
             }
+            .sheet(isPresented: $viewModel.showRefreshReasonSheet) {
+                RefreshReasonSheet { reason in
+                    Task {
+                        await viewModel.handleRefreshReason(reason)
+                    }
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
@@ -98,32 +108,54 @@ struct RecommendationsView: View {
 
     private var recommendationsContent: some View {
         VStack(spacing: 20) {
-            // Page indicator
+            // Page indicator (hidden during refresh animation)
             pageIndicator
+                .opacity(viewModel.cardsVisible ? 1 : 0)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
 
-            // Horizontal paging scroll
-            TabView(selection: $viewModel.currentPage) {
-                ForEach(Array(viewModel.recommendations.enumerated()), id: \.element.id) { index, item in
-                    ScrollView {
-                        RecommendationCard(
-                            title: item.title,
-                            descriptionText: item.description,
-                            recommendationType: item.recommendationType,
-                            priceCents: item.priceCents,
-                            currency: item.currency,
-                            merchantName: item.merchantName,
-                            imageURL: item.imageUrl,
-                            onSelect: {
-                                viewModel.selectRecommendation(item)
-                            }
-                        )
-                        .padding(.horizontal, 20)
+            ZStack {
+                // Horizontal paging scroll (animated out/in during refresh)
+                TabView(selection: $viewModel.currentPage) {
+                    ForEach(Array(viewModel.recommendations.enumerated()), id: \.element.id) { index, item in
+                        ScrollView {
+                            RecommendationCard(
+                                title: item.title,
+                                descriptionText: item.description,
+                                recommendationType: item.recommendationType,
+                                priceCents: item.priceCents,
+                                currency: item.currency,
+                                merchantName: item.merchantName,
+                                imageURL: item.imageUrl,
+                                onSelect: {
+                                    viewModel.selectRecommendation(item)
+                                }
+                            )
+                            .padding(.horizontal, 20)
+                        }
+                        .scrollIndicators(.hidden)
+                        .tag(index)
                     }
-                    .scrollIndicators(.hidden)
-                    .tag(index)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .opacity(viewModel.cardsVisible ? 1 : 0)
+                .scaleEffect(viewModel.cardsVisible ? 1 : 0.85)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
+
+                // Refresh loading overlay (Step 6.4)
+                if viewModel.isRefreshing {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(Theme.accent)
+                            .scaleEffect(1.2)
+
+                        Text("Finding better options...")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .transition(.opacity)
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(.easeInOut(duration: 0.3), value: viewModel.isRefreshing)
 
             // Refresh button
             refreshButton
@@ -151,9 +183,7 @@ struct RecommendationsView: View {
 
     private var refreshButton: some View {
         Button {
-            Task {
-                await viewModel.refreshRecommendations(reason: "show_different")
-            }
+            viewModel.requestRefresh()
         } label: {
             HStack(spacing: 8) {
                 if viewModel.isRefreshing {
@@ -168,7 +198,7 @@ struct RecommendationsView: View {
                         .frame(width: 16, height: 16)
                 }
 
-                Text(viewModel.isRefreshing ? "Finding new options..." : "Refresh")
+                Text(viewModel.isRefreshing ? "Finding better options..." : "Refresh")
                     .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(.white)
@@ -183,8 +213,8 @@ struct RecommendationsView: View {
                     )
             )
         }
-        .disabled(viewModel.isRefreshing)
-        .opacity(viewModel.isRefreshing ? 0.6 : 1.0)
+        .disabled(viewModel.isRefreshing || !viewModel.cardsVisible)
+        .opacity(viewModel.isRefreshing || !viewModel.cardsVisible ? 0.6 : 1.0)
     }
 
     // MARK: - Loading State
@@ -205,7 +235,7 @@ struct RecommendationsView: View {
 
     private func errorState(message: String) -> some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.alertCircle)
+            Image(uiImage: Lucide.circleAlert)
                 .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -454,6 +484,102 @@ struct SelectionConfirmationSheet: View {
     }
 }
 
+// MARK: - Refresh Reason Sheet (Step 6.4)
+
+/// Bottom sheet shown when the user taps "Refresh" on the recommendations screen.
+/// Presents 5 rejection reason options that control backend exclusion filtering.
+struct RefreshReasonSheet: View {
+    let onSelectReason: @MainActor (String) -> Void
+
+    var body: some View {
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header
+                    Text("Why are you refreshing?")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+
+                    // Reason options
+                    reasonButton(
+                        id: "too_expensive",
+                        label: "Too expensive",
+                        icon: "arrow.up.circle"
+                    )
+
+                    reasonButton(
+                        id: "too_cheap",
+                        label: "Too cheap",
+                        icon: "arrow.down.circle"
+                    )
+
+                    reasonButton(
+                        id: "not_their_style",
+                        label: "Not their style",
+                        icon: "hand.thumbsdown"
+                    )
+
+                    reasonButton(
+                        id: "already_have_similar",
+                        label: "Already have something similar",
+                        icon: "doc.on.doc"
+                    )
+
+                    reasonButton(
+                        id: "show_different",
+                        label: "Just show me different options",
+                        icon: "arrow.triangle.2.circlepath"
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    // MARK: - Reason Button
+
+    private func reasonButton(id: String, label: String, icon: String) -> some View {
+        Button {
+            onSelectReason(id)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 24, height: 24)
+
+                Text(label)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Theme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Theme.surfaceBorder, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Previews
 
 #Preview("Loading") {
@@ -530,4 +656,9 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onCancel: {}
     )
     .preferredColorScheme(.dark)
+}
+
+#Preview("Refresh Reason Sheet") {
+    RefreshReasonSheet(onSelectReason: { _ in })
+        .preferredColorScheme(.dark)
 }

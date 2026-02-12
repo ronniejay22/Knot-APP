@@ -5,6 +5,7 @@
 //  Created on February 10, 2026.
 //  Step 6.2: State management for the Choice-of-Three recommendation UI.
 //  Step 6.3: Card selection flow with confirmation sheet and feedback recording.
+//  Step 6.4: Refresh flow with reason selection and card exit/entry animations.
 //
 
 import Foundation
@@ -42,6 +43,14 @@ final class RecommendationsViewModel {
 
     /// Whether the confirmation bottom sheet is presented.
     var showConfirmationSheet = false
+
+    // MARK: - Refresh Reason State (Step 6.4)
+
+    /// Whether the refresh reason selection sheet is presented.
+    var showRefreshReasonSheet = false
+
+    /// Controls card visibility for entry/exit animations during refresh.
+    var cardsVisible = true
 
     // MARK: - Dependencies
 
@@ -82,6 +91,41 @@ final class RecommendationsViewModel {
     }
 
     // MARK: - Refresh
+
+    /// Shows the refresh reason selection sheet.
+    /// Guarded against duplicate calls during active refresh or animation.
+    func requestRefresh() {
+        guard !isRefreshing && cardsVisible else { return }
+        showRefreshReasonSheet = true
+    }
+
+    /// Handles the user's selected refresh reason.
+    /// Orchestrates: sheet dismissal → card exit animation → API refresh → card entry animation.
+    func handleRefreshReason(_ reason: String) async {
+        // Dismiss the reason sheet
+        showRefreshReasonSheet = false
+
+        // Haptic feedback on sheet dismissal
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        // Wait for sheet dismissal animation
+        try? await Task.sleep(for: .milliseconds(300))
+
+        // Animate cards out (view reacts via .animation modifier)
+        cardsVisible = false
+
+        // Wait for exit animation to complete
+        try? await Task.sleep(for: .milliseconds(350))
+
+        // Call the refresh API
+        await refreshRecommendations(reason: reason)
+
+        // Animate new cards in
+        cardsVisible = true
+
+        // Haptic feedback for new cards appearing
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
 
     /// Refreshes recommendations by rejecting the current set with a reason.
     ///
