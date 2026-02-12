@@ -3394,3 +3394,59 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 132. **DND check failure proceeds with delivery (Step 7.6):** If `check_quiet_hours()` raises an exception (DB connection error, invalid timezone, etc.), the webhook logs a warning and continues to push delivery. This follows the graceful degradation pattern established in Steps 7.3 and 7.5. A notification that arrives at 11pm due to a DND failure is preferable to a notification that is silently lost.
 
 133. **iOS system DND is automatic — no custom suppression logic needed (Step 7.6):** When iOS Focus/DND is enabled, the OS automatically queues all incoming notifications and delivers them when DND ends. The app does not need to check or override this behavior. The `userNotificationCenter(_:didReceive:)` handler was added to `AppDelegate.swift` to process notification taps (including those queued by system DND), extracting `notification_id` and `milestone_id` from the payload for future deep-linking (Step 9.2).
+
+---
+
+### Step 7.7: Create Notification History View (iOS + Backend) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created database migration `00015_add_viewed_at_to_notification_queue.sql` adding a nullable `viewed_at TIMESTAMPTZ` column to `notification_queue` for tracking when a user opens a notification's recommendations
+- Added four new Pydantic models to `backend/app/models/notifications.py`: `NotificationHistoryItem`, `NotificationHistoryResponse`, `MilestoneRecommendationItem`, `MilestoneRecommendationsResponse`
+- Added two new authenticated endpoints to `backend/app/api/notifications.py`: `GET /api/v1/notifications/history` (paginated, reverse chronological, with milestone metadata and recommendation counts) and `PATCH /api/v1/notifications/{notification_id}/viewed` (sets viewed_at timestamp with user ownership validation)
+- Added one new authenticated endpoint to `backend/app/api/recommendations.py`: `GET /api/v1/recommendations/by-milestone/{milestone_id}` (returns pre-generated recommendations for a milestone, read-only)
+- Added four new iOS DTOs to `DTOs.swift`: `NotificationHistoryResponse`, `NotificationHistoryItemResponse`, `MilestoneRecommendationsResponse`, `MilestoneRecommendationItemResponse`
+- Created `iOS/Knot/Services/NotificationHistoryService.swift` with three methods: `fetchHistory()`, `fetchMilestoneRecommendations()`, `markViewed()` (fire-and-forget)
+- Created `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` managing history loading, notification selection, recommendation detail, and viewed status updates
+- Created `iOS/Knot/Features/Notifications/NotificationsView.swift` with full notification history UI: list with milestone type icons, unviewed dot indicators, status badges, recommendation counts, pull-to-refresh, and a recommendations detail sheet with type icons, prices, merchant names, and external link buttons
+- Modified `iOS/Knot/Features/Home/HomeView.swift` to add a bell icon (`Lucide.bellRing`) in the toolbar that opens the Notifications sheet
+- Created comprehensive test suite `backend/tests/test_notification_history.py`
+
+**Files created:**
+- `backend/supabase/migrations/00015_add_viewed_at_to_notification_queue.sql` — Migration adding viewed_at column
+- `iOS/Knot/Services/NotificationHistoryService.swift` — API service for notification history operations
+- `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` — ViewModel for notification history screen
+- `iOS/Knot/Features/Notifications/NotificationsView.swift` — Notification History screen UI
+- `backend/tests/test_notification_history.py` — 21 tests across 5 test classes
+
+**Files modified:**
+- `backend/app/models/notifications.py` — Added 4 Pydantic models for history and recommendation responses
+- `backend/app/api/notifications.py` — Added history and viewed endpoints with user auth
+- `backend/app/api/recommendations.py` — Added by-milestone recommendations endpoint
+- `iOS/Knot/Models/DTOs.swift` — Added 4 notification history DTOs
+- `iOS/Knot/Features/Home/HomeView.swift` — Added bell icon toolbar button and notifications sheet
+
+**Test results:**
+- ✅ 21 tests passing (12.94s)
+- ✅ TestNotificationHistoryEndpoint: 4 tests — empty history, sent notifications with metadata, deleted milestone handling, auth required
+- ✅ TestMarkViewedEndpoint: 3 tests — sets timestamp, 404 for non-existent, auth required
+- ✅ TestMilestoneRecommendationsEndpoint: 4 tests — returns stored recommendations, empty for no recommendations, 404 for no vault, auth required
+- ✅ TestNotificationHistoryIntegration: 4 tests — full history flow, milestone recommendations, mark viewed, pagination
+- ✅ TestModuleImports: 6 tests — model imports, router endpoint registration, response defaults
+
+**Key implementation notes:**
+
+134. **Database migration 00015 adds viewed_at to notification_queue (Step 7.7):** `ALTER TABLE public.notification_queue ADD COLUMN viewed_at TIMESTAMPTZ;` — a nullable timestamp column that remains NULL until the user taps a notification in the history screen to view its recommendations. No DEFAULT value, no index (read infrequently, only in the history list query). The column is set via the `PATCH /viewed` endpoint which uses the service client to update directly.
+
+135. **Notification history endpoint joins milestone metadata and counts recommendations (Step 7.7):** `GET /api/v1/notifications/history` queries `notification_queue` WHERE `user_id` matches AND `status IN ('sent', 'failed')`, ordered by `sent_at DESC`. For each notification, it fetches the associated milestone's name/type/date from `partner_milestones` (gracefully handling deleted milestones with "Deleted Milestone" fallback). Then for each notification, it counts recommendations from the `recommendations` table matching the `milestone_id` and a vault lookup. Supports `limit`/`offset` query params (defaults 50/0).
+
+136. **By-milestone recommendations endpoint is read-only (Step 7.7):** `GET /api/v1/recommendations/by-milestone/{milestone_id}` does NOT generate new recommendations — it only returns existing ones from the `recommendations` table that were pre-generated when the notification fired (Step 7.3). This keeps the endpoint fast and prevents duplicate generation. Returns up to 10 results ordered by `created_at DESC`.
+
+137. **Mark-viewed endpoint validates user ownership (Step 7.7):** `PATCH /api/v1/notifications/{notification_id}/viewed` filters by both `notification_id` AND `user_id` to ensure a user can only mark their own notifications as viewed. Returns 404 (not 403) if the notification doesn't exist or belongs to another user, preventing information leakage. Uses `datetime.now(timezone.utc).isoformat()` for the viewed_at timestamp.
+
+138. **iOS view model updates local array for immediate UI feedback (Step 7.7):** When `selectNotification()` marks a notification as viewed, it doesn't wait for the API response to update the UI. After the fire-and-forget `markViewed()` call, it creates a copy of the `NotificationHistoryItemResponse` with `viewedAt` set to the current ISO 8601 timestamp and replaces the item in the local `notifications` array. This immediately removes the unviewed accent dot without a full reload.
+
+139. **Notification row design uses three-layer info hierarchy (Step 7.7):** Each row shows: (1) milestone type SF Symbol icon in an accent-tinted rounded rect, (2) milestone name (bold) + unviewed accent dot, days-before label + formatted date (secondary), status capsule badge (green "Delivered" or red "Failed") + recommendation count with sparkles icon, (3) chevron indicator if recommendations exist. Tapping is only enabled when `recommendationsCount > 0`.
+
+140. **Recommendations sheet reuses milestone context (Step 7.7):** The recommendations detail sheet displays the milestone name as its navigation title and shows recommendation cards with type-specific SF Symbol icons (gift.fill, sparkles, heart.fill, star.fill), title, merchant name, formatted price (converted from cents), description (3-line limit), and an external link button that opens the URL via `UIApplication.shared.open()`. The sheet has its own loading, empty, and error states independent of the history list.

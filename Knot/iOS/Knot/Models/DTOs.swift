@@ -6,6 +6,7 @@
 //  Step 3.11: Data Transfer Objects for backend API communication.
 //  Step 4.2: Added Hint DTOs (HintCreatePayload, HintCreateResponse, HintListResponse, HintItemResponse).
 //  Step 6.5: Added vibeOverride to RecommendationRefreshPayload for manual vibe override.
+//  Step 7.7: Added Notification History and Milestone Recommendations DTOs.
 //
 
 import Foundation
@@ -408,5 +409,82 @@ struct DeviceTokenPayload: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case deviceToken = "device_token"
         case platform
+    }
+}
+
+// MARK: - Notification History Response (Step 7.7)
+
+/// Response from `GET /api/v1/notifications/history`.
+/// Returns the user's sent/failed notifications with milestone metadata.
+struct NotificationHistoryResponse: Codable, Sendable {
+    let notifications: [NotificationHistoryItemResponse]
+    let total: Int
+}
+
+/// A single notification in the history response.
+struct NotificationHistoryItemResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let milestoneId: String
+    let milestoneName: String
+    let milestoneType: String
+    let milestoneDate: String?
+    let daysBefore: Int
+    let status: String
+    let sentAt: String?
+    let viewedAt: String?
+    let createdAt: String
+    let recommendationsCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case milestoneId = "milestone_id"
+        case milestoneName = "milestone_name"
+        case milestoneType = "milestone_type"
+        case milestoneDate = "milestone_date"
+        case daysBefore = "days_before"
+        case status
+        case sentAt = "sent_at"
+        case viewedAt = "viewed_at"
+        case createdAt = "created_at"
+        case recommendationsCount = "recommendations_count"
+    }
+}
+
+// MARK: - Milestone Recommendations Response (Step 7.7)
+
+/// Response from `GET /api/v1/recommendations/by-milestone/{milestone_id}`.
+/// Returns pre-generated recommendations associated with a notification's milestone.
+struct MilestoneRecommendationsResponse: Codable, Sendable {
+    let recommendations: [MilestoneRecommendationItemResponse]
+    let count: Int
+    let milestoneId: String
+
+    enum CodingKeys: String, CodingKey {
+        case recommendations, count
+        case milestoneId = "milestone_id"
+    }
+}
+
+/// A single recommendation from the milestone-specific endpoint.
+struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let recommendationType: String
+    let title: String
+    let description: String?
+    let externalUrl: String?
+    let priceCents: Int?
+    let merchantName: String?
+    let imageUrl: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case recommendationType = "recommendation_type"
+        case title, description
+        case externalUrl = "external_url"
+        case priceCents = "price_cents"
+        case merchantName = "merchant_name"
+        case imageUrl = "image_url"
+        case createdAt = "created_at"
     }
 }

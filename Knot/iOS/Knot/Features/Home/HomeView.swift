@@ -10,6 +10,7 @@
 //  Step 4.2: Wired up text hint submission via HintService API, success checkmark animation,
 //            haptic feedback, recent hints loading from backend, error handling.
 //  Step 6.6: Added Saved Recommendations section between Recommendations button and Recent Hints.
+//  Step 7.7: Added Notifications bell icon in toolbar and sheet presentation.
 //
 
 import SwiftUI
@@ -43,6 +44,9 @@ struct HomeView: View {
 
     /// Controls the Recommendations screen presentation.
     @State private var showRecommendations = false
+
+    /// Controls the Notifications History sheet presentation.
+    @State private var showNotifications = false
 
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
@@ -117,6 +121,17 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
                         Button {
+                            showNotifications = true
+                        } label: {
+                            Image(uiImage: Lucide.bellRing)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                        }
+                        .tint(.white)
+
+                        Button {
                             showEditProfile = true
                         } label: {
                             Image(uiImage: Lucide.userPen)
@@ -167,6 +182,9 @@ struct HomeView: View {
                         await viewModel.loadRecentHints()
                     }
                 }
+            }
+            .sheet(isPresented: $showNotifications) {
+                NotificationsView()
             }
             .sheet(isPresented: $showHintsList) {
                 HintsListView()

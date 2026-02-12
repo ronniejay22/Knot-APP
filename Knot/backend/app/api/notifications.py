@@ -1,30 +1,37 @@
 """
-Notifications API — QStash webhook endpoint for processing scheduled notifications.
+Notifications API — QStash webhook endpoint and notification history.
 
 Handles incoming webhook calls from Upstash QStash. Each call represents
 a scheduled notification that needs to be processed (e.g., generate
 recommendations and send a push notification for an upcoming milestone).
 
+Also provides authenticated endpoints for viewing notification history
+and marking notifications as viewed.
+
 Step 7.1: Set up QStash scheduler — webhook endpoint with signature verification.
 Step 7.3: Generate recommendations when notification fires.
 Step 7.5: Deliver APNs push notifications after recommendation generation.
 Step 7.6: DND quiet hours check — reschedule notifications during quiet hours.
+Step 7.7: Notification history and mark-viewed endpoints.
 """
 
 import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Header, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, status
 
 from app.agents.pipeline import run_recommendation_pipeline
 from app.agents.state import RecommendationState
+from app.core.config import is_apns_configured, is_qstash_configured, WEBHOOK_BASE_URL
+from app.core.security import get_current_user_id
 from app.db.supabase_client import get_service_client
 from app.models.notifications import (
+    NotificationHistoryItem,
+    NotificationHistoryResponse,
     NotificationProcessRequest,
     NotificationProcessResponse,
 )
-from app.core.config import is_apns_configured, is_qstash_configured, WEBHOOK_BASE_URL
 from app.services.apns import deliver_push_notification
 from app.services.dnd import check_quiet_hours
 from app.services.qstash import publish_to_qstash, verify_qstash_signature
@@ -363,3 +370,189 @@ async def process_notification(
         recommendations_generated=recommendations_count,
         push_delivered=bool(push_result and push_result.get("success")),
     )
+
+
+# ===================================================================
+# GET /api/v1/notifications/history — Notification History (Step 7.7)
+# ===================================================================
+
+@router.get(
+    "/history",
+    status_code=status.HTTP_200_OK,
+    response_model=NotificationHistoryResponse,
+)
+async def get_notification_history(
+    user_id: str = Depends(get_current_user_id),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> NotificationHistoryResponse:
+    """
+    Returns the authenticated user's notification history.
+
+    Only includes notifications with status 'sent' or 'failed'
+    (not pending or cancelled), ordered by sent_at descending.
+    Each notification includes milestone metadata and a count
+    of associated recommendations.
+
+    Returns:
+        200: List of notification history items with total count.
+        401: Missing or invalid authentication token.
+        500: Database error.
+    """
+    client = get_service_client()
+
+    # --- 1. Fetch sent/failed notifications for this user ---
+    try:
+        notif_result = (
+            client.table("notification_queue")
+            .select("*")
+            .eq("user_id", user_id)
+            .in_("status", ["sent", "failed"])
+            .order("sent_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to load notification history: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load notifications.",
+        )
+
+    if not notif_result.data:
+        return NotificationHistoryResponse(notifications=[], total=0)
+
+    # --- 2. Gather unique milestone IDs, fetch milestone metadata ---
+    milestone_ids = list({n["milestone_id"] for n in notif_result.data})
+    milestones_map: dict[str, dict] = {}
+    try:
+        ms_result = (
+            client.table("partner_milestones")
+            .select("id, milestone_name, milestone_type, milestone_date")
+            .in_("id", milestone_ids)
+            .execute()
+        )
+        for ms in (ms_result.data or []):
+            milestones_map[ms["id"]] = ms
+    except Exception as exc:
+        logger.warning(f"Failed to load milestone metadata: {exc}")
+
+    # --- 3. Get the user's vault_id for recommendations count lookup ---
+    vault_id = None
+    try:
+        vault_result = (
+            client.table("partner_vaults")
+            .select("id")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if vault_result.data:
+            vault_id = vault_result.data[0]["id"]
+    except Exception as exc:
+        logger.warning(f"Failed to look up vault for recommendations count: {exc}")
+
+    # --- 4. Count recommendations per milestone (batch query) ---
+    rec_counts: dict[str, int] = {}
+    if vault_id and milestone_ids:
+        try:
+            rec_result = (
+                client.table("recommendations")
+                .select("milestone_id")
+                .eq("vault_id", vault_id)
+                .in_("milestone_id", milestone_ids)
+                .execute()
+            )
+            for rec in (rec_result.data or []):
+                mid = rec["milestone_id"]
+                rec_counts[mid] = rec_counts.get(mid, 0) + 1
+        except Exception as exc:
+            logger.warning(f"Failed to count recommendations: {exc}")
+
+    # --- 5. Get total count for pagination ---
+    try:
+        count_result = (
+            client.table("notification_queue")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .in_("status", ["sent", "failed"])
+            .execute()
+        )
+        total = count_result.count if count_result.count is not None else len(notif_result.data)
+    except Exception:
+        total = len(notif_result.data)
+
+    # --- 6. Build response items ---
+    items = []
+    for n in notif_result.data:
+        ms = milestones_map.get(n["milestone_id"], {})
+        ms_date = ms.get("milestone_date")
+        if ms_date and hasattr(ms_date, "isoformat"):
+            ms_date = ms_date.isoformat()
+        elif ms_date:
+            ms_date = str(ms_date)
+
+        items.append(NotificationHistoryItem(
+            id=n["id"],
+            milestone_id=n["milestone_id"],
+            milestone_name=ms.get("milestone_name", "Deleted Milestone"),
+            milestone_type=ms.get("milestone_type", "custom"),
+            milestone_date=ms_date,
+            days_before=n["days_before"],
+            status=n["status"],
+            sent_at=n.get("sent_at"),
+            viewed_at=n.get("viewed_at"),
+            created_at=n["created_at"],
+            recommendations_count=rec_counts.get(n["milestone_id"], 0),
+        ))
+
+    return NotificationHistoryResponse(notifications=items, total=total)
+
+
+# ===================================================================
+# PATCH /api/v1/notifications/{id}/viewed — Mark Viewed (Step 7.7)
+# ===================================================================
+
+@router.patch(
+    "/{notification_id}/viewed",
+    status_code=status.HTTP_200_OK,
+)
+async def mark_notification_viewed(
+    notification_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> dict:
+    """
+    Mark a notification as viewed (sets viewed_at timestamp).
+
+    Called when the user taps a notification in the history screen
+    to view the associated recommendations.
+
+    Returns:
+        200: Notification marked as viewed.
+        401: Missing or invalid authentication token.
+        404: Notification not found or does not belong to this user.
+    """
+    client = get_service_client()
+
+    try:
+        result = (
+            client.table("notification_queue")
+            .update({"viewed_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", notification_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to mark notification {notification_id} as viewed: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update notification.",
+        )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found.",
+        )
+
+    return {"status": "viewed", "notification_id": notification_id}

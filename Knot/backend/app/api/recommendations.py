@@ -7,6 +7,7 @@ refresh/re-roll with exclusion logic, and feedback collection.
 Step 5.9: POST /api/v1/recommendations/generate — Generate recommendations
 Step 5.10: POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions
 Step 6.3: POST /api/v1/recommendations/feedback — Record user feedback
+Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stored recommendations
 """
 
 import logging
@@ -21,6 +22,10 @@ from app.agents.state import (
 )
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_service_client
+from app.models.notifications import (
+    MilestoneRecommendationItem,
+    MilestoneRecommendationsResponse,
+)
 from app.models.recommendations import (
     LocationResponse,
     RecommendationFeedbackRequest,
@@ -573,6 +578,98 @@ async def record_feedback(
         recommendation_id=row["recommendation_id"],
         action=row["action"],
         created_at=row["created_at"],
+    )
+
+
+# ===================================================================
+# GET /api/v1/recommendations/by-milestone/{milestone_id} (Step 7.7)
+# ===================================================================
+
+@router.get(
+    "/by-milestone/{milestone_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MilestoneRecommendationsResponse,
+)
+async def get_recommendations_by_milestone(
+    milestone_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> MilestoneRecommendationsResponse:
+    """
+    Fetch existing (pre-generated) recommendations for a specific milestone.
+
+    Used by the Notification History screen to display the recommendations
+    that were generated when the notification fired. Does NOT generate new
+    recommendations — it only returns what already exists in the database.
+
+    Returns:
+        200: List of stored recommendations for the milestone.
+        401: Missing or invalid authentication token.
+        404: No partner vault found for this user.
+        500: Database error.
+    """
+    client = get_service_client()
+
+    # 1. Get the user's vault_id
+    try:
+        vault_result = (
+            client.table("partner_vaults")
+            .select("id")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to look up vault: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to look up vault.",
+        )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No partner vault found. Complete onboarding first.",
+        )
+
+    vault_id = vault_result.data[0]["id"]
+
+    # 2. Fetch recommendations for this milestone + vault
+    try:
+        rec_result = (
+            client.table("recommendations")
+            .select("*")
+            .eq("vault_id", vault_id)
+            .eq("milestone_id", milestone_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to load recommendations for milestone {milestone_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load recommendations.",
+        )
+
+    items = [
+        MilestoneRecommendationItem(
+            id=r["id"],
+            recommendation_type=r["recommendation_type"],
+            title=r["title"],
+            description=r.get("description"),
+            external_url=r.get("external_url"),
+            price_cents=r.get("price_cents"),
+            merchant_name=r.get("merchant_name"),
+            image_url=r.get("image_url"),
+            created_at=r["created_at"],
+        )
+        for r in (rec_result.data or [])
+    ]
+
+    return MilestoneRecommendationsResponse(
+        recommendations=items,
+        count=len(items),
+        milestone_id=milestone_id,
     )
 
 
