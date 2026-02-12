@@ -57,3 +57,7 @@ class NotificationProcessResponse(BaseModel):
         default=0,
         description="Number of recommendations generated for this milestone.",
     )
+    push_delivered: bool = Field(
+        default=False,
+        description="Whether the APNs push notification was successfully delivered.",
+    )

@@ -21,11 +21,12 @@ supabase
 # --- Vector Search ---
 pgvector
 
-# --- Async HTTP Client (external API integrations) ---
-httpx
+# --- Async HTTP Client (external API integrations + HTTP/2 for APNs) ---
+httpx[http2]
 
-# --- JWT Verification (QStash webhook signatures) ---
+# --- JWT Verification (QStash webhook signatures + APNs ES256 tokens) ---
 PyJWT
+cryptography
 
 # --- Environment Variable Management ---
 python-dotenv

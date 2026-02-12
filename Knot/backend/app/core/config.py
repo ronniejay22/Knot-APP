@@ -36,6 +36,13 @@ QSTASH_NEXT_SIGNING_KEY: str = os.getenv("QSTASH_NEXT_SIGNING_KEY", "")
 # --- Webhook Configuration ---
 WEBHOOK_BASE_URL: str = os.getenv("WEBHOOK_BASE_URL", "")
 
+# --- APNs Push Notifications ---
+APNS_KEY_ID: str = os.getenv("APNS_KEY_ID", "")
+APNS_TEAM_ID: str = os.getenv("APNS_TEAM_ID", "")
+APNS_AUTH_KEY_PATH: str = os.getenv("APNS_AUTH_KEY_PATH", "")
+APNS_BUNDLE_ID: str = os.getenv("APNS_BUNDLE_ID", "")
+APNS_USE_SANDBOX: bool = os.getenv("APNS_USE_SANDBOX", "true").lower() == "true"
+
 
 def validate_supabase_config() -> bool:
     """Check that all required Supabase credentials are present and non-empty."""
@@ -96,3 +103,22 @@ def is_qstash_configured() -> bool:
     Used by tests and services to conditionally enable notification features.
     """
     return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY and WEBHOOK_BASE_URL)
+
+
+def validate_apns_config() -> bool:
+    """
+    Check that APNs credentials are configured for push notifications.
+
+    Returns True if configured, False if not (non-fatal — push
+    notification delivery will be disabled but the app will still function).
+    """
+    return bool(APNS_KEY_ID and APNS_TEAM_ID and APNS_AUTH_KEY_PATH and APNS_BUNDLE_ID)
+
+
+def is_apns_configured() -> bool:
+    """
+    Check if APNs is available without raising exceptions.
+
+    Used by tests and services to conditionally enable push notification features.
+    """
+    return bool(APNS_KEY_ID and APNS_TEAM_ID and APNS_AUTH_KEY_PATH and APNS_BUNDLE_ID)
