@@ -24,6 +24,9 @@ pgvector
 # --- Async HTTP Client (external API integrations) ---
 httpx
 
+# --- JWT Verification (QStash webhook signatures) ---
+PyJWT
+
 # --- Environment Variable Management ---
 python-dotenv
 

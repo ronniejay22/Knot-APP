@@ -27,6 +27,13 @@ GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
 
+# --- Upstash QStash ---
+UPSTASH_QSTASH_TOKEN: str = os.getenv("UPSTASH_QSTASH_TOKEN", "")
+UPSTASH_QSTASH_URL: str = os.getenv("UPSTASH_QSTASH_URL", "https://qstash.upstash.io")
+QSTASH_CURRENT_SIGNING_KEY: str = os.getenv("QSTASH_CURRENT_SIGNING_KEY", "")
+QSTASH_NEXT_SIGNING_KEY: str = os.getenv("QSTASH_NEXT_SIGNING_KEY", "")
+
+
 def validate_supabase_config() -> bool:
     """Check that all required Supabase credentials are present and non-empty."""
     missing = []
@@ -67,3 +74,22 @@ def is_vertex_ai_configured() -> bool:
     Used by tests and services to conditionally enable embedding features.
     """
     return bool(GOOGLE_CLOUD_PROJECT)
+
+
+def validate_qstash_config() -> bool:
+    """
+    Check that QStash credentials are configured for webhook verification.
+
+    Returns True if configured, False if not (non-fatal — notification
+    scheduling will be disabled but the app will still function).
+    """
+    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY)
+
+
+def is_qstash_configured() -> bool:
+    """
+    Check if QStash is available without raising exceptions.
+
+    Used by tests and services to conditionally enable notification features.
+    """
+    return bool(UPSTASH_QSTASH_TOKEN and QSTASH_CURRENT_SIGNING_KEY)

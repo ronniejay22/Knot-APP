@@ -2952,9 +2952,51 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 7.1: Set Up Upstash QStash Scheduler (Backend) ✅
+**Date:** February 11, 2026
+**Status:** Complete
+
+**What was done:**
+- Created QStash service module for interacting with Upstash QStash, including HMAC-SHA256 JWT signature verification with key rotation support and async message publishing with delay/deduplication headers
+- Created Pydantic models for the notification webhook request and response payloads
+- Created `POST /api/v1/notifications/process` webhook endpoint that verifies the Upstash-Signature header, parses the notification payload, looks up the notification_queue entry, and updates its status to 'sent'
+- Added QStash environment variables to config.py (`UPSTASH_QSTASH_TOKEN`, `UPSTASH_QSTASH_URL`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`) with validation helpers
+- Registered the notifications router in the FastAPI app
+- Added PyJWT to requirements.txt for JWT signature verification
+- Updated .env.example with the two signing key variables
+
+**Files created:**
+- `backend/app/services/qstash.py` — QStash service with `verify_qstash_signature()` and `publish_to_qstash()`
+- `backend/app/models/notifications.py` — `NotificationProcessRequest` and `NotificationProcessResponse` Pydantic models
+- `backend/app/api/notifications.py` — Webhook endpoint with signature verification, payload parsing, idempotent processing
+- `backend/tests/test_qstash_webhook.py` — 25 tests across 5 categories
+
+**Files modified:**
+- `backend/app/core/config.py` — Added QStash env vars and `validate_qstash_config()` / `is_qstash_configured()` helpers
+- `backend/app/main.py` — Registered `notifications_router`
+- `backend/.env.example` — Added `QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY`
+- `backend/requirements.txt` — Added PyJWT dependency
+
+**Test results:**
+- ✅ 25 tests passing, 0 failures
+- `TestQStashSignatureVerification` (9 tests) — Valid signature accepted, expired/wrong-body/wrong-url/wrong-key/missing signatures rejected, no-keys-configured rejected, key rotation fallback to next key accepted, JWT claims contain message ID
+- `TestWebhookAuthentication` (3 tests) — Missing signature returns 401, invalid signature returns 401, expired signature returns 401
+- `TestWebhookProcessing` (4 tests) — Valid webhook processes notification and updates status to 'sent', non-existent notification returns 404, already-sent notification returns 'skipped', cancelled notification returns 'skipped'
+- `TestQStashPublish` (4 tests) — Publish sends correct URL/auth/delay headers, no delay omits Upstash-Delay header, deduplication ID included in headers, missing token raises RuntimeError
+- `TestModuleImports` (5 tests) — All new modules import correctly, router registered in app, config variables accessible
+
+**Design decisions:**
+- **JWT-based signature verification (not raw HMAC):** QStash signs webhooks with JWT (HS256) containing claims for issuer, destination URL, body hash, and expiration. This provides richer verification than raw HMAC — we can validate the destination URL matches, check expiration, and extract the message ID from claims.
+- **Dual-key rotation support:** The verification function tries the current signing key first, then falls back to the next signing key. This allows key rotation in the QStash dashboard without downtime — during the rotation window, both keys are valid.
+- **Idempotent processing:** The endpoint checks the notification's current status before processing. If it's already 'sent', 'failed', or 'cancelled', it returns `status: "skipped"` instead of re-processing. This prevents duplicate processing if QStash retries a webhook.
+- **Raw body extraction for signature verification:** The endpoint reads `request.body()` before JSON parsing so the exact bytes are available for SHA-256 hash comparison against the JWT's `body` claim. Using Pydantic parsing first would re-serialize the body with potentially different formatting.
+- **Graceful degradation:** QStash configuration is optional. `is_qstash_configured()` returns `False` when keys are missing, allowing the app to run without notification scheduling. The webhook endpoint still exists but will reject all requests (no keys to verify against).
+
+---
+
 ## Next Steps
 
-- [ ] **Step 6.7:** Implement End-to-End Integration and Polish (iOS)
+- [ ] **Step 7.2:** Create Notification Scheduling Logic (Backend)
 
 ---
 
@@ -3156,3 +3198,9 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 95. **Pre-compiled graph at module level (Step 5.8):** `recommendation_graph = build_recommendation_graph().compile()` is executed once at import time. The `CompiledStateGraph` is thread-safe and reusable across requests. The separate `build_recommendation_graph()` function is exported for testing or creating custom graph variants.
 
 96. **Interest-matched gifts dominate filtering (Step 5.8 observation):** With 5 interests × 3 gifts each = 15 gift candidates (all with positive `interest_score`), and experience candidates getting `interest_score = 0.0`, the filtering node's top 9 (`MAX_FILTERED_CANDIDATES`) will be almost entirely gifts. Experience candidates only survive if there are fewer than 9 interest-matched gifts within budget. This is by design — the matching node's `max(interest_score, 1.0)` floor partially compensates, but experiences need to be in the top 9 first. In Phase 8 with real API data, this balance may shift.
+
+97. **QStash webhook signature verification uses PyJWT (Step 7.1):** The `verify_qstash_signature()` function in `app/services/qstash.py` uses `jwt.decode()` from PyJWT with `algorithms=["HS256"]` and `issuer="Upstash"`. The JWT contains 7 required claims: `iss`, `sub`, `exp`, `nbf`, `iat`, `jti`, `body`. After JWT validation, the function independently verifies the SHA-256 hash of the raw request body matches the `body` claim, and the destination URL matches the `sub` claim. Both checks are necessary — JWT validation alone doesn't prove the body wasn't swapped.
+
+98. **QStash webhook test pattern (Step 7.1):** Tests use `unittest.mock.patch` to inject a known `TEST_SIGNING_KEY` into the service module, then create valid/invalid JWTs with `_create_qstash_signature()`. This allows full signature verification testing without real QStash credentials. Integration tests (class `TestWebhookProcessing`) also create real Supabase notification_queue entries to test end-to-end processing.
+
+99. **Notification endpoint reads raw body before Pydantic parsing (Step 7.1):** The `POST /api/v1/notifications/process` handler calls `request.body()` first to get the exact bytes for signature verification, then manually `json.loads()` and constructs the Pydantic model. It does NOT use FastAPI's automatic body parsing (`payload: NotificationProcessRequest`) because that would consume the body stream and prevent raw byte access for hash comparison.
