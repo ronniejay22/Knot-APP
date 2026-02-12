@@ -43,7 +43,7 @@ class NotificationProcessResponse(BaseModel):
     """
     status: str = Field(
         ...,
-        description="Processing result: 'processed', 'skipped', or 'failed'.",
+        description="Processing result: 'processed', 'skipped', 'rescheduled', or 'failed'.",
     )
     notification_id: str = Field(
         ...,

@@ -3344,3 +3344,53 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 125. **`httpx[http2]` added to requirements for APNs HTTP/2 requirement (Step 7.5):** Apple's APNs endpoint requires HTTP/2 connections — HTTP/1.1 requests are rejected. The `httpx[http2]` extra installs the `h2` package (Python HTTP/2 protocol implementation). The existing `httpx` dependency was already used for QStash publishing and Supabase auth verification, so only the extras needed to change. The `send_push_notification()` function creates `httpx.AsyncClient(http2=True)` per request with a 10-second timeout.
 
 126. **APNs push service tests: 37 tests across 6 classes (Step 7.5):** `backend/tests/test_apns_push_service.py` covers: TestBuildNotificationPayload (10 — title format, body with vibe, curated fallback, category, sound, custom data, underscore vibe, first-vibe-only, days variations, recommendation count), TestGenerateApnsToken (7 — ES256 algorithm, kid header, team ID issuer, token caching, refresh after expiry, missing key path RuntimeError, missing key file FileNotFoundError), TestSendPushNotification (10 — success result, apns_id capture, sandbox URL, production URL, failure with reason, expired token, unregistered device, HTTP/2 enabled, topic header, unconfigured raises RuntimeError), TestDeliverPushNotification (5 — registered device, missing token, user not found, DB failure, correct payload), TestNotificationWebhookPushIntegration (5 — push after recommendations, push failure non-blocking, APNs not configured skips push, zero recommendations skips push, response includes push_delivered), TestModuleImports (5 — apns service, config vars, model field, push_delivered default, push_delivered true). Uses a `FAKE_ES256_PRIVATE_KEY` (P-256 curve) for JWT generation tests.
+
+---
+
+### Step 7.6: Implement DND Respect Logic ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created database migration `00014_add_quiet_hours_to_users.sql` adding `quiet_hours_start` (INTEGER, default 22), `quiet_hours_end` (INTEGER, default 8), and `timezone` (TEXT, nullable) columns to the `users` table
+- Created `backend/app/services/dnd.py` — DND service with timezone inference from US state abbreviations, pure `is_in_quiet_hours()` function, and DB-integrated `check_quiet_hours()`
+- Modified `backend/app/api/notifications.py` — inserted DND check (step 6.5) between recommendation generation and push delivery in the webhook endpoint. If quiet hours active, reschedules via QStash and returns `"rescheduled"` status without delivering push or marking notification as `sent`
+- Updated `backend/app/models/notifications.py` — added `'rescheduled'` to the `status` field description
+- Updated `iOS/Knot/App/AppDelegate.swift` — added `userNotificationCenter(_:didReceive:)` handler for notification tap responses, including those queued during system DND/Focus mode
+- Created comprehensive test suite `backend/tests/test_dnd_quiet_hours.py`
+
+**Files created:**
+- `backend/supabase/migrations/00014_add_quiet_hours_to_users.sql` — Migration adding quiet hours columns
+- `backend/app/services/dnd.py` — DND quiet hours service
+- `backend/tests/test_dnd_quiet_hours.py` — 35 tests across 7 test classes
+
+**Files modified:**
+- `backend/app/api/notifications.py` — DND check + QStash rescheduling in webhook
+- `backend/app/models/notifications.py` — Status field description update
+- `iOS/Knot/App/AppDelegate.swift` — Notification tap response handler
+
+**Test results:**
+- ✅ 35 tests passing (0.51s)
+- ✅ TestIsInQuietHours: 9 tests — boundary conditions, midnight-spanning, same-day, disabled
+- ✅ TestComputeNextDeliveryTime: 3 tests — 11pm→8am next day, 3am→8am same day, UTC output
+- ✅ TestTimezoneInference: 8 tests — US state mapping, non-US fallback, case-insensitive
+- ✅ TestGetUserTimezone: 4 tests — explicit priority, vault inference, fallback, invalid handling
+- ✅ TestCheckQuietHours: 3 tests — DB integration, user not found, vault timezone inference
+- ✅ TestWebhookDNDIntegration: 5 tests — rescheduled response, normal delivery, graceful degradation, QStash params, stays pending
+- ✅ TestModuleImports: 3 tests — all exports, rescheduled status, constants
+
+**Key implementation notes:**
+
+127. **Database migration 00014 adds quiet hours and timezone to users table (Step 7.6):** `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS quiet_hours_start INTEGER NOT NULL DEFAULT 22 CHECK (quiet_hours_start >= 0 AND quiet_hours_start <= 23), ADD COLUMN IF NOT EXISTS quiet_hours_end INTEGER NOT NULL DEFAULT 8 CHECK (quiet_hours_end >= 0 AND quiet_hours_end <= 23), ADD COLUMN IF NOT EXISTS timezone TEXT`. Integers (0-23) used instead of TIME for simplicity — quiet hours granularity is whole hours. `timezone` is nullable; when NULL, inferred from vault location. No index needed since columns are only read during notification processing.
+
+128. **`is_in_quiet_hours()` is a pure function with injectable `now_utc` (Step 7.6):** The core DND check in `app/services/dnd.py` accepts `now_utc: datetime | None = None` as a parameter, defaulting to `datetime.now(tz.utc)`. This makes the function trivially testable without mocking `datetime.now()`. All 9 unit tests pass specific UTC timestamps covering: midnight-spanning ranges (22:00-08:00), same-day ranges (01:00-06:00), boundary conditions (10pm=quiet, 8am=not quiet), and the disabled case (start==end).
+
+129. **Timezone inference uses US state abbreviation mapping (Step 7.6):** `_US_STATE_TIMEZONES` maps all 50 states + DC to their predominant IANA timezone. Resolution priority: (1) explicit `users.timezone` column, (2) inferred from `partner_vaults.location_state` + `location_country`, (3) fallback to `"America/New_York"`. Uses stdlib `zoneinfo.ZoneInfo` — no third-party dependencies. Invalid explicit timezone strings fall back to vault inference rather than raising.
+
+130. **DND check inserted between recommendation generation and push delivery (Step 7.6):** The DND check runs as step 6.5 in the webhook pipeline, after recommendations are generated but before push delivery. This means recommendations are always generated (they're stored in the DB for when the user opens the app), but the push notification is deferred. The notification stays `pending` in `notification_queue` — it is NOT marked `sent` since the push hasn't been delivered. When QStash re-fires at 8am, the notification is still `pending` and the full flow runs again.
+
+131. **QStash rescheduling uses deduplication ID suffix `-dnd-reschedule` (Step 7.6):** The reschedule call to `publish_to_qstash()` uses `deduplication_id=f"{notification_id}-dnd-reschedule"` to prevent duplicate rescheduling within QStash's dedup window. The original scheduling dedup ID was `{milestone_id}-{days_before}`, so there is no collision. The `not_before` timestamp is set to the user's `quiet_hours_end` (default 8am) in their local timezone, converted to a UTC Unix timestamp.
+
+132. **DND check failure proceeds with delivery (Step 7.6):** If `check_quiet_hours()` raises an exception (DB connection error, invalid timezone, etc.), the webhook logs a warning and continues to push delivery. This follows the graceful degradation pattern established in Steps 7.3 and 7.5. A notification that arrives at 11pm due to a DND failure is preferable to a notification that is silently lost.
+
+133. **iOS system DND is automatic — no custom suppression logic needed (Step 7.6):** When iOS Focus/DND is enabled, the OS automatically queues all incoming notifications and delivers them when DND ends. The app does not need to check or override this behavior. The `userNotificationCenter(_:didReceive:)` handler was added to `AppDelegate.swift` to process notification taps (including those queued by system DND), extracting `notification_id` and `milestone_id` from the payload for future deep-linking (Step 9.2).

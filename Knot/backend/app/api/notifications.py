@@ -8,6 +8,7 @@ recommendations and send a push notification for an upcoming milestone).
 Step 7.1: Set up QStash scheduler — webhook endpoint with signature verification.
 Step 7.3: Generate recommendations when notification fires.
 Step 7.5: Deliver APNs push notifications after recommendation generation.
+Step 7.6: DND quiet hours check — reschedule notifications during quiet hours.
 """
 
 import json
@@ -23,9 +24,10 @@ from app.models.notifications import (
     NotificationProcessRequest,
     NotificationProcessResponse,
 )
-from app.core.config import is_apns_configured
+from app.core.config import is_apns_configured, is_qstash_configured, WEBHOOK_BASE_URL
 from app.services.apns import deliver_push_notification
-from app.services.qstash import verify_qstash_signature
+from app.services.dnd import check_quiet_hours
+from app.services.qstash import publish_to_qstash, verify_qstash_signature
 from app.services.vault_loader import (
     find_budget_range,
     load_milestone_context,
@@ -61,10 +63,11 @@ async def process_notification(
     1. Verify the Upstash-Signature header (JWT from QStash)
     2. Parse the JSON payload (notification_id, user_id, milestone_id, days_before)
     3. Look up the notification_queue entry and verify it is still 'pending'
-    4. Generate recommendations for the upcoming milestone (Step 7.3)
-    5. Deliver APNs push notification to the user's device (Step 7.5)
-    6. Mark the notification as 'sent'
-    7. Return processing result
+    4. Check DND quiet hours — reschedule via QStash if in quiet hours (Step 7.6)
+    5. Generate recommendations for the upcoming milestone (Step 7.3)
+    6. Deliver APNs push notification to the user's device (Step 7.5)
+    7. Mark the notification as 'sent'
+    8. Return processing result
 
     Returns:
         200: Notification processed successfully.
@@ -150,7 +153,67 @@ async def process_notification(
             message=f"Notification already {notification['status']}.",
         )
 
-    # --- 6. Generate recommendations for this milestone (Step 7.3) ---
+    # --- 6. Check DND quiet hours (Step 7.6) ---
+    is_quiet = False
+    rescheduled_to = None
+    try:
+        is_quiet, rescheduled_to = await check_quiet_hours(payload.user_id)
+    except Exception as exc:
+        logger.warning(
+            "DND check failed for notification %s: %s — proceeding with delivery",
+            payload.notification_id, exc,
+        )
+
+    if is_quiet and rescheduled_to is not None:
+        logger.info(
+            "Notification %s is in quiet hours — rescheduling to %s",
+            payload.notification_id[:8],
+            rescheduled_to.isoformat(),
+        )
+
+        # Reschedule via QStash for delivery at end of quiet hours
+        if is_qstash_configured():
+            webhook_url = f"{WEBHOOK_BASE_URL}/api/v1/notifications/process"
+            reschedule_payload = {
+                "notification_id": payload.notification_id,
+                "user_id": payload.user_id,
+                "milestone_id": payload.milestone_id,
+                "days_before": payload.days_before,
+            }
+            not_before_ts = int(rescheduled_to.timestamp())
+
+            try:
+                await publish_to_qstash(
+                    destination_url=webhook_url,
+                    body=reschedule_payload,
+                    not_before=not_before_ts,
+                    deduplication_id=f"{payload.notification_id}-dnd-reschedule",
+                )
+                logger.info(
+                    "Rescheduled notification %s via QStash to %s (ts=%d)",
+                    payload.notification_id[:8],
+                    rescheduled_to.isoformat(),
+                    not_before_ts,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to reschedule notification %s via QStash: %s",
+                    payload.notification_id[:8], exc,
+                )
+
+        # Return early — notification stays 'pending', not marked 'sent'
+        return NotificationProcessResponse(
+            status="rescheduled",
+            notification_id=payload.notification_id,
+            message=(
+                f"Notification deferred to {rescheduled_to.isoformat()} "
+                f"(quiet hours)."
+            ),
+            recommendations_generated=0,
+            push_delivered=False,
+        )
+
+    # --- 7. Generate recommendations for this milestone (Step 7.3) ---
     recommendations_count = 0
     vault_data = None
     milestone_context = None
@@ -224,7 +287,7 @@ async def process_notification(
             payload.notification_id, exc,
         )
 
-    # --- 7. Deliver push notification (Step 7.5) ---
+    # --- 8. Deliver push notification (Step 7.5) ---
     push_result = None
     if is_apns_configured() and recommendations_count > 0:
         try:
@@ -269,7 +332,7 @@ async def process_notification(
             payload.notification_id[:8],
         )
 
-    # --- 8. Update status to 'sent' ---
+    # --- 9. Update status to 'sent' ---
     try:
         client.table("notification_queue").update({
             "status": "sent",

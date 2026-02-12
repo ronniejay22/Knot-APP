@@ -4,6 +4,7 @@
 //
 //  Created on February 12, 2026.
 //  Step 7.4: Push Notification Registration — AppDelegate for remote notification callbacks.
+//  Step 7.6: DND Respect — Notification tap handler for queued/DND-deferred notifications.
 //
 
 import UIKit
@@ -75,5 +76,28 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         return [.banner, .sound]
+    }
+
+    /// Handles notification tap responses (Step 7.6).
+    ///
+    /// Called when the user taps on a notification, including notifications
+    /// that were queued by the system during DND/Focus mode and delivered
+    /// later. Extracts `notification_id` and `milestone_id` from the
+    /// payload for deep-linking to the recommendations screen.
+    ///
+    /// iOS automatically queues notifications during system DND and delivers
+    /// them when DND ends — no custom suppression logic is needed.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let userInfo = response.notification.request.content.userInfo
+        let notificationId = userInfo["notification_id"] as? String
+        let milestoneId = userInfo["milestone_id"] as? String
+
+        print("[Knot] Notification tapped: notification=\(notificationId ?? "nil"), milestone=\(milestoneId ?? "nil")")
+
+        // Deep-link handling to recommendations screen will be
+        // implemented in Step 9.2 (Deep Link Handler for Recommendations).
     }
 }
