@@ -3491,3 +3491,50 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 141. **Mocking `datetime` class requires constructor passthrough (Step 7.8):** When patching `module.datetime` to control `datetime.now()`, the mock also intercepts `datetime(...)` constructor calls, which return `MagicMock` objects instead of real datetimes. This causes `TypeError` when comparing mocked objects with real datetimes. The fix is `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` — this makes `datetime(year, month, day, ...)` pass through to the real class while `datetime.now()` still returns the mocked value (since `.now` is accessed as an attribute, not via `__call__`).
 
 142. **Phase 7 test suite validates 202 behaviors across 7 files in ~75 seconds:** The notification system test suite covers the full lifecycle — from QStash webhook receipt and signature verification, through notification scheduling and recommendation generation, to APNs push delivery, DND quiet hours rescheduling, and notification history retrieval. Tests use a mix of pure unit tests (mocked DB/services) and integration tests (real Supabase queries), connected by the `@pytest.mark.skipif(not _supabase_configured())` pattern that allows CI to run unit tests without credentials while developers run the full suite locally.
+
+---
+
+## Phase 8: External API Integrations
+
+### Step 8.1: Implement Yelp Fusion API Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `YELP_API_KEY` environment variable, `validate_yelp_config()`, and `is_yelp_configured()` to `backend/app/core/config.py`, following the same pattern as APNs and QStash config
+- Created `backend/app/services/integrations/yelp.py` implementing `YelpService` — an async service for Yelp Fusion API v3 business search with rate limiting (exponential backoff on HTTP 429), international currency detection for 30+ countries, and normalization of Yelp business JSON to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_yelp_integration.py` with 52 tests across 8 test classes (49 unit tests pass without API key, 3 integration tests skipped without `YELP_API_KEY`)
+- Verified zero regressions in existing test suite (1075 passed; 2 failures and 10 errors are pre-existing Supabase network timeouts unrelated to this change)
+
+**Files created:**
+- `backend/app/services/integrations/yelp.py` — YelpService with search, normalization, rate limiting, and currency detection
+- `backend/tests/test_yelp_integration.py` — 52 tests across 8 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added YELP_API_KEY env var and validation/check functions
+
+**Test results:**
+- ✅ 49 passed, 3 skipped in 0.06s
+- ✅ TestYelpPriceConversion: 8 tests — cents-to-Yelp price level conversion (low, mid, high, luxury, zero range, boundary cases)
+- ✅ TestYelpCategoryMapping: 4 tests — all 8 vibes mapped, categories are strings, no unexpected vibes, exactly 8 mappings
+- ✅ TestYelpBusinessNormalization: 16 tests — basic normalization, price levels ($-$$$$), missing price, restaurant vs experience typing, GBP/EUR/JPY/unknown currencies, category descriptions, location extraction, metadata, edge cases
+- ✅ TestYelpCurrencyMapping: 3 tests — major currencies, eurozone EUR, 30+ countries covered
+- ✅ TestYelpRateLimiting: 2 tests — retry on 429 then succeed, exhaust all retries on repeated 429
+- ✅ TestYelpErrorHandling: 6 tests — timeout, HTTP 500, missing API key, empty location, empty response, connection error
+- ✅ TestYelpSearchWithMock: 5 tests — correct params, limit capped at 50, multiple businesses normalized, authorization header, international location string with GBP currency
+- ⏭️ TestYelpSearchIntegration: 3 tests skipped (requires YELP_API_KEY) — San Francisco romantic, London international, invalid location ZZZZZ
+- ✅ TestModuleImports: 6 tests — all exports and config functions importable
+
+**Key implementation notes:**
+
+143. **YelpService uses a four-layer architecture (Step 8.1):** (1) **config layer** (`is_yelp_configured()` guard from `config.py`), (2) **HTTP layer** (`_make_request()` with exponential backoff on 429 and retry on timeout), (3) **normalization layer** (`_normalize_business()` converts raw Yelp JSON to `CandidateRecommendation`-compatible dicts), (4) **search layer** (`search_businesses()` orchestrates location string building, param construction, API call, and batch normalization). Each layer is independently testable — normalization tests are pure unit tests, HTTP tests mock `httpx.AsyncClient`, and search tests verify param construction.
+
+144. **Vibe-to-Yelp category mapping enables experience/date discovery (Step 8.1):** `VIBE_TO_YELP_CATEGORIES` maps all 8 aesthetic vibes to 3 Yelp category aliases each (24 total). Examples: `quiet_luxury` → `wine_bars, wineries, spas`; `adventurous` → `skydiving, rafting, escapegames`; `romantic` → `sailing, cookingschools, observatories`. Categories are Yelp-specific aliases from their category taxonomy (not human-readable titles). The aggregation node (Step 8.7) will pass the user's vibe tags through this mapping to generate appropriate Yelp search queries.
+
+145. **International currency detection uses a 36-country map (Step 8.1):** `COUNTRY_CURRENCY_MAP` maps ISO 3166-1 alpha-2 country codes to ISO 4217 currency codes. Covers USD, GBP, EUR (11 eurozone countries), JPY, AUD, CAD, and 20+ others. The `_normalize_business()` method detects currency from the search location's country code (not from Yelp's response, which doesn't include currency). Unknown country codes default to USD. Both "GB" and "UK" map to GBP for robustness.
+
+146. **Price conversion uses a bidirectional strategy (Step 8.1):** Budget filtering converts user's cents range → Yelp's 1-4 price levels via `_convert_price_range_to_yelp()` (e.g., 2000-7000 cents → levels "2,3"). Result normalization converts Yelp's price levels back to estimated cents via `YELP_PRICE_TO_CENTS` (e.g., "$$" → 3000 cents). The conversion uses range overlap detection — a Yelp level is included if any part of the user's budget range overlaps with that level's range. This ensures no relevant results are filtered out at the API level.
+
+147. **Type classification uses category alias matching (Step 8.1):** `_normalize_business()` classifies each business as "date" or "experience" based on its Yelp category aliases. A curated list of food/drink/dining-related aliases (restaurants, bars, wine_bars, italian, french, sushi, etc.) triggers "date" classification; everything else defaults to "experience". This enables the downstream diversity selection node (Step 5.6) to include both types in the final three recommendations.
+
+148. **Graceful degradation returns empty lists at every failure point (Step 8.1):** `search_businesses()` returns `[]` for: missing API key, empty location, timeout after retries, HTTP errors, rate limit exhaustion, and connection errors. This follows the established pattern from `embedding.py` and `qstash.py` — the aggregation node's `asyncio.gather(return_exceptions=True)` catches any remaining exceptions, so a Yelp failure never blocks recommendation generation (stub data fills in as fallback).

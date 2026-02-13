@@ -43,6 +43,28 @@ APNS_AUTH_KEY_PATH: str = os.getenv("APNS_AUTH_KEY_PATH", "")
 APNS_BUNDLE_ID: str = os.getenv("APNS_BUNDLE_ID", "")
 APNS_USE_SANDBOX: bool = os.getenv("APNS_USE_SANDBOX", "true").lower() == "true"
 
+# --- Yelp Fusion API ---
+YELP_API_KEY: str = os.getenv("YELP_API_KEY", "")
+
+
+def validate_yelp_config() -> bool:
+    """
+    Check that Yelp Fusion API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — Yelp
+    searches will be disabled but the app will still function).
+    """
+    return bool(YELP_API_KEY)
+
+
+def is_yelp_configured() -> bool:
+    """
+    Check if Yelp is available without raising exceptions.
+
+    Used by tests and services to conditionally enable Yelp search features.
+    """
+    return bool(YELP_API_KEY)
+
 
 def validate_supabase_config() -> bool:
     """Check that all required Supabase credentials are present and non-empty."""
