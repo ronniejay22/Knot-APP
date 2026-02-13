@@ -3449,6 +3449,58 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 170. **External URL prefers `onlineStoreUrl`, falls back to handle-based construction (Step 8.4):** Shopify products have both an `onlineStoreUrl` (full canonical URL) and a `handle` (URL-safe slug). The normalization prefers `onlineStoreUrl` because it's the canonical storefront link. When absent (headless stores, unpublished products), it constructs `https://{domain}/products/{handle}` as a fallback.
 
+### Step 8.5: Implement OpenTable/Resy Reservation Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `OPENTABLE_AFFILIATE_ID` environment variable, `validate_reservation_config()`, and `is_reservation_configured()` to `backend/app/core/config.py` — both config functions always return `True` since the service generates URLs without requiring API credentials
+- Extended `CandidateRecommendation.source` Literal in `backend/app/agents/state.py` to include `"opentable"` and `"resy"` alongside the existing five sources
+- Created `backend/app/services/integrations/reservation.py` implementing `ReservationService` — a URL-generation service for OpenTable and Resy that builds parameterized booking/search URLs pre-filled with cuisine, date, time, party size, and location. Includes interest-to-cuisine mapping (5 food-related interests), city-to-Resy-slug mapping (~25 major cities including international), cuisine-based price estimation for budget filtering, time slot generation centered around a preferred time, and normalization to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_reservation_integration.py` with 63 tests across 12 test classes (all pass without any API credentials)
+- Added `OPENTABLE_AFFILIATE_ID=` to `backend/.env.example`
+
+**Files created:**
+- `backend/app/services/integrations/reservation.py` — ReservationService with OpenTable/Resy URL generation, cuisine mapping, city slug mapping, time slot generation, price estimation, and CandidateRecommendation normalization
+- `backend/tests/test_reservation_integration.py` — 63 tests across 12 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added OPENTABLE_AFFILIATE_ID env var and always-true validation/check functions
+- `backend/app/agents/state.py` — Extended CandidateRecommendation.source Literal with "opentable" and "resy"
+- `backend/.env.example` — Added OPENTABLE_AFFILIATE_ID placeholder
+
+**Test results:**
+- ✅ 63 passed in 0.06s (reservation tests)
+- ✅ 1341 passed, 16 skipped in 882.88s (full backend suite — zero regressions)
+- ✅ TestOpenTableUrlGeneration: 6 tests — URL structure with covers/dateTime/term/near params, URL encoding of spaces and special characters, affiliate ID appended when configured, omitted when empty, dateTime ISO format, valid HTTPS URL
+- ✅ TestResyUrlGeneration: 5 tests — URL structure with query/date/seats params, city slug in /cities/ path, URL encoding of cuisine, date YYYY-MM-DD format, valid HTTPS URL
+- ✅ TestCityToResySlug: 7 tests — major US cities mapped (NY, LA, SF, Chicago, Miami), case-insensitive lookup, abbreviation lookup (NYC, SF, LA, DC), unsupported city returns None, international cities (London, Paris), partial match ("San Fran" → sf), empty/whitespace returns None
+- ✅ TestTimeSlotGeneration: 5 tests — default slots returned when no preference, preferred time centers slots by proximity, early preferred time favors early slots, invalid time format falls back to defaults, count parameter respected
+- ✅ TestCuisineMapping: 3 tests — food-related interests mapped (Cooking, Food, Wine, Coffee, Baking), all values are non-empty strings, unmapped interests (Gaming, Sports) not in dict
+- ✅ TestReservationNormalization: 11 tests — all CandidateRecommendation fields present, source opentable/resy, type always "date", UUID format (36 chars), OpenTable title with cuisine + platform, Resy title with cuisine + platform, description contains time slot, Resy description contains all suggested slots, metadata includes cuisine/date/time/party_size/time_slots/platform/booking_type, currency detected from country code (USD/GBP/EUR)
+- ✅ TestReservationSearch: 8 tests — returns OpenTable results, returns Resy results for supported city (NYC), no Resy for unsupported city (Tulsa), respects limit parameter, default date is tomorrow, empty city returns empty, invalid date returns empty, party size clamped (0→1, 50→20)
+- ✅ TestReservationDateValidation: 4 tests — valid YYYY-MM-DD accepted, MM/DD/YYYY rejected, invalid calendar date rejected, empty string rejected
+- ✅ TestSaturdayEveningSearch: 2 tests — Saturday evening search for 2 with time slots in HH:MM format, booking URLs contain correct date/party_size/cuisine for both platforms
+- ✅ TestOpenTableAffiliateId: 2 tests — affiliate ID appears in OpenTable URLs when configured, no ref= param when empty
+- ✅ TestPriceEstimation: 3 tests — known cuisine has price (italian=4500), unknown cuisine returns None, all cuisine prices are positive integers
+- ✅ TestModuleImports: 7 tests — ReservationService class, INTEREST_TO_CUISINE dict, CITY_TO_RESY_SLUG dict, DEFAULT_TIME_SLOTS list, config functions callable, config always returns True, helper functions importable
+
+**Key implementation notes:**
+
+171. **URL-generation service, not API client (Step 8.5):** Unlike Yelp, Ticketmaster, Amazon, and Shopify which make real HTTP API calls, the ReservationService generates parameterized booking/search URLs for OpenTable and Resy. Neither platform offers a publicly available API — OpenTable deprecated theirs and Resy has only an internal GraphQL API. The service builds URLs with pre-filled search criteria (cuisine, date, time, party size, location) so users land on the platform's search results page ready to book. The interface (`search_reservations()` returning `list[dict]`) matches the other integration services for seamless aggregator compatibility.
+
+172. **`is_reservation_configured()` always returns True (Step 8.5):** Unlike other integration services that require API keys and return `False` when unconfigured, the reservation service always returns `True` because URL generation has no external dependencies. The optional `OPENTABLE_AFFILIATE_ID` enables affiliate tracking in OpenTable URLs but is not required for the service to function. This ensures the aggregator (Step 8.7) never skips the reservation service.
+
+173. **OpenTable generates one result per time slot, Resy generates one result per search (Step 8.5):** OpenTable URLs include a specific `dateTime` parameter (e.g., `dateTime=2026-02-14T19:00`), so each time slot generates a distinct search page. The service generates 4 OpenTable results by default (one per time slot). Resy's URL format applies time filtering in-page rather than in the URL, so the service generates a single Resy result per search with all suggested time slots in the metadata. This avoids redundant results linking to the same Resy page.
+
+174. **City-to-Resy-slug mapping covers ~25 major cities with partial matching (Step 8.5):** `CITY_TO_RESY_SLUG` maps city names and common abbreviations (NYC, SF, LA, DC) to Resy's URL-path slugs. Lookup is case-insensitive with partial matching — "San Fran" matches "San Francisco" → "sf". Cities not in the map (e.g., Tulsa, Boise) result in no Resy results, only OpenTable. International cities London and Paris are included. The `_city_to_resy_slug()` function tries exact match first, then partial substring match.
+
+175. **Cuisine-based price estimation enables budget filtering (Step 8.5):** Since the service doesn't call APIs, real menu prices aren't available. `CUISINE_PRICE_ESTIMATE` provides approximate per-person costs in cents by cuisine type (e.g., cafe=1500, italian=4500, steakhouse=7000, french=6000). These are stored in `price_cents` so the downstream filtering and matching nodes can apply budget constraints. The `metadata.booking_type = "url_redirect"` field signals to consumers that this is an estimated price, not an actual menu price.
+
+176. **Time slot generation centers around preferred time (Step 8.5):** `_generate_time_slots()` returns evening dinner slots from `DEFAULT_TIME_SLOTS` (17:30–21:00 in 30-minute intervals). When a preferred time is provided, slots are sorted by proximity to it — requesting "20:00" returns the 4 closest slots (e.g., 20:00, 19:30, 20:30, 19:00). Invalid time formats silently fall back to the default order. This powers the implementation plan's test scenario: "Search for available reservations for 2 people on a Saturday evening."
+
+177. **Reuses `COUNTRY_CURRENCY_MAP` from yelp.py for international currency detection (Step 8.5):** Rather than duplicating the 30+ country-to-currency mapping, the normalization function imports `COUNTRY_CURRENCY_MAP` from `app.services.integrations.yelp`. This keeps currency detection consistent across all integration services and avoids drift. The import is inside the static method body to avoid circular dependency issues at module load time.
+
 ---
 
 ## Next Steps
@@ -3456,6 +3508,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
 - [x] **Step 8.3:** Implement Amazon Associates API Integration
 - [x] **Step 8.4:** Implement Shopify Storefront API Integration
+- [x] **Step 8.5:** Implement OpenTable/Resy Integration
 
 ---
 

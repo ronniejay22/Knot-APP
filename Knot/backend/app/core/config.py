@@ -58,6 +58,9 @@ AMAZON_ASSOCIATE_TAG: str = os.getenv("AMAZON_ASSOCIATE_TAG", "")
 SHOPIFY_STOREFRONT_TOKEN: str = os.getenv("SHOPIFY_STOREFRONT_TOKEN", "")
 SHOPIFY_STORE_DOMAIN: str = os.getenv("SHOPIFY_STORE_DOMAIN", "")
 
+# --- Reservation (OpenTable/Resy) ---
+OPENTABLE_AFFILIATE_ID: str = os.getenv("OPENTABLE_AFFILIATE_ID", "")
+
 
 def validate_yelp_config() -> bool:
     """
@@ -133,6 +136,27 @@ def is_shopify_configured() -> bool:
     Used by tests and services to conditionally enable Shopify search features.
     """
     return bool(SHOPIFY_STOREFRONT_TOKEN and SHOPIFY_STORE_DOMAIN)
+
+
+def validate_reservation_config() -> bool:
+    """
+    Check that reservation service configuration is present.
+
+    The reservation service works without any API keys (URL-based),
+    so this always returns True. The optional OPENTABLE_AFFILIATE_ID
+    enables affiliate tracking but is not required.
+    """
+    return True
+
+
+def is_reservation_configured() -> bool:
+    """
+    Check if the reservation service is available.
+
+    Always returns True because the service generates booking URLs
+    without requiring API credentials.
+    """
+    return True
 
 
 def validate_supabase_config() -> bool:
