@@ -3358,10 +3358,56 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 8.3: Implement Amazon Associates API Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`, and `AMAZON_ASSOCIATE_TAG` environment variables, `validate_amazon_config()`, and `is_amazon_configured()` to `backend/app/core/config.py`, following the same pattern as Yelp, Ticketmaster, and APNs config
+- Created `backend/app/services/integrations/amazon.py` implementing `AmazonService` — an async service for Amazon Product Advertising API v5 (PA-API 5.0) product search with HMAC-SHA256 request signing (AWS Signature Version 4 style), rate limiting (exponential backoff on HTTP 429 and 503), interest-to-Amazon-search-index category mapping (40 interests mapped), affiliate tag injection on all product URLs, and normalization of PA-API item JSON to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_amazon_integration.py` with 62 tests across 10 test classes (59 unit tests pass without API key, 3 integration tests skipped without Amazon credentials)
+
+**Files created:**
+- `backend/app/services/integrations/amazon.py` — AmazonService with HMAC-SHA256 signing, search, normalization, affiliate URL building, rate limiting, and 40-category interest mapping
+- `backend/tests/test_amazon_integration.py` — 62 tests across 10 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOCIATE_TAG env vars and validation/check functions
+
+**Test results:**
+- ✅ 59 passed, 3 skipped in 0.07s
+- ✅ TestAmazonCategoryMapping: 5 tests — known interests mapped to correct search indices, unmapped interests return None, count verified, all values are valid Amazon search index strings, no unexpected entries
+- ✅ TestAmazonProductNormalization: 21 tests — basic normalization, price cents from dollar amount, missing prices, type always "gift", source always "amazon", affiliate tag in URL, UUID id generation, description from features, brand extraction, manufacturer fallback, image URL extraction, ASIN in metadata, browse node category, currency extraction, missing fields graceful defaults, multiple features truncated to 3, empty features, location always None, metadata structure
+- ✅ TestAffiliateUrl: 5 tests — appends tag to clean URL, adds with ? separator, adds with & separator when query exists, skips if tag already present, handles empty URL and empty tag
+- ✅ TestAmazonSigning: 4 tests — authorization header format, X-Amz-Date header, Content-Encoding amz-1.0, X-Amz-Target matches PA-API v1
+- ✅ TestAmazonRateLimiting: 3 tests — retry on 429 then succeed, retry on 503 then succeed, exhaust all retries returns empty
+- ✅ TestAmazonErrorHandling: 7 tests — timeout with retry, HTTP 400 error, missing credentials returns empty, empty keywords returns empty, connection error, HTTP 500 error, whitespace-only keywords
+- ✅ TestAmazonSearchWithMock: 8 tests — correct payload params, limit capped at 10, custom category, price range in payload, normalization of results, affiliate tag in all URLs, default SearchIndex is "All", PA-API resources list
+- ⏭️ TestAmazonSearchIntegration: 3 tests skipped (requires Amazon credentials) — gardening gifts search, price range filtering, electronics category search
+- ✅ TestModuleImports: 6 tests — all exports importable, config functions importable, service class instantiable
+
+**Key implementation notes:**
+
+157. **AmazonService uses HMAC-SHA256 signed requests, not API key auth (Step 8.3):** Unlike Yelp (Bearer token header) and Ticketmaster (query param), Amazon PA-API 5.0 requires AWS Signature Version 4 style authentication. Each request generates a canonical request string, signs it with HMAC-SHA256 using a derived signing key (`AWS4` + secret → date → region → service → signing key`), and includes the signature in the `Authorization` header. Headers also include `X-Amz-Date`, `X-Amz-Target`, `Content-Encoding: amz-1.0`, and `Content-Type: application/json`. The signing helpers (`_sign()`, `_get_signature_key()`, `_build_authorization_header()`) are module-level functions reusable by any PA-API endpoint.
+
+158. **PA-API uses POST with JSON body, not GET with query params (Step 8.3):** Unlike Yelp and Ticketmaster (both GET requests with query parameters), Amazon PA-API 5.0 uses POST requests with a JSON body. The payload includes `Keywords`, `SearchIndex`, `ItemCount`, `PartnerTag`, `PartnerType`, `Marketplace`, and `Resources` (which fields to return). The payload string is part of the HMAC signature — any change to the body after signing invalidates the request.
+
+159. **40 interest categories mapped to Amazon search indices (Step 8.3):** `INTEREST_TO_AMAZON_CATEGORY` maps all 40 partner interest categories to Amazon search indices (e.g., "Cooking" → "Kitchen", "Gaming" → "VideoGames", "Pets" → "PetSupplies"). Multiple interests can map to the same index (e.g., "Fitness", "Yoga", "Hiking", "Cycling", "Running", "Swimming", "Skiing", "Surfing", "Camping" all map to "SportingGoods"). Unmapped interests default to `SearchIndex: "All"` in the API call.
+
+160. **Affiliate tag injection ensures revenue attribution (Step 8.3):** `_build_affiliate_url()` appends `tag={AMAZON_ASSOCIATE_TAG}` to all product URLs. It checks if the tag is already present to avoid duplication, and handles both URLs with existing query strings (`&tag=...`) and clean URLs (`?tag=...`). The tag is also sent in the PA-API request payload as `PartnerTag` (required by Amazon's terms of service).
+
+161. **Amazon products always typed as "gift" (Step 8.3):** Unlike Yelp (which produces `"date"` and `"experience"` types) and Ticketmaster (which produces `"experience"` type), all Amazon products are normalized with `type: "gift"`. This is because Amazon sells physical products, not experiences or date venues. The diversity selection node (Step 5.6) uses this type field to balance gift vs experience recommendations.
+
+162. **Amazon retries on both 429 AND 503 (Step 8.3):** While Yelp and Ticketmaster only retry on HTTP 429 (Too Many Requests), the Amazon service also retries on HTTP 503 (Service Unavailable) because PA-API commonly returns 503 for throttling. Exponential backoff uses `2**retry` seconds (1s, 2s, 4s) for rate limiting and `1s` flat for timeouts. Maximum 3 retries before returning an empty response.
+
+163. **PA-API price is in dollars, stored in cents (Step 8.3):** Amazon PA-API returns `Offers.Listings[0].Price.Amount` as a float in dollars. The normalization converts to cents via `int(float(amount) * 100)`. The `MinPrice`/`MaxPrice` payload fields accept cents directly. Client-side price filtering provides an additional safety net for results where the API's server-side filter may not apply (e.g., marketplace variations).
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
-- [ ] **Step 8.3:** Implement Amazon Associates API Integration
+- [x] **Step 8.3:** Implement Amazon Associates API Integration
 
 ---
 

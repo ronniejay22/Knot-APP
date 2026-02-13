@@ -49,6 +49,11 @@ YELP_API_KEY: str = os.getenv("YELP_API_KEY", "")
 # --- Ticketmaster Discovery API ---
 TICKETMASTER_API_KEY: str = os.getenv("TICKETMASTER_API_KEY", "")
 
+# --- Amazon Product Advertising API ---
+AMAZON_ACCESS_KEY: str = os.getenv("AMAZON_ACCESS_KEY", "")
+AMAZON_SECRET_KEY: str = os.getenv("AMAZON_SECRET_KEY", "")
+AMAZON_ASSOCIATE_TAG: str = os.getenv("AMAZON_ASSOCIATE_TAG", "")
+
 
 def validate_yelp_config() -> bool:
     """
@@ -86,6 +91,25 @@ def is_ticketmaster_configured() -> bool:
     Used by tests and services to conditionally enable Ticketmaster search features.
     """
     return bool(TICKETMASTER_API_KEY)
+
+
+def validate_amazon_config() -> bool:
+    """
+    Check that Amazon Product Advertising API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — Amazon
+    searches will be disabled but the app will still function).
+    """
+    return bool(AMAZON_ACCESS_KEY and AMAZON_SECRET_KEY and AMAZON_ASSOCIATE_TAG)
+
+
+def is_amazon_configured() -> bool:
+    """
+    Check if Amazon PA-API is available without raising exceptions.
+
+    Used by tests and services to conditionally enable Amazon search features.
+    """
+    return bool(AMAZON_ACCESS_KEY and AMAZON_SECRET_KEY and AMAZON_ASSOCIATE_TAG)
 
 
 def validate_supabase_config() -> bool:
