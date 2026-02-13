@@ -3309,9 +3309,59 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 8.2: Implement Ticketmaster Discovery API Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `TICKETMASTER_API_KEY` environment variable, `validate_ticketmaster_config()`, and `is_ticketmaster_configured()` to `backend/app/core/config.py`, following the same pattern as Yelp and APNs config
+- Created `backend/app/services/integrations/ticketmaster.py` implementing `TicketmasterService` — an async service for Ticketmaster Discovery API v2 event search with rate limiting (exponential backoff on HTTP 429), international currency detection (reuses `COUNTRY_CURRENCY_MAP` from `yelp.py`), onsale status filtering, and normalization of Ticketmaster event JSON to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_ticketmaster_integration.py` with 65 tests across 10 test classes (62 unit tests pass without API key, 3 integration tests skipped without `TICKETMASTER_API_KEY`)
+
+**Files created:**
+- `backend/app/services/integrations/ticketmaster.py` — TicketmasterService with search, normalization, onsale filtering, rate limiting, and currency detection
+- `backend/tests/test_ticketmaster_integration.py` — 65 tests across 10 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added TICKETMASTER_API_KEY env var and validation/check functions
+
+**Test results:**
+- ✅ 62 passed, 3 skipped in 0.07s
+- ✅ TestInterestToGenreMapping: 5 tests — all 8 interests mapped to genre IDs, strings validated, Concerts/Music share genre, count verified, no unexpected entries
+- ✅ TestEventNormalization: 21 tests — basic normalization, price midpoint calculation (dollars→cents), min-only/max-only prices, missing prices, type always "experience", GBP/EUR/USD currencies, currency from price data overrides country, venue extraction, date extraction, genre/subgenre in metadata, description building, missing name/venue/embedded handling, lowercase country codes, price metadata, Undefined genre exclusion
+- ✅ TestImageSelection: 4 tests — prefers 16:9 ≥640px, falls back to any 16:9, falls back to first image, empty returns None
+- ✅ TestOnsaleFiltering: 6 tests — onsale included, offsale/cancelled/rescheduled excluded, missing status excluded, case-insensitive
+- ✅ TestCurrencyMapping: 3 tests — major currencies, eurozone EUR, 30+ countries covered
+- ✅ TestRateLimiting: 2 tests — retry on 429 then succeed, exhaust all retries on repeated 429
+- ✅ TestErrorHandling: 6 tests — timeout, HTTP 500, missing API key, empty location, empty response, connection error
+- ✅ TestSearchWithMock: 8 tests — correct params, limit capped at 50, custom date range, offsale filtering, multiple events, apikey in query params (not headers), international country code, price range filter
+- ⏭️ TestSearchIntegration: 3 tests skipped (requires TICKETMASTER_API_KEY) — LA concerts, London international, onsale-only verification
+- ✅ TestModuleImports: 7 tests — all exports, config functions, and image selector importable
+
+**Key implementation notes:**
+
+149. **TicketmasterService follows the same four-layer architecture as YelpService (Step 8.2):** (1) **config layer** (`is_ticketmaster_configured()` guard), (2) **HTTP layer** (`_make_request()` with exponential backoff on 429), (3) **normalization layer** (`_normalize_event()` converts TM JSON to `CandidateRecommendation` dicts), (4) **search layer** (`search_events()` orchestrates param building, API call, onsale filtering, price filtering, and normalization). The architecture is intentionally parallel to `yelp.py` for consistency.
+
+150. **Interest-to-genre mapping enables event discovery (Step 8.2):** `INTEREST_TO_TM_GENRE` maps 8 interest categories to Ticketmaster genre objects containing `name` and `genreId`. "Concerts" and "Music" both map to the Music genre (`KnvZfZ7vAeA`). "Theater" maps to Arts & Theatre (`KnvZfZ7v7l1`), "Sports" to Sports (`KnvZfZ7vAdE`). Additional mappings: Comedy, Dancing (→ Dance/Electronic), Movies (→ Film), Family. The genre IDs are Ticketmaster's internal classification system identifiers.
+
+151. **Onsale filtering ensures only bookable events are returned (Step 8.2):** `_is_onsale()` checks `dates.status.code` (case-insensitive) against `VALID_ONSALE_STATUSES` (currently just `{"onsale"}`). Events with `offsale`, `cancelled`, `rescheduled`, or missing status are excluded before normalization. This prevents recommending events the user cannot actually attend.
+
+152. **Price extraction uses midpoint strategy for dollar-to-cents conversion (Step 8.2):** Ticketmaster returns price ranges in dollars with `min` and `max` fields. The normalization computes the midpoint: `((min + max) / 2) * 100` cents. If only `min` or `max` is available, that value is used directly. Missing prices result in `None` `price_cents`, which passes through budget filters (events without pricing are always included). Raw `min` and `max` are preserved in `metadata` for downstream nodes.
+
+153. **Currency detection has dual sources (Step 8.2):** Unlike Yelp (which never returns currency), Ticketmaster includes `currency` in `priceRanges`. When present, this overrides the country-based fallback from `COUNTRY_CURRENCY_MAP`. This means a US search returning GBP-priced events (e.g., touring shows with UK pricing) correctly reports GBP. The `COUNTRY_CURRENCY_MAP` is imported from `yelp.py` — no duplication.
+
+154. **Ticketmaster authenticates via query parameter, not headers (Step 8.2):** Unlike Yelp (which uses `Authorization: Bearer {key}`), Ticketmaster passes the API key as `apikey={key}` in the query string. The `_make_request()` method does not set Authorization headers. Tests verify the key appears in params, not headers.
+
+155. **Image selection uses a quality-preference cascade (Step 8.2):** `_select_best_image()` picks from Ticketmaster's image array in order: (1) 16:9 ratio with width ≥ 640px, (2) any 16:9 ratio, (3) first available image. This ensures high-quality hero images for recommendation cards while gracefully handling events with limited image assets.
+
+156. **Default date range is next 30 days (Step 8.2):** When no `date_range` is provided, `search_events()` defaults to `now → now + 30 days` using `datetime.now(timezone.utc)`. Dates are formatted as ISO 8601 (`%Y-%m-%dT%H:%M:%SZ`) as required by the Ticketmaster API. Custom date ranges bypass this default entirely.
+
+---
+
 ## Next Steps
 
-- [ ] **Step 8.2:** Implement Ticketmaster API Integration
+- [x] **Step 8.2:** Implement Ticketmaster API Integration
+- [ ] **Step 8.3:** Implement Amazon Associates API Integration
 
 ---
 

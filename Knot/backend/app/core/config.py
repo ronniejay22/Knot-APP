@@ -46,6 +46,9 @@ APNS_USE_SANDBOX: bool = os.getenv("APNS_USE_SANDBOX", "true").lower() == "true"
 # --- Yelp Fusion API ---
 YELP_API_KEY: str = os.getenv("YELP_API_KEY", "")
 
+# --- Ticketmaster Discovery API ---
+TICKETMASTER_API_KEY: str = os.getenv("TICKETMASTER_API_KEY", "")
+
 
 def validate_yelp_config() -> bool:
     """
@@ -64,6 +67,25 @@ def is_yelp_configured() -> bool:
     Used by tests and services to conditionally enable Yelp search features.
     """
     return bool(YELP_API_KEY)
+
+
+def validate_ticketmaster_config() -> bool:
+    """
+    Check that Ticketmaster Discovery API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — Ticketmaster
+    searches will be disabled but the app will still function).
+    """
+    return bool(TICKETMASTER_API_KEY)
+
+
+def is_ticketmaster_configured() -> bool:
+    """
+    Check if Ticketmaster is available without raising exceptions.
+
+    Used by tests and services to conditionally enable Ticketmaster search features.
+    """
+    return bool(TICKETMASTER_API_KEY)
 
 
 def validate_supabase_config() -> bool:
