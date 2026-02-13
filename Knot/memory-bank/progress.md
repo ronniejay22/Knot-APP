@@ -3701,6 +3701,46 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 9.2: Implement Recommendation Deep Link Handler (iOS) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `GET /api/v1/recommendations/{recommendation_id}` endpoint to `backend/app/api/recommendations.py` — fetches a single recommendation by ID, verifies it belongs to the authenticated user's vault (returns 404 if not, preventing ID enumeration)
+- Reused existing `MilestoneRecommendationItem` Pydantic model from `app.models.notifications` for the response, matching the DB schema
+- Added `.notFound` error case to `RecommendationServiceError` in `iOS/Knot/Services/RecommendationService.swift`
+- Added `fetchRecommendation(id:) async throws -> MilestoneRecommendationItemResponse` method to `RecommendationService` — sends `GET /api/v1/recommendations/{id}` with Bearer token
+- Created `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — full-screen view that loads and displays a single recommendation via deep link, with loading/error/content states and reuses `RecommendationCard` for visual consistency
+- Wired deep link navigation in `iOS/Knot/Features/Home/HomeView.swift` — observes `DeepLinkHandler.pendingDestination` for both cold start (`.task`) and warm start (`.onChange`) scenarios
+- Created `backend/tests/test_recommendation_deeplink.py` with 8 tests (route registration, auth enforcement, route shadowing prevention, module import validation)
+- Regenerated Xcode project via `xcodegen generate` to include the new DeepLinkRecommendationView.swift file
+
+**Files created:**
+- `backend/tests/test_recommendation_deeplink.py` — 8 pytest tests for the new GET endpoint
+- `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — Deep link recommendation detail view
+
+**Files modified:**
+- `backend/app/api/recommendations.py` — Added `GET /{recommendation_id}` endpoint (placed as last route to prevent catch-all shadowing)
+- `iOS/Knot/Services/RecommendationService.swift` — Added `.notFound` error case and `fetchRecommendation(id:)` method
+- `iOS/Knot/Features/Home/HomeView.swift` — Added `DeepLinkHandler` environment, deep link state, fullScreenCover, cold/warm start observers
+
+**Test results:**
+- ✅ 8/8 new backend tests pass (`test_recommendation_deeplink.py`)
+- ✅ 21/21 existing universal links tests pass (`test_universal_links.py`) — no regressions
+- ✅ iOS project builds with zero errors on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Key implementation notes:**
+
+202. **GET /{recommendation_id} route MUST be the last route on the recommendations router (Step 9.2):** Because `/{recommendation_id}` is a catch-all path parameter, FastAPI would match it before `/generate`, `/refresh`, `/feedback`, or `/by-milestone/{id}` if it were registered first. Placing it after all named routes ensures those paths are matched by their specific handlers. The test suite explicitly validates this with `test_endpoint_does_not_shadow_*` tests.
+
+203. **Deep link navigation uses cold start + warm start dual-path pattern (Step 9.2):** `HomeView` handles deep links via two mechanisms: (1) `.task` checks `deepLinkHandler.pendingDestination` after initial data load (cold start — app opened via deep link), and (2) `.onChange(of: deepLinkHandler.pendingDestination)` reacts to deep links received while the app is in the foreground (warm start). Both paths consume the destination by setting `deepLinkRecommendationId` and clearing `pendingDestination = nil`.
+
+204. **DeepLinkRecommendationView reuses RecommendationCard for visual consistency (Step 9.2):** Rather than building a custom detail view, the deep link view wraps the existing `RecommendationCard` component. Currency is hardcoded to `"USD"` since the `recommendations` DB table doesn't store currency. Save/Share are no-op for the MVP deep link flow — the primary action is "Select" which opens the external merchant URL.
+
+205. **fullScreenCover uses computed Binding pattern to avoid String+Identifiable issue (Step 9.2):** SwiftUI's `.fullScreenCover(item:)` requires `Identifiable` conformance, but `String` doesn't conform. Instead, `fullScreenCover(isPresented:)` is used with a computed `Binding` from `deepLinkRecommendationId != nil`, and the content uses `if let` to safely unwrap.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3711,7 +3751,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 8.7:** Create Aggregator Service
 - [x] **Step 8.8:** Validate Phase 8 Integration Test Suite
 - [x] **Step 9.1:** Configure Universal Links (iOS)
-- [ ] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
+- [x] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
 - [ ] **Step 9.3:** Implement External Merchant Handoff (iOS)
 - [ ] **Step 9.4:** Implement Return-to-App Flow (iOS)
 

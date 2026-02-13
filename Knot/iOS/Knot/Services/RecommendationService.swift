@@ -20,6 +20,7 @@ enum RecommendationServiceError: LocalizedError, Sendable {
     case decodingError(String)
     case validationError(String)
     case noVault
+    case notFound
 
     var errorDescription: String? {
         switch self {
@@ -35,6 +36,8 @@ enum RecommendationServiceError: LocalizedError, Sendable {
             return message
         case .noVault:
             return "No partner vault found. Complete onboarding first."
+        case .notFound:
+            return "Recommendation not found."
         }
     }
 }
@@ -315,6 +318,67 @@ final class RecommendationService: Sendable {
         case 422:
             let message = parseErrorMessage(from: data)
             throw RecommendationServiceError.validationError(message)
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Fetch Single Recommendation (Step 9.2)
+
+    /// Fetches a single recommendation by its database ID.
+    ///
+    /// Sends `GET /api/v1/recommendations/{recommendationId}`.
+    /// Used by the deep link handler to load a shared recommendation.
+    ///
+    /// - Parameter recommendationId: The UUID of the recommendation to fetch
+    /// - Returns: The recommendation details
+    /// - Throws: `RecommendationServiceError` if the request fails
+    func fetchRecommendation(
+        id recommendationId: String
+    ) async throws -> MilestoneRecommendationItemResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/recommendations/\(recommendationId)") else {
+            throw RecommendationServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw RecommendationServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw RecommendationServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RecommendationServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(MilestoneRecommendationItemResponse.self, from: data)
+            } catch {
+                throw RecommendationServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw RecommendationServiceError.noAuthSession
+
+        case 404:
+            throw RecommendationServiceError.notFound
 
         default:
             let message = parseErrorMessage(from: data)

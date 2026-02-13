@@ -824,8 +824,112 @@ def _apply_exclusion_filters(
 
 
 # ===================================================================
-# Shared helper: build response items from candidates
+# GET /api/v1/recommendations/{recommendation_id} (Step 9.2)
 # ===================================================================
+#
+# IMPORTANT: This route MUST remain the LAST route registered on the
+# router because /{recommendation_id} is a catch-all path parameter.
+# If placed before /generate, /refresh, /feedback, or /by-milestone/,
+# those paths would be captured as recommendation IDs.
+
+
+@router.get(
+    "/{recommendation_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MilestoneRecommendationItem,
+)
+async def get_recommendation_by_id(
+    recommendation_id: str,
+    user_id: str = Depends(get_current_user_id),
+) -> MilestoneRecommendationItem:
+    """
+    Fetch a single recommendation by its database ID.
+
+    Used by the deep link handler to load a recommendation that was shared
+    via Universal Links (https://api.knot-app.com/recommendation/{id}).
+
+    Returns:
+        200: The recommendation details.
+        401: Missing or invalid authentication token.
+        404: Recommendation not found or does not belong to this user.
+        500: Database error.
+    """
+    client = get_service_client()
+
+    # 1. Get the user's vault_id
+    try:
+        vault_result = (
+            client.table("partner_vaults")
+            .select("id")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to look up vault: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to look up vault.",
+        )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No partner vault found. Complete onboarding first.",
+        )
+
+    vault_id = vault_result.data[0]["id"]
+
+    # 2. Fetch the recommendation by ID
+    try:
+        rec_result = (
+            client.table("recommendations")
+            .select("*")
+            .eq("id", recommendation_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(
+            f"Failed to fetch recommendation {recommendation_id}: {exc}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load recommendation.",
+        )
+
+    if not rec_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recommendation not found.",
+        )
+
+    rec = rec_result.data[0]
+
+    # 3. Verify the recommendation belongs to this user's vault
+    if rec.get("vault_id") != vault_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recommendation not found.",
+        )
+
+    return MilestoneRecommendationItem(
+        id=rec["id"],
+        recommendation_type=rec["recommendation_type"],
+        title=rec["title"],
+        description=rec.get("description"),
+        external_url=rec.get("external_url"),
+        price_cents=rec.get("price_cents"),
+        merchant_name=rec.get("merchant_name"),
+        image_url=rec.get("image_url"),
+        created_at=rec["created_at"],
+    )
+
+
+# ===================================================================
+# Shared helpers
+# ===================================================================
+
 
 def _build_response_items(
     candidates: list[CandidateRecommendation],
