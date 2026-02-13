@@ -25,6 +25,9 @@ struct ContentView: View {
     @State private var authViewModel = AuthViewModel()
     @Environment(DeepLinkHandler.self) private var deepLinkHandler
 
+    /// The recommendation ID to display from a deep link (Step 9.2).
+    @State private var deepLinkRecommendationId: String?
+
     var body: some View {
         Group {
             if authViewModel.isCheckingSession {
@@ -47,8 +50,33 @@ struct ContentView: View {
             }
         }
         .environment(authViewModel)
+        .fullScreenCover(isPresented: Binding(
+            get: { deepLinkRecommendationId != nil },
+            set: { if !$0 { deepLinkRecommendationId = nil } }
+        )) {
+            if let recId = deepLinkRecommendationId {
+                DeepLinkRecommendationView(
+                    recommendationId: recId,
+                    onDismiss: {
+                        deepLinkRecommendationId = nil
+                    }
+                )
+            }
+        }
+        .onChange(of: deepLinkHandler.pendingDestination) { _, newValue in
+            if case .recommendation(let id) = newValue {
+                deepLinkRecommendationId = id
+                deepLinkHandler.pendingDestination = nil
+            }
+        }
         .task {
             await authViewModel.listenForAuthChanges()
+
+            // Check for pending deep link on cold start
+            if case .recommendation(let id) = deepLinkHandler.pendingDestination {
+                deepLinkRecommendationId = id
+                deepLinkHandler.pendingDestination = nil
+            }
         }
     }
 

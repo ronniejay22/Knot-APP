@@ -28,7 +28,6 @@ import LucideIcons
 /// Interactive elements are disabled when offline (network monitoring via `NWPathMonitor`).
 struct HomeView: View {
     @Environment(AuthViewModel.self) private var authViewModel
-    @Environment(DeepLinkHandler.self) private var deepLinkHandler
     @Environment(\.modelContext) private var modelContext
 
     @State private var viewModel = HomeViewModel()
@@ -48,9 +47,6 @@ struct HomeView: View {
 
     /// Controls the Notifications History sheet presentation.
     @State private var showNotifications = false
-
-    /// The recommendation ID to display from a deep link (Step 9.2).
-    @State private var deepLinkRecommendationId: String?
 
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
@@ -193,19 +189,6 @@ struct HomeView: View {
             .sheet(isPresented: $showHintsList) {
                 HintsListView()
             }
-            .fullScreenCover(isPresented: Binding(
-                get: { deepLinkRecommendationId != nil },
-                set: { if !$0 { deepLinkRecommendationId = nil } }
-            )) {
-                if let recId = deepLinkRecommendationId {
-                    DeepLinkRecommendationView(
-                        recommendationId: recId,
-                        onDismiss: {
-                            deepLinkRecommendationId = nil
-                        }
-                    )
-                }
-            }
             .onChange(of: showHintsList) { _, isPresented in
                 // Refresh recent hints when returning from Hints List
                 if !isPresented {
@@ -214,23 +197,10 @@ struct HomeView: View {
                     }
                 }
             }
-            .onChange(of: deepLinkHandler.pendingDestination) { _, newValue in
-                // Step 9.2: Handle deep links received while the app is in the foreground
-                if case .recommendation(let id) = newValue {
-                    deepLinkRecommendationId = id
-                    deepLinkHandler.pendingDestination = nil
-                }
-            }
             .task {
                 await viewModel.loadVault()
                 await viewModel.loadRecentHints()
                 viewModel.loadSavedRecommendations(modelContext: modelContext)
-
-                // Step 9.2: Check for pending deep link on cold start
-                if case .recommendation(let id) = deepLinkHandler.pendingDestination {
-                    deepLinkRecommendationId = id
-                    deepLinkHandler.pendingDestination = nil
-                }
             }
         }
     }
@@ -1038,11 +1008,9 @@ struct HomeView: View {
 #Preview("Home — Loading") {
     HomeView()
         .environment(AuthViewModel())
-        .environment(DeepLinkHandler())
 }
 
 #Preview("Home — Empty") {
     HomeView()
         .environment(AuthViewModel())
-        .environment(DeepLinkHandler())
 }
