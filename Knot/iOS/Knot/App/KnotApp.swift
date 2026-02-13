@@ -12,6 +12,7 @@ import SwiftData
 @main
 struct KnotApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var deepLinkHandler = DeepLinkHandler()
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -34,6 +35,10 @@ struct KnotApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(.dark)
+                .environment(deepLinkHandler)
+                .onOpenURL { url in
+                    deepLinkHandler.handleURL(url)
+                }
         }
         .modelContainer(sharedModelContainer)
     }

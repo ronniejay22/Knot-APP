@@ -8,5 +8,10 @@
 	</array>
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:api.knot-app.com</string>
+		<string>applinks:api.knot-app.com?mode=developer</string>
+	</array>
 </dict>
 </plist>

@@ -3647,6 +3647,60 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 9.1: Configure Universal Links (iOS) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `APP_DOMAIN` environment variable to `backend/app/core/config.py` (defaults to `api.knot-app.com`, matching `Constants.API.baseURL` in iOS)
+- Created `backend/app/api/deeplinks.py` — new API router serving the Apple App Site Association (AASA) file at both `/.well-known/apple-app-site-association` and `/apple-app-site-association`, plus a web fallback page at `/recommendation/{id}` for users without the app
+- Registered `deeplinks_router` in `backend/app/main.py` (no URL prefix — AASA must be at domain root)
+- Added `com.apple.developer.associated-domains` entitlement with `applinks:api.knot-app.com` and `applinks:api.knot-app.com?mode=developer` to both `iOS/Knot/Knot.entitlements` and `iOS/project.yml`
+- Created `iOS/Knot/Core/DeepLinkHandler.swift` — `@Observable @MainActor` class with `DeepLinkDestination` enum and URL parsing logic for `/recommendation/{id}` paths
+- Wired `DeepLinkHandler` into `iOS/Knot/App/KnotApp.swift` via `@State` + `.environment()` + `.onOpenURL` modifier
+- Added `@Environment(DeepLinkHandler.self)` to `iOS/Knot/App/ContentView.swift` (ready for Step 9.2 navigation)
+- Created comprehensive backend test suite `backend/tests/test_universal_links.py` with 21 tests across 4 test classes
+- Updated `backend/.env.example` with `APP_DOMAIN` entry
+
+**Files created:**
+- `backend/app/api/deeplinks.py` — AASA endpoint + web fallback router
+- `iOS/Knot/Core/DeepLinkHandler.swift` — Deep link state management and URL parsing
+- `backend/tests/test_universal_links.py` — 21 tests across 4 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added APP_DOMAIN env var
+- `backend/app/main.py` — Imported and registered deeplinks_router
+- `backend/.env.example` — Added APP_DOMAIN entry
+- `iOS/Knot/Knot.entitlements` — Added associated domains entitlement
+- `iOS/project.yml` — Added associated domains to entitlements properties
+- `iOS/Knot/App/KnotApp.swift` — Added DeepLinkHandler @State, environment injection, .onOpenURL
+- `iOS/Knot/App/ContentView.swift` — Added DeepLinkHandler environment property and preview injection
+
+**Test results:**
+- ✅ 21 passed in 0.48s
+- ✅ TestAASAWellKnownEndpoint: 7 tests — 200 status, application/json content-type, applinks key present, correct app ID (VN5G3R8J23.com.ronniejay.knot), recommendation pattern in components, webcredentials section, no auth required
+- ✅ TestAASARootEndpoint: 3 tests — 200 status at root path, application/json content-type, identical content to /.well-known/ path
+- ✅ TestWebFallback: 7 tests — 200 status, text/html content-type, Knot branding, App Store placeholder text, UUID format IDs, arbitrary IDs, recommendation reference in HTML
+- ✅ TestModuleImports: 4 tests — deeplinks router importable, AASA_CONTENT dict importable, router registered in main app, APP_DOMAIN config importable
+
+**Key implementation notes:**
+
+195. **AASA uses modern `components` format, not legacy `paths` (Step 9.1):** The AASA file uses the `"components"` array format introduced in iOS 15, not the legacy `"paths"` array. Since Knot targets iOS 17+, the modern format is appropriate. The `"components": [{ "/": "/recommendation/*" }]` pattern matches any URL with a `/recommendation/` prefix. The legacy `"paths": ["/recommendation/*"]` format would also work but is deprecated.
+
+196. **Deeplinks router has no URL prefix (Step 9.1):** Unlike all other API routers (`vault_router`, `hints_router`, etc.) which have `/api/v1/...` prefixes defined in their own files, the `deeplinks_router` has no prefix. This is required because Apple fetches the AASA file at `/.well-known/apple-app-site-association` relative to the domain root. The router is registered first in `main.py` to ensure its routes take priority.
+
+197. **`?mode=developer` entitlement suffix bypasses Apple CDN caching (Step 9.1):** The entitlements file includes both `applinks:api.knot-app.com` and `applinks:api.knot-app.com?mode=developer`. The `?mode=developer` suffix tells iOS to skip Apple's CDN cache and fetch the AASA file directly from the server on every app install. This is essential during development when the AASA content may change frequently. It should be removed (or kept alongside the production entry) before App Store submission.
+
+198. **DeepLinkHandler uses pendingDestination pattern for decoupled navigation (Step 9.1):** `DeepLinkHandler.handleURL(_:)` parses the URL and sets `pendingDestination: DeepLinkDestination?`. The consuming view (Step 9.2) will observe this property and navigate when it changes, then clear it. This decouples URL parsing from navigation logic — the handler doesn't need to know about the view hierarchy.
+
+199. **`.onOpenURL` is the SwiftUI-native Universal Link handler (Step 9.1):** Instead of implementing `application(_:continue:restorationHandler:)` in the AppDelegate (UIKit approach), the `.onOpenURL { url in ... }` modifier on `ContentView` in `KnotApp` handles both cold-start and foreground URL opens. This is the recommended approach for SwiftUI apps targeting iOS 17+.
+
+200. **Web fallback uses dark gradient matching the app aesthetic (Step 9.1):** The HTML fallback page at `/recommendation/{id}` uses `background: linear-gradient(135deg, #1a0d26 0%, #0d0617 100%)` which approximates `Theme.backgroundGradient` from the iOS app. The App Store link is a placeholder (`#`) that will be updated once the app is published. The truncated recommendation ID is displayed as a reference for debugging.
+
+201. **Associated domains require Apple Developer portal configuration (Step 9.1):** Adding `com.apple.developer.associated-domains` to the entitlements file is necessary but not sufficient. The Associated Domains capability must also be enabled for the App ID (`com.ronniejay.knot`) in the Apple Developer portal. Without this, iOS will not attempt to fetch the AASA file. This is a manual step outside the codebase.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3656,7 +3710,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 8.6:** Implement Firecrawl for Curated Content
 - [x] **Step 8.7:** Create Aggregator Service
 - [x] **Step 8.8:** Validate Phase 8 Integration Test Suite
-- [ ] **Step 9.1:** Configure Universal Links (iOS)
+- [x] **Step 9.1:** Configure Universal Links (iOS)
 - [ ] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
 - [ ] **Step 9.3:** Implement External Merchant Handoff (iOS)
 - [ ] **Step 9.4:** Implement Return-to-App Flow (iOS)

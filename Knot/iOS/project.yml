@@ -43,6 +43,9 @@ targets:
         com.apple.developer.applesignin:
           - Default
         aps-environment: development
+        com.apple.developer.associated-domains:
+          - applinks:api.knot-app.com
+          - applinks:api.knot-app.com?mode=developer
     settings:
       base:
         INFOPLIST_FILE: Knot/Info.plist

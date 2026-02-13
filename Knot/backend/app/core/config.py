@@ -64,6 +64,9 @@ OPENTABLE_AFFILIATE_ID: str = os.getenv("OPENTABLE_AFFILIATE_ID", "")
 # --- Firecrawl (Curated Content Crawling) ---
 FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
 
+# --- Universal Links (Apple App Site Association) ---
+APP_DOMAIN: str = os.getenv("APP_DOMAIN", "api.knot-app.com")
+
 
 def validate_yelp_config() -> bool:
     """

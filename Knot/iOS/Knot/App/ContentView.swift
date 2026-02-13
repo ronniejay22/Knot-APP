@@ -6,6 +6,7 @@
 //  Updated February 6, 2026 — Step 2.1: Show SignInView as the initial screen.
 //  Updated February 6, 2026 — Step 2.3: Auth state router with session persistence.
 //  Updated February 7, 2026 — Step 3.1: Added Onboarding flow between auth and Home.
+//  Updated February 12, 2026 — Step 9.1: Added DeepLinkHandler environment property.
 //
 
 import SwiftUI
@@ -22,6 +23,7 @@ import SwiftUI
 /// so all child views (SignInView, OnboardingContainerView, HomeView) share the same auth state.
 struct ContentView: View {
     @State private var authViewModel = AuthViewModel()
+    @Environment(DeepLinkHandler.self) private var deepLinkHandler
 
     var body: some View {
         Group {
@@ -70,4 +72,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environment(DeepLinkHandler())
 }
