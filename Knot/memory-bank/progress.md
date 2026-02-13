@@ -3560,6 +3560,52 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 8.7: Create Aggregator Service ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `AggregatorService` in `backend/app/services/integrations/aggregator.py` that orchestrates all 6 integration services (Yelp, Ticketmaster, Amazon, Shopify, Reservation, Firecrawl) in parallel using `asyncio.gather(return_exceptions=True)`
+- Defined `AggregationError` custom exception, raised when all 6 services fail with message "Unable to find recommendations right now"
+- Implemented 6 private dispatch methods (`_call_yelp`, `_call_ticketmaster`, `_call_amazon`, `_call_shopify`, `_call_reservation`, `_call_curated`) that translate generic inputs (interests, vibes, location, budget) into service-specific parameters by importing mapping constants from each service module
+- Implemented deduplication logic via `_deduplicate()` using `merchant_name + city` (case-insensitive) as the dedup key, with `SOURCE_PRIORITY` ranking to prefer reservation sources (opentable/resy = 5) over Yelp (3) when the same venue appears from multiple sources
+- Candidates without `merchant_name` are never deduplicated (always kept)
+- Created comprehensive test suite at `backend/tests/test_aggregator_integration.py` with 33 tests across 8 test classes
+- Created `_mock_all_services()` context manager helper for efficiently patching all 6 service search methods in tests
+
+**Files created:**
+- `backend/app/services/integrations/aggregator.py` — AggregatorService class, AggregationError exception, SOURCE_PRIORITY dict, 6 dispatch methods, deduplication logic
+- `backend/tests/test_aggregator_integration.py` — 33 tests across 8 test classes with sample data factories and mock helper
+
+**Files modified:**
+- `backend/app/services/integrations/__init__.py` — Updated module comment to include Reservation and Aggregator
+
+**Test results (33 passed in 0.17s):**
+- ✅ TestAggregatorInit: 2 tests — all 6 service instances created, class importable
+- ✅ TestAggregation: 6 tests — combined results from multiple services, Italian food + live music returns both restaurants and concerts, all CandidateRecommendation schema fields present, empty results when all return empty (not an error), limit_per_service forwarded, location forwarded to location-based services
+- ✅ TestDeduplication: 7 tests — same merchant+city from Yelp and OpenTable keeps OpenTable (priority 5 > 3), same from Yelp and Resy keeps Resy, different cities not deduped, case-insensitive matching (BELLA ITALIA = bella italia), no merchant_name always kept, higher-priority source preferred, unique results preserved
+- ✅ TestPartialFailure: 6 tests — single service failure returns remaining, two failures return remaining, all 6 failures raise AggregationError with correct message, empty list not counted as failure, 5 failures + 1 success returns results, failures logged with service names
+- ✅ TestPerformance: 1 test — 6 services with 100ms delay each complete in parallel under 2 seconds (proves asyncio.gather parallelism)
+- ✅ TestInterestMapping: 6 tests — vibes mapped to Yelp categories via VIBE_TO_YELP_CATEGORIES, interests mapped to TM genre IDs via INTEREST_TO_TM_GENRE, interests built into Amazon keywords, interests built into Shopify keywords, interests mapped to reservation cuisine via INTEREST_TO_CUISINE, unconfigured service returns empty list
+- ✅ TestAggregationError: 2 tests — inherits from Exception, stores correct message
+- ✅ TestModuleImports: 3 tests — AggregatorService importable, AggregationError importable, SOURCE_PRIORITY dict has all 7 sources
+
+**Key implementation notes:**
+
+186. **Parallel execution with return_exceptions=True (Step 8.7):** The aggregator uses `asyncio.gather(*coroutines, return_exceptions=True)` to run all 6 services concurrently. The `return_exceptions=True` flag is critical — without it, the first exception would cancel all other coroutines. With it, exceptions are returned as values in the results list, allowing the aggregator to collect partial results from successful services while tracking which services failed.
+
+187. **Failure vs. empty results distinction (Step 8.7):** The aggregator distinguishes between service failures (exceptions) and empty results (empty lists). A service returning `[]` because it's not configured or found no matches is valid behavior, not a failure. Only actual exceptions count toward the "all services failed" check that triggers `AggregationError`. This means if all 6 services are unconfigured (all return `[]`), the aggregator returns an empty list without raising an error.
+
+188. **Dedup key uses merchant_name + city, not title (Step 8.7):** The deduplication key is `merchant_name.lower()|city.lower()` rather than title. This is because titles differ across services (Yelp: "Bella Italia", OpenTable: "Italian Reservations on OpenTable") but merchant_name is more consistent for the same venue. The pipe separator `|` avoids false matches (e.g., "Bella" + "Italia" != "Bella Italia" + "").
+
+189. **SOURCE_PRIORITY ranking rationale (Step 8.7):** The priority order (opentable/resy=5, firecrawl=4, yelp=3, ticketmaster=2, amazon/shopify=1) is designed so that when the same venue appears from multiple sources, the version with the most actionable data is kept. Reservation sources have booking URLs, Firecrawl has curated editorial context, and Yelp has ratings/reviews. Gift platforms (Amazon/Shopify) are lowest because they use brand names as merchant_name, which rarely collide with location-based services.
+
+190. **Dispatch methods import mapping constants locally (Step 8.7):** Each `_call_*` method imports its mapping constant (e.g., `VIBE_TO_YELP_CATEGORIES`, `INTEREST_TO_TM_GENRE`) inside the method body rather than at module level. This follows the same pattern established by `reservation.py` and `firecrawl_service.py` for importing `COUNTRY_CURRENCY_MAP` — it avoids potential circular import issues at module load time and makes each dispatch method self-documenting about its dependencies.
+
+191. **Reservation service always participates in aggregation (Step 8.7):** Since `is_reservation_configured()` always returns True (the service generates URLs without API credentials), the reservation service always contributes results to the aggregator. Other services may be skipped when unconfigured. This ensures users always get date-night reservation suggestions alongside gift and experience recommendations.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3567,6 +3613,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 8.4:** Implement Shopify Storefront API Integration
 - [x] **Step 8.5:** Implement OpenTable/Resy Integration
 - [x] **Step 8.6:** Implement Firecrawl for Curated Content
+- [x] **Step 8.7:** Create Aggregator Service
 
 ---
 
