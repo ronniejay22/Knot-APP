@@ -3503,12 +3503,70 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 8.6: Implement Firecrawl for Curated Content ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `FIRECRAWL_API_KEY` environment variable, `validate_firecrawl_config()`, and `is_firecrawl_configured()` to `backend/app/core/config.py`
+- Created `backend/app/services/integrations/firecrawl_service.py` containing the `CuratedContentService` class
+- The service crawls predefined city guide URLs via the Firecrawl API (`POST https://api.firecrawl.dev/v1/scrape`), extracts venue entries from markdown content using regex-based parsing, and normalizes results to the `CandidateRecommendation` schema
+- Implemented in-memory caching with 24-hour TTL to avoid excessive API calls
+- Venue extraction supports three markdown patterns: headers (`## Venue Name`), bold names (`**Venue Name** — description`), and numbered lists with links (`1. [Venue Name](url)`)
+- Venue type classification distinguishes "date" (restaurants, bars, wine) vs "experience" (museums, tours, concerts) based on keyword matching
+- Interest-based filtering narrows results to relevant venues, with fallback to returning all venues when no matches found
+- Reuses `COUNTRY_CURRENCY_MAP` from `yelp.py` for international currency detection
+- Created comprehensive test suite at `backend/tests/test_firecrawl_integration.py` with 79 tests across 11 test classes
+
+**Files created:**
+- `backend/app/services/integrations/firecrawl_service.py` — CuratedContentService class with Firecrawl API integration, markdown venue extraction, in-memory caching, and CandidateRecommendation normalization
+- `backend/tests/test_firecrawl_integration.py` — 79 tests covering city guide URLs, venue extraction, description parsing, URL extraction, interest filtering, venue type classification, normalization, currency mapping, cache logic, mocked HTTP flow, error handling, and module imports
+
+**Files modified:**
+- `backend/app/core/config.py` — Added `FIRECRAWL_API_KEY` env var, `validate_firecrawl_config()`, and `is_firecrawl_configured()` functions
+
+**Test results (77 passed, 2 skipped):**
+- ✅ TestCityGuideUrls: 9 tests — major US cities configured, international cities configured, all URLs HTTPS, exact/case-insensitive/partial city lookup, unsupported/empty city returns empty
+- ✅ TestVenueExtraction: 10 tests — extracts header venues, bold venues, numbered link venues, URLs, descriptions; deduplicates; handles empty/plain text; filters short names; interest filtering
+- ✅ TestDescriptionExtraction: 5 tests — extracts first sentences, strips markdown formatting, converts links to text, truncates long text, returns None for empty
+- ✅ TestUrlExtraction: 5 tests — extracts HTTPS/HTTP URLs, returns first URL, returns None for no URL/empty
+- ✅ TestInterestFiltering: 4 tests — filters by matching interest, returns all when no match, handles empty/None interests
+- ✅ TestVenueTypeClassification: 7 tests — restaurant→date, bar→date, wine→date, museum→experience, tour→experience, concert→experience, ambiguous→experience
+- ✅ TestVenueNormalization: 10 tests — all schema fields present, source=firecrawl, type based on keywords, UUID format, price_cents=None, location populated, metadata fields, merchant name, external URL, missing URL defaults empty
+- ✅ TestCurrencyMapping: 5 tests — US→USD, UK→GBP, France→EUR, Japan→JPY, unknown→USD
+- ✅ TestCacheLogic: 6 tests — cache miss, set/get, expires after TTL, valid within TTL, clear all, clear expired only
+- ✅ TestSearchWithMock: 3 tests — returns normalized results, uses cache on second call (2 HTTP calls not 4), respects limit
+- ✅ TestErrorHandling: 7 tests — missing config, empty city, unsupported city, timeout, HTTP error, success=false, rate limit retry with backoff
+- ⏭️ TestSearchIntegration: 2 tests skipped (requires FIRECRAWL_API_KEY in .env)
+- ✅ TestModuleImports: 6 tests — service class, city guide URLs, constants, config functions, helper functions, cache TTL = 86400
+
+**Key implementation notes:**
+
+178. **Uses httpx directly, not firecrawl-py SDK (Step 8.6):** For consistency with all other integration services (yelp.py, ticketmaster.py, amazon.py, shopify.py, reservation.py), the Firecrawl service uses `httpx.AsyncClient` directly to call the Firecrawl REST API. This avoids adding an SDK dependency and keeps the patterns uniform. The file is named `firecrawl_service.py` (not `firecrawl.py`) to avoid name collision with the `firecrawl` Python package.
+
+179. **In-memory cache with 24-hour TTL (Step 8.6):** The module-level `_cache` dict stores `(results, timestamp)` entries keyed by URL. Before each scrape, `_is_cache_valid()` checks if the entry is within the TTL. `_set_cache()` stores new results with `time.time()`. `clear_cache()` and `clear_expired_cache()` are public functions for testing and maintenance. The cache is shared across all `CuratedContentService` instances via module-level scope.
+
+180. **Regex-based venue extraction from markdown (Step 8.6):** Three regex patterns extract venues from city guide markdown: (1) headers `## Venue Name` followed by description text, (2) bold names `**Venue Name** — description`, and (3) numbered lists `1. [Venue Name](url) — description`. Deduplication uses a `seen_names` set (case-insensitive). Names shorter than 3 characters or longer than 100 are filtered out.
+
+181. **Venue type classification uses keyword scoring (Step 8.6):** `_classify_venue_type()` counts matches against `DATE_KEYWORDS` (restaurant, bar, cafe, wine, etc.) and `EXPERIENCE_KEYWORDS` (museum, gallery, tour, concert, etc.) in the venue name and description. Higher count wins; ties default to "experience" since city guides typically feature unique experiences over standard restaurants.
+
+182. **Interest filtering with graceful fallback (Step 8.6):** When interests are provided, `_filter_by_interests()` scores each venue by counting interest keyword matches in the name/description. Only venues with score > 0 are returned. If no venues match any interest, all venues are returned to avoid empty results — better to show unfiltered content than nothing.
+
+183. **Predefined city guide URLs as configurable dict (Step 8.6):** `CITY_GUIDE_URLS` maps city names to lists of URLs. Currently includes 7 cities (NYC, LA, SF, Chicago, Miami, London, Paris) with URLs from TheInfatuation and Eater. In production, URLs would be updated to point to real city guide pages. Lookup is case-insensitive with partial matching (e.g., "San Fran" → "san francisco").
+
+184. **Reuses `COUNTRY_CURRENCY_MAP` from yelp.py (Step 8.6):** Same pattern as reservation.py — imports `COUNTRY_CURRENCY_MAP` from `app.services.integrations.yelp` inside the `_normalize_venue()` function body to avoid circular dependency at module load time.
+
+185. **Price is always None for curated content (Step 8.6):** City guides rarely include prices, so `price_cents` is set to `None` in all normalized results. The downstream filtering and matching nodes handle `None` prices gracefully (they skip budget filtering for items without prices).
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
 - [x] **Step 8.3:** Implement Amazon Associates API Integration
 - [x] **Step 8.4:** Implement Shopify Storefront API Integration
 - [x] **Step 8.5:** Implement OpenTable/Resy Integration
+- [x] **Step 8.6:** Implement Firecrawl for Curated Content
 
 ---
 

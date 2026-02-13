@@ -61,6 +61,9 @@ SHOPIFY_STORE_DOMAIN: str = os.getenv("SHOPIFY_STORE_DOMAIN", "")
 # --- Reservation (OpenTable/Resy) ---
 OPENTABLE_AFFILIATE_ID: str = os.getenv("OPENTABLE_AFFILIATE_ID", "")
 
+# --- Firecrawl (Curated Content Crawling) ---
+FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
+
 
 def validate_yelp_config() -> bool:
     """
@@ -157,6 +160,25 @@ def is_reservation_configured() -> bool:
     without requiring API credentials.
     """
     return True
+
+
+def validate_firecrawl_config() -> bool:
+    """
+    Check that Firecrawl API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — curated
+    content crawling will be disabled but the app will still function).
+    """
+    return bool(FIRECRAWL_API_KEY)
+
+
+def is_firecrawl_configured() -> bool:
+    """
+    Check if Firecrawl is available without raising exceptions.
+
+    Used by tests and services to conditionally enable curated content features.
+    """
+    return bool(FIRECRAWL_API_KEY)
 
 
 def validate_supabase_config() -> bool:
