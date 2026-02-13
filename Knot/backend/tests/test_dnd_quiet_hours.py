@@ -412,6 +412,9 @@ class TestCheckQuietHours:
         with patch("app.services.dnd.get_service_client", return_value=mock_client):
             with patch("app.services.dnd.datetime") as mock_dt:
                 mock_dt.now.return_value = fake_now
+                # Allow datetime(...) constructor to pass through to real datetime
+                # so _compute_next_delivery_time can build timezone-aware datetimes
+                mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
                 is_quiet, next_time = await check_quiet_hours("user-123")
 
         assert is_quiet is True

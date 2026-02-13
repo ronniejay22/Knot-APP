@@ -1283,6 +1283,25 @@ The iOS `NotificationsViewModel.selectNotification()` method uses a fire-and-for
 ### 117. Notification Row Three-Layer Visual Hierarchy (Step 7.7)
 Each notification history row in `NotificationsView` uses a three-layer information hierarchy designed for quick scanning: (1) **Recognition layer** — a milestone type SF Symbol icon (gift.fill for birthday, heart.fill for anniversary, star.fill for holiday, calendar.badge.clock for custom) in an accent-tinted rounded rect, providing instant visual type recognition. (2) **Context layer** — milestone name (bold, 1-line), days-before label + formatted date, status badge (green "Delivered" capsule or red "Failed" capsule with checkmark/xmark SF Symbols), and recommendation count with Lucide sparkles icon. An accent-colored 7pt Circle dot appears next to the milestone name when `viewedAt == nil && status == "sent"`, providing unread status at a glance. (3) **Action layer** — a Lucide chevronRight indicator appears only when `recommendationsCount > 0`, signaling tappability. Tapping is disabled for notifications with zero recommendations.
 
+### 118. Phase 7 Notification Test Architecture (Step 7.8)
+The notification system is validated by 7 test files containing 202 tests, organized by subsystem:
+
+| Test File | Tests | Subsystem | Strategy |
+|-----------|-------|-----------|----------|
+| `test_qstash_webhook.py` | 25 | QStash JWT verification, webhook routing | Unit (mocked QStash keys, mocked Supabase) + integration (real Supabase for webhook processing) |
+| `test_notification_queue_table.py` | 26 | DB schema, RLS, cascades | Integration (real Supabase — verifies table structure, column constraints, RLS policies, CASCADE deletes) |
+| `test_notification_scheduler.py` | 34 | Milestone date computation, QStash scheduling | Unit (pure date math, mocked QStash publish) + integration (real Supabase for DB inserts) |
+| `test_notification_processing.py` | 18 | Vault loading, LangGraph pipeline | Unit (mocked pipeline, mocked Supabase) + integration (real Supabase for recommendation storage) |
+| `test_apns_push_service.py` | 43 | APNs payload, JWT tokens, HTTP/2 delivery | Unit (mocked httpx, mocked file I/O for .p8 keys) — no real APNs calls |
+| `test_dnd_quiet_hours.py` | 35 | Quiet hours logic, timezone inference | Unit (pure timezone math, mocked DB) + integration (mocked webhook with DND check) |
+| `test_notification_history.py` | 21 | History API, mark-viewed, by-milestone | Unit (mocked Supabase client) + integration (real Supabase for full CRUD flows) |
+
+**Key test patterns across Phase 7:**
+- **Credentials gating:** All integration tests use `@pytest.mark.skipif(not _supabase_configured())` so CI can run unit tests without Supabase credentials while developers run the full suite locally.
+- **Fixture cleanup:** Integration tests create auth users and data in setup, then CASCADE-delete the auth user in teardown to clean up all related rows (vaults, milestones, notifications, recommendations).
+- **Mock layering:** External services (QStash, APNs, LangGraph, Vertex AI) are always mocked via `unittest.mock.patch`. Only Supabase is optionally real for integration tests.
+- **datetime mock passthrough:** When mocking `datetime.now()`, the mock must also pass through `datetime(...)` constructor calls via `side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` to avoid `MagicMock` objects leaking into timezone-aware datetime operations.
+
 ---
 
 ## Data Flow

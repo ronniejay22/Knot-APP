@@ -3450,3 +3450,44 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 139. **Notification row design uses three-layer info hierarchy (Step 7.7):** Each row shows: (1) milestone type SF Symbol icon in an accent-tinted rounded rect, (2) milestone name (bold) + unviewed accent dot, days-before label + formatted date (secondary), status capsule badge (green "Delivered" or red "Failed") + recommendation count with sparkles icon, (3) chevron indicator if recommendations exist. Tapping is only enabled when `recommendationsCount > 0`.
 
 140. **Recommendations sheet reuses milestone context (Step 7.7):** The recommendations detail sheet displays the milestone name as its navigation title and shows recommendation cards with type-specific SF Symbol icons (gift.fill, sparkles, heart.fill, star.fill), title, merchant name, formatted price (converted from cents), description (3-line limit), and an external link button that opens the URL via `UIApplication.shared.open()`. The sheet has its own loading, empty, and error states independent of the history list.
+
+---
+
+### Step 7.8: Phase 7 Test Validation & Bug Fix ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Ran the complete Phase 7 notification test suite (7 test files, 202 tests) end-to-end to validate the entire notification system
+- Discovered and fixed a bug in `test_dnd_quiet_hours.py::TestCheckQuietHours::test_user_in_quiet_hours_returns_true` where mocking the entire `datetime` class in `app.services.dnd` caused `_compute_next_delivery_time()` to receive a `MagicMock` instead of a real `datetime` when constructing timezone-aware datetimes, resulting in a `TypeError: '<=' not supported between instances of 'MagicMock' and 'datetime.datetime'`
+- Fixed by adding `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` to the mock configuration, allowing the `datetime(...)` constructor to pass through to the real `datetime` class while still mocking `datetime.now()`
+
+**Files modified:**
+- `backend/tests/test_dnd_quiet_hours.py` — Fixed datetime mock in `test_user_in_quiet_hours_returns_true` to pass constructor calls through to real `datetime`
+
+**Test results:**
+- ✅ **202 passed** in 74.83s (0 failed, 5 warnings)
+- ✅ `test_qstash_webhook.py` — 25 tests (QStash signature verification, webhook authentication, webhook processing, QStash publish, module imports)
+- ✅ `test_notification_queue_table.py` — 26 tests (table exists, schema validation, RLS policies, data integrity, cascade deletes)
+- ✅ `test_notification_scheduler.py` — 34 tests (floating holiday detection, floating holiday dates, next occurrence computation, milestone scheduling, batch scheduling, module imports)
+- ✅ `test_notification_processing.py` — 18 tests (vault loader budget matching, recommendation generation, pipeline failure handling, integration tests, module imports)
+- ✅ `test_apns_push_service.py` — 43 tests (payload building, token generation/caching, push delivery, device token lookup, webhook integration, module imports)
+- ✅ `test_dnd_quiet_hours.py` — 35 tests (quiet hours detection, delivery time computation, timezone inference, timezone resolution, DB-integrated check, webhook DND integration, module imports)
+- ✅ `test_notification_history.py` — 21 tests (history endpoint, mark-viewed endpoint, milestone recommendations endpoint, integration tests, module imports)
+- Warnings are all from third-party libraries (JWT HMAC key length, Supabase deprecated params) — not actionable
+
+**Per-step test coverage:**
+| Step | Test File | Tests | Coverage |
+|------|-----------|-------|----------|
+| 7.1 | `test_qstash_webhook.py`, `test_notification_queue_table.py` | 51 | QStash JWT verification, webhook auth, notification_queue schema/RLS/cascades |
+| 7.2 | `test_notification_scheduler.py` | 34 | Floating holidays (Mother's/Father's Day), yearly/one-time recurrence, leap years, QStash scheduling |
+| 7.3 | `test_notification_processing.py` | 18 | Vault data loading, LangGraph pipeline invocation, graceful degradation on pipeline failure |
+| 7.4-7.5 | `test_apns_push_service.py` | 43 | APNs payload format, ES256 JWT tokens, HTTP/2 delivery, device token lookup, webhook push integration |
+| 7.6 | `test_dnd_quiet_hours.py` | 35 | Quiet hours detection (midnight-spanning, same-day, disabled), timezone inference from US states, webhook rescheduling |
+| 7.7 | `test_notification_history.py` | 21 | History pagination, mark-viewed ownership, by-milestone recommendations, full integration flows |
+
+**Key implementation notes:**
+
+141. **Mocking `datetime` class requires constructor passthrough (Step 7.8):** When patching `module.datetime` to control `datetime.now()`, the mock also intercepts `datetime(...)` constructor calls, which return `MagicMock` objects instead of real datetimes. This causes `TypeError` when comparing mocked objects with real datetimes. The fix is `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` — this makes `datetime(year, month, day, ...)` pass through to the real class while `datetime.now()` still returns the mocked value (since `.now` is accessed as an attribute, not via `__call__`).
+
+142. **Phase 7 test suite validates 202 behaviors across 7 files in ~75 seconds:** The notification system test suite covers the full lifecycle — from QStash webhook receipt and signature verification, through notification scheduling and recommendation generation, to APNs push delivery, DND quiet hours rescheduling, and notification history retrieval. Tests use a mix of pure unit tests (mocked DB/services) and integration tests (real Supabase queries), connected by the `@pytest.mark.skipif(not _supabase_configured())` pattern that allows CI to run unit tests without credentials while developers run the full suite locally.
