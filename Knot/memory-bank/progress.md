@@ -3080,9 +3080,238 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 7.4: Implement Push Notification Registration (iOS + Backend) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created database migration `00013_add_device_token_to_users.sql` adding `device_token` (TEXT) and `device_platform` (TEXT, CHECK ios/android) columns to the `users` table with a partial index on non-null tokens
+- Created `backend/app/models/users.py` with `DeviceTokenRequest` Pydantic model using `@field_validator` for token/platform validation
+- Added `POST /api/v1/users/device-token` endpoint to `backend/app/api/users.py` — registers or updates device tokens, returns "registered" vs "updated" status
+- Created `iOS/Knot/App/AppDelegate.swift` — UIKit delegate bridging push notification callbacks into SwiftUI lifecycle, with `@preconcurrency UNUserNotificationCenterDelegate` for Swift 6 strict concurrency
+- Created `iOS/Knot/Services/DeviceTokenService.swift` — singleton service for sending device tokens to the backend
+- Modified `iOS/Knot/Features/Auth/AuthViewModel.swift` to request push notification permission after vault check completes
+- Added `aps-environment: development` entitlement to both `Knot.entitlements` and `project.yml`
+- Created test suite `backend/tests/test_device_token_api.py` with 20 tests across 6 classes
+
+**Test results:**
+- ✅ 20 tests passing
+
+---
+
+### Step 7.5: Create APNs Push Notification Service (Backend) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `backend/app/services/apns.py` — full APNs push delivery service with ES256 JWT token generation (50-min caching), structured notification payloads, and HTTP/2 delivery via `httpx.AsyncClient(http2=True)`
+- Added 5 new APNs environment variables to `backend/app/core/config.py` (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_AUTH_KEY_PATH`, `APNS_BUNDLE_ID`, `APNS_USE_SANDBOX`) with validation functions
+- Integrated push delivery into the notification webhook pipeline between recommendation generation and status update, with graceful degradation on failure
+- Added `cryptography` and `httpx[http2]` to `requirements.txt` for ES256 signing and HTTP/2 support
+- Created test suite `backend/tests/test_apns_push_service.py` with 37 tests across 6 classes
+
+**Test results:**
+- ✅ 37 tests passing
+
+---
+
+### Step 7.6: Implement DND Respect Logic ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created database migration `00014_add_quiet_hours_to_users.sql` adding `quiet_hours_start` (INTEGER, default 22), `quiet_hours_end` (INTEGER, default 8), and `timezone` (TEXT, nullable) columns to the `users` table
+- Created `backend/app/services/dnd.py` — DND service with timezone inference from US state abbreviations, pure `is_in_quiet_hours()` function, and DB-integrated `check_quiet_hours()`
+- Modified `backend/app/api/notifications.py` — inserted DND check (step 6.5) between recommendation generation and push delivery in the webhook endpoint. If quiet hours active, reschedules via QStash and returns `"rescheduled"` status without delivering push or marking notification as `sent`
+- Updated `backend/app/models/notifications.py` — added `'rescheduled'` to the `status` field description
+- Updated `iOS/Knot/App/AppDelegate.swift` — added `userNotificationCenter(_:didReceive:)` handler for notification tap responses, including those queued during system DND/Focus mode
+- Created comprehensive test suite `backend/tests/test_dnd_quiet_hours.py`
+
+**Files created:**
+- `backend/supabase/migrations/00014_add_quiet_hours_to_users.sql` — Migration adding quiet hours columns
+- `backend/app/services/dnd.py` — DND quiet hours service
+- `backend/tests/test_dnd_quiet_hours.py` — 35 tests across 7 test classes
+
+**Files modified:**
+- `backend/app/api/notifications.py` — DND check + QStash rescheduling in webhook
+- `backend/app/models/notifications.py` — Status field description update
+- `iOS/Knot/App/AppDelegate.swift` — Notification tap response handler
+
+**Test results:**
+- ✅ 35 tests passing (0.51s)
+- ✅ TestIsInQuietHours: 9 tests — boundary conditions, midnight-spanning, same-day, disabled
+- ✅ TestComputeNextDeliveryTime: 3 tests — 11pm→8am next day, 3am→8am same day, UTC output
+- ✅ TestTimezoneInference: 8 tests — US state mapping, non-US fallback, case-insensitive
+- ✅ TestGetUserTimezone: 4 tests — explicit priority, vault inference, fallback, invalid handling
+- ✅ TestCheckQuietHours: 3 tests — DB integration, user not found, vault timezone inference
+- ✅ TestWebhookDNDIntegration: 5 tests — rescheduled response, normal delivery, graceful degradation, QStash params, stays pending
+- ✅ TestModuleImports: 3 tests — all exports, rescheduled status, constants
+
+**Key implementation notes:**
+
+127. **Database migration 00014 adds quiet hours and timezone to users table (Step 7.6):** `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS quiet_hours_start INTEGER NOT NULL DEFAULT 22 CHECK (quiet_hours_start >= 0 AND quiet_hours_start <= 23), ADD COLUMN IF NOT EXISTS quiet_hours_end INTEGER NOT NULL DEFAULT 8 CHECK (quiet_hours_end >= 0 AND quiet_hours_end <= 23), ADD COLUMN IF NOT EXISTS timezone TEXT`. Integers (0-23) used instead of TIME for simplicity — quiet hours granularity is whole hours. `timezone` is nullable; when NULL, inferred from vault location. No index needed since columns are only read during notification processing.
+
+128. **`is_in_quiet_hours()` is a pure function with injectable `now_utc` (Step 7.6):** The core DND check in `app/services/dnd.py` accepts `now_utc: datetime | None = None` as a parameter, defaulting to `datetime.now(tz.utc)`. This makes the function trivially testable without mocking `datetime.now()`. All 9 unit tests pass specific UTC timestamps covering: midnight-spanning ranges (22:00-08:00), same-day ranges (01:00-06:00), boundary conditions (10pm=quiet, 8am=not quiet), and the disabled case (start==end).
+
+129. **Timezone inference uses US state abbreviation mapping (Step 7.6):** `_US_STATE_TIMEZONES` maps all 50 states + DC to their predominant IANA timezone. Resolution priority: (1) explicit `users.timezone` column, (2) inferred from `partner_vaults.location_state` + `location_country`, (3) fallback to `"America/New_York"`. Uses stdlib `zoneinfo.ZoneInfo` — no third-party dependencies. Invalid explicit timezone strings fall back to vault inference rather than raising.
+
+130. **DND check inserted between recommendation generation and push delivery (Step 7.6):** The DND check runs as step 6.5 in the webhook pipeline, after recommendations are generated but before push delivery. This means recommendations are always generated (they're stored in the DB for when the user opens the app), but the push notification is deferred. The notification stays `pending` in `notification_queue` — it is NOT marked `sent` since the push hasn't been delivered. When QStash re-fires at 8am, the notification is still `pending` and the full flow runs again.
+
+131. **QStash rescheduling uses deduplication ID suffix `-dnd-reschedule` (Step 7.6):** The reschedule call to `publish_to_qstash()` uses `deduplication_id=f"{notification_id}-dnd-reschedule"` to prevent duplicate rescheduling within QStash's dedup window. The original scheduling dedup ID was `{milestone_id}-{days_before}`, so there is no collision. The `not_before` timestamp is set to the user's `quiet_hours_end` (default 8am) in their local timezone, converted to a UTC Unix timestamp.
+
+132. **DND check failure proceeds with delivery (Step 7.6):** If `check_quiet_hours()` raises an exception (DB connection error, invalid timezone, etc.), the webhook logs a warning and continues to push delivery. This follows the graceful degradation pattern established in Steps 7.3 and 7.5. A notification that arrives at 11pm due to a DND failure is preferable to a notification that is silently lost.
+
+133. **iOS system DND is automatic — no custom suppression logic needed (Step 7.6):** When iOS Focus/DND is enabled, the OS automatically queues all incoming notifications and delivers them when DND ends. The app does not need to check or override this behavior. The `userNotificationCenter(_:didReceive:)` handler was added to `AppDelegate.swift` to process notification taps (including those queued by system DND), extracting `notification_id` and `milestone_id` from the payload for future deep-linking (Step 9.2).
+
+---
+
+### Step 7.7: Create Notification History View (iOS + Backend) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created database migration `00015_add_viewed_at_to_notification_queue.sql` adding a nullable `viewed_at TIMESTAMPTZ` column to `notification_queue` for tracking when a user opens a notification's recommendations
+- Added four new Pydantic models to `backend/app/models/notifications.py`: `NotificationHistoryItem`, `NotificationHistoryResponse`, `MilestoneRecommendationItem`, `MilestoneRecommendationsResponse`
+- Added two new authenticated endpoints to `backend/app/api/notifications.py`: `GET /api/v1/notifications/history` (paginated, reverse chronological, with milestone metadata and recommendation counts) and `PATCH /api/v1/notifications/{notification_id}/viewed` (sets viewed_at timestamp with user ownership validation)
+- Added one new authenticated endpoint to `backend/app/api/recommendations.py`: `GET /api/v1/recommendations/by-milestone/{milestone_id}` (returns pre-generated recommendations for a milestone, read-only)
+- Added four new iOS DTOs to `DTOs.swift`: `NotificationHistoryResponse`, `NotificationHistoryItemResponse`, `MilestoneRecommendationsResponse`, `MilestoneRecommendationItemResponse`
+- Created `iOS/Knot/Services/NotificationHistoryService.swift` with three methods: `fetchHistory()`, `fetchMilestoneRecommendations()`, `markViewed()` (fire-and-forget)
+- Created `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` managing history loading, notification selection, recommendation detail, and viewed status updates
+- Created `iOS/Knot/Features/Notifications/NotificationsView.swift` with full notification history UI: list with milestone type icons, unviewed dot indicators, status badges, recommendation counts, pull-to-refresh, and a recommendations detail sheet with type icons, prices, merchant names, and external link buttons
+- Modified `iOS/Knot/Features/Home/HomeView.swift` to add a bell icon (`Lucide.bellRing`) in the toolbar that opens the Notifications sheet
+- Created comprehensive test suite `backend/tests/test_notification_history.py`
+
+**Files created:**
+- `backend/supabase/migrations/00015_add_viewed_at_to_notification_queue.sql` — Migration adding viewed_at column
+- `iOS/Knot/Services/NotificationHistoryService.swift` — API service for notification history operations
+- `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` — ViewModel for notification history screen
+- `iOS/Knot/Features/Notifications/NotificationsView.swift` — Notification History screen UI
+- `backend/tests/test_notification_history.py` — 21 tests across 5 test classes
+
+**Files modified:**
+- `backend/app/models/notifications.py` — Added 4 Pydantic models for history and recommendation responses
+- `backend/app/api/notifications.py` — Added history and viewed endpoints with user auth
+- `backend/app/api/recommendations.py` — Added by-milestone recommendations endpoint
+- `iOS/Knot/Models/DTOs.swift` — Added 4 notification history DTOs
+- `iOS/Knot/Features/Home/HomeView.swift` — Added bell icon toolbar button and notifications sheet
+
+**Test results:**
+- ✅ 21 tests passing (12.94s)
+- ✅ TestNotificationHistoryEndpoint: 4 tests — empty history, sent notifications with metadata, deleted milestone handling, auth required
+- ✅ TestMarkViewedEndpoint: 3 tests — sets timestamp, 404 for non-existent, auth required
+- ✅ TestMilestoneRecommendationsEndpoint: 4 tests — returns stored recommendations, empty for no recommendations, 404 for no vault, auth required
+- ✅ TestNotificationHistoryIntegration: 4 tests — full history flow, milestone recommendations, mark viewed, pagination
+- ✅ TestModuleImports: 6 tests — model imports, router endpoint registration, response defaults
+
+**Key implementation notes:**
+
+134. **Database migration 00015 adds viewed_at to notification_queue (Step 7.7):** `ALTER TABLE public.notification_queue ADD COLUMN viewed_at TIMESTAMPTZ;` — a nullable timestamp column that remains NULL until the user taps a notification in the history screen to view its recommendations. No DEFAULT value, no index (read infrequently, only in the history list query). The column is set via the `PATCH /viewed` endpoint which uses the service client to update directly.
+
+135. **Notification history endpoint joins milestone metadata and counts recommendations (Step 7.7):** `GET /api/v1/notifications/history` queries `notification_queue` WHERE `user_id` matches AND `status IN ('sent', 'failed')`, ordered by `sent_at DESC`. For each notification, it fetches the associated milestone's name/type/date from `partner_milestones` (gracefully handling deleted milestones with "Deleted Milestone" fallback). Then for each notification, it counts recommendations from the `recommendations` table matching the `milestone_id` and a vault lookup. Supports `limit`/`offset` query params (defaults 50/0).
+
+136. **By-milestone recommendations endpoint is read-only (Step 7.7):** `GET /api/v1/recommendations/by-milestone/{milestone_id}` does NOT generate new recommendations — it only returns existing ones from the `recommendations` table that were pre-generated when the notification fired (Step 7.3). This keeps the endpoint fast and prevents duplicate generation. Returns up to 10 results ordered by `created_at DESC`.
+
+137. **Mark-viewed endpoint validates user ownership (Step 7.7):** `PATCH /api/v1/notifications/{notification_id}/viewed` filters by both `notification_id` AND `user_id` to ensure a user can only mark their own notifications as viewed. Returns 404 (not 403) if the notification doesn't exist or belongs to another user, preventing information leakage. Uses `datetime.now(timezone.utc).isoformat()` for the viewed_at timestamp.
+
+138. **iOS view model updates local array for immediate UI feedback (Step 7.7):** When `selectNotification()` marks a notification as viewed, it doesn't wait for the API response to update the UI. After the fire-and-forget `markViewed()` call, it creates a copy of the `NotificationHistoryItemResponse` with `viewedAt` set to the current ISO 8601 timestamp and replaces the item in the local `notifications` array. This immediately removes the unviewed accent dot without a full reload.
+
+139. **Notification row design uses three-layer info hierarchy (Step 7.7):** Each row shows: (1) milestone type SF Symbol icon in an accent-tinted rounded rect, (2) milestone name (bold) + unviewed accent dot, days-before label + formatted date (secondary), status capsule badge (green "Delivered" or red "Failed") + recommendation count with sparkles icon, (3) chevron indicator if recommendations exist. Tapping is only enabled when `recommendationsCount > 0`.
+
+140. **Recommendations sheet reuses milestone context (Step 7.7):** The recommendations detail sheet displays the milestone name as its navigation title and shows recommendation cards with type-specific SF Symbol icons (gift.fill, sparkles, heart.fill, star.fill), title, merchant name, formatted price (converted from cents), description (3-line limit), and an external link button that opens the URL via `UIApplication.shared.open()`. The sheet has its own loading, empty, and error states independent of the history list.
+
+---
+
+### Step 7.8: Phase 7 Test Validation & Bug Fix ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Ran the complete Phase 7 notification test suite (7 test files, 202 tests) end-to-end to validate the entire notification system
+- Discovered and fixed a bug in `test_dnd_quiet_hours.py::TestCheckQuietHours::test_user_in_quiet_hours_returns_true` where mocking the entire `datetime` class in `app.services.dnd` caused `_compute_next_delivery_time()` to receive a `MagicMock` instead of a real `datetime` when constructing timezone-aware datetimes, resulting in a `TypeError: '<=' not supported between instances of 'MagicMock' and 'datetime.datetime'`
+- Fixed by adding `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` to the mock configuration, allowing the `datetime(...)` constructor to pass through to the real `datetime` class while still mocking `datetime.now()`
+
+**Files modified:**
+- `backend/tests/test_dnd_quiet_hours.py` — Fixed datetime mock in `test_user_in_quiet_hours_returns_true` to pass constructor calls through to real `datetime`
+
+**Test results:**
+- ✅ **202 passed** in 74.83s (0 failed, 5 warnings)
+- ✅ `test_qstash_webhook.py` — 25 tests (QStash signature verification, webhook authentication, webhook processing, QStash publish, module imports)
+- ✅ `test_notification_queue_table.py` — 26 tests (table exists, schema validation, RLS policies, data integrity, cascade deletes)
+- ✅ `test_notification_scheduler.py` — 34 tests (floating holiday detection, floating holiday dates, next occurrence computation, milestone scheduling, batch scheduling, module imports)
+- ✅ `test_notification_processing.py` — 18 tests (vault loader budget matching, recommendation generation, pipeline failure handling, integration tests, module imports)
+- ✅ `test_apns_push_service.py` — 43 tests (payload building, token generation/caching, push delivery, device token lookup, webhook integration, module imports)
+- ✅ `test_dnd_quiet_hours.py` — 35 tests (quiet hours detection, delivery time computation, timezone inference, timezone resolution, DB-integrated check, webhook DND integration, module imports)
+- ✅ `test_notification_history.py` — 21 tests (history endpoint, mark-viewed endpoint, milestone recommendations endpoint, integration tests, module imports)
+- Warnings are all from third-party libraries (JWT HMAC key length, Supabase deprecated params) — not actionable
+
+**Per-step test coverage:**
+| Step | Test File | Tests | Coverage |
+|------|-----------|-------|----------|
+| 7.1 | `test_qstash_webhook.py`, `test_notification_queue_table.py` | 51 | QStash JWT verification, webhook auth, notification_queue schema/RLS/cascades |
+| 7.2 | `test_notification_scheduler.py` | 34 | Floating holidays (Mother's/Father's Day), yearly/one-time recurrence, leap years, QStash scheduling |
+| 7.3 | `test_notification_processing.py` | 18 | Vault data loading, LangGraph pipeline invocation, graceful degradation on pipeline failure |
+| 7.4-7.5 | `test_apns_push_service.py` | 43 | APNs payload format, ES256 JWT tokens, HTTP/2 delivery, device token lookup, webhook push integration |
+| 7.6 | `test_dnd_quiet_hours.py` | 35 | Quiet hours detection (midnight-spanning, same-day, disabled), timezone inference from US states, webhook rescheduling |
+| 7.7 | `test_notification_history.py` | 21 | History pagination, mark-viewed ownership, by-milestone recommendations, full integration flows |
+
+**Key implementation notes:**
+
+141. **Mocking `datetime` class requires constructor passthrough (Step 7.8):** When patching `module.datetime` to control `datetime.now()`, the mock also intercepts `datetime(...)` constructor calls, which return `MagicMock` objects instead of real datetimes. This causes `TypeError` when comparing mocked objects with real datetimes. The fix is `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` — this makes `datetime(year, month, day, ...)` pass through to the real class while `datetime.now()` still returns the mocked value (since `.now` is accessed as an attribute, not via `__call__`).
+
+142. **Phase 7 test suite validates 202 behaviors across 7 files in ~75 seconds:** The notification system test suite covers the full lifecycle — from QStash webhook receipt and signature verification, through notification scheduling and recommendation generation, to APNs push delivery, DND quiet hours rescheduling, and notification history retrieval. Tests use a mix of pure unit tests (mocked DB/services) and integration tests (real Supabase queries), connected by the `@pytest.mark.skipif(not _supabase_configured())` pattern that allows CI to run unit tests without credentials while developers run the full suite locally.
+
+---
+
+## Phase 8: External API Integrations
+
+### Step 8.1: Implement Yelp Fusion API Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `YELP_API_KEY` environment variable, `validate_yelp_config()`, and `is_yelp_configured()` to `backend/app/core/config.py`, following the same pattern as APNs and QStash config
+- Created `backend/app/services/integrations/yelp.py` implementing `YelpService` — an async service for Yelp Fusion API v3 business search with rate limiting (exponential backoff on HTTP 429), international currency detection for 30+ countries, and normalization of Yelp business JSON to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_yelp_integration.py` with 52 tests across 8 test classes (49 unit tests pass without API key, 3 integration tests skipped without `YELP_API_KEY`)
+- Verified zero regressions in existing test suite (1075 passed; 2 failures and 10 errors are pre-existing Supabase network timeouts unrelated to this change)
+
+**Files created:**
+- `backend/app/services/integrations/yelp.py` — YelpService with search, normalization, rate limiting, and currency detection
+- `backend/tests/test_yelp_integration.py` — 52 tests across 8 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added YELP_API_KEY env var and validation/check functions
+
+**Test results:**
+- ✅ 49 passed, 3 skipped in 0.06s
+- ✅ TestYelpPriceConversion: 8 tests — cents-to-Yelp price level conversion (low, mid, high, luxury, zero range, boundary cases)
+- ✅ TestYelpCategoryMapping: 4 tests — all 8 vibes mapped, categories are strings, no unexpected vibes, exactly 8 mappings
+- ✅ TestYelpBusinessNormalization: 16 tests — basic normalization, price levels ($-$$$$), missing price, restaurant vs experience typing, GBP/EUR/JPY/unknown currencies, category descriptions, location extraction, metadata, edge cases
+- ✅ TestYelpCurrencyMapping: 3 tests — major currencies, eurozone EUR, 30+ countries covered
+- ✅ TestYelpRateLimiting: 2 tests — retry on 429 then succeed, exhaust all retries on repeated 429
+- ✅ TestYelpErrorHandling: 6 tests — timeout, HTTP 500, missing API key, empty location, empty response, connection error
+- ✅ TestYelpSearchWithMock: 5 tests — correct params, limit capped at 50, multiple businesses normalized, authorization header, international location string with GBP currency
+- ⏭️ TestYelpSearchIntegration: 3 tests skipped (requires YELP_API_KEY) — San Francisco romantic, London international, invalid location ZZZZZ
+- ✅ TestModuleImports: 6 tests — all exports and config functions importable
+
+**Key implementation notes:**
+
+143. **YelpService uses a four-layer architecture (Step 8.1):** (1) **config layer** (`is_yelp_configured()` guard from `config.py`), (2) **HTTP layer** (`_make_request()` with exponential backoff on 429 and retry on timeout), (3) **normalization layer** (`_normalize_business()` converts raw Yelp JSON to `CandidateRecommendation`-compatible dicts), (4) **search layer** (`search_businesses()` orchestrates location string building, param construction, API call, and batch normalization). Each layer is independently testable — normalization tests are pure unit tests, HTTP tests mock `httpx.AsyncClient`, and search tests verify param construction.
+
+144. **Vibe-to-Yelp category mapping enables experience/date discovery (Step 8.1):** `VIBE_TO_YELP_CATEGORIES` maps all 8 aesthetic vibes to 3 Yelp category aliases each (24 total). Examples: `quiet_luxury` → `wine_bars, wineries, spas`; `adventurous` → `skydiving, rafting, escapegames`; `romantic` → `sailing, cookingschools, observatories`. Categories are Yelp-specific aliases from their category taxonomy (not human-readable titles). The aggregation node (Step 8.7) will pass the user's vibe tags through this mapping to generate appropriate Yelp search queries.
+
+145. **International currency detection uses a 36-country map (Step 8.1):** `COUNTRY_CURRENCY_MAP` maps ISO 3166-1 alpha-2 country codes to ISO 4217 currency codes. Covers USD, GBP, EUR (11 eurozone countries), JPY, AUD, CAD, and 20+ others. The `_normalize_business()` method detects currency from the search location's country code (not from Yelp's response, which doesn't include currency). Unknown country codes default to USD. Both "GB" and "UK" map to GBP for robustness.
+
+146. **Price conversion uses a bidirectional strategy (Step 8.1):** Budget filtering converts user's cents range → Yelp's 1-4 price levels via `_convert_price_range_to_yelp()` (e.g., 2000-7000 cents → levels "2,3"). Result normalization converts Yelp's price levels back to estimated cents via `YELP_PRICE_TO_CENTS` (e.g., "$$" → 3000 cents). The conversion uses range overlap detection — a Yelp level is included if any part of the user's budget range overlaps with that level's range. This ensures no relevant results are filtered out at the API level.
+
+147. **Type classification uses category alias matching (Step 8.1):** `_normalize_business()` classifies each business as "date" or "experience" based on its Yelp category aliases. A curated list of food/drink/dining-related aliases (restaurants, bars, wine_bars, italian, french, sushi, etc.) triggers "date" classification; everything else defaults to "experience". This enables the downstream diversity selection node (Step 5.6) to include both types in the final three recommendations.
+
+148. **Graceful degradation returns empty lists at every failure point (Step 8.1):** `search_businesses()` returns `[]` for: missing API key, empty location, timeout after retries, HTTP errors, rate limit exhaustion, and connection errors. This follows the established pattern from `embedding.py` and `qstash.py` — the aggregation node's `asyncio.gather(return_exceptions=True)` catches any remaining exceptions, so a Yelp failure never blocks recommendation generation (stub data fills in as fallback).
+
+---
+
 ## Next Steps
 
-- [ ] **Step 7.4:** Implement Push Notification Registration (iOS)
+- [ ] **Step 8.2:** Implement Ticketmaster API Integration
 
 ---
 
@@ -3092,6 +3321,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
    ```bash
    cd iOS && xcodegen generate
    ```
+
 
 2. **Bundle Identifier:** Changed from `com.knot.app` (taken) to `com.ronniejay.knot`
 
@@ -3346,195 +3576,3 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 126. **APNs push service tests: 37 tests across 6 classes (Step 7.5):** `backend/tests/test_apns_push_service.py` covers: TestBuildNotificationPayload (10 — title format, body with vibe, curated fallback, category, sound, custom data, underscore vibe, first-vibe-only, days variations, recommendation count), TestGenerateApnsToken (7 — ES256 algorithm, kid header, team ID issuer, token caching, refresh after expiry, missing key path RuntimeError, missing key file FileNotFoundError), TestSendPushNotification (10 — success result, apns_id capture, sandbox URL, production URL, failure with reason, expired token, unregistered device, HTTP/2 enabled, topic header, unconfigured raises RuntimeError), TestDeliverPushNotification (5 — registered device, missing token, user not found, DB failure, correct payload), TestNotificationWebhookPushIntegration (5 — push after recommendations, push failure non-blocking, APNs not configured skips push, zero recommendations skips push, response includes push_delivered), TestModuleImports (5 — apns service, config vars, model field, push_delivered default, push_delivered true). Uses a `FAKE_ES256_PRIVATE_KEY` (P-256 curve) for JWT generation tests.
 
 ---
-
-### Step 7.6: Implement DND Respect Logic ✅
-**Date:** February 12, 2026
-**Status:** Complete
-
-**What was done:**
-- Created database migration `00014_add_quiet_hours_to_users.sql` adding `quiet_hours_start` (INTEGER, default 22), `quiet_hours_end` (INTEGER, default 8), and `timezone` (TEXT, nullable) columns to the `users` table
-- Created `backend/app/services/dnd.py` — DND service with timezone inference from US state abbreviations, pure `is_in_quiet_hours()` function, and DB-integrated `check_quiet_hours()`
-- Modified `backend/app/api/notifications.py` — inserted DND check (step 6.5) between recommendation generation and push delivery in the webhook endpoint. If quiet hours active, reschedules via QStash and returns `"rescheduled"` status without delivering push or marking notification as `sent`
-- Updated `backend/app/models/notifications.py` — added `'rescheduled'` to the `status` field description
-- Updated `iOS/Knot/App/AppDelegate.swift` — added `userNotificationCenter(_:didReceive:)` handler for notification tap responses, including those queued during system DND/Focus mode
-- Created comprehensive test suite `backend/tests/test_dnd_quiet_hours.py`
-
-**Files created:**
-- `backend/supabase/migrations/00014_add_quiet_hours_to_users.sql` — Migration adding quiet hours columns
-- `backend/app/services/dnd.py` — DND quiet hours service
-- `backend/tests/test_dnd_quiet_hours.py` — 35 tests across 7 test classes
-
-**Files modified:**
-- `backend/app/api/notifications.py` — DND check + QStash rescheduling in webhook
-- `backend/app/models/notifications.py` — Status field description update
-- `iOS/Knot/App/AppDelegate.swift` — Notification tap response handler
-
-**Test results:**
-- ✅ 35 tests passing (0.51s)
-- ✅ TestIsInQuietHours: 9 tests — boundary conditions, midnight-spanning, same-day, disabled
-- ✅ TestComputeNextDeliveryTime: 3 tests — 11pm→8am next day, 3am→8am same day, UTC output
-- ✅ TestTimezoneInference: 8 tests — US state mapping, non-US fallback, case-insensitive
-- ✅ TestGetUserTimezone: 4 tests — explicit priority, vault inference, fallback, invalid handling
-- ✅ TestCheckQuietHours: 3 tests — DB integration, user not found, vault timezone inference
-- ✅ TestWebhookDNDIntegration: 5 tests — rescheduled response, normal delivery, graceful degradation, QStash params, stays pending
-- ✅ TestModuleImports: 3 tests — all exports, rescheduled status, constants
-
-**Key implementation notes:**
-
-127. **Database migration 00014 adds quiet hours and timezone to users table (Step 7.6):** `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS quiet_hours_start INTEGER NOT NULL DEFAULT 22 CHECK (quiet_hours_start >= 0 AND quiet_hours_start <= 23), ADD COLUMN IF NOT EXISTS quiet_hours_end INTEGER NOT NULL DEFAULT 8 CHECK (quiet_hours_end >= 0 AND quiet_hours_end <= 23), ADD COLUMN IF NOT EXISTS timezone TEXT`. Integers (0-23) used instead of TIME for simplicity — quiet hours granularity is whole hours. `timezone` is nullable; when NULL, inferred from vault location. No index needed since columns are only read during notification processing.
-
-128. **`is_in_quiet_hours()` is a pure function with injectable `now_utc` (Step 7.6):** The core DND check in `app/services/dnd.py` accepts `now_utc: datetime | None = None` as a parameter, defaulting to `datetime.now(tz.utc)`. This makes the function trivially testable without mocking `datetime.now()`. All 9 unit tests pass specific UTC timestamps covering: midnight-spanning ranges (22:00-08:00), same-day ranges (01:00-06:00), boundary conditions (10pm=quiet, 8am=not quiet), and the disabled case (start==end).
-
-129. **Timezone inference uses US state abbreviation mapping (Step 7.6):** `_US_STATE_TIMEZONES` maps all 50 states + DC to their predominant IANA timezone. Resolution priority: (1) explicit `users.timezone` column, (2) inferred from `partner_vaults.location_state` + `location_country`, (3) fallback to `"America/New_York"`. Uses stdlib `zoneinfo.ZoneInfo` — no third-party dependencies. Invalid explicit timezone strings fall back to vault inference rather than raising.
-
-130. **DND check inserted between recommendation generation and push delivery (Step 7.6):** The DND check runs as step 6.5 in the webhook pipeline, after recommendations are generated but before push delivery. This means recommendations are always generated (they're stored in the DB for when the user opens the app), but the push notification is deferred. The notification stays `pending` in `notification_queue` — it is NOT marked `sent` since the push hasn't been delivered. When QStash re-fires at 8am, the notification is still `pending` and the full flow runs again.
-
-131. **QStash rescheduling uses deduplication ID suffix `-dnd-reschedule` (Step 7.6):** The reschedule call to `publish_to_qstash()` uses `deduplication_id=f"{notification_id}-dnd-reschedule"` to prevent duplicate rescheduling within QStash's dedup window. The original scheduling dedup ID was `{milestone_id}-{days_before}`, so there is no collision. The `not_before` timestamp is set to the user's `quiet_hours_end` (default 8am) in their local timezone, converted to a UTC Unix timestamp.
-
-132. **DND check failure proceeds with delivery (Step 7.6):** If `check_quiet_hours()` raises an exception (DB connection error, invalid timezone, etc.), the webhook logs a warning and continues to push delivery. This follows the graceful degradation pattern established in Steps 7.3 and 7.5. A notification that arrives at 11pm due to a DND failure is preferable to a notification that is silently lost.
-
-133. **iOS system DND is automatic — no custom suppression logic needed (Step 7.6):** When iOS Focus/DND is enabled, the OS automatically queues all incoming notifications and delivers them when DND ends. The app does not need to check or override this behavior. The `userNotificationCenter(_:didReceive:)` handler was added to `AppDelegate.swift` to process notification taps (including those queued by system DND), extracting `notification_id` and `milestone_id` from the payload for future deep-linking (Step 9.2).
-
----
-
-### Step 7.7: Create Notification History View (iOS + Backend) ✅
-**Date:** February 12, 2026
-**Status:** Complete
-
-**What was done:**
-- Created database migration `00015_add_viewed_at_to_notification_queue.sql` adding a nullable `viewed_at TIMESTAMPTZ` column to `notification_queue` for tracking when a user opens a notification's recommendations
-- Added four new Pydantic models to `backend/app/models/notifications.py`: `NotificationHistoryItem`, `NotificationHistoryResponse`, `MilestoneRecommendationItem`, `MilestoneRecommendationsResponse`
-- Added two new authenticated endpoints to `backend/app/api/notifications.py`: `GET /api/v1/notifications/history` (paginated, reverse chronological, with milestone metadata and recommendation counts) and `PATCH /api/v1/notifications/{notification_id}/viewed` (sets viewed_at timestamp with user ownership validation)
-- Added one new authenticated endpoint to `backend/app/api/recommendations.py`: `GET /api/v1/recommendations/by-milestone/{milestone_id}` (returns pre-generated recommendations for a milestone, read-only)
-- Added four new iOS DTOs to `DTOs.swift`: `NotificationHistoryResponse`, `NotificationHistoryItemResponse`, `MilestoneRecommendationsResponse`, `MilestoneRecommendationItemResponse`
-- Created `iOS/Knot/Services/NotificationHistoryService.swift` with three methods: `fetchHistory()`, `fetchMilestoneRecommendations()`, `markViewed()` (fire-and-forget)
-- Created `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` managing history loading, notification selection, recommendation detail, and viewed status updates
-- Created `iOS/Knot/Features/Notifications/NotificationsView.swift` with full notification history UI: list with milestone type icons, unviewed dot indicators, status badges, recommendation counts, pull-to-refresh, and a recommendations detail sheet with type icons, prices, merchant names, and external link buttons
-- Modified `iOS/Knot/Features/Home/HomeView.swift` to add a bell icon (`Lucide.bellRing`) in the toolbar that opens the Notifications sheet
-- Created comprehensive test suite `backend/tests/test_notification_history.py`
-
-**Files created:**
-- `backend/supabase/migrations/00015_add_viewed_at_to_notification_queue.sql` — Migration adding viewed_at column
-- `iOS/Knot/Services/NotificationHistoryService.swift` — API service for notification history operations
-- `iOS/Knot/Features/Notifications/NotificationsViewModel.swift` — ViewModel for notification history screen
-- `iOS/Knot/Features/Notifications/NotificationsView.swift` — Notification History screen UI
-- `backend/tests/test_notification_history.py` — 21 tests across 5 test classes
-
-**Files modified:**
-- `backend/app/models/notifications.py` — Added 4 Pydantic models for history and recommendation responses
-- `backend/app/api/notifications.py` — Added history and viewed endpoints with user auth
-- `backend/app/api/recommendations.py` — Added by-milestone recommendations endpoint
-- `iOS/Knot/Models/DTOs.swift` — Added 4 notification history DTOs
-- `iOS/Knot/Features/Home/HomeView.swift` — Added bell icon toolbar button and notifications sheet
-
-**Test results:**
-- ✅ 21 tests passing (12.94s)
-- ✅ TestNotificationHistoryEndpoint: 4 tests — empty history, sent notifications with metadata, deleted milestone handling, auth required
-- ✅ TestMarkViewedEndpoint: 3 tests — sets timestamp, 404 for non-existent, auth required
-- ✅ TestMilestoneRecommendationsEndpoint: 4 tests — returns stored recommendations, empty for no recommendations, 404 for no vault, auth required
-- ✅ TestNotificationHistoryIntegration: 4 tests — full history flow, milestone recommendations, mark viewed, pagination
-- ✅ TestModuleImports: 6 tests — model imports, router endpoint registration, response defaults
-
-**Key implementation notes:**
-
-134. **Database migration 00015 adds viewed_at to notification_queue (Step 7.7):** `ALTER TABLE public.notification_queue ADD COLUMN viewed_at TIMESTAMPTZ;` — a nullable timestamp column that remains NULL until the user taps a notification in the history screen to view its recommendations. No DEFAULT value, no index (read infrequently, only in the history list query). The column is set via the `PATCH /viewed` endpoint which uses the service client to update directly.
-
-135. **Notification history endpoint joins milestone metadata and counts recommendations (Step 7.7):** `GET /api/v1/notifications/history` queries `notification_queue` WHERE `user_id` matches AND `status IN ('sent', 'failed')`, ordered by `sent_at DESC`. For each notification, it fetches the associated milestone's name/type/date from `partner_milestones` (gracefully handling deleted milestones with "Deleted Milestone" fallback). Then for each notification, it counts recommendations from the `recommendations` table matching the `milestone_id` and a vault lookup. Supports `limit`/`offset` query params (defaults 50/0).
-
-136. **By-milestone recommendations endpoint is read-only (Step 7.7):** `GET /api/v1/recommendations/by-milestone/{milestone_id}` does NOT generate new recommendations — it only returns existing ones from the `recommendations` table that were pre-generated when the notification fired (Step 7.3). This keeps the endpoint fast and prevents duplicate generation. Returns up to 10 results ordered by `created_at DESC`.
-
-137. **Mark-viewed endpoint validates user ownership (Step 7.7):** `PATCH /api/v1/notifications/{notification_id}/viewed` filters by both `notification_id` AND `user_id` to ensure a user can only mark their own notifications as viewed. Returns 404 (not 403) if the notification doesn't exist or belongs to another user, preventing information leakage. Uses `datetime.now(timezone.utc).isoformat()` for the viewed_at timestamp.
-
-138. **iOS view model updates local array for immediate UI feedback (Step 7.7):** When `selectNotification()` marks a notification as viewed, it doesn't wait for the API response to update the UI. After the fire-and-forget `markViewed()` call, it creates a copy of the `NotificationHistoryItemResponse` with `viewedAt` set to the current ISO 8601 timestamp and replaces the item in the local `notifications` array. This immediately removes the unviewed accent dot without a full reload.
-
-139. **Notification row design uses three-layer info hierarchy (Step 7.7):** Each row shows: (1) milestone type SF Symbol icon in an accent-tinted rounded rect, (2) milestone name (bold) + unviewed accent dot, days-before label + formatted date (secondary), status capsule badge (green "Delivered" or red "Failed") + recommendation count with sparkles icon, (3) chevron indicator if recommendations exist. Tapping is only enabled when `recommendationsCount > 0`.
-
-140. **Recommendations sheet reuses milestone context (Step 7.7):** The recommendations detail sheet displays the milestone name as its navigation title and shows recommendation cards with type-specific SF Symbol icons (gift.fill, sparkles, heart.fill, star.fill), title, merchant name, formatted price (converted from cents), description (3-line limit), and an external link button that opens the URL via `UIApplication.shared.open()`. The sheet has its own loading, empty, and error states independent of the history list.
-
----
-
-### Step 7.8: Phase 7 Test Validation & Bug Fix ✅
-**Date:** February 12, 2026
-**Status:** Complete
-
-**What was done:**
-- Ran the complete Phase 7 notification test suite (7 test files, 202 tests) end-to-end to validate the entire notification system
-- Discovered and fixed a bug in `test_dnd_quiet_hours.py::TestCheckQuietHours::test_user_in_quiet_hours_returns_true` where mocking the entire `datetime` class in `app.services.dnd` caused `_compute_next_delivery_time()` to receive a `MagicMock` instead of a real `datetime` when constructing timezone-aware datetimes, resulting in a `TypeError: '<=' not supported between instances of 'MagicMock' and 'datetime.datetime'`
-- Fixed by adding `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` to the mock configuration, allowing the `datetime(...)` constructor to pass through to the real `datetime` class while still mocking `datetime.now()`
-
-**Files modified:**
-- `backend/tests/test_dnd_quiet_hours.py` — Fixed datetime mock in `test_user_in_quiet_hours_returns_true` to pass constructor calls through to real `datetime`
-
-**Test results:**
-- ✅ **202 passed** in 74.83s (0 failed, 5 warnings)
-- ✅ `test_qstash_webhook.py` — 25 tests (QStash signature verification, webhook authentication, webhook processing, QStash publish, module imports)
-- ✅ `test_notification_queue_table.py` — 26 tests (table exists, schema validation, RLS policies, data integrity, cascade deletes)
-- ✅ `test_notification_scheduler.py` — 34 tests (floating holiday detection, floating holiday dates, next occurrence computation, milestone scheduling, batch scheduling, module imports)
-- ✅ `test_notification_processing.py` — 18 tests (vault loader budget matching, recommendation generation, pipeline failure handling, integration tests, module imports)
-- ✅ `test_apns_push_service.py` — 43 tests (payload building, token generation/caching, push delivery, device token lookup, webhook integration, module imports)
-- ✅ `test_dnd_quiet_hours.py` — 35 tests (quiet hours detection, delivery time computation, timezone inference, timezone resolution, DB-integrated check, webhook DND integration, module imports)
-- ✅ `test_notification_history.py` — 21 tests (history endpoint, mark-viewed endpoint, milestone recommendations endpoint, integration tests, module imports)
-- Warnings are all from third-party libraries (JWT HMAC key length, Supabase deprecated params) — not actionable
-
-**Per-step test coverage:**
-| Step | Test File | Tests | Coverage |
-|------|-----------|-------|----------|
-| 7.1 | `test_qstash_webhook.py`, `test_notification_queue_table.py` | 51 | QStash JWT verification, webhook auth, notification_queue schema/RLS/cascades |
-| 7.2 | `test_notification_scheduler.py` | 34 | Floating holidays (Mother's/Father's Day), yearly/one-time recurrence, leap years, QStash scheduling |
-| 7.3 | `test_notification_processing.py` | 18 | Vault data loading, LangGraph pipeline invocation, graceful degradation on pipeline failure |
-| 7.4-7.5 | `test_apns_push_service.py` | 43 | APNs payload format, ES256 JWT tokens, HTTP/2 delivery, device token lookup, webhook push integration |
-| 7.6 | `test_dnd_quiet_hours.py` | 35 | Quiet hours detection (midnight-spanning, same-day, disabled), timezone inference from US states, webhook rescheduling |
-| 7.7 | `test_notification_history.py` | 21 | History pagination, mark-viewed ownership, by-milestone recommendations, full integration flows |
-
-**Key implementation notes:**
-
-141. **Mocking `datetime` class requires constructor passthrough (Step 7.8):** When patching `module.datetime` to control `datetime.now()`, the mock also intercepts `datetime(...)` constructor calls, which return `MagicMock` objects instead of real datetimes. This causes `TypeError` when comparing mocked objects with real datetimes. The fix is `mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)` — this makes `datetime(year, month, day, ...)` pass through to the real class while `datetime.now()` still returns the mocked value (since `.now` is accessed as an attribute, not via `__call__`).
-
-142. **Phase 7 test suite validates 202 behaviors across 7 files in ~75 seconds:** The notification system test suite covers the full lifecycle — from QStash webhook receipt and signature verification, through notification scheduling and recommendation generation, to APNs push delivery, DND quiet hours rescheduling, and notification history retrieval. Tests use a mix of pure unit tests (mocked DB/services) and integration tests (real Supabase queries), connected by the `@pytest.mark.skipif(not _supabase_configured())` pattern that allows CI to run unit tests without credentials while developers run the full suite locally.
-
----
-
-## Phase 8: External API Integrations
-
-### Step 8.1: Implement Yelp Fusion API Integration ✅
-**Date:** February 12, 2026
-**Status:** Complete
-
-**What was done:**
-- Added `YELP_API_KEY` environment variable, `validate_yelp_config()`, and `is_yelp_configured()` to `backend/app/core/config.py`, following the same pattern as APNs and QStash config
-- Created `backend/app/services/integrations/yelp.py` implementing `YelpService` — an async service for Yelp Fusion API v3 business search with rate limiting (exponential backoff on HTTP 429), international currency detection for 30+ countries, and normalization of Yelp business JSON to `CandidateRecommendation`-compatible dicts
-- Created comprehensive test suite `backend/tests/test_yelp_integration.py` with 52 tests across 8 test classes (49 unit tests pass without API key, 3 integration tests skipped without `YELP_API_KEY`)
-- Verified zero regressions in existing test suite (1075 passed; 2 failures and 10 errors are pre-existing Supabase network timeouts unrelated to this change)
-
-**Files created:**
-- `backend/app/services/integrations/yelp.py` — YelpService with search, normalization, rate limiting, and currency detection
-- `backend/tests/test_yelp_integration.py` — 52 tests across 8 test classes
-
-**Files modified:**
-- `backend/app/core/config.py` — Added YELP_API_KEY env var and validation/check functions
-
-**Test results:**
-- ✅ 49 passed, 3 skipped in 0.06s
-- ✅ TestYelpPriceConversion: 8 tests — cents-to-Yelp price level conversion (low, mid, high, luxury, zero range, boundary cases)
-- ✅ TestYelpCategoryMapping: 4 tests — all 8 vibes mapped, categories are strings, no unexpected vibes, exactly 8 mappings
-- ✅ TestYelpBusinessNormalization: 16 tests — basic normalization, price levels ($-$$$$), missing price, restaurant vs experience typing, GBP/EUR/JPY/unknown currencies, category descriptions, location extraction, metadata, edge cases
-- ✅ TestYelpCurrencyMapping: 3 tests — major currencies, eurozone EUR, 30+ countries covered
-- ✅ TestYelpRateLimiting: 2 tests — retry on 429 then succeed, exhaust all retries on repeated 429
-- ✅ TestYelpErrorHandling: 6 tests — timeout, HTTP 500, missing API key, empty location, empty response, connection error
-- ✅ TestYelpSearchWithMock: 5 tests — correct params, limit capped at 50, multiple businesses normalized, authorization header, international location string with GBP currency
-- ⏭️ TestYelpSearchIntegration: 3 tests skipped (requires YELP_API_KEY) — San Francisco romantic, London international, invalid location ZZZZZ
-- ✅ TestModuleImports: 6 tests — all exports and config functions importable
-
-**Key implementation notes:**
-
-143. **YelpService uses a four-layer architecture (Step 8.1):** (1) **config layer** (`is_yelp_configured()` guard from `config.py`), (2) **HTTP layer** (`_make_request()` with exponential backoff on 429 and retry on timeout), (3) **normalization layer** (`_normalize_business()` converts raw Yelp JSON to `CandidateRecommendation`-compatible dicts), (4) **search layer** (`search_businesses()` orchestrates location string building, param construction, API call, and batch normalization). Each layer is independently testable — normalization tests are pure unit tests, HTTP tests mock `httpx.AsyncClient`, and search tests verify param construction.
-
-144. **Vibe-to-Yelp category mapping enables experience/date discovery (Step 8.1):** `VIBE_TO_YELP_CATEGORIES` maps all 8 aesthetic vibes to 3 Yelp category aliases each (24 total). Examples: `quiet_luxury` → `wine_bars, wineries, spas`; `adventurous` → `skydiving, rafting, escapegames`; `romantic` → `sailing, cookingschools, observatories`. Categories are Yelp-specific aliases from their category taxonomy (not human-readable titles). The aggregation node (Step 8.7) will pass the user's vibe tags through this mapping to generate appropriate Yelp search queries.
-
-145. **International currency detection uses a 36-country map (Step 8.1):** `COUNTRY_CURRENCY_MAP` maps ISO 3166-1 alpha-2 country codes to ISO 4217 currency codes. Covers USD, GBP, EUR (11 eurozone countries), JPY, AUD, CAD, and 20+ others. The `_normalize_business()` method detects currency from the search location's country code (not from Yelp's response, which doesn't include currency). Unknown country codes default to USD. Both "GB" and "UK" map to GBP for robustness.
-
-146. **Price conversion uses a bidirectional strategy (Step 8.1):** Budget filtering converts user's cents range → Yelp's 1-4 price levels via `_convert_price_range_to_yelp()` (e.g., 2000-7000 cents → levels "2,3"). Result normalization converts Yelp's price levels back to estimated cents via `YELP_PRICE_TO_CENTS` (e.g., "$$" → 3000 cents). The conversion uses range overlap detection — a Yelp level is included if any part of the user's budget range overlaps with that level's range. This ensures no relevant results are filtered out at the API level.
-
-147. **Type classification uses category alias matching (Step 8.1):** `_normalize_business()` classifies each business as "date" or "experience" based on its Yelp category aliases. A curated list of food/drink/dining-related aliases (restaurants, bars, wine_bars, italian, french, sushi, etc.) triggers "date" classification; everything else defaults to "experience". This enables the downstream diversity selection node (Step 5.6) to include both types in the final three recommendations.
-
-148. **Graceful degradation returns empty lists at every failure point (Step 8.1):** `search_businesses()` returns `[]` for: missing API key, empty location, timeout after retries, HTTP errors, rate limit exhaustion, and connection errors. This follows the established pattern from `embedding.py` and `qstash.py` — the aggregation node's `asyncio.gather(return_exceptions=True)` catches any remaining exceptions, so a Yelp failure never blocks recommendation generation (stub data fills in as fallback).
