@@ -54,6 +54,10 @@ AMAZON_ACCESS_KEY: str = os.getenv("AMAZON_ACCESS_KEY", "")
 AMAZON_SECRET_KEY: str = os.getenv("AMAZON_SECRET_KEY", "")
 AMAZON_ASSOCIATE_TAG: str = os.getenv("AMAZON_ASSOCIATE_TAG", "")
 
+# --- Shopify Storefront API ---
+SHOPIFY_STOREFRONT_TOKEN: str = os.getenv("SHOPIFY_STOREFRONT_TOKEN", "")
+SHOPIFY_STORE_DOMAIN: str = os.getenv("SHOPIFY_STORE_DOMAIN", "")
+
 
 def validate_yelp_config() -> bool:
     """
@@ -110,6 +114,25 @@ def is_amazon_configured() -> bool:
     Used by tests and services to conditionally enable Amazon search features.
     """
     return bool(AMAZON_ACCESS_KEY and AMAZON_SECRET_KEY and AMAZON_ASSOCIATE_TAG)
+
+
+def validate_shopify_config() -> bool:
+    """
+    Check that Shopify Storefront API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — Shopify
+    searches will be disabled but the app will still function).
+    """
+    return bool(SHOPIFY_STOREFRONT_TOKEN and SHOPIFY_STORE_DOMAIN)
+
+
+def is_shopify_configured() -> bool:
+    """
+    Check if Shopify Storefront API is available without raising exceptions.
+
+    Used by tests and services to conditionally enable Shopify search features.
+    """
+    return bool(SHOPIFY_STOREFRONT_TOKEN and SHOPIFY_STORE_DOMAIN)
 
 
 def validate_supabase_config() -> bool:

@@ -3402,12 +3402,60 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 163. **PA-API price is in dollars, stored in cents (Step 8.3):** Amazon PA-API returns `Offers.Listings[0].Price.Amount` as a float in dollars. The normalization converts to cents via `int(float(amount) * 100)`. The `MinPrice`/`MaxPrice` payload fields accept cents directly. Client-side price filtering provides an additional safety net for results where the API's server-side filter may not apply (e.g., marketplace variations).
 
+### Step 8.4: Implement Shopify Storefront API Integration ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `SHOPIFY_STOREFRONT_TOKEN` and `SHOPIFY_STORE_DOMAIN` environment variables, `validate_shopify_config()`, and `is_shopify_configured()` to `backend/app/core/config.py`, following the same pattern as Yelp, Ticketmaster, and Amazon config
+- Created `backend/app/services/integrations/shopify.py` implementing `ShopifyService` — an async service for the Shopify Storefront API (GraphQL) product search with `X-Shopify-Storefront-Access-Token` header authentication, rate limiting (exponential backoff on HTTP 429), interest-to-Shopify-product-keyword mapping (40 interests mapped), availability filtering (excludes unavailable products), description truncation (300 char max), dollar-to-cents price conversion from Shopify's string amounts, and normalization of Storefront API product nodes to `CandidateRecommendation`-compatible dicts
+- Created comprehensive test suite `backend/tests/test_shopify_integration.py` with 73 tests across 11 test classes (70 unit tests pass without API key, 3 integration tests skipped without Shopify credentials)
+- Added `SHOPIFY_STORE_DOMAIN=` to `backend/.env.example` (token placeholder already existed)
+
+**Files created:**
+- `backend/app/services/integrations/shopify.py` — ShopifyService with GraphQL product search, normalization, availability filtering, rate limiting, and 40-category interest mapping
+- `backend/tests/test_shopify_integration.py` — 73 tests across 11 test classes
+
+**Files modified:**
+- `backend/app/core/config.py` — Added SHOPIFY_STOREFRONT_TOKEN, SHOPIFY_STORE_DOMAIN env vars and validation/check functions
+- `backend/.env.example` — Added SHOPIFY_STORE_DOMAIN placeholder
+
+**Test results:**
+- ✅ 70 passed, 3 skipped in 0.05s
+- ✅ TestShopifyCategoryMapping: 5 tests — all 40 interests mapped to search keywords, all values are non-empty strings, count verified, no unexpected entries, common interests spot-checked
+- ✅ TestShopifyProductNormalization: 25 tests — basic normalization, price cents from dollar string, whole dollars, missing prices (no variants, no price data), image URL extraction, missing images, description extraction, long description truncation (300 chars), missing description, vendor as merchant name, missing vendor, location always None, onlineStoreUrl used, handle-based URL fallback, metadata (shopify_id, handle, product_type, sku, matched_interest), interest not in metadata when None, missing title defaults to "Unknown Product", currency from variant, all typed as "gift", unavailable product flagged
+- ✅ TestDollarsToCents: 10 tests — basic conversion, whole dollars, single cent, large amounts, zero, None input, empty string, invalid string, integer string, floating point rounding
+- ✅ TestStorefrontUrl: 5 tests — bare domain, https prefix stripped, http prefix stripped, trailing slash stripped, whitespace stripped
+- ✅ TestShopifyGraphQL: 5 tests — GraphQL query and variables sent correctly, Storefront Access Token header present, correct endpoint URL, limit capped at MAX_PRODUCTS_PER_QUERY, GraphQL error response returns empty
+- ✅ TestShopifyRateLimiting: 2 tests — retry on 429 then succeed, exhaust all retries returns empty
+- ✅ TestShopifyErrorHandling: 7 tests — timeout returns empty, HTTP 500 returns empty, missing credentials returns empty, empty keywords returns empty, whitespace-only keywords returns empty, empty response returns empty, connection error returns empty
+- ✅ TestShopifySearchWithMock: 5 tests — normalizes multiple products, filters unavailable products, client-side price filtering, interest passed to metadata, _available field stripped from output
+- ⏭️ TestShopifySearchIntegration: 3 tests skipped (requires Shopify credentials) — product search, price data, empty results graceful
+- ✅ TestModuleImports: 6 tests — all exports importable, config functions importable, service class instantiable
+
+**Key implementation notes:**
+
+164. **ShopifyService uses GraphQL, not REST (Step 8.4):** Unlike Yelp (REST GET), Ticketmaster (REST GET), and Amazon (REST POST with signing), Shopify Storefront API uses GraphQL. The `search_products()` method sends a `POST` with a `query` + `variables` JSON body to the `/api/{version}/graphql.json` endpoint. Authentication is via the `X-Shopify-Storefront-Access-Token` header — simpler than Amazon's HMAC-SHA256 signing. The GraphQL query requests product fields including `id`, `title`, `handle`, `description`, `vendor`, `productType`, `onlineStoreUrl`, first image, and first variant (price + availability + SKU).
+
+165. **Shopify Storefront API requires both token AND store domain (Step 8.4):** Unlike single-key APIs (Yelp, Ticketmaster), Shopify requires two pieces of configuration: the `SHOPIFY_STOREFRONT_TOKEN` (Storefront Access Token for authentication) and `SHOPIFY_STORE_DOMAIN` (which Shopify store to query, e.g., `my-store.myshopify.com`). The `is_shopify_configured()` function checks both. The `_build_storefront_url()` helper handles various domain formats — with/without protocol, trailing slashes, whitespace.
+
+166. **Shopify prices are dollar strings, not floats or cents (Step 8.4):** The Storefront API returns prices as string amounts (e.g., `"34.99"`) under `variants.edges[0].node.price.amount`, with a separate `currencyCode` field. The `_dollars_to_cents()` helper converts these to integer cents using `int(round(float(amount) * 100))`. The `round()` call handles floating-point precision issues (e.g., `19.99 * 100 = 1998.9999...`). Returns `None` for missing, empty, or non-numeric strings.
+
+167. **Unavailable products filtered before returning (Step 8.4):** Shopify products can have `availableForSale: false` on their variants (out of stock, draft, etc.). The normalization sets an internal `_available` flag, and `search_products()` skips products where `_available` is `False`. The `_available` field is stripped from the final output to keep the schema clean. This is a Shopify-specific concern — Amazon and Ticketmaster only return in-stock/available items by default.
+
+168. **40 interest categories mapped to Shopify search keywords (Step 8.4):** `INTEREST_TO_SHOPIFY_PRODUCT_TYPE` maps all 40 partner interest categories to multi-word search keyword strings (e.g., "Cooking" → "cooking kitchen utensils", "Gardening" → "gardening tools planters seeds"). Unlike Amazon's single search index values, Shopify's free-text search benefits from multiple descriptive keywords. The keywords are passed as the `query` variable in the GraphQL request.
+
+169. **Description truncation at 300 characters (Step 8.4):** Shopify product descriptions can be very long (full HTML-stripped text). The normalization truncates to 300 characters with `"..."` suffix. This keeps the `CandidateRecommendation` description field manageable for the downstream filtering and matching nodes, and for the iOS recommendation card display.
+
+170. **External URL prefers `onlineStoreUrl`, falls back to handle-based construction (Step 8.4):** Shopify products have both an `onlineStoreUrl` (full canonical URL) and a `handle` (URL-safe slug). The normalization prefers `onlineStoreUrl` because it's the canonical storefront link. When absent (headless stores, unpublished products), it constructs `https://{domain}/products/{handle}` as a fallback.
+
 ---
 
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
 - [x] **Step 8.3:** Implement Amazon Associates API Integration
+- [x] **Step 8.4:** Implement Shopify Storefront API Integration
 
 ---
 
