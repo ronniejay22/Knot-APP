@@ -247,11 +247,12 @@ final class RecommendationsViewModel {
     }
 
     /// Called when the user confirms their selection in the bottom sheet.
-    /// Records feedback (fire-and-forget) and immediately opens the external URL.
+    /// Records "selected" feedback, opens the merchant URL preferring native apps,
+    /// logs a "handoff" analytics event, and dismisses the sheet.
     func confirmSelection() async {
         guard let item = selectedRecommendation else { return }
 
-        // Record feedback (fire-and-forget — don't block the user)
+        // Record "selected" feedback (fire-and-forget — don't block the user)
         Task {
             try? await service.recordFeedback(
                 recommendationId: item.id,
@@ -259,10 +260,12 @@ final class RecommendationsViewModel {
             )
         }
 
-        // Open the external merchant URL immediately
-        if let url = URL(string: item.externalUrl) {
-            await UIApplication.shared.open(url)
-        }
+        // Open the merchant URL with native-app preference and log handoff (Step 9.3)
+        await MerchantHandoffService.openMerchantURL(
+            urlString: item.externalUrl,
+            recommendationId: item.id,
+            service: service
+        )
 
         // Dismiss the sheet
         showConfirmationSheet = false

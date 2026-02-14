@@ -203,8 +203,15 @@ struct DeepLinkRecommendationView: View {
     // MARK: - Helpers
 
     private func openExternalURL(_ urlString: String?) {
-        guard let urlString, let url = URL(string: urlString) else { return }
-        UIApplication.shared.open(url)
+        guard let urlString else { return }
+        guard let rec = recommendation else { return }
+        Task {
+            await MerchantHandoffService.openMerchantURL(
+                urlString: urlString,
+                recommendationId: rec.id,
+                service: service
+            )
+        }
     }
 }
 

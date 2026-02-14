@@ -3741,6 +3741,57 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 9.3: Implement External Merchant Handoff (iOS) ✅
+**Date:** February 12, 2026
+**Status:** Complete
+
+**What was done:**
+- Created `iOS/Knot/Services/MerchantHandoffService.swift` — a `@MainActor enum` with a static `openMerchantURL()` method that tries universal links first (`.universalLinksOnly: true` for native app preference), falls back to regular open (Safari), and records a `"handoff"` feedback action via `RecommendationService` (fire-and-forget)
+- Updated `RecommendationsViewModel.confirmSelection()` to use `MerchantHandoffService.openMerchantURL()` instead of bare `UIApplication.shared.open(url)` — now logs handoff analytics and prefers native apps
+- Updated `DeepLinkRecommendationView.openExternalURL()` to use `MerchantHandoffService.openMerchantURL()` — previously had no analytics logging at all
+- Added `"handoff"` to `RecommendationFeedbackRequest.action` Literal type in `backend/app/models/recommendations.py`
+- Created database migration `backend/supabase/migrations/00016_add_handoff_feedback_action.sql` — ALTERs the CHECK constraint on `recommendation_feedback.action` to include `'handoff'`
+- Created backend test suite `backend/tests/test_merchant_handoff.py` with 7 tests across 3 test classes
+- Created iOS test suite `iOS/KnotTests/MerchantHandoffTests.swift` with 8 tests across 4 test classes
+
+**Files created:**
+- `iOS/Knot/Services/MerchantHandoffService.swift` — Merchant handoff utility with native-app-first URL opening
+- `backend/supabase/migrations/00016_add_handoff_feedback_action.sql` — CHECK constraint migration
+- `backend/tests/test_merchant_handoff.py` — Backend handoff tests
+- `iOS/KnotTests/MerchantHandoffTests.swift` — iOS handoff tests
+
+**Files modified:**
+- `backend/app/models/recommendations.py` — Added `"handoff"` to feedback action Literal
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Updated `confirmSelection()` to use `MerchantHandoffService`
+- `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — Updated `openExternalURL()` to use `MerchantHandoffService`
+
+**Test results:**
+- ✅ 7/7 backend tests pass (`test_merchant_handoff.py`):
+  - TestHandoffFeedbackModel: 3 tests — "handoff" accepted by Pydantic, all valid actions work, invalid action rejected
+  - TestHandoffFeedbackRoute: 2 tests — POST /feedback with "handoff" returns 401 (auth required, not 422), invalid action also returns 401 (auth runs before validation)
+  - TestHandoffModuleImports: 2 tests — RecommendationFeedbackRequest importable, record_feedback importable
+- ✅ 36/36 Phase 9 backend tests pass (no regressions to Steps 9.1 and 9.2)
+- ✅ 90/90 iOS unit tests pass (0 failures):
+  - MerchantHandoffServiceTests: 4 tests — empty URL returns false, malformed URL returns false, valid HTTPS returns true, valid HTTP returns true
+  - HandoffFeedbackDTOTests: 1 test — "handoff" action encodes correctly in feedback payload
+  - ViewModelHandoffTests: 2 tests — confirmSelection clears state after handoff, no-op without selection
+  - DeepLinkHandoffTests: 1 test — DeepLinkRecommendationView renders without crashing
+- ✅ iOS project builds with zero errors on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Key implementation notes:**
+
+206. **MerchantHandoffService uses universalLinksOnly-first strategy (Step 9.3):** The service calls `UIApplication.shared.open(url, options: [.universalLinksOnly: true])` first. If this returns `false` (no native app handles the URL), it falls back to `UIApplication.shared.open(url)` which opens in Safari. This two-step approach prefers native merchant apps (Amazon, Yelp, etc.) when installed, without failing if they're not.
+
+207. **MerchantHandoffService is a stateless enum, not a class (Step 9.3):** Since the service has no instance state — only a single static method — it's implemented as an `enum` (Swift convention for namespace-like types). The `RecommendationService` is injectable via a parameter for testability.
+
+208. **Two separate feedback events per selection: "selected" + "handoff" (Step 9.3):** The `confirmSelection()` flow now records both `"selected"` and `"handoff"` feedback for the same recommendation. `"selected"` represents the user's intent (tapping confirm in the sheet), while `"handoff"` represents the actual URL open. Both are fire-and-forget via `Task { }` to avoid blocking the user.
+
+209. **DeepLinkRecommendationView now has handoff analytics (Step 9.3):** Previously, `openExternalURL()` was a bare `UIApplication.shared.open(url)` call with no feedback recording. Now it uses `MerchantHandoffService`, which records a `"handoff"` event. This means recommendations opened via deep links are now tracked in the analytics pipeline.
+
+210. **Database migration uses DROP/ADD pattern for CHECK constraint (Step 9.3):** The migration drops the existing inline CHECK constraint (`recommendation_feedback_action_check`) and re-creates it with the additional `'handoff'` value. The `IF EXISTS` guard on DROP prevents failure if the constraint has a different auto-generated name. PostgreSQL's default naming convention for inline CHECK constraints is `{table}_{column}_check`.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3752,7 +3803,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 8.8:** Validate Phase 8 Integration Test Suite
 - [x] **Step 9.1:** Configure Universal Links (iOS)
 - [x] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
-- [ ] **Step 9.3:** Implement External Merchant Handoff (iOS)
+- [x] **Step 9.3:** Implement External Merchant Handoff (iOS)
 - [ ] **Step 9.4:** Implement Return-to-App Flow (iOS)
 
 ---
