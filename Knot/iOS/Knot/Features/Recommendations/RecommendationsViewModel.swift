@@ -8,6 +8,7 @@
 //  Step 6.4: Refresh flow with reason selection and card exit/entry animations.
 //  Step 6.5: Manual vibe override — session-scoped vibe selection and refresh.
 //  Step 6.6: Save/Share actions with local persistence and feedback recording.
+//  Step 9.4: Return-to-app flow — purchase confirmation and rating after merchant handoff.
 //
 
 import Foundation
@@ -73,6 +74,20 @@ final class RecommendationsViewModel {
     /// IDs of recommendations the user has saved in this session (for instant UI feedback).
     /// Populated on launch from SwiftData and updated when the user taps Save.
     var savedRecommendationIds: Set<String> = []
+
+    // MARK: - Return-to-App State (Step 9.4)
+
+    /// The recommendation that was handed off to the merchant.
+    /// Set when confirmSelection() opens the merchant URL. Cleared when the
+    /// purchase prompt is dismissed. Non-nil triggers the purchase prompt
+    /// on foreground return.
+    var pendingHandoffRecommendation: RecommendationItemResponse?
+
+    /// Whether the purchase prompt bottom sheet is presented.
+    var showPurchasePromptSheet = false
+
+    /// Whether the rating prompt is shown after confirming a purchase.
+    var showRatingPrompt = false
 
     // MARK: - Dependencies
 
@@ -248,7 +263,8 @@ final class RecommendationsViewModel {
 
     /// Called when the user confirms their selection in the bottom sheet.
     /// Records "selected" feedback, opens the merchant URL preferring native apps,
-    /// logs a "handoff" analytics event, and dismisses the sheet.
+    /// logs a "handoff" analytics event, and preserves the recommendation for the
+    /// return-to-app purchase prompt (Step 9.4).
     func confirmSelection() async {
         guard let item = selectedRecommendation else { return }
 
@@ -260,16 +276,20 @@ final class RecommendationsViewModel {
             )
         }
 
+        // Dismiss the confirmation sheet and preserve the recommendation
+        // for the return-to-app purchase prompt BEFORE opening the URL.
+        // Opening the URL immediately backgrounds the app, so state must
+        // be set first or handleReturnFromMerchant() finds nil. (Step 9.4)
+        showConfirmationSheet = false
+        pendingHandoffRecommendation = item
+        selectedRecommendation = nil
+
         // Open the merchant URL with native-app preference and log handoff (Step 9.3)
         await MerchantHandoffService.openMerchantURL(
             urlString: item.externalUrl,
             recommendationId: item.id,
             service: service
         )
-
-        // Dismiss the sheet
-        showConfirmationSheet = false
-        selectedRecommendation = nil
     }
 
     /// Dismisses the confirmation sheet without confirming.
@@ -364,6 +384,84 @@ final class RecommendationsViewModel {
             }
             topVC.present(activityVC, animated: true)
         }
+    }
+
+    // MARK: - Return-to-App (Step 9.4)
+
+    /// Called when the app returns to foreground and there is a pending handoff.
+    /// Presents the purchase prompt sheet after a brief delay.
+    func handleReturnFromMerchant() {
+        guard pendingHandoffRecommendation != nil else { return }
+        // Small delay to let the app fully resume before presenting a sheet
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard pendingHandoffRecommendation != nil else { return }
+            showPurchasePromptSheet = true
+        }
+    }
+
+    /// Called when the user taps "Yes, I bought it!" in the purchase prompt.
+    /// Records "purchased" feedback and shows the optional rating step.
+    func confirmPurchase() async {
+        guard let item = pendingHandoffRecommendation else { return }
+
+        // Record "purchased" feedback (fire-and-forget)
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "purchased"
+            )
+        }
+
+        // Dismiss the purchase prompt and show the rating step
+        showPurchasePromptSheet = false
+        showRatingPrompt = true
+
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /// Called when the user submits a rating after confirming purchase.
+    /// Records a "rated" feedback with the rating value and optional text.
+    func submitPurchaseRating(_ rating: Int, feedbackText: String? = nil) async {
+        guard let item = pendingHandoffRecommendation else { return }
+
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "rated",
+                rating: rating,
+                feedbackText: feedbackText
+            )
+        }
+
+        showRatingPrompt = false
+        pendingHandoffRecommendation = nil
+
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /// Called when the user skips the rating after confirming purchase.
+    func skipPurchaseRating() {
+        showRatingPrompt = false
+        pendingHandoffRecommendation = nil
+    }
+
+    /// Called when the user taps "No, save for later" in the purchase prompt.
+    /// Saves the recommendation locally and clears the pending handoff.
+    func declinePurchaseAndSave() {
+        guard let item = pendingHandoffRecommendation else { return }
+
+        // Reuse existing save logic
+        saveRecommendation(item)
+
+        showPurchasePromptSheet = false
+        pendingHandoffRecommendation = nil
+    }
+
+    /// Called when the user dismisses the purchase prompt without choosing.
+    func dismissPurchasePrompt() {
+        showPurchasePromptSheet = false
+        pendingHandoffRecommendation = nil
     }
 
     // MARK: - Private Helpers

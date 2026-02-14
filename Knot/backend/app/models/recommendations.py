@@ -130,11 +130,11 @@ class RecommendationFeedbackRequest(BaseModel):
     """
     Payload for POST /api/v1/recommendations/feedback.
 
-    Records a user action on a recommendation (selected, saved, shared, rated, handoff).
+    Records a user action on a recommendation (selected, saved, shared, rated, handoff, purchased).
     """
 
     recommendation_id: str
-    action: Literal["selected", "saved", "shared", "rated", "handoff"]
+    action: Literal["selected", "saved", "shared", "rated", "handoff", "purchased"]
     rating: Optional[int] = None
     feedback_text: Optional[str] = None
 

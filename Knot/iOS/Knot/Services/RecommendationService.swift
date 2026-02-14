@@ -248,18 +248,22 @@ final class RecommendationService: Sendable {
     /// Records user feedback on a recommendation.
     ///
     /// Sends `POST /api/v1/recommendations/feedback` with the recommendation ID
-    /// and the action taken (e.g., "selected"). Used when the user confirms
-    /// a card selection before opening the external merchant URL.
+    /// and the action taken (e.g., "selected", "purchased"). Used when the user confirms
+    /// a card selection, completes a purchase, or rates a recommendation.
     ///
     /// - Parameters:
     ///   - recommendationId: The ID of the recommendation being acted on
-    ///   - action: The feedback action ("selected", "saved", "shared", "rated")
+    ///   - action: The feedback action ("selected", "saved", "shared", "rated", "handoff", "purchased")
+    ///   - rating: Optional 1-5 star rating (used with "rated" action)
+    ///   - feedbackText: Optional text feedback (used with "rated" action)
     /// - Returns: The feedback response with the stored record ID
     /// - Throws: `RecommendationServiceError` if the request fails
     @discardableResult
     func recordFeedback(
         recommendationId: String,
-        action: String
+        action: String,
+        rating: Int? = nil,
+        feedbackText: String? = nil
     ) async throws -> RecommendationFeedbackResponse {
         let token = try await getAccessToken()
 
@@ -275,7 +279,9 @@ final class RecommendationService: Sendable {
 
         let payload = RecommendationFeedbackPayload(
             recommendationId: recommendationId,
-            action: action
+            action: action,
+            rating: rating,
+            feedbackText: feedbackText
         )
 
         do {

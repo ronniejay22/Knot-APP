@@ -3792,6 +3792,65 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 9.4: Implement Return-to-App Flow (iOS) ✅
+**Date:** February 14, 2026
+**Status:** Complete
+
+**What was done:**
+- Implemented purchase confirmation prompt that appears when the user returns to the app after a merchant handoff
+- Added "purchased" feedback action to the backend model and database CHECK constraint
+- Extended the iOS `RecommendationFeedbackPayload` DTO with optional `rating` and `feedbackText` fields for post-purchase feedback
+- Extended `RecommendationService.recordFeedback()` with optional `rating` and `feedbackText` parameters
+- Added return-to-app state management to `RecommendationsViewModel` with six new methods: `handleReturnFromMerchant()`, `confirmPurchase()`, `submitPurchaseRating()`, `skipPurchaseRating()`, `declinePurchaseAndSave()`, `dismissPurchasePrompt()`
+- Created `PurchasePromptSheet` bottom sheet with "Yes, I bought it!" and "No, save for later" actions
+- Created `PurchaseRatingSheet` with 5-star selector, optional text feedback, and submit/skip options
+- Wired `scenePhase` detection and purchase/rating sheets into both `RecommendationsView` and `DeepLinkRecommendationView`
+- The deep link view records "saved" feedback via the API service rather than SwiftData since it has no model context
+
+**Files created:**
+- `backend/supabase/migrations/00017_add_purchased_feedback_action.sql`
+- `backend/tests/test_return_to_app.py`
+- `iOS/Knot/Features/Recommendations/PurchasePromptSheet.swift`
+- `iOS/Knot/Features/Recommendations/PurchaseRatingSheet.swift`
+
+**Files modified:**
+- `backend/app/models/recommendations.py` — added "purchased" to action Literal
+- `iOS/Knot/Models/DTOs.swift` — added `rating`/`feedbackText` to `RecommendationFeedbackPayload`
+- `iOS/Knot/Services/RecommendationService.swift` — extended `recordFeedback()` with rating params
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — added return-to-app state and 6 new methods
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — wired scenePhase, purchase prompt, and rating sheets
+- `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — added return-to-app flow with local state
+- `iOS/KnotTests/MerchantHandoffTests.swift` — added Step 9.4 test classes
+
+**Test results:**
+- ✅ 8/8 backend tests pass (test_return_to_app.py):
+  - TestPurchasedFeedbackModel: 5 tests — "purchased" accepted by Pydantic, with rating, with feedback_text, invalid rating rejected, all 7 actions valid
+  - TestPurchasedFeedbackRoute: 2 tests — POST /feedback with "purchased" returns 401 (auth required, not 422), with rating also returns 401
+  - TestPurchasedModuleImports: 1 test — model importable
+- ✅ 44/44 Phase 9 backend tests pass (no regressions to Steps 9.1–9.3)
+- ✅ 86/86 iOS unit tests pass (0 failures):
+  - ReturnToAppTests: 7 tests — handleReturn with/without pending handoff, confirmPurchase shows rating, submitRating/skipRating clear state, declinePurchase/dismissPrompt clear state
+  - PurchasedFeedbackDTOTests: 3 tests — "purchased" action encodes, rating+feedbackText encode, nil optionals omitted
+  - PurchasePromptViewTests: 3 tests — PurchasePromptSheet renders, renders without merchant, PurchaseRatingSheet renders
+  - ViewModelHandoffTests: updated testConfirmSelectionSetsPendingHandoff to verify pendingHandoffRecommendation is set
+- ✅ iOS project builds with zero errors on iPhone 17 Pro Simulator (iOS 26.2)
+
+**Key implementation notes:**
+
+211. **scenePhase detection for return-to-app (Step 9.4):** Both `RecommendationsView` and `DeepLinkRecommendationView` use `@Environment(\.scenePhase)` to detect when the app returns from background to active. The `.onChange(of: scenePhase)` modifier checks for `background → active` transition and calls `handleReturnFromMerchant()`, which shows the purchase prompt after a 500ms delay to let the app fully resume.
+
+212. **pendingHandoffRecommendation bridges handoff and return flow (Step 9.4):** When `confirmSelection()` opens the merchant URL, it sets `pendingHandoffRecommendation = selectedRecommendation` before clearing the selection. This in-memory state persists through the background transition and triggers the purchase prompt on return. If the app is killed while in the merchant app, this state is lost — acceptable for MVP.
+
+213. **Three-step purchase feedback chain (Step 9.4):** A confirmed purchase records up to three separate feedback events: (1) `"selected"` when the user taps confirm, (2) `"handoff"` when the URL opens, and (3) `"purchased"` when they confirm the purchase on return. If they also rate, a fourth `"rated"` event is recorded with the rating value and optional text.
+
+214. **DeepLinkRecommendationView uses local state, not ViewModel (Step 9.4):** The deep link view manages its own `pendingHandoffRecommendation` and `showPurchasePromptSheet` as `@State` properties rather than through `RecommendationsViewModel`. This keeps the deep link flow self-contained. The "save for later" action records `"saved"` feedback via `RecommendationService` rather than persisting to SwiftData, since the deep link view has no model context.
+
+215. **PurchasePromptSheet accepts primitive fields, not typed items (Step 9.4):** The sheet takes `title: String` and `merchantName: String?` rather than a typed recommendation item. This allows it to work with both `RecommendationItemResponse` (main flow) and `MilestoneRecommendationItemResponse` (deep link flow) without coupling to either type.
+
+216. **Swift Codable omits nil optionals by default (Step 9.4):** The `RecommendationFeedbackPayload`'s `rating` and `feedbackText` fields use the default `encodeIfPresent` behavior, which omits nil values from the JSON entirely. The backend (Pydantic) defaults missing fields to `None`, so this is functionally equivalent to sending explicit nulls.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3804,7 +3863,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 9.1:** Configure Universal Links (iOS)
 - [x] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
 - [x] **Step 9.3:** Implement External Merchant Handoff (iOS)
-- [ ] **Step 9.4:** Implement Return-to-App Flow (iOS)
+- [x] **Step 9.4:** Implement Return-to-App Flow (iOS)
 
 ---
 

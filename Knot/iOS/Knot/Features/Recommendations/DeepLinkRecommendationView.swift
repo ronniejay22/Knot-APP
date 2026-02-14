@@ -4,6 +4,7 @@
 //
 //  Created on February 12, 2026.
 //  Step 9.2: Full-screen view for displaying a recommendation opened via Universal Link.
+//  Step 9.4: Return-to-app purchase prompt after merchant handoff.
 //
 
 import SwiftUI
@@ -16,7 +17,8 @@ import LucideIcons
 /// 2. Fetches the recommendation by ID from `GET /api/v1/recommendations/{id}`
 /// 3. Displays loading → error → content states
 /// 4. Uses `RecommendationCard` for visual consistency with the main recommendations flow
-/// 5. Dismisses when the user taps the close button
+/// 5. After merchant handoff, shows "Did you complete your purchase?" on return (Step 9.4)
+/// 6. Dismisses when the user taps the close button
 struct DeepLinkRecommendationView: View {
     let recommendationId: String
     let onDismiss: @MainActor () -> Void
@@ -24,6 +26,11 @@ struct DeepLinkRecommendationView: View {
     @State private var recommendation: MilestoneRecommendationItemResponse?
     @State private var isLoading = true
     @State private var errorMessage: String?
+
+    // Return-to-app state (Step 9.4)
+    @State private var pendingHandoffRecommendation: MilestoneRecommendationItemResponse?
+    @State private var showPurchasePromptSheet = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private let service = RecommendationService()
 
@@ -65,6 +72,35 @@ struct DeepLinkRecommendationView: View {
             }
             .task {
                 await loadRecommendation()
+            }
+            // Purchase prompt sheet (Step 9.4)
+            .sheet(isPresented: $showPurchasePromptSheet) {
+                if let rec = pendingHandoffRecommendation {
+                    PurchasePromptSheet(
+                        title: rec.title,
+                        merchantName: rec.merchantName,
+                        onConfirmPurchase: {
+                            handleConfirmPurchase()
+                        },
+                        onSaveForLater: {
+                            handleSaveForLater()
+                        },
+                        onDismiss: {
+                            showPurchasePromptSheet = false
+                            pendingHandoffRecommendation = nil
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Return-to-app detection (Step 9.4)
+            // iOS transitions .background → .inactive → .active, so we check
+            // for .active arrival rather than direct .background → .active.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    handleReturnFromMerchant()
+                }
             }
         }
     }
@@ -205,6 +241,7 @@ struct DeepLinkRecommendationView: View {
     private func openExternalURL(_ urlString: String?) {
         guard let urlString else { return }
         guard let rec = recommendation else { return }
+        pendingHandoffRecommendation = rec  // Step 9.4
         Task {
             await MerchantHandoffService.openMerchantURL(
                 urlString: urlString,
@@ -212,6 +249,49 @@ struct DeepLinkRecommendationView: View {
                 service: service
             )
         }
+    }
+
+    // MARK: - Return-to-App (Step 9.4)
+
+    private func handleReturnFromMerchant() {
+        guard pendingHandoffRecommendation != nil else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard pendingHandoffRecommendation != nil else { return }
+            showPurchasePromptSheet = true
+        }
+    }
+
+    private func handleConfirmPurchase() {
+        guard let rec = pendingHandoffRecommendation else { return }
+
+        // Record "purchased" feedback (fire-and-forget)
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: rec.id,
+                action: "purchased"
+            )
+        }
+
+        showPurchasePromptSheet = false
+        pendingHandoffRecommendation = nil
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func handleSaveForLater() {
+        guard let rec = pendingHandoffRecommendation else { return }
+
+        // Record "saved" feedback via service (no SwiftData context in deep link view)
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: rec.id,
+                action: "saved"
+            )
+        }
+
+        showPurchasePromptSheet = false
+        pendingHandoffRecommendation = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }
 

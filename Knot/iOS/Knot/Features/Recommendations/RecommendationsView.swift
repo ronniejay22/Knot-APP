@@ -8,6 +8,7 @@
 //  Step 6.4: Refresh flow with reason selection sheet and card animations.
 //  Step 6.5: Manual vibe override — Adjust Vibe button and VibeOverrideSheet.
 //  Step 6.6: Save and Share action buttons wired into RecommendationCard.
+//  Step 9.4: Return-to-app purchase prompt and rating sheets after merchant handoff.
 //
 
 import SwiftUI
@@ -34,6 +35,7 @@ import LucideIcons
 struct RecommendationsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var viewModel = RecommendationsViewModel()
 
@@ -120,6 +122,55 @@ struct RecommendationsView: View {
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+            }
+            // Purchase prompt sheet (Step 9.4)
+            .sheet(isPresented: $viewModel.showPurchasePromptSheet) {
+                if let item = viewModel.pendingHandoffRecommendation {
+                    PurchasePromptSheet(
+                        title: item.title,
+                        merchantName: item.merchantName,
+                        onConfirmPurchase: {
+                            Task {
+                                await viewModel.confirmPurchase()
+                            }
+                        },
+                        onSaveForLater: {
+                            viewModel.declinePurchaseAndSave()
+                        },
+                        onDismiss: {
+                            viewModel.dismissPurchasePrompt()
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Rating prompt sheet (Step 9.4)
+            .sheet(isPresented: $viewModel.showRatingPrompt) {
+                if let item = viewModel.pendingHandoffRecommendation {
+                    PurchaseRatingSheet(
+                        itemTitle: item.title,
+                        onSubmit: { rating, feedbackText in
+                            Task {
+                                await viewModel.submitPurchaseRating(rating, feedbackText: feedbackText)
+                            }
+                        },
+                        onSkip: {
+                            viewModel.skipPurchaseRating()
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Return-to-app detection (Step 9.4)
+            // iOS transitions .background → .inactive → .active, so we check
+            // for .active arrival rather than direct .background → .active.
+            // The guard in handleReturnFromMerchant() prevents false triggers.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    viewModel.handleReturnFromMerchant()
+                }
             }
         }
     }

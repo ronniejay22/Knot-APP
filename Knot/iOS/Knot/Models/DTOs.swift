@@ -369,16 +369,27 @@ struct RecommendationLocationResponse: Codable, Sendable {
     let address: String?
 }
 
-// MARK: - Recommendation Feedback Request (Step 6.3)
+// MARK: - Recommendation Feedback Request (Step 6.3, Step 9.4)
 
 /// Payload for `POST /api/v1/recommendations/feedback`.
 struct RecommendationFeedbackPayload: Codable, Sendable {
     let recommendationId: String
-    let action: String  // "selected", "saved", "shared", "rated"
+    let action: String  // "selected", "saved", "shared", "rated", "handoff", "purchased"
+    let rating: Int?
+    let feedbackText: String?
+
+    init(recommendationId: String, action: String, rating: Int? = nil, feedbackText: String? = nil) {
+        self.recommendationId = recommendationId
+        self.action = action
+        self.rating = rating
+        self.feedbackText = feedbackText
+    }
 
     enum CodingKeys: String, CodingKey {
         case recommendationId = "recommendation_id"
         case action
+        case rating
+        case feedbackText = "feedback_text"
     }
 }
 
