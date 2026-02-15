@@ -8,6 +8,7 @@ It initializes the FastAPI app and registers all route handlers.
 from fastapi import Depends, FastAPI
 
 from app.api.deeplinks import router as deeplinks_router
+from app.api.feedback import router as feedback_router
 from app.api.hints import router as hints_router
 from app.api.notifications import router as notifications_router
 from app.api.recommendations import router as recommendations_router
@@ -23,6 +24,7 @@ app = FastAPI(
 
 # --- Register API routers ---
 app.include_router(deeplinks_router)
+app.include_router(feedback_router)
 app.include_router(vault_router)
 app.include_router(hints_router)
 app.include_router(recommendations_router)

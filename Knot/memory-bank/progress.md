@@ -3851,6 +3851,60 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 10.2: Create Feedback Analysis Job (Backend) ✅
+**Date:** February 15, 2026
+**Status:** Complete
+
+**What was done:**
+- Created the `user_preferences_weights` table for storing learned preference weights per user, computed by the weekly feedback analysis job
+- Built the feedback analysis service that converts user feedback (ratings, selections, purchases, refreshes) into weighted preference multipliers across four dimensions: vibes, interests, recommendation types, and love languages
+- Created the `POST /api/v1/feedback/analyze` API endpoint with optional QStash signature verification for scheduled execution and optional `user_id` body parameter for single-user testing
+- Registered the feedback router in the FastAPI application
+- Created 67 tests covering unit logic, Pydantic models, API routes, module imports, database schema, and full integration flows
+
+**Files created:**
+- `backend/supabase/migrations/00018_create_user_preferences_weights_table.sql` — New table with UUID PK, UNIQUE user_id FK (CASCADE), 4 JSONB weight columns, feedback_count, timestamps, RLS (SELECT-only for authenticated), and `handle_updated_at()` trigger
+- `backend/app/models/feedback_analysis.py` — Pydantic models: `UserPreferencesWeights` (internal weight container), `FeedbackAnalysisRequest` (optional user_id), `FeedbackAnalysisResponse` (status, users_analyzed, message)
+- `backend/app/services/feedback_analysis.py` — Core analysis logic: scoring function, damped weight computation, vibe/love language keyword matching, per-user analysis, upsert, and batch runner
+- `backend/app/api/feedback.py` — Webhook endpoint following the notification endpoint pattern (QStash-optional, raw body parsing)
+- `backend/tests/test_feedback_analysis_job.py` — 67 tests across 12 test classes
+
+**Files modified:**
+- `backend/app/main.py` — Added `feedback_router` import and registration
+
+**Test results:**
+- ✅ `pytest tests/test_feedback_analysis_job.py -v` — 67 passed, 0 failed, ~182s
+- ✅ TestScoreFromFeedback (12 tests): rated 1-5 map to -1.0 to +1.0, selected +0.3, purchased +0.5, saved +0.2, shared +0.3, handoff +0.1, refreshed -0.5, unknown 0.0
+- ✅ TestComputeWeightFromScores (8 tests): empty returns 1.0, positive scores > 1.0, negative scores < 1.0, mixed near neutral, clamped to [0.5, 2.0], single score damped, more samples = stronger effect
+- ✅ TestClamp (4 tests): below minimum clamped to 0.5, above maximum clamped to 2.0, within range unchanged, boundaries exact
+- ✅ TestMatchRecommendationVibes (6 tests): romantic keywords detected, adventurous keywords detected, no match empty, only vault vibes checked, None description handled, multiple vibes match
+- ✅ TestMatchRecommendationLoveLanguages (6 tests): gift → receiving_gifts, experience → quality_time, date → quality_time, physical_touch keywords, words_of_affirmation keywords, acts_of_service keywords
+- ✅ TestPydanticModels (4 tests): UserPreferencesWeights serializes, defaults applied, FeedbackAnalysisRequest optional user_id, FeedbackAnalysisResponse model
+- ✅ TestFeedbackAnalyzeEndpoint (3 tests): endpoint exists (not 404/405), empty body accepted, body with user_id accepted
+- ✅ TestModuleImports (6 tests): service importable, models importable, router importable, router registered in app, vibe keywords exported, scoring constants exported
+- ✅ TestWeightsTableExists (1 test): table accessible via PostgREST API
+- ✅ TestWeightsTableSchema (5 tests): all columns present, UNIQUE constraint on user_id, JSONB columns store/retrieve, defaults applied, anon client blocked by RLS
+- ✅ TestWeightsCascadeDelete (1 test): auth user deletion cascades to weights row
+- ✅ TestWeightsUpsert (2 tests): insert new row, upsert updates existing row
+- ✅ TestFeedbackAnalysisFlow (9 tests): romantic vibes weighted higher than adventurous, type weights computed, upsert stores weights, analysis idempotent, single-user analysis, no feedback returns None, insufficient feedback (<3) returns None, refreshed feedback produces negative signal, full spec flow end-to-end
+- ✅ All existing tests still pass (153 from previous steps + 67 new = 220 in feedback + existing suites)
+
+**Key implementation notes:**
+
+217. **Damped weight computation prevents small-sample swings (Step 10.2):** The formula `weight = 1.0 + (avg_score * damping)` uses `damping = sqrt(n) / (sqrt(n) + 2)` where n is the number of feedback entries. With n=1 damping is 0.33 (weak), n=9 is 0.60 (moderate), n=100 is 0.83 (strong). This prevents a single 5-star rating from boosting a vibe weight to the maximum. Minimum 3 feedback entries are required before any weights deviate from the default 1.0.
+
+218. **Feedback scoring maps user actions to a [-1.0, 1.0] range (Step 10.2):** Ratings 1-5 map linearly: `(rating - 3) / 2.0`. Action-based scores: purchased +0.5, selected/shared +0.3, saved +0.2, handoff +0.1, refreshed -0.5. The "refreshed" action (user rejected the recommendation set) is the strongest negative signal because it indicates active dislike, stronger than a low rating which at least implies engagement.
+
+219. **Vibe and love language keywords replicated from matching.py (Step 10.2):** `VIBE_KEYWORDS` and `LOVE_LANGUAGE_KEYWORDS` dictionaries are duplicated from `agents/matching.py` into `services/feedback_analysis.py`. This is intentional — the feedback analysis job runs independently of the LangGraph pipeline and should not import from the agent layer. Step 10.3 (weight integration into matching) will reference the same keywords, ensuring alignment.
+
+220. **One-row-per-user JSONB pattern for weights (Step 10.2):** Each user has at most one row in `user_preferences_weights` with four JSONB columns (`vibe_weights`, `interest_weights`, `type_weights`, `love_language_weights`). This is simpler than a many-row-per-dimension approach (e.g., one row per vibe per user) and enables atomic upsert of all weights in a single operation. JSONB keys are the dimension tags (e.g., `{"romantic": 1.4, "adventurous": 0.7}`), values are multipliers centered at 1.0, clamped to [0.5, 2.0].
+
+221. **QStash-optional endpoint pattern (Step 10.2):** The `POST /api/v1/feedback/analyze` endpoint checks for the `Upstash-Signature` header. If present, it verifies the QStash signature (same pattern as the notification webhook). If absent, it runs directly — this allows manual triggering via `curl` or the test suite without requiring QStash credentials. The endpoint reads the raw body before parsing to support both signature verification and JSON payload extraction.
+
+222. **Unmatched-vibe mild neutral signal (Step 10.2):** When a recommendation matches no vault vibes via keyword matching, a mild neutral signal (score × 0.1) is distributed to all vault vibes. This prevents vibes with no keyword matches from having no data at all — absence of match is informative. The 0.1 multiplier ensures this signal is much weaker than a direct keyword match.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3864,6 +3918,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
 - [x] **Step 9.3:** Implement External Merchant Handoff (iOS)
 - [x] **Step 9.4:** Implement Return-to-App Flow (iOS)
+- [x] **Step 10.2:** Create Feedback Analysis Job (Backend)
 
 ---
 
