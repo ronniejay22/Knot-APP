@@ -1406,6 +1406,15 @@ The weight computation formula `weight = 1.0 + (avg_score * damping)` with `damp
 ### 140. QStash-Optional Webhook Pattern (Step 10.2)
 The `POST /api/v1/feedback/analyze` endpoint uses the same QStash-optional pattern as `POST /api/v1/notifications/process`: if the `Upstash-Signature` header is present, it verifies the signature; if absent, it proceeds without verification. This enables three calling modes: (1) QStash cron (weekly, with signature), (2) manual curl (testing, no signature), (3) pytest (test suite, no signature). The endpoint reads the raw body via `request.body()` before JSON parsing to support both signature verification (which needs raw bytes) and payload extraction (which needs parsed JSON).
 
+### 141. Pre-loaded Weights Pattern in Pipeline State (Step 10.3)
+Learned preference weights follow the same "pre-loaded data" pattern as `vault_data` and `milestone_context` in `RecommendationState`. Weights are loaded by the three pipeline callers (generate, refresh, notification processor) before pipeline execution and passed into state construction. LangGraph nodes consume weights from state without any DB access. This design maintains node purity (stateless, deterministic given inputs), enables easy unit testing (inject weights directly into state), and keeps the failure boundary at the caller level (where graceful degradation is already established). The `Optional[UserPreferencesWeights]` type with `None` default ensures zero-impact backward compatibility.
+
+### 142. Four-Dimensional Weight Application Strategy (Step 10.3)
+Learned weights are applied at four distinct points in the pipeline, each with different multiplication semantics: (1) **Interest weights** in the filtering node multiply the per-interest match score (+1.0 × weight), affecting which candidates survive filtering and their rank order. (2) **Vibe weights** in the matching node scale each vibe's +30% boost contribution. (3) **Love language weights** scale primary/secondary boost values. (4) **Type weights** are applied as a final multiplicative factor on the composite score, not as an additive boost. The formula is: `final_score = max(interest_score, 1.0) × (1 + vibe_boost) × (1 + ll_boost) × type_weight`. This separation ensures each weight dimension operates on the signal it was derived from, preventing cross-contamination between preference dimensions.
+
+### 143. Graceful Degradation at Weight Loading Boundary (Step 10.3)
+`load_learned_weights()` in `vault_loader.py` wraps all Supabase queries in `try/except Exception`, returning `None` on any failure. This matches the pattern established by other pipeline loaders. Every weight consumer checks for `None` before accessing weights: `weight = weights.get(key, 1.0) if weights else 1.0`. This two-layer defense (loader returns None on failure, consumers default to 1.0 on missing weights) ensures that weight infrastructure failures never degrade the core recommendation experience. A user with no feedback history, a new user, or a user whose weights failed to load all receive identically-scored recommendations — the same behavior as pre-Step-10.3.
+
 ---
 
 ## Data Flow

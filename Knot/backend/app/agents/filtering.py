@@ -79,21 +79,25 @@ def _score_candidate(
     candidate: CandidateRecommendation,
     interests: list[str],
     dislikes: list[str],
+    interest_weights: dict[str, float] | None = None,
 ) -> float:
     """
     Score a candidate based on interest alignment.
 
     Scoring rules:
     - If the candidate matches ANY dislike → return -1.0 (filtered out)
-    - For each matching interest → +1.0
+    - For each matching interest → +1.0 × learned weight (default 1.0)
     - Metadata-tagged interest match gets a bonus +0.5
-      (stronger signal than keyword-only)
+      (fixed signal strength bonus, NOT scaled by weights)
     - Candidates with no interest match get 0.0 (neutral — kept but low rank)
 
     Args:
         candidate: The recommendation candidate to score.
         interests: The partner's 5 liked categories.
         dislikes: The partner's 5 disliked categories.
+        interest_weights: Optional learned weights per interest category
+                          (from feedback analysis). Values are multipliers
+                          centered at 1.0, clamped to [0.5, 2.0].
 
     Returns:
         A float score. Negative means dislike match (remove).
@@ -106,12 +110,14 @@ def _score_candidate(
 
     score = 0.0
 
-    # Score based on interest matches
+    # Score based on interest matches, scaled by learned weights
     for interest in interests:
         if _matches_category(candidate, interest):
-            score += 1.0
+            weight = interest_weights.get(interest, 1.0) if interest_weights else 1.0
+            score += 1.0 * weight
 
     # Bonus for metadata-tagged interest (exact catalog match)
+    # This is a fixed signal strength bonus, not scaled by learned weights
     metadata_interest = candidate.metadata.get("matched_interest", "")
     if metadata_interest and metadata_interest in interests:
         score += 0.5
@@ -156,9 +162,16 @@ async def filter_by_interests(
     interests = state.vault_data.interests
     dislikes = state.vault_data.dislikes
 
+    # Extract learned interest weights (Step 10.3)
+    interest_weights = None
+    if state.learned_weights and state.learned_weights.interest_weights:
+        interest_weights = state.learned_weights.interest_weights
+
     logger.info(
-        "Filtering %d candidates: interests=%s, dislikes=%s",
+        "Filtering %d candidates: interests=%s, dislikes=%s, "
+        "learned_interest_weights=%s",
         len(candidates), interests, dislikes,
+        {k: round(v, 2) for k, v in interest_weights.items()} if interest_weights else None,
     )
 
     if not candidates:
@@ -173,7 +186,7 @@ async def filter_by_interests(
     removed_count = 0
 
     for candidate in candidates:
-        score = _score_candidate(candidate, interests, dislikes)
+        score = _score_candidate(candidate, interests, dislikes, interest_weights)
         if score < 0:
             removed_count += 1
             logger.debug(

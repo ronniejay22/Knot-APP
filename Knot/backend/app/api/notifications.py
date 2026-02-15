@@ -37,6 +37,7 @@ from app.services.dnd import check_quiet_hours
 from app.services.qstash import publish_to_qstash, verify_qstash_signature
 from app.services.vault_loader import (
     find_budget_range,
+    load_learned_weights,
     load_milestone_context,
     load_vault_data,
 )
@@ -239,11 +240,14 @@ async def process_notification(
             occasion_type = milestone_context.budget_tier
             budget_range = find_budget_range(vault_data.budgets, occasion_type)
 
+            learned_weights = await load_learned_weights(payload.user_id)
+
             state = RecommendationState(
                 vault_data=vault_data,
                 occasion_type=occasion_type,
                 milestone_context=milestone_context,
                 budget_range=budget_range,
+                learned_weights=learned_weights,
             )
 
             result = await run_recommendation_pipeline(state)

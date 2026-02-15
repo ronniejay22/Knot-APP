@@ -18,6 +18,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.models.feedback_analysis import UserPreferencesWeights
+
 
 # ======================================================================
 # Sub-models: Vault profile data
@@ -158,6 +160,7 @@ class RecommendationState(BaseModel):
     occasion_type: Literal["just_because", "minor_occasion", "major_milestone"]
     milestone_context: Optional[MilestoneContext] = None
     budget_range: BudgetRange
+    learned_weights: Optional[UserPreferencesWeights] = None
 
     # --- Populated by graph nodes ---
     relevant_hints: list[RelevantHint] = Field(default_factory=list)

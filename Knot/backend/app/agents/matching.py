@@ -115,16 +115,19 @@ def _candidate_matches_vibe(
 def _compute_vibe_boost(
     candidate: CandidateRecommendation,
     vault_vibes: list[str],
+    vibe_weights: dict[str, float] | None = None,
 ) -> float:
     """
     Compute the vibe boost for a candidate.
 
-    Each matching vibe contributes +30% (0.30).
+    Each matching vibe contributes +30% (0.30) scaled by its learned weight.
     Multiple matching vibes stack additively.
 
     Args:
         candidate: The recommendation candidate to score.
         vault_vibes: The partner's selected vibe tags (1-8).
+        vibe_weights: Optional learned weights per vibe tag (from feedback
+                      analysis). Values are multipliers centered at 1.0.
 
     Returns:
         Total vibe boost as a float (e.g., 0.60 for 2 matching vibes).
@@ -132,7 +135,8 @@ def _compute_vibe_boost(
     boost = 0.0
     for vibe in vault_vibes:
         if _candidate_matches_vibe(candidate, vibe):
-            boost += VIBE_MATCH_BOOST
+            weight = vibe_weights.get(_normalize(vibe), 1.0) if vibe_weights else 1.0
+            boost += VIBE_MATCH_BOOST * weight
     return boost
 
 
@@ -216,17 +220,21 @@ def _compute_love_language_boost(
     candidate: CandidateRecommendation,
     primary_love_language: str,
     secondary_love_language: str,
+    ll_weights: dict[str, float] | None = None,
 ) -> float:
     """
     Compute the love language boost for a candidate.
 
     Checks if the candidate matches the primary and/or secondary
-    love language. Boosts stack if both match.
+    love language. Boosts stack if both match. Each boost is scaled
+    by the learned weight for that love language (default 1.0).
 
     Args:
         candidate: The recommendation candidate to score.
         primary_love_language: The partner's primary love language.
         secondary_love_language: The partner's secondary love language.
+        ll_weights: Optional learned weights per love language (from feedback
+                    analysis). Values are multipliers centered at 1.0.
 
     Returns:
         Total love language boost as a float (e.g., 0.60 for both matching).
@@ -238,14 +246,16 @@ def _compute_love_language_boost(
         primary_boost, _ = _LOVE_LANGUAGE_BOOSTS.get(
             _normalize(primary_love_language), (0.0, 0.0),
         )
-        boost += primary_boost
+        weight = ll_weights.get(_normalize(primary_love_language), 1.0) if ll_weights else 1.0
+        boost += primary_boost * weight
 
     # Secondary love language check
     if _candidate_matches_love_language(candidate, secondary_love_language):
         _, secondary_boost = _LOVE_LANGUAGE_BOOSTS.get(
             _normalize(secondary_love_language), (0.0, 0.0),
         )
-        boost += secondary_boost
+        weight = ll_weights.get(_normalize(secondary_love_language), 1.0) if ll_weights else 1.0
+        boost += secondary_boost * weight
 
     return boost
 
@@ -287,11 +297,24 @@ async def match_vibes_and_love_languages(
     candidates = state.filtered_recommendations
     vault = state.vault_data
 
+    # Extract learned weights (Step 10.3)
+    vibe_weights = None
+    ll_weights = None
+    type_weights = None
+    if state.learned_weights:
+        vibe_weights = state.learned_weights.vibe_weights or None
+        ll_weights = state.learned_weights.love_language_weights or None
+        type_weights = state.learned_weights.type_weights or None
+
     logger.info(
         "Matching vibes and love languages for %d candidates: "
-        "vibes=%s, primary_ll=%s, secondary_ll=%s",
+        "vibes=%s, primary_ll=%s, secondary_ll=%s, "
+        "learned_vibe_weights=%s, learned_ll_weights=%s, learned_type_weights=%s",
         len(candidates), vault.vibes,
         vault.primary_love_language, vault.secondary_love_language,
+        {k: round(v, 2) for k, v in vibe_weights.items()} if vibe_weights else None,
+        {k: round(v, 2) for k, v in ll_weights.items()} if ll_weights else None,
+        {k: round(v, 2) for k, v in type_weights.items()} if type_weights else None,
     )
 
     if not candidates:
@@ -301,16 +324,20 @@ async def match_vibes_and_love_languages(
     scored: list[CandidateRecommendation] = []
 
     for candidate in candidates:
-        vibe_boost = _compute_vibe_boost(candidate, vault.vibes)
+        vibe_boost = _compute_vibe_boost(candidate, vault.vibes, vibe_weights)
         ll_boost = _compute_love_language_boost(
             candidate,
             vault.primary_love_language,
             vault.secondary_love_language,
+            ll_weights,
         )
+
+        # Type weight multiplier (Step 10.3)
+        type_weight = type_weights.get(candidate.type, 1.0) if type_weights else 1.0
 
         # Floor at 1.0 so candidates with 0.0 interest_score still rank
         base = max(candidate.interest_score, 1.0)
-        final_score = base * (1 + vibe_boost) * (1 + ll_boost)
+        final_score = base * (1 + vibe_boost) * (1 + ll_boost) * type_weight
 
         scored_candidate = candidate.model_copy(update={
             "vibe_score": vibe_boost,
@@ -320,9 +347,10 @@ async def match_vibes_and_love_languages(
         scored.append(scored_candidate)
 
         logger.debug(
-            "Candidate '%s': base=%.2f, vibe=+%.0f%%, ll=+%.0f%%, final=%.2f",
+            "Candidate '%s': base=%.2f, vibe=+%.0f%%, ll=+%.0f%%, "
+            "type_w=%.2f, final=%.2f",
             candidate.title, base, vibe_boost * 100, ll_boost * 100,
-            final_score,
+            type_weight, final_score,
         )
 
     # Sort by final_score descending, then by title for deterministic ordering

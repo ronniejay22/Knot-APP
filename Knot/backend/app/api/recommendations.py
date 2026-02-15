@@ -38,6 +38,7 @@ from app.models.recommendations import (
 )
 from app.services.vault_loader import (
     find_budget_range,
+    load_learned_weights,
     load_milestone_context,
     load_vault_data,
 )
@@ -109,15 +110,18 @@ async def generate_recommendations(
     budget_range = find_budget_range(vault_data.budgets, payload.occasion_type)
 
     # =================================================================
-    # 4. Build state and run pipeline
+    # 4. Load learned weights and build pipeline state
     # =================================================================
     client = get_service_client()
+
+    learned_weights = await load_learned_weights(user_id)
 
     state = RecommendationState(
         vault_data=vault_data,
         occasion_type=payload.occasion_type,
         milestone_context=milestone_context,
         budget_range=budget_range,
+        learned_weights=learned_weights,
     )
 
     try:
@@ -347,10 +351,13 @@ async def refresh_recommendations(
 
     budget_range = find_budget_range(vault_data.budgets, occasion_type)
 
+    learned_weights = await load_learned_weights(user_id)
+
     state = RecommendationState(
         vault_data=vault_data,
         occasion_type=occasion_type,
         budget_range=budget_range,
+        learned_weights=learned_weights,
     )
 
     try:

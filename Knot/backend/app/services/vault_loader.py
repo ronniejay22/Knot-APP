@@ -5,6 +5,7 @@ Extracts the vault data loading logic that is shared between the
 recommendations API and the notification processing endpoint.
 
 Step 7.3: Extract vault loading into a shared service.
+Step 10.3: Added load_learned_weights for personalized recommendation scoring.
 """
 
 import logging
@@ -17,6 +18,7 @@ from app.agents.state import (
     VaultData,
 )
 from app.db.supabase_client import get_service_client
+from app.models.feedback_analysis import UserPreferencesWeights
 
 logger = logging.getLogger(__name__)
 
@@ -211,3 +213,62 @@ def find_budget_range(
     }
     min_amt, max_amt = defaults.get(occasion_type, (2000, 10000))
     return BudgetRange(min_amount=min_amt, max_amount=max_amt)
+
+
+# ===================================================================
+# Learned Weights Loading
+# ===================================================================
+
+async def load_learned_weights(user_id: str) -> Optional[UserPreferencesWeights]:
+    """
+    Load learned preference weights for a user.
+
+    Queries the user_preferences_weights table for stored weights
+    computed by the feedback analysis job (Step 10.2).
+
+    Returns None if no weights exist (new user or insufficient feedback)
+    or if the query fails (graceful degradation — no personalization applied).
+
+    Args:
+        user_id: The user's UUID.
+
+    Returns:
+        UserPreferencesWeights if found, None otherwise.
+    """
+    try:
+        client = get_service_client()
+        result = (
+            client.table("user_preferences_weights")
+            .select("user_id, vibe_weights, interest_weights, type_weights, love_language_weights, feedback_count")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if not result.data:
+            logger.debug("No learned weights found for user %s", user_id[:8])
+            return None
+
+        row = result.data[0]
+        weights = UserPreferencesWeights(
+            user_id=row["user_id"],
+            vibe_weights=row.get("vibe_weights") or {},
+            interest_weights=row.get("interest_weights") or {},
+            type_weights=row.get("type_weights") or {},
+            love_language_weights=row.get("love_language_weights") or {},
+            feedback_count=row.get("feedback_count", 0),
+        )
+
+        logger.info(
+            "Loaded learned weights for user %s (feedback_count=%d)",
+            user_id[:8], weights.feedback_count,
+        )
+        return weights
+
+    except Exception as exc:
+        logger.warning(
+            "Failed to load learned weights for user %s: %s — "
+            "proceeding without personalization",
+            user_id[:8], exc,
+        )
+        return None
