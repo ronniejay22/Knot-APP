@@ -9,6 +9,7 @@
 //  Step 6.5: Manual vibe override — session-scoped vibe selection and refresh.
 //  Step 6.6: Save/Share actions with local persistence and feedback recording.
 //  Step 9.4: Return-to-app flow — purchase confirmation and rating after merchant handoff.
+//  Step 10.4: App Store review prompt after 5-star rating with 90-day rate limiting.
 //
 
 import Foundation
@@ -88,6 +89,11 @@ final class RecommendationsViewModel {
 
     /// Whether the rating prompt is shown after confirming a purchase.
     var showRatingPrompt = false
+
+    // MARK: - App Review Prompt State (Step 10.4)
+
+    /// Whether the App Store review prompt is currently shown.
+    var showAppReviewPrompt = false
 
     // MARK: - Dependencies
 
@@ -422,6 +428,8 @@ final class RecommendationsViewModel {
 
     /// Called when the user submits a rating after confirming purchase.
     /// Records a "rated" feedback with the rating value and optional text.
+    /// If the rating is 5 stars and the 90-day cooldown has elapsed,
+    /// shows the App Store review prompt after a 2-second delay (Step 10.4).
     func submitPurchaseRating(_ rating: Int, feedbackText: String? = nil) async {
         guard let item = pendingHandoffRecommendation else { return }
 
@@ -438,6 +446,12 @@ final class RecommendationsViewModel {
         pendingHandoffRecommendation = nil
 
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        // Step 10.4: After a 5-star rating, prompt for App Store review
+        if rating == 5 && canPromptForAppReview() {
+            try? await Task.sleep(for: .seconds(2))
+            showAppReviewPrompt = true
+        }
     }
 
     /// Called when the user skips the rating after confirming purchase.
@@ -474,5 +488,36 @@ final class RecommendationsViewModel {
         if let saved = try? modelContext.fetch(descriptor) {
             savedRecommendationIds = Set(saved.map(\.recommendationId))
         }
+    }
+
+    // MARK: - App Review Prompt Helpers (Step 10.4)
+
+    /// UserDefaults key for the last time the App Store review prompt was shown.
+    private static let appReviewPromptKey = "lastAppReviewPromptDate"
+
+    /// Minimum number of days between App Store review prompts.
+    private static let reviewCooldownDays = 90
+
+    /// Returns true if enough time has elapsed since the last review prompt.
+    func canPromptForAppReview() -> Bool {
+        guard let lastPrompt = UserDefaults.standard.object(
+            forKey: Self.appReviewPromptKey
+        ) as? Date else {
+            return true
+        }
+        let daysSince = Calendar.current.dateComponents(
+            [.day], from: lastPrompt, to: Date()
+        ).day ?? 0
+        return daysSince >= Self.reviewCooldownDays
+    }
+
+    /// Records the current date as the last review prompt date.
+    func recordAppReviewPromptDate() {
+        UserDefaults.standard.set(Date(), forKey: Self.appReviewPromptKey)
+    }
+
+    /// Dismisses the App Store review prompt without recording the date.
+    func dismissAppReviewPrompt() {
+        showAppReviewPrompt = false
     }
 }

@@ -3905,6 +3905,53 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
+### Step 10.4: Implement App Store Review Prompt (iOS) ✅
+**Date:** February 15, 2026
+**Status:** Complete
+
+**What was done:**
+- Created an App Store review prompt sheet that appears after a user submits a 5-star purchase rating, with a 2-second delay
+- Implemented 90-day rate limiting via UserDefaults to comply with Apple's review prompt guidelines
+- Used the SwiftUI `@Environment(\.requestReview)` action (iOS 16+) instead of the UIKit `SKStoreReviewController`, matching the app's SwiftUI-first architecture
+- The ViewModel signals intent via a `showAppReviewPrompt` state flag; the View calls `requestReview()` from the environment since it must originate from a SwiftUI view context
+- Added 11 new tests covering the full flow: 5-star triggers prompt, non-5-star does not, 90-day cooldown blocks, expired cooldown allows, helper method correctness, initial state, and view rendering
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/AppReviewPromptSheet.swift` — Bottom sheet asking "Would you like to share your experience with others?" with Lucide heart header icon, "Yes, let's do it!" accept button, and "Not now" decline button. Follows `PurchasePromptSheet`/`PurchaseRatingSheet` visual patterns.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Added `showAppReviewPrompt` state property, 90-day rate-limit helpers (`canPromptForAppReview()`, `recordAppReviewPromptDate()`, `dismissAppReviewPrompt()`), and modified `submitPurchaseRating()` to trigger the review prompt after a 5-star rating with a 2-second delay
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Added `import StoreKit`, `@Environment(\.requestReview)`, and new `.sheet` presenting `AppReviewPromptSheet` with accept/decline callbacks
+- `iOS/KnotTests/MerchantHandoffTests.swift` — Added `AppStoreReviewPromptTests` class with 11 tests
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests` — 114 passed, 0 failed
+- ✅ `AppStoreReviewPromptTests` — 11/11 passed:
+  - `testFiveStarRatingShowsReviewPrompt` — 5-star → 2s delay → prompt appears
+  - `testFourStarRatingDoesNotShowReviewPrompt` — 4-star → no prompt
+  - `testThreeStarRatingDoesNotShowReviewPrompt` — 3-star → no prompt
+  - `testNinetyDayCooldownPreventsPrompt` — 10 days since last → blocked
+  - `testExpiredCooldownAllowsPrompt` — 91 days since last → allowed
+  - `testCanPromptReturnsTrueWhenNeverPrompted` — no stored date → true
+  - `testCanPromptReturnsFalseWhenRecentlyPrompted` — today's date → false
+  - `testRecordPromptDateBlocksFuturePrompts` — record → future blocked
+  - `testDismissAppReviewPromptClearsState` — dismiss clears flag
+  - `testInitialAppReviewPromptState` — defaults to false
+  - `testAppReviewPromptSheetRenders` — UIHostingController renders
+- ✅ All 103 existing tests continue to pass
+
+**Key implementation notes:**
+
+133. **SwiftUI `requestReview` environment action vs. UIKit `SKStoreReviewController` (Step 10.4):** The implementation plan specified `SKStoreReviewController.requestReview()`, but this project uses SwiftUI exclusively. The modern approach is `@Environment(\.requestReview) private var requestReview` (available since iOS 16), which is called directly as `requestReview()`. This must be invoked from a SwiftUI View — not from the ViewModel — because it's an `@Environment` value. The ViewModel sets a `showAppReviewPrompt` state flag, and the View reacts by calling `requestReview()` when the user taps "Yes." A 500ms delay between sheet dismissal and `requestReview()` prevents visual conflicts.
+
+134. **UserDefaults for 90-day rate limiting (Step 10.4):** The `lastAppReviewPromptDate` key stores a `Date` in `UserDefaults.standard`. `canPromptForAppReview()` uses `Calendar.current.dateComponents([.day], from:to:)` to compute elapsed days. No stored date = first time = allowed. This is simpler than SwiftData persistence and appropriate for a single boolean-like gate. The date is only recorded when the user taps "Yes" (accepts the review), not when they decline — declining doesn't consume the cooldown.
+
+135. **2-second delay implemented inline in `submitPurchaseRating()` (Step 10.4):** The `try? await Task.sleep(for: .seconds(2))` runs after the rating sheet is dismissed and state is cleared. Since `submitPurchaseRating()` is already `async`, the sleep naturally holds execution without blocking the main thread. The method awaits the sleep, so when it returns, `showAppReviewPrompt` is already set — tests can assert immediately after `await` without additional sleep delays.
+
+136. **Apple throttles `requestReview()` independently (Step 10.4):** Even with our 90-day rate limit, Apple's own throttling may suppress the review dialog (max ~3 times per 365-day period). Our 90-day cooldown (~4 prompts/year) is aligned with this. The dialog is never guaranteed to appear — this is by Apple's design to prevent review prompt abuse. The app's prompt ("Would you like to share your experience with others?") always appears; only the system dialog is throttled.
+
+---
+
 ## Next Steps
 
 - [x] **Step 8.2:** Implement Ticketmaster API Integration
@@ -3919,6 +3966,8 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 - [x] **Step 9.3:** Implement External Merchant Handoff (iOS)
 - [x] **Step 9.4:** Implement Return-to-App Flow (iOS)
 - [x] **Step 10.2:** Create Feedback Analysis Job (Backend)
+- [x] **Step 10.3:** Integrate Learned Weights into Recommendation Graph (Backend)
+- [x] **Step 10.4:** Implement App Store Review Prompt (iOS)
 
 ---
 

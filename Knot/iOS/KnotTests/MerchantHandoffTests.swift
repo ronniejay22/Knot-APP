@@ -5,6 +5,7 @@
 //  Created on February 12, 2026.
 //  Step 9.3: Tests for external merchant handoff service, DTOs, and handoff flow.
 //  Step 9.4: Tests for return-to-app purchase prompt and rating flow.
+//  Step 10.4: Tests for App Store review prompt after 5-star rating.
 //
 
 import XCTest
@@ -393,5 +394,189 @@ final class PurchasePromptViewTests: XCTestCase {
         let hostingController = UIHostingController(rootView: view)
         XCTAssertNotNil(hostingController.view,
                         "PurchaseRatingSheet should render a valid view")
+    }
+}
+
+// MARK: - App Store Review Prompt Tests (Step 10.4)
+
+@MainActor
+final class AppStoreReviewPromptTests: XCTestCase {
+
+    override func tearDown() {
+        super.tearDown()
+        // Clean up UserDefaults after each test
+        UserDefaults.standard.removeObject(forKey: "lastAppReviewPromptDate")
+    }
+
+    /// 5-star rating triggers the App Store review prompt after 2-second delay.
+    func testFiveStarRatingShowsReviewPrompt() async {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "review-1", title: "Test Review")
+
+        vm.pendingHandoffRecommendation = item
+        vm.showRatingPrompt = true
+
+        await vm.submitPurchaseRating(5, feedbackText: "Amazing!")
+
+        // Rating prompt should be dismissed immediately
+        XCTAssertFalse(vm.showRatingPrompt, "Rating prompt should be dismissed")
+        XCTAssertNil(vm.pendingHandoffRecommendation,
+                     "Pending handoff should be cleared")
+
+        // submitPurchaseRating includes the 2-second delay internally,
+        // so showAppReviewPrompt should already be true when await returns
+        XCTAssertTrue(vm.showAppReviewPrompt,
+                      "App review prompt should appear after 5-star rating")
+    }
+
+    /// 4-star rating does NOT trigger the App Store review prompt.
+    func testFourStarRatingDoesNotShowReviewPrompt() async {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "review-2", title: "Test No Review")
+
+        vm.pendingHandoffRecommendation = item
+        vm.showRatingPrompt = true
+
+        await vm.submitPurchaseRating(4, feedbackText: "Pretty good")
+
+        XCTAssertFalse(vm.showAppReviewPrompt,
+                       "App review prompt should NOT appear for non-5-star rating")
+    }
+
+    /// 3-star rating does NOT trigger the App Store review prompt.
+    func testThreeStarRatingDoesNotShowReviewPrompt() async {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "review-3", title: "Test 3 Star")
+
+        vm.pendingHandoffRecommendation = item
+        vm.showRatingPrompt = true
+
+        await vm.submitPurchaseRating(3)
+
+        XCTAssertFalse(vm.showAppReviewPrompt,
+                       "App review prompt should NOT appear for 3-star rating")
+    }
+
+    /// 90-day cooldown prevents the prompt from showing again.
+    func testNinetyDayCooldownPreventsPrompt() async {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "review-4", title: "Test Cooldown")
+
+        // Simulate a recent review prompt (10 days ago)
+        let tenDaysAgo = Calendar.current.date(byAdding: .day, value: -10, to: Date())!
+        UserDefaults.standard.set(tenDaysAgo, forKey: "lastAppReviewPromptDate")
+
+        vm.pendingHandoffRecommendation = item
+        vm.showRatingPrompt = true
+
+        await vm.submitPurchaseRating(5, feedbackText: "Love it!")
+
+        XCTAssertFalse(vm.showAppReviewPrompt,
+                       "App review prompt should NOT appear within 90-day cooldown")
+    }
+
+    /// Prompt appears when cooldown has expired (91+ days since last prompt).
+    func testExpiredCooldownAllowsPrompt() async {
+        let vm = RecommendationsViewModel()
+        let item = makeTestRecommendation(id: "review-5", title: "Test Expired Cooldown")
+
+        // Simulate an old review prompt (91 days ago)
+        let ninetyOneDaysAgo = Calendar.current.date(byAdding: .day, value: -91, to: Date())!
+        UserDefaults.standard.set(ninetyOneDaysAgo, forKey: "lastAppReviewPromptDate")
+
+        vm.pendingHandoffRecommendation = item
+        vm.showRatingPrompt = true
+
+        await vm.submitPurchaseRating(5, feedbackText: "Still great!")
+
+        XCTAssertTrue(vm.showAppReviewPrompt,
+                      "App review prompt should appear after 90-day cooldown expires")
+    }
+
+    /// canPromptForAppReview returns true when no date is stored.
+    func testCanPromptReturnsTrueWhenNeverPrompted() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertTrue(vm.canPromptForAppReview(),
+                      "Should allow prompt when never prompted before")
+    }
+
+    /// canPromptForAppReview returns false when prompted recently.
+    func testCanPromptReturnsFalseWhenRecentlyPrompted() {
+        let vm = RecommendationsViewModel()
+        UserDefaults.standard.set(Date(), forKey: "lastAppReviewPromptDate")
+
+        XCTAssertFalse(vm.canPromptForAppReview(),
+                       "Should deny prompt when prompted today")
+    }
+
+    /// recordAppReviewPromptDate stores a date that blocks future prompts.
+    func testRecordPromptDateBlocksFuturePrompts() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertTrue(vm.canPromptForAppReview())
+
+        vm.recordAppReviewPromptDate()
+
+        XCTAssertFalse(vm.canPromptForAppReview(),
+                       "Recording prompt date should block future prompts")
+    }
+
+    /// dismissAppReviewPrompt sets showAppReviewPrompt to false.
+    func testDismissAppReviewPromptClearsState() {
+        let vm = RecommendationsViewModel()
+        vm.showAppReviewPrompt = true
+
+        vm.dismissAppReviewPrompt()
+
+        XCTAssertFalse(vm.showAppReviewPrompt,
+                       "Dismiss should clear the prompt flag")
+    }
+
+    /// showAppReviewPrompt defaults to false.
+    func testInitialAppReviewPromptState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertFalse(vm.showAppReviewPrompt,
+                       "App review prompt should be hidden by default")
+    }
+
+    /// AppReviewPromptSheet renders without crashing.
+    func testAppReviewPromptSheetRenders() {
+        let view = AppReviewPromptSheet(
+            onAccept: {},
+            onDecline: {}
+        )
+        let hostingController = UIHostingController(rootView: view)
+        XCTAssertNotNil(hostingController.view,
+                        "AppReviewPromptSheet should render a valid view")
+    }
+
+    // MARK: - Helpers
+
+    private func makeTestRecommendation(
+        id: String,
+        title: String
+    ) -> RecommendationItemResponse {
+        let json = """
+        {
+            "id": "\(id)",
+            "recommendation_type": "gift",
+            "title": "\(title)",
+            "description": "Test description",
+            "price_cents": 5000,
+            "currency": "USD",
+            "external_url": "https://www.amazon.com/dp/B09V3KXJPB",
+            "image_url": null,
+            "merchant_name": "Amazon",
+            "source": "amazon",
+            "location": null,
+            "interest_score": 0.8,
+            "vibe_score": 0.7,
+            "love_language_score": 0.6,
+            "final_score": 0.7
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
     }
 }

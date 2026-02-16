@@ -9,9 +9,11 @@
 //  Step 6.5: Manual vibe override — Adjust Vibe button and VibeOverrideSheet.
 //  Step 6.6: Save and Share action buttons wired into RecommendationCard.
 //  Step 9.4: Return-to-app purchase prompt and rating sheets after merchant handoff.
+//  Step 10.4: App Store review prompt after 5-star purchase ratings.
 //
 
 import SwiftUI
+import StoreKit
 import LucideIcons
 
 /// Displays exactly 3 recommendation cards in a horizontal paging scroll view.
@@ -36,6 +38,7 @@ struct RecommendationsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
 
     @State private var viewModel = RecommendationsViewModel()
 
@@ -162,6 +165,24 @@ struct RecommendationsView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
                 }
+            }
+            // App Store review prompt sheet (Step 10.4)
+            .sheet(isPresented: $viewModel.showAppReviewPrompt) {
+                AppReviewPromptSheet(
+                    onAccept: {
+                        viewModel.recordAppReviewPromptDate()
+                        viewModel.showAppReviewPrompt = false
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(500))
+                            requestReview()
+                        }
+                    },
+                    onDecline: {
+                        viewModel.dismissAppReviewPrompt()
+                    }
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
             // Return-to-app detection (Step 9.4)
             // iOS transitions .background → .inactive → .active, so we check
