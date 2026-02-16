@@ -4240,3 +4240,59 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 132. **Learned weights integration tests: 36 tests across 10 classes (Step 10.3):** `backend/tests/test_learned_weights_integration.py` covers: TestStateSchemaUpdated (3 — accepts weights, defaults None, serializes), TestFilteringWithWeights (7 — amplifies, reduces, neutral, None, metadata bonus not scaled, dislikes still filter, full node), TestVibeBoostWithWeights (5 — boosted, penalized, neutral, None, mixed), TestLoveLanguageBoostWithWeights (4 — boosted primary, secondary, None, both), TestTypeWeightMultiplier (2 — gift boost, experience penalty), TestFullMatchingNodeWithWeights (2 — ranking change, no-weights preserves), TestSpecRequirement (2 — receiving_gifts ranks gifts higher, even with competing vibes), TestNoWeightsDefaultBehavior (2 — filtering unchanged, matching unchanged), TestModuleImports (6 — all new parameters importable), TestLoadLearnedWeights (3 — returns weights, returns None, nonexistent user).
 
 ---
+
+### Step 11.1: Build Settings Screen (iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Created a dedicated Settings screen (`SettingsView`) with five grouped sections: Account, Partner Profile, Notifications, Privacy, and About
+- Built `SettingsViewModel` with state management for email loading from Supabase session, notification authorization status via `UNUserNotificationCenter`, bulk hint clearing via existing `HintService`, and app version display from `Bundle.main.infoDictionary`
+- Replaced the three temporary toolbar buttons in HomeView (Notifications bell, Edit Profile, Sign Out) with a single Settings gear icon that opens SettingsView as a sheet
+- Moved the Edit Profile flow (`EditVaultView` fullScreenCover) from HomeView into SettingsView
+- Added placeholder "coming soon" alerts for Delete Account (Step 11.2), Export Data (Step 11.3), and Quiet Hours (Step 11.4)
+- Implemented functional Clear All Hints with confirmation dialog and success/error feedback
+- Implemented notification toggle that reads current authorization status and either requests permission or directs to system Settings
+- Created reusable row components following `EditVaultView.editSectionButton` visual patterns: `settingsRow`, `settingsInfoRow`, `settingsToggleRow`, `sectionHeader`
+- Added 13 new unit tests covering ViewModel state management, app version format validation, and view rendering
+
+**Files created:**
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Settings state management: email loading, notification toggle, hint clearing, app version, placeholder alert flags
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Settings screen with five sections, reusable row components, alerts, and EditVaultView integration
+- `iOS/KnotTests/SettingsViewTests.swift` — 13 tests: SettingsViewModelTests (11 — initial state, app version format, alert toggles, email, hints state) + SettingsViewRenderingTests (2 — render, dark mode)
+
+**Files modified:**
+- `iOS/Knot/Features/Home/HomeView.swift` — Removed `showEditProfile` and `showNotifications` state, removed three toolbar buttons (notifications bell, edit profile, sign out), removed EditVaultView fullScreenCover and NotificationsView sheet, added `showSettings` state, added single Settings gear toolbar button, added SettingsView sheet with data refresh on dismiss
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests` — 127 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 11/11 passed:
+  - `testInitialState` — all defaults verified
+  - `testAppVersionFormat` — regex matches `X.Y (N)` or `X.Y.Z (N)`
+  - `testDeleteAccountAlertToggle` — toggle works
+  - `testClearHintsConfirmationToggle` — toggle works
+  - `testExportDataAlertToggle` — toggle works
+  - `testQuietHoursAlertToggle` — toggle works
+  - `testNotificationsEnabledToggle` — toggle works
+  - `testUserEmailCanBeSet` — email assignment works
+  - `testClearingHintsInitialState` — defaults correct
+  - `testClearHintsSuccessToggle` — toggle works
+  - `testClearHintsErrorCanBeSetAndCleared` — set and nil works
+- ✅ `SettingsViewRenderingTests` — 2/2 passed:
+  - `testViewRenders` — UIHostingController instantiation succeeds
+  - `testViewRendersInDarkMode` — dark mode rendering succeeds
+- ✅ All 114 existing tests continue to pass
+
+---
+
+133. **Settings screen replaces three temporary HomeView toolbar buttons with a single gear icon (Step 11.1):** The original HomeView toolbar had three buttons (notifications bell, edit profile, sign out) that were always intended as temporary. The comment on HomeView line 8 noted "Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1)." The Settings gear icon (`Lucide.settings`) consolidates all three actions plus additional functionality into a proper Settings screen. The `.sheet(isPresented: $showSettings)` presentation style was chosen over `.fullScreenCover` because Settings is a utility screen, not a primary flow — sheets feel less modal and can be dismissed with a swipe gesture.
+
+134. **SettingsView reuses row patterns from EditVaultView but with three row variants (Step 11.1):** The `settingsRow` helper mirrors `EditVaultView.editSectionButton` exactly (HStack with Lucide icon, title/subtitle VStack, chevronRight, surface background, 12pt rounded rect, surfaceBorder stroke). Two additional variants were needed: `settingsInfoRow` for non-tappable display rows (email, version) with a right-aligned value label instead of a chevron, and `settingsToggleRow` for the notifications toggle with a `Toggle` control replacing the chevron. All three variants share the same padding (16pt horizontal, 14pt vertical), background (Theme.surface), and border treatment for visual consistency.
+
+135. **Notification toggle handles iOS permission lifecycle correctly (Step 11.1):** iOS does not allow apps to programmatically revoke notification permission once granted. The `toggleNotifications()` method checks the current `notificationsEnabled` state: if notifications are currently enabled and the user toggles off, it opens the system Settings app via `UIApplication.openSettingsURLString` where the user can manually disable notifications. If notifications are currently disabled, it requests permission via `UNUserNotificationCenter.requestAuthorization()` and registers for remote notifications on success. The initial authorization status is loaded in `.task` via `loadNotificationStatus()` which reads from `UNUserNotificationCenter.current().notificationSettings()`.
+
+136. **Clear All Hints uses paginated sequential deletion via existing HintService (Step 11.1):** There is no bulk delete endpoint in the backend API. `clearAllHints()` in SettingsViewModel paginates through all hints via `HintService.listHints(limit: 100, offset: 0)` in a `while true` loop (backend enforces limit ≤ 100), deleting each hint via `HintService.deleteHint(id:)`. The offset stays at 0 each iteration because deletions shift remaining hints forward. This reuses the existing service layer without requiring backend changes. A confirmation alert with a destructive "Clear All" button prevents accidental deletion. The loading state (`isClearingHints`) and success/error alerts provide user feedback throughout the operation.
+
+137. **HomeView data refresh on Settings dismissal covers all three data sources (Step 11.1):** The `.onChange(of: showSettings)` handler reloads vault data, recent hints, and saved recommendations when Settings is dismissed. This is necessary because the user may have (1) edited their profile via Settings > Edit Profile, (2) cleared all hints via Settings > Privacy > Clear All Hints, or (3) changed other settings that affect the Home screen display. All three data sources — `viewModel.loadVault()`, `viewModel.loadRecentHints()`, and `viewModel.loadSavedRecommendations()` — are refreshed to ensure the Home screen reflects the latest state.
+
+---

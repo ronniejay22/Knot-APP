@@ -6,6 +6,7 @@
 //  Step 2.3: Placeholder Home screen for session persistence verification.
 //  Step 2.4: Added Sign Out button in navigation toolbar.
 //  Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1).
+//  Step 11.1: Replaced toolbar buttons with single Settings gear icon.
 //  Step 4.1: Full Home screen with header, hint capture, milestones, hints preview, network monitoring.
 //  Step 4.2: Wired up text hint submission via HintService API, success checkmark animation,
 //            haptic feedback, recent hints loading from backend, error handling.
@@ -36,17 +37,14 @@ struct HomeView: View {
     /// Text for the hint capture input.
     @State private var hintText = ""
 
-    /// Controls the Edit Profile sheet presentation.
-    @State private var showEditProfile = false
-
     /// Controls the Hints List sheet presentation.
     @State private var showHintsList = false
 
     /// Controls the Recommendations screen presentation.
     @State private var showRecommendations = false
 
-    /// Controls the Notifications History sheet presentation.
-    @State private var showNotifications = false
+    /// Controls the Settings sheet presentation (Step 11.1).
+    @State private var showSettings = false
 
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
@@ -119,51 +117,22 @@ struct HomeView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
-                        Button {
-                            showNotifications = true
-                        } label: {
-                            Image(uiImage: Lucide.bellRing)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 20, height: 20)
-                        }
-                        .tint(.white)
-
-                        Button {
-                            showEditProfile = true
-                        } label: {
-                            Image(uiImage: Lucide.userPen)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 20, height: 20)
-                        }
-                        .tint(.white)
-
-                        Button {
-                            Task {
-                                await authViewModel.signOut()
-                            }
-                        } label: {
-                            Image(uiImage: Lucide.logOut)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 20, height: 20)
-                        }
-                        .tint(.white)
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(uiImage: Lucide.settings)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
                     }
+                    .tint(.white)
                 }
             }
             .alert("Error", isPresented: $authVM.showError) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(authViewModel.signInError ?? "An unknown error occurred.")
-            }
-            .fullScreenCover(isPresented: $showEditProfile) {
-                EditVaultView()
             }
             .fullScreenCover(isPresented: $showRecommendations) {
                 RecommendationsView()
@@ -174,17 +143,18 @@ struct HomeView: View {
                     viewModel.loadSavedRecommendations(modelContext: modelContext)
                 }
             }
-            .onChange(of: showEditProfile) { _, isPresented in
-                // Refresh vault and hints data when returning from Edit Profile
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
+            .onChange(of: showSettings) { _, isPresented in
+                // Refresh data when returning from Settings (user may have edited profile or cleared hints)
                 if !isPresented {
                     Task {
                         await viewModel.loadVault()
                         await viewModel.loadRecentHints()
                     }
+                    viewModel.loadSavedRecommendations(modelContext: modelContext)
                 }
-            }
-            .sheet(isPresented: $showNotifications) {
-                NotificationsView()
             }
             .sheet(isPresented: $showHintsList) {
                 HintsListView()
