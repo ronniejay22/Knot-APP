@@ -3954,20 +3954,16 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ## Next Steps
 
-- [x] **Step 8.2:** Implement Ticketmaster API Integration
-- [x] **Step 8.3:** Implement Amazon Associates API Integration
-- [x] **Step 8.4:** Implement Shopify Storefront API Integration
-- [x] **Step 8.5:** Implement OpenTable/Resy Integration
-- [x] **Step 8.6:** Implement Firecrawl for Curated Content
-- [x] **Step 8.7:** Create Aggregator Service
-- [x] **Step 8.8:** Validate Phase 8 Integration Test Suite
-- [x] **Step 9.1:** Configure Universal Links (iOS)
-- [x] **Step 9.2:** Implement Recommendation Deep Link Handler (iOS)
-- [x] **Step 9.3:** Implement External Merchant Handoff (iOS)
-- [x] **Step 9.4:** Implement Return-to-App Flow (iOS)
-- [x] **Step 10.2:** Create Feedback Analysis Job (Backend)
-- [x] **Step 10.3:** Integrate Learned Weights into Recommendation Graph (Backend)
-- [x] **Step 10.4:** Implement App Store Review Prompt (iOS)
+### Phase 11: Settings & Profile Management
+- [ ] **Step 11.1:** Build Settings Screen (iOS)
+- [ ] **Step 11.2:** Implement Account Deletion (iOS + Backend)
+- [ ] **Step 11.3:** Implement Data Export (Backend)
+- [ ] **Step 11.4:** Implement Notification Preferences (iOS + Backend)
+
+### Phase 12: Testing & Quality Assurance
+- [ ] **Step 12.1:** Write Unit Tests for LangGraph Nodes
+- [ ] **Step 12.2:** Write Integration Tests for API Endpoints
+- [ ] **Step 12.3:** Write UI Tests for Critical Flows (iOS)
 
 ---
 
