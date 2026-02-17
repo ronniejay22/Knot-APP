@@ -4,6 +4,7 @@
 //
 //  Created on February 16, 2026.
 //  Step 11.1: Unit tests for SettingsView and SettingsViewModel.
+//  Step 11.2: Account deletion state management and ReauthenticationSheet tests.
 //
 
 import XCTest
@@ -140,6 +141,77 @@ final class SettingsViewModelTests: XCTestCase {
         vm.clearHintsError = nil
         XCTAssertNil(vm.clearHintsError)
     }
+
+    // MARK: - Account Deletion State Tests (Step 11.2)
+
+    /// Verify new deletion state properties have correct defaults.
+    func testDeletionInitialState() {
+        let vm = SettingsViewModel()
+
+        XCTAssertFalse(vm.showReauthentication)
+        XCTAssertFalse(vm.showFinalDeleteConfirmation)
+        XCTAssertFalse(vm.isDeletingAccount)
+        XCTAssertNil(vm.deleteAccountError)
+        XCTAssertFalse(vm.isReauthenticated)
+    }
+
+    /// Verify requestAccountDeletion shows the warning alert.
+    func testRequestAccountDeletionShowsAlert() {
+        let vm = SettingsViewModel()
+
+        vm.requestAccountDeletion()
+        XCTAssertTrue(vm.showDeleteAccountAlert)
+    }
+
+    /// Verify confirmDeleteAndReauthenticate shows re-auth sheet.
+    func testConfirmDeleteShowsReauthentication() {
+        let vm = SettingsViewModel()
+
+        vm.confirmDeleteAndReauthenticate()
+        XCTAssertTrue(vm.showReauthentication)
+    }
+
+    /// Verify onReauthenticationSuccess sets correct state.
+    func testReauthenticationSuccessState() {
+        let vm = SettingsViewModel()
+
+        vm.onReauthenticationSuccess()
+        XCTAssertTrue(vm.isReauthenticated)
+        XCTAssertFalse(vm.showReauthentication)
+        XCTAssertTrue(vm.showFinalDeleteConfirmation)
+    }
+
+    /// Verify onReauthenticationFailure resets state.
+    func testReauthenticationFailureState() {
+        let vm = SettingsViewModel()
+
+        vm.showReauthentication = true
+        vm.onReauthenticationFailure()
+        XCTAssertFalse(vm.isReauthenticated)
+        XCTAssertFalse(vm.showReauthentication)
+    }
+
+    /// Verify deleteAccountError can be set and cleared.
+    func testDeleteAccountErrorCanBeSetAndCleared() {
+        let vm = SettingsViewModel()
+
+        vm.deleteAccountError = "Network error"
+        XCTAssertEqual(vm.deleteAccountError, "Network error")
+
+        vm.deleteAccountError = nil
+        XCTAssertNil(vm.deleteAccountError)
+    }
+
+    /// Verify isDeletingAccount can be toggled.
+    func testIsDeletingAccountToggle() {
+        let vm = SettingsViewModel()
+
+        vm.isDeletingAccount = true
+        XCTAssertTrue(vm.isDeletingAccount)
+
+        vm.isDeletingAccount = false
+        XCTAssertFalse(vm.isDeletingAccount)
+    }
 }
 
 // MARK: - SettingsView Rendering Tests
@@ -162,5 +234,15 @@ final class SettingsViewRenderingTests: XCTestCase {
             .preferredColorScheme(.dark)
         let hostingController = UIHostingController(rootView: view)
         XCTAssertNotNil(hostingController.view, "SettingsView should render in dark mode")
+    }
+
+    /// Verify the ReauthenticationSheet renders without crashing (Step 11.2).
+    func testReauthenticationSheetRenders() {
+        let view = ReauthenticationSheet(
+            onSuccess: {},
+            onCancel: {}
+        )
+        let hostingController = UIHostingController(rootView: view)
+        XCTAssertNotNil(hostingController.view, "ReauthenticationSheet should render a valid view")
     }
 }

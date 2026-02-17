@@ -3955,8 +3955,8 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 ## Next Steps
 
 ### Phase 11: Settings & Profile Management
-- [ ] **Step 11.1:** Build Settings Screen (iOS)
-- [ ] **Step 11.2:** Implement Account Deletion (iOS + Backend)
+- [x] **Step 11.1:** Build Settings Screen (iOS)
+- [x] **Step 11.2:** Implement Account Deletion (iOS + Backend)
 - [ ] **Step 11.3:** Implement Data Export (Backend)
 - [ ] **Step 11.4:** Implement Notification Preferences (iOS + Backend)
 
@@ -4294,5 +4294,65 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 136. **Clear All Hints uses paginated sequential deletion via existing HintService (Step 11.1):** There is no bulk delete endpoint in the backend API. `clearAllHints()` in SettingsViewModel paginates through all hints via `HintService.listHints(limit: 100, offset: 0)` in a `while true` loop (backend enforces limit ≤ 100), deleting each hint via `HintService.deleteHint(id:)`. The offset stays at 0 each iteration because deletions shift remaining hints forward. This reuses the existing service layer without requiring backend changes. A confirmation alert with a destructive "Clear All" button prevents accidental deletion. The loading state (`isClearingHints`) and success/error alerts provide user feedback throughout the operation.
 
 137. **HomeView data refresh on Settings dismissal covers all three data sources (Step 11.1):** The `.onChange(of: showSettings)` handler reloads vault data, recent hints, and saved recommendations when Settings is dismissed. This is necessary because the user may have (1) edited their profile via Settings > Edit Profile, (2) cleared all hints via Settings > Privacy > Clear All Hints, or (3) changed other settings that affect the Home screen display. All three data sources — `viewModel.loadVault()`, `viewModel.loadRecentHints()`, and `viewModel.loadSavedRecommendations()` — are refreshed to ensure the Home screen reflects the latest state.
+
+---
+
+### Step 11.2: Implement Account Deletion (iOS + Backend) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Implemented a three-stage account deletion flow on iOS: initial warning alert, Apple Sign-In re-authentication sheet, and final confirmation alert
+- Created `DELETE /api/v1/users/me` backend endpoint that deletes the auth user via Supabase Admin API, triggering CASCADE deletion through all 12+ database tables
+- Built `AccountService.swift` following the `DeviceTokenService` pattern for authenticated HTTP DELETE calls
+- Created `ReauthenticationSheet.swift` — a dedicated Apple Sign-In re-authentication view that verifies user identity without creating a new Supabase session
+- Added `signOutAfterDeletion()` to `AuthViewModel` using `signOut(scope: .local)` to clear only the local Keychain session (server-side user already deleted)
+- Extended `SettingsViewModel` with deletion state management: re-authentication flow orchestration, backend API call, and local SwiftData cleanup (clears PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation)
+- Refactored `SettingsView` alerts into two `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`) to prevent Swift type checker timeout from 8+ chained `.alert` modifiers
+- Added loading overlay with "Deleting account..." progress indicator during the deletion API call
+- Added `AccountDeleteResponse` Pydantic model to backend with default "deleted" status and confirmation message
+- Created 9 backend tests covering valid deletion (200 response, auth user removed, public user cascade), authentication requirements (401 for missing/invalid tokens), and module imports (response model defaults, route registration)
+- Added 8 new iOS tests: 7 SettingsViewModel state tests (deletion initial state, request flow, re-auth success/failure, error handling, loading toggle) + 1 ReauthenticationSheet rendering test
+
+**Files created:**
+- `iOS/Knot/Services/AccountService.swift` — Authenticated DELETE /api/v1/users/me client with error mapping
+- `iOS/Knot/Features/Settings/ReauthenticationSheet.swift` — Apple Sign-In re-authentication UI for identity verification before deletion
+- `backend/tests/test_account_deletion_api.py` — 9 tests: TestValidDeletion (3), TestAuthRequired (2), TestModuleImports (4)
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `AccountDeleteResponse` model with "deleted" status and confirmation message
+- `backend/app/api/users.py` — Added `DELETE /api/v1/users/me` endpoint using httpx.AsyncClient to call Supabase Admin API with CASCADE deletion; added imports for httpx, config vars, and new model
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties (showReauthentication, showFinalDeleteConfirmation, isDeletingAccount, deleteAccountError, isReauthenticated), 5 methods (requestAccountDeletion, confirmDeleteAndReauthenticate, onReauthenticationSuccess, onReauthenticationFailure, executeAccountDeletion), and clearLocalData helper; added SwiftData import
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `signOutAfterDeletion()` with `signOut(scope: .local)` for Keychain-only cleanup
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced placeholder "coming soon" alert with three-stage deletion flow; extracted alerts into AccountDeletionAlerts and SettingsAlerts ViewModifiers; added modelContext environment, loading overlay, and ReauthenticationSheet presentation
+- `iOS/KnotTests/SettingsViewTests.swift` — Added 7 SettingsViewModelTests (deletion initial state, request flow, re-auth success/failure, error, loading toggle) + 1 SettingsViewRenderingTests (ReauthenticationSheet)
+
+**Test results:**
+- ✅ `pytest tests/test_account_deletion_api.py -v` — 9 passed, 0 failed
+  - `TestValidDeletion::test_delete_returns_200_with_status` — 200 with "deleted" status
+  - `TestValidDeletion::test_auth_user_removed_after_deletion` — auth.users row gone
+  - `TestValidDeletion::test_public_user_removed_after_deletion` — public.users CASCADE verified
+  - `TestAuthRequired::test_no_auth_header_returns_401` — no auth → 401
+  - `TestAuthRequired::test_invalid_token_returns_401` — bad token → 401
+  - `TestModuleImports::test_account_delete_response_import` — importable
+  - `TestModuleImports::test_account_delete_response_defaults` — correct defaults
+  - `TestModuleImports::test_users_router_has_delete_route` — DELETE route registered
+  - `TestModuleImports::test_existing_device_token_route_still_registered` — no regression
+- ✅ `xcodebuild test -only-testing:KnotTests` — 135 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 18/18 passed (11 from Step 11.1 + 7 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (2 from Step 11.1 + 1 new)
+- ✅ All 114 existing non-settings tests continue to pass
+
+**Key implementation notes:**
+
+138. **CASCADE deletion strategy avoids manual table-by-table cleanup (Step 11.2):** The backend endpoint only calls `DELETE /auth/v1/admin/users/{user_id}` via the Supabase Admin API. This deletes the `auth.users` row, which cascades to `public.users` (ON DELETE CASCADE on the `id` FK), which cascades to `partner_vaults` (FK on user_id), which cascades to child tables (`partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`). Direct FK references from `recommendations`, `notification_queue`, and `user_preferences_weights` to `public.users` also cascade. No explicit multi-table deletion logic is needed — the database handles everything in a single atomic operation.
+
+139. **Re-authentication verifies identity without creating a new Supabase session (Step 11.2):** The `ReauthenticationSheet` presents Apple's `SignInWithAppleButton` but does NOT exchange the resulting identity token with Supabase. It only confirms the user can complete Apple Sign-In (which requires biometric/passcode confirmation), proving they are the account owner. The existing Supabase JWT session is still valid and is used for the actual `DELETE /api/v1/users/me` call. This avoids token/session conflicts that could occur if we created a second Supabase session during re-auth.
+
+140. **Local sign-out uses `scope: .local` after deletion (Step 11.2):** After the backend deletes the auth user, calling the regular `signOut()` would fail because it contacts the Supabase server (which would return 401 or user-not-found). `signOutAfterDeletion()` uses `SupabaseManager.client.auth.signOut(scope: .local)` which only clears the local Keychain session without making a network request. The `authStateChanges` listener picks up the `signedOut` event and sets `isAuthenticated = false`, navigating back to the Sign-In screen.
+
+141. **ViewModifier extraction prevents Swift type checker timeout (Step 11.2):** Adding 3 deletion alerts to the existing 5 settings alerts created a chain of 8+ `.alert` modifiers on a single view, which exceeded the Swift type checker's expression complexity threshold (error: "unable to type-check this expression in reasonable time"). The solution was to extract alerts into two separate `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`), each with their own `body(content:)` method. This breaks the monolithic expression into smaller, independently type-checked units. The toolbar was also extracted into a `settingsToolbar` computed property and the loading overlay into `deletionLoadingOverlay`.
+
+142. **SwiftData local data clearing is non-fatal (Step 11.2):** `clearLocalData(modelContext:)` deletes all SwiftData entities (PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation) but wraps the operation in a `do/catch` that only prints to console on failure. Backend data has already been deleted at this point, so local data clearing failure is non-fatal — orphaned local data would be harmless and cleared on next install.
 
 ---

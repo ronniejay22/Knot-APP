@@ -3,8 +3,10 @@ User Models — Pydantic schemas for user account management.
 
 Defines request/response models for user-related endpoints:
 - POST /api/v1/users/device-token — Register device token (Step 7.4)
+- DELETE /api/v1/users/me — Account deletion (Step 11.2)
 
 Step 7.4: Push Notification Registration (iOS + Backend)
+Step 11.2: Account Deletion (iOS + Backend)
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -64,4 +66,22 @@ class DeviceTokenResponse(BaseModel):
     platform: str = Field(
         ...,
         description="The platform that was stored.",
+    )
+
+
+class AccountDeleteResponse(BaseModel):
+    """
+    Response from DELETE /api/v1/users/me.
+
+    Returned after the user's account and all associated data
+    have been permanently deleted via Supabase Admin API cascade.
+    """
+
+    status: str = Field(
+        default="deleted",
+        description="Always 'deleted' on success.",
+    )
+    message: str = Field(
+        default="Account and all associated data have been permanently deleted.",
+        description="Human-readable confirmation message.",
     )

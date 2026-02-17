@@ -281,6 +281,26 @@ final class AuthViewModel {
         }
     }
 
+    // MARK: - Sign Out After Deletion (Step 11.2)
+
+    /// Signs out locally after account deletion.
+    ///
+    /// Unlike `signOut()`, this does NOT call `supabase.auth.signOut()` on the
+    /// server because the auth user has already been deleted by the backend.
+    /// It only clears the local session from the Keychain using `scope: .local`.
+    func signOutAfterDeletion() async {
+        do {
+            try await SupabaseManager.client.auth.signOut(scope: .local)
+            print("[Knot] Local sign-out after account deletion succeeded")
+        } catch {
+            // Even if this fails, force the auth state to signed-out
+            // so the UI navigates back to Sign-In
+            isAuthenticated = false
+            hasCompletedOnboarding = false
+            print("[Knot] Sign-out after deletion error: \(error)")
+        }
+    }
+
     // MARK: - Push Notification Registration (Step 7.4)
 
     /// Requests notification permissions and registers for remote notifications.

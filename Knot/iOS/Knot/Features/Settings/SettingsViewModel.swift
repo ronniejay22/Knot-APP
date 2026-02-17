@@ -5,9 +5,12 @@
 //  Created on February 16, 2026.
 //  Step 11.1: Settings screen state management — email loading, hint clearing,
 //  notification toggle, app version display.
+//  Step 11.2: Account deletion state management — re-authentication flow,
+//  backend deletion call, local SwiftData cleanup.
 //
 
 import Foundation
+import SwiftData
 import UIKit
 import UserNotifications
 
@@ -37,8 +40,23 @@ final class SettingsViewModel {
     /// Whether to show the "clear hints success" alert.
     var showClearHintsSuccess = false
 
-    /// Whether to show the "delete account coming soon" alert (Step 11.2).
+    /// Whether to show the initial account deletion warning alert.
     var showDeleteAccountAlert = false
+
+    /// Whether the re-authentication (Apple Sign-In) sheet is showing.
+    var showReauthentication = false
+
+    /// Whether the final "are you sure?" confirmation is showing after re-auth.
+    var showFinalDeleteConfirmation = false
+
+    /// Whether the account deletion network request is in progress.
+    var isDeletingAccount = false
+
+    /// Error message from the account deletion operation.
+    var deleteAccountError: String?
+
+    /// Whether the re-authentication succeeded (ready to proceed with deletion).
+    var isReauthenticated = false
 
     /// Whether to show the "export data coming soon" alert (Step 11.3).
     var showExportDataAlert = false
@@ -133,6 +151,75 @@ final class SettingsViewModel {
         } catch {
             isClearingHints = false
             clearHintsError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Account Deletion (Step 11.2)
+
+    /// Called when user taps "Delete Account" button. Shows the initial warning.
+    func requestAccountDeletion() {
+        showDeleteAccountAlert = true
+    }
+
+    /// Called when user confirms the initial warning. Presents Apple Sign-In for re-auth.
+    func confirmDeleteAndReauthenticate() {
+        showReauthentication = true
+    }
+
+    /// Called after Apple Sign-In re-authentication succeeds.
+    /// Shows the final confirmation before proceeding.
+    func onReauthenticationSuccess() {
+        isReauthenticated = true
+        showReauthentication = false
+        showFinalDeleteConfirmation = true
+    }
+
+    /// Called when Apple Sign-In re-authentication fails or is cancelled.
+    func onReauthenticationFailure() {
+        isReauthenticated = false
+        showReauthentication = false
+    }
+
+    /// Executes the actual account deletion after all confirmations and re-auth.
+    ///
+    /// Calls the backend to delete the account, then clears all local SwiftData
+    /// models. The caller is responsible for signing out after this returns `true`.
+    ///
+    /// - Parameter modelContext: The SwiftData model context for clearing local data.
+    /// - Returns: `true` if deletion succeeded and sign-out should proceed.
+    func executeAccountDeletion(modelContext: ModelContext) async -> Bool {
+        isDeletingAccount = true
+        deleteAccountError = nil
+
+        do {
+            let service = AccountService()
+            try await service.deleteAccount()
+
+            clearLocalData(modelContext: modelContext)
+
+            isDeletingAccount = false
+            return true
+        } catch {
+            isDeletingAccount = false
+            deleteAccountError = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Removes all SwiftData entities from the local store.
+    private func clearLocalData(modelContext: ModelContext) {
+        do {
+            try modelContext.delete(model: PartnerVaultLocal.self)
+            try modelContext.delete(model: HintLocal.self)
+            try modelContext.delete(model: MilestoneLocal.self)
+            try modelContext.delete(model: RecommendationLocal.self)
+            try modelContext.delete(model: SavedRecommendation.self)
+            try modelContext.save()
+            print("[Knot] Local SwiftData cleared for account deletion")
+        } catch {
+            // Non-fatal: backend data is already deleted, local data will be
+            // orphaned but harmless. A fresh install would clear it anyway.
+            print("[Knot] Failed to clear local SwiftData: \(error.localizedDescription)")
         }
     }
 }

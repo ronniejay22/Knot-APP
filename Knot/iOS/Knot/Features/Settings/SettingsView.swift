@@ -5,21 +5,25 @@
 //  Created on February 16, 2026.
 //  Step 11.1: Settings screen with Account, Partner Profile, Notifications,
 //  Privacy, and About sections. Replaces the temporary toolbar buttons in HomeView.
+//  Step 11.2: Account deletion with three-stage confirmation flow
+//  (warning, Apple Sign-In re-auth, final confirmation).
 //
 
 import SwiftUI
+import SwiftData
 import LucideIcons
 
 /// Settings screen presented as a sheet from the Home screen.
 ///
 /// Organizes user-facing actions into five sections:
-/// - **Account** — email display, sign out, delete account (Step 11.2 placeholder)
+/// - **Account** — email display, sign out, delete account (Step 11.2)
 /// - **Partner Profile** — edit vault (reuses `EditVaultView`)
 /// - **Notifications** — enable/disable toggle, quiet hours (Step 11.4 placeholder)
 /// - **Privacy** — data export (Step 11.3 placeholder), clear all hints
 /// - **About** — app version, terms of service, privacy policy
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(AuthViewModel.self) private var authViewModel
 
     @State private var viewModel = SettingsViewModel()
@@ -34,88 +38,84 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // MARK: - Account Section
                         accountSection
-
-                        // MARK: - Partner Profile Section
                         partnerProfileSection
-
-                        // MARK: - Notifications Section
                         notificationsSection
-
-                        // MARK: - Privacy Section
                         privacySection
-
-                        // MARK: - About Section
                         aboutSection
-
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
                 }
+
+                // MARK: - Deletion Loading Overlay (Step 11.2)
+                if viewModel.isDeletingAccount {
+                    deletionLoadingOverlay
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
-                    }
-                    .tint(.white)
-                }
-            }
-            // MARK: - Alerts
-            .alert("Delete Account", isPresented: $viewModel.showDeleteAccountAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Account deletion will be available in a future update.")
-            }
-            .alert("Clear All Hints", isPresented: $viewModel.showClearHintsConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Clear All", role: .destructive) {
-                    Task { await viewModel.clearAllHints() }
-                }
-            } message: {
-                Text("This will permanently delete all your captured hints. This action cannot be undone.")
-            }
-            .alert("Hints Cleared", isPresented: $viewModel.showClearHintsSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("All hints have been cleared successfully.")
-            }
-            .alert("Export My Data", isPresented: $viewModel.showExportDataAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Data export will be available in a future update.")
-            }
-            .alert("Quiet Hours", isPresented: $viewModel.showQuietHoursAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Quiet hours settings will be available in a future update.")
-            }
-            .alert("Error", isPresented: Binding(
-                get: { viewModel.clearHintsError != nil },
-                set: { if !$0 { viewModel.clearHintsError = nil } }
-            )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.clearHintsError ?? "An unexpected error occurred.")
-            }
+            .toolbar { settingsToolbar }
+            // Split alerts into two groups to help the Swift type checker.
+            // Group 1: Account deletion alerts (Step 11.2)
+            .modifier(AccountDeletionAlerts(
+                viewModel: $viewModel,
+                modelContext: modelContext,
+                authViewModel: authViewModel,
+                dismiss: dismiss
+            ))
+            // Group 2: Settings alerts (hints, export, quiet hours)
+            .modifier(SettingsAlerts(viewModel: $viewModel))
             // MARK: - Sheets
             .fullScreenCover(isPresented: $showEditProfile) {
                 EditVaultView()
+            }
+            .sheet(isPresented: $viewModel.showReauthentication) {
+                ReauthenticationSheet(
+                    onSuccess: { viewModel.onReauthenticationSuccess() },
+                    onCancel: { viewModel.onReauthenticationFailure() }
+                )
             }
             .task {
                 await viewModel.loadUserEmail()
                 await viewModel.loadNotificationStatus()
             }
+        }
+    }
+
+    /// Loading overlay shown during account deletion.
+    private var deletionLoadingOverlay: some View {
+        Group {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView()
+                    .tint(.white)
+                Text("Deleting account...")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    /// Toolbar content extracted to reduce body complexity.
+    @ToolbarContentBuilder
+    private var settingsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                dismiss()
+            } label: {
+                Image(uiImage: Lucide.x)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+            }
+            .tint(.white)
         }
     }
 
@@ -145,7 +145,7 @@ struct SettingsView: View {
                 subtitle: "Permanently remove your data",
                 showChevron: false
             ) {
-                viewModel.showDeleteAccountAlert = true
+                viewModel.requestAccountDeletion()
             }
         }
     }
@@ -386,6 +386,99 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Theme.surfaceBorder, lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Account Deletion Alerts (Step 11.2)
+
+/// Groups the three account deletion alerts into a single `ViewModifier`
+/// so the Swift type checker doesn't time out on a long `.alert` chain.
+private struct AccountDeletionAlerts: ViewModifier {
+    @Binding var viewModel: SettingsViewModel
+    let modelContext: ModelContext
+    let authViewModel: AuthViewModel
+    let dismiss: DismissAction
+
+    func body(content: Content) -> some View {
+        content
+            // Stage 1: Initial warning
+            .alert("Delete Account?", isPresented: $viewModel.showDeleteAccountAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue", role: .destructive) {
+                    viewModel.confirmDeleteAndReauthenticate()
+                }
+            } message: {
+                Text("This will permanently delete your account and all associated data including your partner profile, hints, recommendations, and notification history. This action cannot be undone.")
+            }
+            // Stage 3: Final confirmation (after re-auth)
+            .alert("Final Confirmation", isPresented: $viewModel.showFinalDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    viewModel.isReauthenticated = false
+                }
+                Button("Delete My Account", role: .destructive) {
+                    Task {
+                        let success = await viewModel.executeAccountDeletion(modelContext: modelContext)
+                        if success {
+                            await authViewModel.signOutAfterDeletion()
+                            dismiss()
+                        }
+                    }
+                }
+            } message: {
+                Text("You have been re-authenticated. Tap \"Delete My Account\" to permanently delete all your data. You will not be able to recover your account.")
+            }
+            // Deletion error
+            .alert("Deletion Failed", isPresented: Binding(
+                get: { viewModel.deleteAccountError != nil },
+                set: { if !$0 { viewModel.deleteAccountError = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.deleteAccountError ?? "An unexpected error occurred.")
+            }
+    }
+}
+
+// MARK: - Settings Alerts (Step 11.1)
+
+/// Groups the general settings alerts (hints, export, quiet hours)
+/// into a single `ViewModifier` to assist the Swift type checker.
+private struct SettingsAlerts: ViewModifier {
+    @Binding var viewModel: SettingsViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Clear All Hints", isPresented: $viewModel.showClearHintsConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear All", role: .destructive) {
+                    Task { await viewModel.clearAllHints() }
+                }
+            } message: {
+                Text("This will permanently delete all your captured hints. This action cannot be undone.")
+            }
+            .alert("Hints Cleared", isPresented: $viewModel.showClearHintsSuccess) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("All hints have been cleared successfully.")
+            }
+            .alert("Export My Data", isPresented: $viewModel.showExportDataAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Data export will be available in a future update.")
+            }
+            .alert("Quiet Hours", isPresented: $viewModel.showQuietHoursAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Quiet hours settings will be available in a future update.")
+            }
+            .alert("Error", isPresented: Binding(
+                get: { viewModel.clearHintsError != nil },
+                set: { if !$0 { viewModel.clearHintsError = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.clearHintsError ?? "An unexpected error occurred.")
+            }
     }
 }
 
