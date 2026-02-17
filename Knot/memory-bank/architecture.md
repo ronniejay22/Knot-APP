@@ -1426,6 +1426,43 @@ Learned weights are applied at four distinct points in the pipeline, each with d
 ### 143. Graceful Degradation at Weight Loading Boundary (Step 10.3)
 `load_learned_weights()` in `vault_loader.py` wraps all Supabase queries in `try/except Exception`, returning `None` on any failure. This matches the pattern established by other pipeline loaders. Every weight consumer checks for `None` before accessing weights: `weight = weights.get(key, 1.0) if weights else 1.0`. This two-layer defense (loader returns None on failure, consumers default to 1.0 on missing weights) ensures that weight infrastructure failures never degrade the core recommendation experience. A user with no feedback history, a new user, or a user whose weights failed to load all receive identically-scored recommendations — the same behavior as pre-Step-10.3.
 
+### 144. LangGraph Agent Test Architecture (Step 12.1)
+The backend test suite includes 10 dedicated test files for the LangGraph recommendation pipeline, organized by node:
+
+| Test File | Agent File | Tests | Coverage | Focus |
+|-----------|-----------|-------|----------|-------|
+| `test_recommendation_state.py` | `state.py` | 37 | 100% | Pydantic model instantiation, typing, defaults, Literal validation, JSON serialization round-trips for all 8 state models |
+| `test_hint_retrieval_node.py` | `hint_retrieval.py` | 29 | 94% | Query text construction from milestone context, semantic search via pgvector `match_hints()` RPC, chronological fallback when Vertex AI unavailable, edge cases (empty vault, anniversary/custom/holiday milestones) |
+| `test_aggregation_node.py` | `aggregation.py` | 54 | 97% | Stub catalog coverage (all 40 interests + 8 vibes have entries), candidate builders (gift/experience), budget filtering, gift+experience interleaving, cap at 20, error on empty results |
+| `test_filtering_node.py` | `filtering.py` | 48 | 100% | `_normalize` helper, `_matches_category` (metadata/title/description matching), `_score_candidate` (dislike=-1, interest=+1, metadata bonus=+0.5), dislike removal, top-9 limit, empty/all-filtered error paths |
+| `test_matching_node.py` | `matching.py` | 40 | 99% | Vibe keyword matching, vibe boost stacking (+30% per match), love language type-based and keyword-based matching, primary/secondary boost values, final score formula `max(interest,1.0) × (1+vibe) × (1+ll) × type_weight` |
+| `test_selection_node.py` | `selection.py` | 41 | 100% | Price tier 3-band classification, diversity scoring (price/type/merchant), greedy selection algorithm, tie-breaking (diversity > score > alphabetical), edge cases (1/2/3 candidates, all-same dimensions) |
+| `test_availability_node.py` | `availability.py` | 35 | 100% | URL verification (HEAD with GET fallback on 405), replacement from backup pool, max 3 attempts, ID reuse prevention, timeout handling, immutability of input state |
+| `test_pipeline.py` | `pipeline.py` | 39 | 100% | Graph structure (6 nodes, compilable), conditional edge routing (empty candidates/filtered → END), full pipeline with all mocks, error short-circuits, convenience runner dict return, node ordering verification |
+| `test_learned_weights_integration.py` | (cross-cutting) | 36 | — | Weight loading from DB, weight application in filtering (interest weights), matching (vibe/ll weights), and selection (type weights), receiving_gifts spec test |
+| `test_feedback_analysis_job.py` | `feedback_analysis.py` | 67 | — | Weight computation, damped averaging formula, clamping [0.5-2.0], minimum 3-feedback threshold, vibe/love language keyword matching for weight derivation |
+
+**Test patterns used across all agent test files:**
+- **`AsyncMock`** for async node functions and Supabase RPC calls
+- **`patch()`** for external API dependencies (embedding generation, Supabase client)
+- **`model_copy(update={})`** for immutable Pydantic state manipulation in test assertions
+- **Sample data factories** (`_sample_vault_data()`, `_sample_milestone()`, `_make_state()`) with sensible defaults and `**overrides` for per-test customization
+- **Deterministic ordering** — tests verify sort order by `(-score, title)` to ensure reproducibility
+- **State compatibility checks** — every node test includes a `TestStateCompatibility` class verifying the return dict can update the full `RecommendationState`
+
+**Running the tests:**
+```bash
+# Agent tests only (fast, no external deps)
+cd backend && source venv/bin/activate
+python -m pytest tests/test_recommendation_state.py tests/test_hint_retrieval_node.py tests/test_aggregation_node.py tests/test_filtering_node.py tests/test_matching_node.py tests/test_selection_node.py tests/test_availability_node.py tests/test_pipeline.py -v
+
+# With coverage measurement
+python -m pytest tests/test_*_node.py tests/test_pipeline.py tests/test_recommendation_state.py --cov=app/agents --cov-report=term-missing
+
+# Full backend suite
+python -m pytest tests/ -v --tb=short
+```
+
 ---
 
 ## Data Flow
