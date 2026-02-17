@@ -260,12 +260,12 @@ def _compute_next_delivery_time(
 # ===================================================================
 
 
-async def check_quiet_hours(user_id: str) -> tuple[bool, datetime | None]:
+async def check_quiet_hours(user_id: str) -> tuple[bool, datetime | None, bool]:
     """
     Check if a notification for this user should be deferred due to quiet hours.
 
-    Loads the user's quiet hours preferences and timezone from the database,
-    then checks against the current time.
+    Loads the user's quiet hours preferences, timezone, and notifications_enabled
+    flag from the database, then checks against the current time.
 
     Args:
         user_id: UUID of the user.
@@ -275,13 +275,15 @@ async def check_quiet_hours(user_id: str) -> tuple[bool, datetime | None]:
         - is_quiet (bool): True if the notification should be rescheduled.
         - next_delivery_time (datetime | None): UTC time to reschedule to.
           None if not in quiet hours.
+        - notifications_enabled (bool): Whether the user has notifications enabled.
+          False means the notification should be skipped entirely.
     """
     client = get_service_client()
 
-    # Load user quiet hours settings
+    # Load user quiet hours settings and notification toggle
     user_result = (
         client.table("users")
-        .select("quiet_hours_start, quiet_hours_end, timezone")
+        .select("quiet_hours_start, quiet_hours_end, timezone, notifications_enabled")
         .eq("id", user_id)
         .execute()
     )
@@ -291,9 +293,10 @@ async def check_quiet_hours(user_id: str) -> tuple[bool, datetime | None]:
             "User %s not found for DND check — allowing delivery",
             user_id[:8],
         )
-        return (False, None)
+        return (False, None, True)
 
     user = user_result.data[0]
+    notifications_enabled = user.get("notifications_enabled", True)
     quiet_start = user.get("quiet_hours_start", DEFAULT_QUIET_HOURS_START)
     quiet_end = user.get("quiet_hours_end", DEFAULT_QUIET_HOURS_END)
     user_timezone = user.get("timezone")
@@ -314,4 +317,5 @@ async def check_quiet_hours(user_id: str) -> tuple[bool, datetime | None]:
 
     user_tz = get_user_timezone(user_timezone, vault_state, vault_country)
 
-    return is_in_quiet_hours(quiet_start, quiet_end, user_tz)
+    is_quiet, next_time = is_in_quiet_hours(quiet_start, quiet_end, user_tz)
+    return (is_quiet, next_time, notifications_enabled)

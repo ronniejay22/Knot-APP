@@ -5,13 +5,16 @@ Defines request/response models for user-related endpoints:
 - POST /api/v1/users/device-token — Register device token (Step 7.4)
 - DELETE /api/v1/users/me — Account deletion (Step 11.2)
 - GET /api/v1/users/me/export — Data export (Step 11.3)
+- GET/PUT /api/v1/users/me/notification-preferences — Notification preferences (Step 11.4)
 
 Step 7.4: Push Notification Registration (iOS + Backend)
 Step 11.2: Account Deletion (iOS + Backend)
 Step 11.3: Data Export (Backend)
+Step 11.4: Notification Preferences (iOS + Backend)
 """
 
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -144,3 +147,80 @@ class DataExportResponse(BaseModel):
         default_factory=list,
         description="All notification queue entries with schedule, status, and sent timestamps.",
     )
+
+
+# ======================================================================
+# Notification Preferences (Step 11.4)
+# ======================================================================
+
+
+class NotificationPreferencesResponse(BaseModel):
+    """
+    Response from GET /api/v1/users/me/notification-preferences.
+
+    Returns the user's current notification settings including the
+    global enable/disable toggle, quiet hours range, and timezone.
+    """
+
+    notifications_enabled: bool = Field(
+        ...,
+        description="Global toggle for push notifications.",
+    )
+    quiet_hours_start: int = Field(
+        ...,
+        description="Hour-of-day (0-23) when quiet hours begin.",
+    )
+    quiet_hours_end: int = Field(
+        ...,
+        description="Hour-of-day (0-23) when quiet hours end.",
+    )
+    timezone: str | None = Field(
+        default=None,
+        description="IANA timezone string (e.g., 'America/Chicago'). None means infer from location.",
+    )
+
+
+class NotificationPreferencesRequest(BaseModel):
+    """
+    Payload for PUT /api/v1/users/me/notification-preferences.
+
+    All fields are optional — only provided fields are updated.
+    This allows partial updates (e.g., only changing quiet_hours_start
+    without affecting other preferences).
+    """
+
+    notifications_enabled: bool | None = Field(
+        default=None,
+        description="Global toggle for push notifications.",
+    )
+    quiet_hours_start: int | None = Field(
+        default=None,
+        description="Hour-of-day (0-23) when quiet hours begin.",
+    )
+    quiet_hours_end: int | None = Field(
+        default=None,
+        description="Hour-of-day (0-23) when quiet hours end.",
+    )
+    timezone: str | None = Field(
+        default=None,
+        description="IANA timezone string (e.g., 'America/Chicago'). Null to clear and infer from location.",
+    )
+
+    @field_validator("quiet_hours_start", "quiet_hours_end")
+    @classmethod
+    def validate_hour_range(cls, v: int | None) -> int | None:
+        """Ensure hour values are within 0-23 range."""
+        if v is not None and (v < 0 or v > 23):
+            raise ValueError("Hour must be between 0 and 23.")
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str | None) -> str | None:
+        """Validate IANA timezone string if provided."""
+        if v is not None and v != "":
+            try:
+                ZoneInfo(v)
+            except (KeyError, Exception):
+                raise ValueError(f"Invalid timezone: '{v}'. Must be a valid IANA timezone string.")
+        return v if v != "" else None

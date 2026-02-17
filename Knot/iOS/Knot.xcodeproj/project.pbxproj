@@ -63,6 +63,7 @@
 		BB1BF9D7EFDB096248E5F005 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */; };
 		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
 		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
+		C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
@@ -117,6 +118,7 @@
 		4ED289B139BA05DEAE2125F2 /* HintsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintsListViewModel.swift; sourceTree = "<group>"; };
 		554263B4D803E9B67716AEEF /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryService.swift; sourceTree = "<group>"; };
+		7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
 		5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDislikesView.swift; sourceTree = "<group>"; };
 		63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -189,6 +191,7 @@
 				91DD62D4760696C298A091D4 /* HintService.swift */,
 				0C29B361DC709BF91BBF303D /* MerchantHandoffService.swift */,
 				5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */,
+				7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */,
 				0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */,
 				6D0923D42485ED34C6E165B1 /* RecommendationService.swift */,
 				5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */,
@@ -571,6 +574,7 @@
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */,
 				02989CEE7ADA343855BC038E /* NotificationHistoryService.swift in Sources */,
+				C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */,
 				4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */,
 				07F8A133AEC890D6F2B20EC8 /* NotificationsViewModel.swift in Sources */,
 				FC338B6E021C99D643D630B8 /* OnboardingBasicInfoView.swift in Sources */,

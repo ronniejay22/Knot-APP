@@ -8,6 +8,7 @@
 //  Step 11.2: Account deletion state management — re-authentication flow,
 //  backend deletion call, local SwiftData cleanup.
 //  Step 11.3: Data export — export all user data as PDF via share sheet.
+//  Step 11.4: Notification preferences — quiet hours, global toggle, backend sync.
 //
 
 import Foundation
@@ -18,8 +19,8 @@ import UserNotifications
 /// Manages state for the Settings screen.
 ///
 /// Handles loading the user's email from the Supabase session, checking
-/// notification authorization status, toggling notifications, and clearing
-/// all captured hints via the existing `HintService`.
+/// notification authorization status, toggling notifications, managing
+/// quiet hours preferences, and clearing all captured hints via `HintService`.
 @Observable
 @MainActor
 final class SettingsViewModel {
@@ -74,14 +75,31 @@ final class SettingsViewModel {
     /// The temporary file URL of the exported PDF file for sharing.
     var exportedFileURL: URL?
 
-    /// Whether to show the "quiet hours coming soon" alert (Step 11.4).
-    var showQuietHoursAlert = false
-
-    /// Whether notifications are currently authorized.
+    /// Whether notifications are currently authorized (iOS system permission).
     var notificationsEnabled = false
 
     /// Whether the notification toggle is being updated.
     var isUpdatingNotifications = false
+
+    // MARK: - Notification Preferences State (Step 11.4)
+
+    /// Hour when quiet hours begin (0-23). Synced with backend.
+    var quietHoursStart: Int = 22
+
+    /// Hour when quiet hours end (0-23). Synced with backend.
+    var quietHoursEnd: Int = 8
+
+    /// Whether the quiet hours picker is expanded/visible.
+    var showQuietHoursPicker = false
+
+    /// Whether notification preferences are being loaded from the backend.
+    var isLoadingPreferences = false
+
+    /// Whether notification preferences are being saved to the backend.
+    var isSavingPreferences = false
+
+    /// Error message from notification preferences operations.
+    var preferencesError: String?
 
     // MARK: - Computed Properties
 
@@ -90,6 +108,13 @@ final class SettingsViewModel {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
+    }
+
+    /// Formats an hour (0-23) as a 12-hour time string (e.g., "10:00 PM").
+    func formatHour(_ hour: Int) -> String {
+        let period = hour >= 12 ? "PM" : "AM"
+        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+        return "\(displayHour):00 \(period)"
     }
 
     // MARK: - Actions
@@ -104,7 +129,7 @@ final class SettingsViewModel {
         }
     }
 
-    /// Loads the current notification authorization status.
+    /// Loads the current notification authorization status from iOS.
     func loadNotificationStatus() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -113,21 +138,20 @@ final class SettingsViewModel {
 
     /// Toggles notification permissions.
     ///
-    /// iOS does not allow apps to programmatically revoke notification permission.
-    /// When the user tries to disable notifications, we direct them to the system
-    /// Settings app. When enabling, we request permission via `UNUserNotificationCenter`.
+    /// iOS only shows the notification permission prompt once. After that:
+    /// - If `.notDetermined` → request authorization (shows system prompt)
+    /// - If `.denied` → open Settings so the user can re-enable manually
+    /// - If `.authorized` → open Settings so the user can disable manually
     func toggleNotifications() async {
         isUpdatingNotifications = true
         defer { isUpdatingNotifications = false }
 
-        if notificationsEnabled {
-            // Cannot programmatically disable — direct to system Settings
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                await UIApplication.shared.open(url)
-            }
-        } else {
-            // Request permission
-            let center = UNUserNotificationCenter.current()
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            // First time — show the system permission prompt
             do {
                 let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
                 notificationsEnabled = granted
@@ -137,7 +161,68 @@ final class SettingsViewModel {
             } catch {
                 print("[Knot] SettingsViewModel: Notification permission error — \(error.localizedDescription)")
             }
+
+        case .denied, .authorized, .provisional, .ephemeral:
+            // Already decided — must change in Settings.app
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                await UIApplication.shared.open(url)
+            }
+
+        @unknown default:
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                await UIApplication.shared.open(url)
+            }
         }
+    }
+
+    // MARK: - Notification Preferences (Step 11.4)
+
+    /// Loads notification preferences from the backend.
+    ///
+    /// Fetches quiet hours, timezone, and the global notifications toggle
+    /// from the server and updates local state. Called in `.task {}` alongside
+    /// `loadNotificationStatus()`.
+    func loadNotificationPreferences() async {
+        isLoadingPreferences = true
+        preferencesError = nil
+
+        do {
+            let service = NotificationPreferencesService()
+            let prefs = try await service.fetchPreferences()
+            quietHoursStart = prefs.quietHoursStart
+            quietHoursEnd = prefs.quietHoursEnd
+        } catch {
+            print("[Knot] SettingsViewModel: Failed to load notification preferences — \(error.localizedDescription)")
+        }
+
+        isLoadingPreferences = false
+    }
+
+    /// Saves the current quiet hours to the backend.
+    ///
+    /// Called after the user adjusts quiet hours start or end time.
+    /// Non-blocking — errors are logged but do not show alerts.
+    func saveQuietHours() async {
+        isSavingPreferences = true
+        preferencesError = nil
+
+        do {
+            let service = NotificationPreferencesService()
+            let update = NotificationPreferencesUpdateDTO(
+                notificationsEnabled: nil,
+                quietHoursStart: quietHoursStart,
+                quietHoursEnd: quietHoursEnd,
+                timezone: nil
+            )
+            let result = try await service.updatePreferences(update)
+            quietHoursStart = result.quietHoursStart
+            quietHoursEnd = result.quietHoursEnd
+        } catch {
+            preferencesError = error.localizedDescription
+            print("[Knot] SettingsViewModel: Failed to save quiet hours — \(error.localizedDescription)")
+        }
+
+        isSavingPreferences = false
     }
 
     /// Clears all hints by fetching pages and deleting each one via `HintService`.

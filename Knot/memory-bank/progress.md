@@ -4408,3 +4408,64 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 146. **No vault returns 200 with null/empty collections (Step 11.3):** If a user hasn't completed onboarding (no partner vault exists), the export still succeeds with `partner_vault: null` and empty arrays for milestones, hints, recommendations, etc. The user account info (`id`, `email`, `created_at`) is always present. This avoids a 404 error that might confuse users who signed up but didn't complete onboarding.
 
 ---
+
+### Step 11.4: Implement Notification Preferences (Backend + iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `notifications_enabled` boolean column to `public.users` via migration 00019, acting as a global kill switch for push notifications
+- Created `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models in `models/users.py` with field validators for hour range (0-23) and timezone (IANA via `ZoneInfo()`)
+- Added `GET /api/v1/users/me/notification-preferences` and `PUT /api/v1/users/me/notification-preferences` endpoints in `api/users.py` for reading and partially updating notification preferences
+- Extended `check_quiet_hours()` in `services/dnd.py` to return a 3-tuple `(is_quiet, next_delivery, notifications_enabled)`, adding the global toggle as a third element
+- Integrated `notifications_enabled` flag into `api/notifications.py` webhook processing — when `False`, notifications are skipped before quiet hours or push delivery logic runs
+- Created `NotificationPreferencesService.swift` following `ExportService.swift` pattern with `fetchPreferences()` and `updatePreferences()` methods
+- Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` to `DTOs.swift` with snake_case CodingKeys
+- Extended `SettingsViewModel.swift` with quiet hours state (`quietHoursStart`, `quietHoursEnd`, `isLoadingPreferences`, `isSavingPreferences`, `preferencesError`, `showQuietHoursPicker`), `loadNotificationPreferences()`, `saveQuietHours()`, and `formatHour()` helper
+- Replaced the "Quiet Hours coming soon" placeholder in `SettingsView.swift` with an expandable quiet hours section featuring start/end hour pickers (0-23 formatted as 12-hour time), loading indicators, and automatic save on change
+- Created 28 backend tests across 7 test classes and added 8 iOS tests for notification preferences state management
+
+**Files created:**
+- `backend/supabase/migrations/00019_add_notifications_enabled_to_users.sql` — Adds `notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE` to `public.users`
+- `backend/tests/test_notification_preferences_api.py` — 28 tests: TestGetDefaultPreferences (4), TestUpdatePreferences (6), TestValidation (5), TestAuthRequired (4), TestModuleImports (7), TestWebhookNotificationsDisabled (2)
+- `iOS/Knot/Services/NotificationPreferencesService.swift` — Authenticated GET/PUT notification preferences client
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models with validators
+- `backend/app/api/users.py` — Added GET and PUT `/me/notification-preferences` endpoints
+- `backend/app/api/notifications.py` — Updated webhook handler to unpack 3-tuple from `check_quiet_hours()` and skip when `notifications_enabled` is False
+- `backend/app/services/dnd.py` — Extended `check_quiet_hours()` return type to `tuple[bool, datetime | None, bool]`, loading `notifications_enabled` from the same DB query
+- `iOS/Knot/Models/DTOs.swift` — Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` structs
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties and 3 methods for notification preferences management
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced quiet hours placeholder with expandable picker UI, removed placeholder alert from `SettingsAlerts`
+- `iOS/KnotTests/SettingsViewTests.swift` — Added 8 new notification preferences tests (quietHoursStart/End, isLoadingPreferences, isSavingPreferences, preferencesError, formatHour, showQuietHoursPicker)
+- `iOS/Knot.xcodeproj/project.pbxproj` — Added `NotificationPreferencesService.swift` to PBXBuildFile, PBXFileReference, Services group, and Sources build phase
+
+**Test results:**
+- ✅ `pytest tests/test_notification_preferences_api.py -v` — 28 passed, 0 failed
+  - `TestGetDefaultPreferences` (4 tests): returns 200, notifications_enabled defaults to True, quiet_hours_start defaults to 22, quiet_hours_end defaults to 8
+  - `TestUpdatePreferences` (6 tests): updates quiet hours, updates notifications_enabled to False, updates timezone, partial update preserves other fields, reflects changes on subsequent GET, can update single field
+  - `TestValidation` (5 tests): rejects negative quiet hours, rejects hour > 23, rejects invalid timezone string, accepts valid timezone, accepts edge case hour 0
+  - `TestAuthRequired` (4 tests): GET without auth → 401, PUT without auth → 401, GET with invalid token → 401, PUT with invalid token → 401
+  - `TestModuleImports` (7 tests): models importable, defaults correct, GET route registered, PUT route registered, existing device-token route still works, existing DELETE /me route still works, existing GET /me/export route still works
+  - `TestWebhookNotificationsDisabled` (2 tests): disabled notifications → webhook skips with "skipped" status, enabled notifications → webhook processes normally
+- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 28 new)
+- ✅ `xcodebuild test -only-testing:KnotTests` — 147 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 30/30 passed (22 from Steps 11.1–11.3 + 8 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
+- ✅ All 114 existing non-settings tests continue to pass
+- ✅ Full iOS test suite (unit + UI) passes: 147 unit tests + 4 UI tests = all green
+
+**Key implementation notes:**
+
+147. **`check_quiet_hours()` returns a 3-tuple to avoid extra DB queries (Step 11.4):** Rather than adding a separate DB query for `notifications_enabled` in the webhook handler, the existing `check_quiet_hours()` function was extended to also read `notifications_enabled` from the same `users` table query it already makes. The return type changed from `tuple[bool, datetime | None]` to `tuple[bool, datetime | None, bool]` where the third element is the global toggle. This avoids an additional round-trip to the database during webhook processing.
+
+148. **Notification preferences use partial updates (Step 11.4):** The `PUT /me/notification-preferences` endpoint accepts a partial payload — only fields that are present in the request body are updated. This is implemented by checking each field for `None` before including it in the Supabase update dict. This allows the iOS app to update just quiet hours without needing to resend the `notifications_enabled` flag, and vice versa.
+
+149. **Quiet hours displayed as 12-hour time on iOS (Step 11.4):** The backend stores quiet hours as integers 0-23, but the iOS UI displays them in 12-hour format via `formatHour()` (e.g., 22 → "10:00 PM", 0 → "12:00 AM", 12 → "12:00 PM"). The `Picker` wheel shows all 24 hours formatted this way. The conversion is purely a display concern — the backend always receives and returns 0-23 integers.
+
+150. **PostgREST schema cache must be reloaded after DDL changes:** After applying migration 00019 (and previously unapplied migration 00014) to Supabase, PostgREST continued to return errors because its schema cache was stale. The "Reload schema" button is not visible in newer Supabase dashboard versions. The fix is to run `NOTIFY pgrst, 'reload schema'` in the SQL Editor, which tells PostgREST to re-read the database schema.
+
+151. **Mock patch paths must target the import location (Step 11.4):** The webhook tests for `verify_qstash_signature` initially failed because the mock patched `app.services.qstash.verify_qstash_signature` (the definition location) instead of `app.api.notifications.verify_qstash_signature` (the import location). Python's `unittest.mock.patch` intercepts at the module where the name is looked up, not where it's defined. Similarly, mocking `check_quiet_hours` directly (rather than mocking the DB layer beneath it) was necessary to control the 3-tuple return value deterministically.
+
+---

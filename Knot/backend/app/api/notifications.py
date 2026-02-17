@@ -161,15 +161,43 @@ async def process_notification(
             message=f"Notification already {notification['status']}.",
         )
 
-    # --- 6. Check DND quiet hours (Step 7.6) ---
+    # --- 6. Check DND quiet hours and notifications_enabled (Step 7.6, 11.4) ---
     is_quiet = False
     rescheduled_to = None
+    notifications_enabled = True
     try:
-        is_quiet, rescheduled_to = await check_quiet_hours(payload.user_id)
+        is_quiet, rescheduled_to, notifications_enabled = await check_quiet_hours(payload.user_id)
     except Exception as exc:
         logger.warning(
             "DND check failed for notification %s: %s — proceeding with delivery",
             payload.notification_id, exc,
+        )
+
+    # If user has globally disabled notifications, skip processing (Step 11.4)
+    if not notifications_enabled:
+        logger.info(
+            "Notifications disabled for user %s — skipping notification %s",
+            payload.user_id[:8],
+            payload.notification_id[:8],
+        )
+
+        # Mark as skipped in the database
+        try:
+            client.table("notification_queue").update({
+                "status": "cancelled",
+            }).eq("id", payload.notification_id).execute()
+        except Exception as exc:
+            logger.warning(
+                "Failed to mark notification %s as cancelled: %s",
+                payload.notification_id[:8], exc,
+            )
+
+        return NotificationProcessResponse(
+            status="skipped",
+            notification_id=payload.notification_id,
+            message="Notifications disabled by user.",
+            recommendations_generated=0,
+            push_delivered=False,
         )
 
     if is_quiet and rescheduled_to is not None:

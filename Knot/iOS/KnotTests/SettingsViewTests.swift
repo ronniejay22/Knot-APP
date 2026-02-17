@@ -6,6 +6,7 @@
 //  Step 11.1: Unit tests for SettingsView and SettingsViewModel.
 //  Step 11.2: Account deletion state management and ReauthenticationSheet tests.
 //  Step 11.3: Data export state management tests.
+//  Step 11.4: Notification preferences state management tests.
 //
 
 import XCTest
@@ -28,7 +29,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.showClearHintsSuccess)
         XCTAssertFalse(vm.showDeleteAccountAlert)
         XCTAssertFalse(vm.showExportDataAlert)
-        XCTAssertFalse(vm.showQuietHoursAlert)
         XCTAssertFalse(vm.notificationsEnabled)
         XCTAssertFalse(vm.isUpdatingNotifications)
     }
@@ -82,15 +82,15 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.showExportDataAlert)
     }
 
-    /// Verify showQuietHoursAlert can be toggled.
-    func testQuietHoursAlertToggle() {
+    /// Verify showQuietHoursPicker can be toggled (Step 11.4).
+    func testShowQuietHoursPickerToggle() {
         let vm = SettingsViewModel()
 
-        vm.showQuietHoursAlert = true
-        XCTAssertTrue(vm.showQuietHoursAlert)
+        vm.showQuietHoursPicker = true
+        XCTAssertTrue(vm.showQuietHoursPicker)
 
-        vm.showQuietHoursAlert = false
-        XCTAssertFalse(vm.showQuietHoursAlert)
+        vm.showQuietHoursPicker = false
+        XCTAssertFalse(vm.showQuietHoursPicker)
     }
 
     /// Verify notificationsEnabled can be toggled.
@@ -269,6 +269,95 @@ final class SettingsViewModelTests: XCTestCase {
 
         vm.exportedFileURL = nil
         XCTAssertNil(vm.exportedFileURL)
+    }
+
+    // MARK: - Notification Preferences State Tests (Step 11.4)
+
+    /// Verify notification preferences initial state matches backend defaults.
+    func testNotificationPreferencesInitialState() {
+        let vm = SettingsViewModel()
+
+        XCTAssertEqual(vm.quietHoursStart, 22, "Default quiet hours start should be 22 (10pm)")
+        XCTAssertEqual(vm.quietHoursEnd, 8, "Default quiet hours end should be 8 (8am)")
+        XCTAssertFalse(vm.showQuietHoursPicker)
+        XCTAssertFalse(vm.isLoadingPreferences)
+        XCTAssertFalse(vm.isSavingPreferences)
+        XCTAssertNil(vm.preferencesError)
+    }
+
+    /// Verify quietHoursStart can be set.
+    func testQuietHoursStartCanBeSet() {
+        let vm = SettingsViewModel()
+
+        vm.quietHoursStart = 21
+        XCTAssertEqual(vm.quietHoursStart, 21)
+
+        vm.quietHoursStart = 0
+        XCTAssertEqual(vm.quietHoursStart, 0)
+
+        vm.quietHoursStart = 23
+        XCTAssertEqual(vm.quietHoursStart, 23)
+    }
+
+    /// Verify quietHoursEnd can be set.
+    func testQuietHoursEndCanBeSet() {
+        let vm = SettingsViewModel()
+
+        vm.quietHoursEnd = 9
+        XCTAssertEqual(vm.quietHoursEnd, 9)
+
+        vm.quietHoursEnd = 0
+        XCTAssertEqual(vm.quietHoursEnd, 0)
+
+        vm.quietHoursEnd = 23
+        XCTAssertEqual(vm.quietHoursEnd, 23)
+    }
+
+    /// Verify isLoadingPreferences can be toggled.
+    func testIsLoadingPreferencesToggle() {
+        let vm = SettingsViewModel()
+
+        vm.isLoadingPreferences = true
+        XCTAssertTrue(vm.isLoadingPreferences)
+
+        vm.isLoadingPreferences = false
+        XCTAssertFalse(vm.isLoadingPreferences)
+    }
+
+    /// Verify isSavingPreferences can be toggled.
+    func testIsSavingPreferencesToggle() {
+        let vm = SettingsViewModel()
+
+        vm.isSavingPreferences = true
+        XCTAssertTrue(vm.isSavingPreferences)
+
+        vm.isSavingPreferences = false
+        XCTAssertFalse(vm.isSavingPreferences)
+    }
+
+    /// Verify preferencesError can be set and cleared.
+    func testPreferencesErrorCanBeSetAndCleared() {
+        let vm = SettingsViewModel()
+
+        vm.preferencesError = "Network error"
+        XCTAssertEqual(vm.preferencesError, "Network error")
+
+        vm.preferencesError = nil
+        XCTAssertNil(vm.preferencesError)
+    }
+
+    /// Verify formatHour produces correct 12-hour time strings.
+    func testFormatHour() {
+        let vm = SettingsViewModel()
+
+        XCTAssertEqual(vm.formatHour(0), "12:00 AM")
+        XCTAssertEqual(vm.formatHour(1), "1:00 AM")
+        XCTAssertEqual(vm.formatHour(8), "8:00 AM")
+        XCTAssertEqual(vm.formatHour(11), "11:00 AM")
+        XCTAssertEqual(vm.formatHour(12), "12:00 PM")
+        XCTAssertEqual(vm.formatHour(13), "1:00 PM")
+        XCTAssertEqual(vm.formatHour(22), "10:00 PM")
+        XCTAssertEqual(vm.formatHour(23), "11:00 PM")
     }
 }
 

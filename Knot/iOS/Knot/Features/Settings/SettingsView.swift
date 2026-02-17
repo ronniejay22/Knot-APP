@@ -18,12 +18,13 @@ import LucideIcons
 /// Organizes user-facing actions into five sections:
 /// - **Account** — email display, sign out, delete account (Step 11.2)
 /// - **Partner Profile** — edit vault (reuses `EditVaultView`)
-/// - **Notifications** — enable/disable toggle, quiet hours (Step 11.4 placeholder)
+/// - **Notifications** — enable/disable toggle, quiet hours with time pickers (Step 11.4)
 /// - **Privacy** — data export (Step 11.3), clear all hints
 /// - **About** — app version, terms of service, privacy policy
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
 
     @State private var viewModel = SettingsViewModel()
@@ -88,6 +89,12 @@ struct SettingsView: View {
             .task {
                 await viewModel.loadUserEmail()
                 await viewModel.loadNotificationStatus()
+                await viewModel.loadNotificationPreferences()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    Task { await viewModel.loadNotificationStatus() }
+                }
             }
         }
     }
@@ -192,7 +199,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Notifications Section
+    // MARK: - Notifications Section (Step 11.4)
 
     private var notificationsSection: some View {
         VStack(spacing: 10) {
@@ -209,14 +216,110 @@ struct SettingsView: View {
                 )
             )
 
-            settingsRow(
-                icon: Lucide.moon,
-                title: "Quiet Hours",
-                subtitle: "Set do-not-disturb times"
-            ) {
-                viewModel.showQuietHoursAlert = true
+            // Quiet hours row — taps to expand/collapse time pickers
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    viewModel.showQuietHoursPicker.toggle()
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    Image(uiImage: Lucide.moon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                        .foregroundStyle(Theme.accent)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Quiet Hours")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.white)
+                        Text("\(viewModel.formatHour(viewModel.quietHoursStart)) – \(viewModel.formatHour(viewModel.quietHoursEnd))")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(uiImage: viewModel.showQuietHoursPicker ? Lucide.chevronUp : Lucide.chevronDown)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.surfaceBorder, lineWidth: 1)
+                )
+            }
+
+            // Expandable quiet hours time pickers
+            if viewModel.showQuietHoursPicker {
+                VStack(spacing: 0) {
+                    quietHoursPickerRow(
+                        label: "Start",
+                        hour: Binding(
+                            get: { viewModel.quietHoursStart },
+                            set: { newValue in
+                                viewModel.quietHoursStart = newValue
+                                Task { await viewModel.saveQuietHours() }
+                            }
+                        )
+                    )
+
+                    Divider()
+                        .background(Theme.surfaceBorder)
+
+                    quietHoursPickerRow(
+                        label: "End",
+                        hour: Binding(
+                            get: { viewModel.quietHoursEnd },
+                            set: { newValue in
+                                viewModel.quietHoursEnd = newValue
+                                Task { await viewModel.saveQuietHours() }
+                            }
+                        )
+                    )
+                }
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.surfaceBorder, lineWidth: 1)
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+    }
+
+    /// A row with a label and an hour picker (0-23, displayed as 12-hour time).
+    private func quietHoursPickerRow(
+        label: String,
+        hour: Binding<Int>
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            Picker(label, selection: hour) {
+                ForEach(0..<24, id: \.self) { h in
+                    Text(viewModel.formatHour(h))
+                        .tag(h)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.accent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Privacy Section
@@ -467,7 +570,7 @@ private struct AccountDeletionAlerts: ViewModifier {
 
 // MARK: - Settings Alerts (Step 11.1)
 
-/// Groups the general settings alerts (hints, export, quiet hours)
+/// Groups the general settings alerts (hints, export)
 /// into a single `ViewModifier` to assist the Swift type checker.
 private struct SettingsAlerts: ViewModifier {
     @Binding var viewModel: SettingsViewModel
@@ -502,11 +605,6 @@ private struct SettingsAlerts: ViewModifier {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(viewModel.exportDataError ?? "An unexpected error occurred.")
-            }
-            .alert("Quiet Hours", isPresented: $viewModel.showQuietHoursAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Quiet hours settings will be available in a future update.")
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.clearHintsError != nil },

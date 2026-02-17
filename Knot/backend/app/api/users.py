@@ -1,11 +1,13 @@
 """
 Users API — User account management.
 
-Handles device token registration, account deletion, and data export.
+Handles device token registration, account deletion, data export,
+and notification preferences.
 
 Step 7.4: POST /api/v1/users/device-token — Register APNs device token.
 Step 11.2: DELETE /api/v1/users/me — Permanently delete account and all data.
 Step 11.3: GET /api/v1/users/me/export — Export all user data as JSON.
+Step 11.4: GET/PUT /api/v1/users/me/notification-preferences — Notification preferences.
 """
 
 import logging
@@ -22,6 +24,8 @@ from app.models.users import (
     DataExportResponse,
     DeviceTokenRequest,
     DeviceTokenResponse,
+    NotificationPreferencesRequest,
+    NotificationPreferencesResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -404,3 +408,149 @@ async def export_user_data(
         feedback=feedback_result.data or [],
         notifications=notification_result.data or [],
     )
+
+
+# ===================================================================
+# GET /api/v1/users/me/notification-preferences (Step 11.4)
+# ===================================================================
+
+
+@router.get(
+    "/me/notification-preferences",
+    status_code=status.HTTP_200_OK,
+    response_model=NotificationPreferencesResponse,
+)
+async def get_notification_preferences(
+    user_id: str = Depends(get_current_user_id),
+) -> NotificationPreferencesResponse:
+    """
+    Retrieve the authenticated user's notification preferences.
+
+    Returns the global notifications toggle, quiet hours range,
+    and timezone setting. These values are stored on the users
+    table and control how the notification webhook processes
+    scheduled notifications.
+
+    Returns:
+        200: Current notification preferences.
+        401: Missing or invalid authentication token.
+        404: User not found.
+        500: Database error.
+    """
+    client = get_service_client()
+
+    try:
+        result = (
+            client.table("users")
+            .select("notifications_enabled, quiet_hours_start, quiet_hours_end, timezone")
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Failed to fetch notification preferences for %s: %s", user_id[:8], exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load notification preferences.",
+        )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    user = result.data[0]
+
+    return NotificationPreferencesResponse(
+        notifications_enabled=user.get("notifications_enabled", True),
+        quiet_hours_start=user.get("quiet_hours_start", 22),
+        quiet_hours_end=user.get("quiet_hours_end", 8),
+        timezone=user.get("timezone"),
+    )
+
+
+# ===================================================================
+# PUT /api/v1/users/me/notification-preferences (Step 11.4)
+# ===================================================================
+
+
+@router.put(
+    "/me/notification-preferences",
+    status_code=status.HTTP_200_OK,
+    response_model=NotificationPreferencesResponse,
+)
+async def update_notification_preferences(
+    payload: NotificationPreferencesRequest,
+    user_id: str = Depends(get_current_user_id),
+) -> NotificationPreferencesResponse:
+    """
+    Update the authenticated user's notification preferences.
+
+    Accepts partial updates — only provided fields are changed.
+    For example, sending only `quiet_hours_start` will update
+    that field while preserving all other preferences.
+
+    Returns:
+        200: Updated notification preferences.
+        401: Missing or invalid authentication token.
+        404: User not found.
+        422: Invalid field values (hour out of range, bad timezone).
+        500: Database error.
+    """
+    client = get_service_client()
+
+    # Verify user exists
+    try:
+        existing = (
+            client.table("users")
+            .select("id")
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Database error looking up user %s: %s", user_id[:8], exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to look up user: {exc}",
+        )
+
+    if not existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    # Build update dict from provided fields only
+    update_data: dict = {}
+    if payload.notifications_enabled is not None:
+        update_data["notifications_enabled"] = payload.notifications_enabled
+    if payload.quiet_hours_start is not None:
+        update_data["quiet_hours_start"] = payload.quiet_hours_start
+    if payload.quiet_hours_end is not None:
+        update_data["quiet_hours_end"] = payload.quiet_hours_end
+    # timezone can be explicitly set to None (to clear it)
+    if "timezone" in payload.model_fields_set:
+        update_data["timezone"] = payload.timezone
+
+    if not update_data:
+        # Nothing to update — just return current preferences
+        return await get_notification_preferences(user_id)
+
+    # Apply update
+    try:
+        client.table("users").update(update_data).eq("id", user_id).execute()
+    except Exception as exc:
+        logger.error("Failed to update notification preferences for %s: %s", user_id[:8], exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update notification preferences.",
+        )
+
+    logger.info(
+        "Notification preferences updated for user %s: %s",
+        user_id[:8],
+        update_data,
+    )
+
+    # Return the updated preferences
+    return await get_notification_preferences(user_id)

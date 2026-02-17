@@ -7,6 +7,7 @@
 //  Step 4.2: Added Hint DTOs (HintCreatePayload, HintCreateResponse, HintListResponse, HintItemResponse).
 //  Step 6.5: Added vibeOverride to RecommendationRefreshPayload for manual vibe override.
 //  Step 7.7: Added Notification History and Milestone Recommendations DTOs.
+//  Step 11.4: Added Notification Preferences DTOs.
 //
 
 import Foundation
@@ -658,5 +659,42 @@ struct ExportNotification: Codable, Sendable {
         case status
         case sentAt = "sent_at"
         case createdAt = "created_at"
+    }
+}
+
+// MARK: - Notification Preferences (Step 11.4)
+
+/// Response from GET /api/v1/users/me/notification-preferences.
+///
+/// Contains the user's current notification settings including global toggle,
+/// quiet hours range, and timezone.
+struct NotificationPreferencesDTO: Codable, Sendable {
+    let notificationsEnabled: Bool
+    let quietHoursStart: Int
+    let quietHoursEnd: Int
+    let timezone: String?
+
+    enum CodingKeys: String, CodingKey {
+        case notificationsEnabled = "notifications_enabled"
+        case quietHoursStart = "quiet_hours_start"
+        case quietHoursEnd = "quiet_hours_end"
+        case timezone
+    }
+}
+
+/// Payload for PUT /api/v1/users/me/notification-preferences.
+///
+/// All fields are optional — only provided fields are updated on the backend.
+struct NotificationPreferencesUpdateDTO: Codable, Sendable {
+    let notificationsEnabled: Bool?
+    let quietHoursStart: Int?
+    let quietHoursEnd: Int?
+    let timezone: String?
+
+    enum CodingKeys: String, CodingKey {
+        case notificationsEnabled = "notifications_enabled"
+        case quietHoursStart = "quiet_hours_start"
+        case quietHoursEnd = "quiet_hours_end"
+        case timezone
     }
 }
