@@ -529,14 +529,16 @@ class TestWebhookProcessing:
 
         with patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY):
             with patch("app.services.qstash.QSTASH_NEXT_SIGNING_KEY", ""):
-                resp = client.post(
-                    "/api/v1/notifications/process",
-                    content=body,
-                    headers={
-                        "Upstash-Signature": signature,
-                        "Content-Type": "application/json",
-                    },
-                )
+                with patch("app.api.notifications.check_quiet_hours", new_callable=AsyncMock) as mock_dnd:
+                    mock_dnd.return_value = (False, None, True)
+                    resp = client.post(
+                        "/api/v1/notifications/process",
+                        content=body,
+                        headers={
+                            "Upstash-Signature": signature,
+                            "Content-Type": "application/json",
+                        },
+                    )
 
         assert resp.status_code == 200, (
             f"Expected 200, got {resp.status_code}: {resp.text}"

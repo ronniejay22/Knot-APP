@@ -396,6 +396,7 @@ class TestCheckQuietHours:
             "quiet_hours_start": 22,
             "quiet_hours_end": 8,
             "timezone": "America/Chicago",
+            "notifications_enabled": True,
         }]
 
         mock_table = MagicMock()
@@ -415,15 +416,16 @@ class TestCheckQuietHours:
                 # Allow datetime(...) constructor to pass through to real datetime
                 # so _compute_next_delivery_time can build timezone-aware datetimes
                 mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-                is_quiet, next_time = await check_quiet_hours("user-123")
+                is_quiet, next_time, notif_enabled = await check_quiet_hours("user-123")
 
         assert is_quiet is True
         assert next_time is not None
-        print("  User in quiet hours → (True, datetime)")
+        assert notif_enabled is True
+        print("  User in quiet hours → (True, datetime, True)")
 
     @pytest.mark.asyncio
     async def test_user_not_found_allows_delivery(self):
-        """Missing user should return (False, None) — allow delivery."""
+        """Missing user should return (False, None, True) — allow delivery."""
         from app.services.dnd import check_quiet_hours
 
         mock_result = MagicMock()
@@ -438,11 +440,12 @@ class TestCheckQuietHours:
         mock_client.table.return_value = mock_table
 
         with patch("app.services.dnd.get_service_client", return_value=mock_client):
-            is_quiet, next_time = await check_quiet_hours("nonexistent-user")
+            is_quiet, next_time, notif_enabled = await check_quiet_hours("nonexistent-user")
 
         assert is_quiet is False
         assert next_time is None
-        print("  User not found → (False, None)")
+        assert notif_enabled is True
+        print("  User not found → (False, None, True)")
 
     @pytest.mark.asyncio
     async def test_infers_timezone_from_vault_when_no_explicit_tz(self):
@@ -454,6 +457,7 @@ class TestCheckQuietHours:
             "quiet_hours_start": 22,
             "quiet_hours_end": 8,
             "timezone": None,
+            "notifications_enabled": True,
         }]
 
         mock_vault_execute = MagicMock()
@@ -483,10 +487,11 @@ class TestCheckQuietHours:
         with patch("app.services.dnd.get_service_client", return_value=mock_client):
             with patch("app.services.dnd.datetime") as mock_dt:
                 mock_dt.now.return_value = datetime(2026, 3, 15, 17, 0, tzinfo=timezone.utc)
-                is_quiet, _ = await check_quiet_hours("user-123")
+                is_quiet, _, notif_enabled = await check_quiet_hours("user-123")
 
         # 9am PT is outside quiet hours
         assert is_quiet is False
+        assert notif_enabled is True
         print("  No explicit tz → inferred from CA vault location")
 
 
@@ -583,9 +588,9 @@ class TestWebhookDNDIntegration:
         client,
     ):
         """Webhook should return 'rescheduled' when in quiet hours."""
-        # DND check returns True with a reschedule time
+        # DND check returns True with a reschedule time (3-tuple)
         reschedule_time = datetime(2026, 3, 16, 13, 0, tzinfo=timezone.utc)
-        mock_dnd.return_value = (True, reschedule_time)
+        mock_dnd.return_value = (True, reschedule_time, True)
 
         notif_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
@@ -639,8 +644,8 @@ class TestWebhookDNDIntegration:
             "success": True, "apns_id": "apns-123", "status_code": 200, "reason": None,
         }
 
-        # DND check returns False (not in quiet hours)
-        mock_dnd.return_value = (False, None)
+        # DND check returns False (not in quiet hours, 3-tuple)
+        mock_dnd.return_value = (False, None, True)
 
         notif_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
@@ -730,9 +735,9 @@ class TestWebhookDNDIntegration:
         client,
     ):
         """QStash should be called with correct not_before for rescheduled notification."""
-        # DND returns quiet with reschedule time
+        # DND returns quiet with reschedule time (3-tuple)
         reschedule_time = datetime(2026, 3, 16, 13, 0, tzinfo=timezone.utc)
-        mock_dnd.return_value = (True, reschedule_time)
+        mock_dnd.return_value = (True, reschedule_time, True)
         mock_qstash_publish.return_value = {"messageId": "mock-msg-123"}
 
         notif_id = str(uuid.uuid4())
@@ -779,7 +784,7 @@ class TestWebhookDNDIntegration:
     ):
         """Rescheduled notification should NOT be marked as 'sent'."""
         reschedule_time = datetime(2026, 3, 16, 13, 0, tzinfo=timezone.utc)
-        mock_dnd.return_value = (True, reschedule_time)
+        mock_dnd.return_value = (True, reschedule_time, True)
 
         notif_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())

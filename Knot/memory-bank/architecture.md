@@ -1463,6 +1463,28 @@ python -m pytest tests/test_*_node.py tests/test_pipeline.py tests/test_recommen
 python -m pytest tests/ -v --tb=short
 ```
 
+### 145. Integration Test Time-Independence Pattern (Step 12.2)
+Integration tests that involve notification delivery (`test_notification_processing.py`, `test_qstash_webhook.py`) must mock `check_quiet_hours()` at the module where it's called (`app.api.notifications.check_quiet_hours`), returning `(False, None, True)`. Without this mock, real `check_quiet_hours()` queries Supabase for the test user's quiet hours settings and applies the current system time. Tests run during quiet hours (10pm-8am local time) would see notifications rescheduled instead of processed, producing flaky "rescheduled" vs "processed" assertion failures. The 3-tuple return `(is_quiet: bool, next_window: datetime|None, notifications_enabled: bool)` was introduced in Step 11.4 — all code that unpacks this return value must handle all three elements.
+
+### 146. FastAPI Dependency Override vs Module Patching (Step 12.5)
+FastAPI's `Depends()` system resolves dependencies at request time from the dependency injection container, not by direct module import. Patching `get_current_user_id` at the module level (e.g., `patch("app.api.hints.get_current_user_id")`) does not intercept FastAPI's dependency resolution. The correct approach is `app.dependency_overrides[get_current_user_id] = lambda: "user-test"`, which tells FastAPI to substitute the dependency callable at resolution time. The override must be cleaned up in a `finally` block (`app.dependency_overrides.pop(get_current_user_id, None)`) to prevent test pollution. This pattern applies to all authenticated endpoint tests that need to bypass real JWT verification.
+
+### 147. Multi-Query Mock Pattern for Endpoint Testing (Step 12.5)
+Endpoints that make multiple sequential Supabase queries (e.g., the hints list endpoint queries `partner_vaults` then `hints` twice — once for data, once for count) require a stateful mock. The call counter pattern uses `call_count = {"n": 0}` with `mock_table.execute.side_effect` that returns different mock data based on `call_count["n"] % N`. Each call increments the counter and returns the appropriate mock (vault lookup → hints list → hints count). A simpler `return_value` approach fails because all three queries receive identical mock data, causing the vault lookup to fail or the hints count to return unexpected results.
+
+### 148. Performance Test Infrastructure (Step 12.5)
+`test_performance.py` contains 9 tests across 5 classes measuring response time, throughput, and import speed:
+
+| Class | Tests | Thresholds | What it measures |
+|-------|-------|-----------|-----------------|
+| `TestHealthEndpointPerformance` | 2 | < 100ms per request | Baseline latency, sequential consistency |
+| `TestAPIEndpointPerformance` | 2 | < 500ms per request | Vault creation, hint submission (mocked DB) |
+| `TestRecommendationPipelinePerformance` | 1 | < 3 seconds | Full LangGraph pipeline with mocked external APIs |
+| `TestConcurrentLoad` | 2 | 100 reqs < 10s, 50 auth reqs < 30s | Throughput under sustained load |
+| `TestModuleImportPerformance` | 2 | < 2s app, < 1s pipeline | Import/reload latency for critical modules |
+
+All timing uses `time.perf_counter()` for monotonic, high-resolution measurement. The pipeline test uses `build_recommendation_graph().compile()` and `graph.ainvoke()` with mocked `_fetch_gift_candidates`, `_fetch_experience_candidates`, `httpx.AsyncClient`, and Supabase client. The concurrent load test for authenticated endpoints uses `app.dependency_overrides` with the call counter pattern from note 147.
+
 ---
 
 ## Data Flow

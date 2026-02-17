@@ -1041,33 +1041,35 @@ class TestNotificationRecommendationIntegration:
 
         with patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY):
             with patch("app.services.qstash.QSTASH_NEXT_SIGNING_KEY", ""):
-                with patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as mock_load:
-                    mock_load.return_value = (
-                        _mock_vault_data(test_full_setup["vault"]["id"]),
-                        test_full_setup["vault"]["id"],
-                    )
-                    with patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as mock_ms:
-                        mock_ms.return_value = MilestoneContext(
-                            id=milestone["id"],
-                            milestone_type="birthday",
-                            milestone_name="Partner's Birthday",
-                            milestone_date="2000-06-15",
-                            recurrence="yearly",
-                            budget_tier="major_milestone",
+                with patch("app.api.notifications.check_quiet_hours", new_callable=AsyncMock) as mock_dnd:
+                    mock_dnd.return_value = (False, None, True)
+                    with patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as mock_load:
+                        mock_load.return_value = (
+                            _mock_vault_data(test_full_setup["vault"]["id"]),
+                            test_full_setup["vault"]["id"],
                         )
-                        with patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as mock_pipeline:
-                            mock_pipeline.return_value = {
-                                "final_three": mock_candidates,
-                                "error": None,
-                            }
-                            resp = client.post(
-                                "/api/v1/notifications/process",
-                                content=body,
-                                headers={
-                                    "Upstash-Signature": signature,
-                                    "Content-Type": "application/json",
-                                },
+                        with patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as mock_ms:
+                            mock_ms.return_value = MilestoneContext(
+                                id=milestone["id"],
+                                milestone_type="birthday",
+                                milestone_name="Partner's Birthday",
+                                milestone_date="2000-06-15",
+                                recurrence="yearly",
+                                budget_tier="major_milestone",
                             )
+                            with patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as mock_pipeline:
+                                mock_pipeline.return_value = {
+                                    "final_three": mock_candidates,
+                                    "error": None,
+                                }
+                                resp = client.post(
+                                    "/api/v1/notifications/process",
+                                    content=body,
+                                    headers={
+                                        "Upstash-Signature": signature,
+                                        "Content-Type": "application/json",
+                                    },
+                                )
 
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
@@ -1113,33 +1115,35 @@ class TestNotificationRecommendationIntegration:
 
         with patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY):
             with patch("app.services.qstash.QSTASH_NEXT_SIGNING_KEY", ""):
-                with patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as mock_load:
-                    mock_load.return_value = (
-                        _mock_vault_data(vault["id"]),
-                        vault["id"],
-                    )
-                    with patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as mock_ms:
-                        mock_ms.return_value = MilestoneContext(
-                            id=milestone["id"],
-                            milestone_type="birthday",
-                            milestone_name="Partner's Birthday",
-                            milestone_date="2000-06-15",
-                            recurrence="yearly",
-                            budget_tier="major_milestone",
+                with patch("app.api.notifications.check_quiet_hours", new_callable=AsyncMock) as mock_dnd:
+                    mock_dnd.return_value = (False, None, True)
+                    with patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as mock_load:
+                        mock_load.return_value = (
+                            _mock_vault_data(vault["id"]),
+                            vault["id"],
                         )
-                        with patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as mock_pipeline:
-                            mock_pipeline.return_value = {
-                                "final_three": mock_candidates,
-                                "error": None,
-                            }
-                            resp = client.post(
-                                "/api/v1/notifications/process",
-                                content=body,
-                                headers={
-                                    "Upstash-Signature": signature,
-                                    "Content-Type": "application/json",
-                                },
+                        with patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as mock_ms:
+                            mock_ms.return_value = MilestoneContext(
+                                id=milestone["id"],
+                                milestone_type="birthday",
+                                milestone_name="Partner's Birthday",
+                                milestone_date="2000-06-15",
+                                recurrence="yearly",
+                                budget_tier="major_milestone",
                             )
+                            with patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as mock_pipeline:
+                                mock_pipeline.return_value = {
+                                    "final_three": mock_candidates,
+                                    "error": None,
+                                }
+                                resp = client.post(
+                                    "/api/v1/notifications/process",
+                                    content=body,
+                                    headers={
+                                        "Upstash-Signature": signature,
+                                        "Content-Type": "application/json",
+                                    },
+                                )
 
         assert resp.status_code == 200
 
