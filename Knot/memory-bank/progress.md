@@ -3952,18 +3952,246 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 
 ---
 
-## Next Steps
 
-### Phase 11: Settings & Profile Management
-- [x] **Step 11.1:** Build Settings Screen (iOS)
-- [x] **Step 11.2:** Implement Account Deletion (iOS + Backend)
-- [x] **Step 11.3:** Implement Data Export (Backend + iOS)
-- [ ] **Step 11.4:** Implement Notification Preferences (iOS + Backend)
+### Step 11.1: Build Settings Screen (iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Created a dedicated Settings screen (`SettingsView`) with five grouped sections: Account, Partner Profile, Notifications, Privacy, and About
+- Built `SettingsViewModel` with state management for email loading from Supabase session, notification authorization status via `UNUserNotificationCenter`, bulk hint clearing via existing `HintService`, and app version display from `Bundle.main.infoDictionary`
+- Replaced the three temporary toolbar buttons in HomeView (Notifications bell, Edit Profile, Sign Out) with a single Settings gear icon that opens SettingsView as a sheet
+- Moved the Edit Profile flow (`EditVaultView` fullScreenCover) from HomeView into SettingsView
+- Added placeholder "coming soon" alerts for Delete Account (Step 11.2), Export Data (Step 11.3), and Quiet Hours (Step 11.4)
+- Implemented functional Clear All Hints with confirmation dialog and success/error feedback
+- Implemented notification toggle that reads current authorization status and either requests permission or directs to system Settings
+- Created reusable row components following `EditVaultView.editSectionButton` visual patterns: `settingsRow`, `settingsInfoRow`, `settingsToggleRow`, `sectionHeader`
+- Added 13 new unit tests covering ViewModel state management, app version format validation, and view rendering
+
+**Files created:**
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Settings state management: email loading, notification toggle, hint clearing, app version, placeholder alert flags
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Settings screen with five sections, reusable row components, alerts, and EditVaultView integration
+- `iOS/KnotTests/SettingsViewTests.swift` — 13 tests: SettingsViewModelTests (11 — initial state, app version format, alert toggles, email, hints state) + SettingsViewRenderingTests (2 — render, dark mode)
+
+**Files modified:**
+- `iOS/Knot/Features/Home/HomeView.swift` — Removed `showEditProfile` and `showNotifications` state, removed three toolbar buttons (notifications bell, edit profile, sign out), removed EditVaultView fullScreenCover and NotificationsView sheet, added `showSettings` state, added single Settings gear toolbar button, added SettingsView sheet with data refresh on dismiss
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests` — 127 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 11/11 passed:
+  - `testInitialState` — all defaults verified
+  - `testAppVersionFormat` — regex matches `X.Y (N)` or `X.Y.Z (N)`
+  - `testDeleteAccountAlertToggle` — toggle works
+  - `testClearHintsConfirmationToggle` — toggle works
+  - `testExportDataAlertToggle` — toggle works
+  - `testQuietHoursAlertToggle` — toggle works
+  - `testNotificationsEnabledToggle` — toggle works
+  - `testUserEmailCanBeSet` — email assignment works
+  - `testClearingHintsInitialState` — defaults correct
+  - `testClearHintsSuccessToggle` — toggle works
+  - `testClearHintsErrorCanBeSetAndCleared` — set and nil works
+- ✅ `SettingsViewRenderingTests` — 2/2 passed:
+  - `testViewRenders` — UIHostingController instantiation succeeds
+  - `testViewRendersInDarkMode` — dark mode rendering succeeds
+- ✅ All 114 existing tests continue to pass
+
+---
+
+133. **Settings screen replaces three temporary HomeView toolbar buttons with a single gear icon (Step 11.1):** The original HomeView toolbar had three buttons (notifications bell, edit profile, sign out) that were always intended as temporary. The comment on HomeView line 8 noted "Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1)." The Settings gear icon (`Lucide.settings`) consolidates all three actions plus additional functionality into a proper Settings screen. The `.sheet(isPresented: $showSettings)` presentation style was chosen over `.fullScreenCover` because Settings is a utility screen, not a primary flow — sheets feel less modal and can be dismissed with a swipe gesture.
+
+134. **SettingsView reuses row patterns from EditVaultView but with three row variants (Step 11.1):** The `settingsRow` helper mirrors `EditVaultView.editSectionButton` exactly (HStack with Lucide icon, title/subtitle VStack, chevronRight, surface background, 12pt rounded rect, surfaceBorder stroke). Two additional variants were needed: `settingsInfoRow` for non-tappable display rows (email, version) with a right-aligned value label instead of a chevron, and `settingsToggleRow` for the notifications toggle with a `Toggle` control replacing the chevron. All three variants share the same padding (16pt horizontal, 14pt vertical), background (Theme.surface), and border treatment for visual consistency.
+
+135. **Notification toggle handles iOS permission lifecycle correctly (Step 11.1):** iOS does not allow apps to programmatically revoke notification permission once granted. The `toggleNotifications()` method checks the current `notificationsEnabled` state: if notifications are currently enabled and the user toggles off, it opens the system Settings app via `UIApplication.openSettingsURLString` where the user can manually disable notifications. If notifications are currently disabled, it requests permission via `UNUserNotificationCenter.requestAuthorization()` and registers for remote notifications on success. The initial authorization status is loaded in `.task` via `loadNotificationStatus()` which reads from `UNUserNotificationCenter.current().notificationSettings()`.
+
+136. **Clear All Hints uses paginated sequential deletion via existing HintService (Step 11.1):** There is no bulk delete endpoint in the backend API. `clearAllHints()` in SettingsViewModel paginates through all hints via `HintService.listHints(limit: 100, offset: 0)` in a `while true` loop (backend enforces limit ≤ 100), deleting each hint via `HintService.deleteHint(id:)`. The offset stays at 0 each iteration because deletions shift remaining hints forward. This reuses the existing service layer without requiring backend changes. A confirmation alert with a destructive "Clear All" button prevents accidental deletion. The loading state (`isClearingHints`) and success/error alerts provide user feedback throughout the operation.
+
+137. **HomeView data refresh on Settings dismissal covers all three data sources (Step 11.1):** The `.onChange(of: showSettings)` handler reloads vault data, recent hints, and saved recommendations when Settings is dismissed. This is necessary because the user may have (1) edited their profile via Settings > Edit Profile, (2) cleared all hints via Settings > Privacy > Clear All Hints, or (3) changed other settings that affect the Home screen display. All three data sources — `viewModel.loadVault()`, `viewModel.loadRecentHints()`, and `viewModel.loadSavedRecommendations()` — are refreshed to ensure the Home screen reflects the latest state.
+
+---
+
+### Step 11.2: Implement Account Deletion (iOS + Backend) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Implemented a three-stage account deletion flow on iOS: initial warning alert, Apple Sign-In re-authentication sheet, and final confirmation alert
+- Created `DELETE /api/v1/users/me` backend endpoint that deletes the auth user via Supabase Admin API, triggering CASCADE deletion through all 12+ database tables
+- Built `AccountService.swift` following the `DeviceTokenService` pattern for authenticated HTTP DELETE calls
+- Created `ReauthenticationSheet.swift` — a dedicated Apple Sign-In re-authentication view that verifies user identity without creating a new Supabase session
+- Added `signOutAfterDeletion()` to `AuthViewModel` using `signOut(scope: .local)` to clear only the local Keychain session (server-side user already deleted)
+- Extended `SettingsViewModel` with deletion state management: re-authentication flow orchestration, backend API call, and local SwiftData cleanup (clears PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation)
+- Refactored `SettingsView` alerts into two `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`) to prevent Swift type checker timeout from 8+ chained `.alert` modifiers
+- Added loading overlay with "Deleting account..." progress indicator during the deletion API call
+- Added `AccountDeleteResponse` Pydantic model to backend with default "deleted" status and confirmation message
+- Created 9 backend tests covering valid deletion (200 response, auth user removed, public user cascade), authentication requirements (401 for missing/invalid tokens), and module imports (response model defaults, route registration)
+- Added 8 new iOS tests: 7 SettingsViewModel state tests (deletion initial state, request flow, re-auth success/failure, error handling, loading toggle) + 1 ReauthenticationSheet rendering test
+
+**Files created:**
+- `iOS/Knot/Services/AccountService.swift` — Authenticated DELETE /api/v1/users/me client with error mapping
+- `iOS/Knot/Features/Settings/ReauthenticationSheet.swift` — Apple Sign-In re-authentication UI for identity verification before deletion
+- `backend/tests/test_account_deletion_api.py` — 9 tests: TestValidDeletion (3), TestAuthRequired (2), TestModuleImports (4)
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `AccountDeleteResponse` model with "deleted" status and confirmation message
+- `backend/app/api/users.py` — Added `DELETE /api/v1/users/me` endpoint using httpx.AsyncClient to call Supabase Admin API with CASCADE deletion; added imports for httpx, config vars, and new model
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties (showReauthentication, showFinalDeleteConfirmation, isDeletingAccount, deleteAccountError, isReauthenticated), 5 methods (requestAccountDeletion, confirmDeleteAndReauthenticate, onReauthenticationSuccess, onReauthenticationFailure, executeAccountDeletion), and clearLocalData helper; added SwiftData import
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `signOutAfterDeletion()` with `signOut(scope: .local)` for Keychain-only cleanup
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced placeholder "coming soon" alert with three-stage deletion flow; extracted alerts into AccountDeletionAlerts and SettingsAlerts ViewModifiers; added modelContext environment, loading overlay, and ReauthenticationSheet presentation
+- `iOS/KnotTests/SettingsViewTests.swift` — Added 7 SettingsViewModelTests (deletion initial state, request flow, re-auth success/failure, error, loading toggle) + 1 SettingsViewRenderingTests (ReauthenticationSheet)
+
+**Test results:**
+- ✅ `pytest tests/test_account_deletion_api.py -v` — 9 passed, 0 failed
+  - `TestValidDeletion::test_delete_returns_200_with_status` — 200 with "deleted" status
+  - `TestValidDeletion::test_auth_user_removed_after_deletion` — auth.users row gone
+  - `TestValidDeletion::test_public_user_removed_after_deletion` — public.users CASCADE verified
+  - `TestAuthRequired::test_no_auth_header_returns_401` — no auth → 401
+  - `TestAuthRequired::test_invalid_token_returns_401` — bad token → 401
+  - `TestModuleImports::test_account_delete_response_import` — importable
+  - `TestModuleImports::test_account_delete_response_defaults` — correct defaults
+  - `TestModuleImports::test_users_router_has_delete_route` — DELETE route registered
+  - `TestModuleImports::test_existing_device_token_route_still_registered` — no regression
+- ✅ `xcodebuild test -only-testing:KnotTests` — 135 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 18/18 passed (11 from Step 11.1 + 7 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (2 from Step 11.1 + 1 new)
+- ✅ All 114 existing non-settings tests continue to pass
+
+**Key implementation notes:**
+
+138. **CASCADE deletion strategy avoids manual table-by-table cleanup (Step 11.2):** The backend endpoint only calls `DELETE /auth/v1/admin/users/{user_id}` via the Supabase Admin API. This deletes the `auth.users` row, which cascades to `public.users` (ON DELETE CASCADE on the `id` FK), which cascades to `partner_vaults` (FK on user_id), which cascades to child tables (`partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`). Direct FK references from `recommendations`, `notification_queue`, and `user_preferences_weights` to `public.users` also cascade. No explicit multi-table deletion logic is needed — the database handles everything in a single atomic operation.
+
+139. **Re-authentication verifies identity without creating a new Supabase session (Step 11.2):** The `ReauthenticationSheet` presents Apple's `SignInWithAppleButton` but does NOT exchange the resulting identity token with Supabase. It only confirms the user can complete Apple Sign-In (which requires biometric/passcode confirmation), proving they are the account owner. The existing Supabase JWT session is still valid and is used for the actual `DELETE /api/v1/users/me` call. This avoids token/session conflicts that could occur if we created a second Supabase session during re-auth.
+
+140. **Local sign-out uses `scope: .local` after deletion (Step 11.2):** After the backend deletes the auth user, calling the regular `signOut()` would fail because it contacts the Supabase server (which would return 401 or user-not-found). `signOutAfterDeletion()` uses `SupabaseManager.client.auth.signOut(scope: .local)` which only clears the local Keychain session without making a network request. The `authStateChanges` listener picks up the `signedOut` event and sets `isAuthenticated = false`, navigating back to the Sign-In screen.
+
+141. **ViewModifier extraction prevents Swift type checker timeout (Step 11.2):** Adding 3 deletion alerts to the existing 5 settings alerts created a chain of 8+ `.alert` modifiers on a single view, which exceeded the Swift type checker's expression complexity threshold (error: "unable to type-check this expression in reasonable time"). The solution was to extract alerts into two separate `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`), each with their own `body(content:)` method. This breaks the monolithic expression into smaller, independently type-checked units. The toolbar was also extracted into a `settingsToolbar` computed property and the loading overlay into `deletionLoadingOverlay`.
+
+142. **SwiftData local data clearing is non-fatal (Step 11.2):** `clearLocalData(modelContext:)` deletes all SwiftData entities (PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation) but wraps the operation in a `do/catch` that only prints to console on failure. Backend data has already been deleted at this point, so local data clearing failure is non-fatal — orphaned local data would be harmless and cleared on next install.
+
+---
+
+### Step 11.3: Implement Data Export (Backend + iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Built `GET /api/v1/users/me/export` backend endpoint that compiles all user data from 10+ database tables into a single JSON response for GDPR/privacy compliance
+- Created `DataExportResponse` Pydantic model with flexible `dict` types for nested data (avoids many single-use models for a user-facing export, not API interop)
+- Endpoint fetches: user account info, partner vault (with interests split into likes/dislikes, vibes, budgets, love languages), milestones, hints (excluding 768-dim `hint_embedding` vectors), recommendations, recommendation feedback, and notification queue history
+- Returns 200 even if the user has no vault (export still includes account info with empty collections)
+- Created `ExportService.swift` following the `AccountService.swift` pattern — `@MainActor final class: Sendable` with typed `ExportServiceError` enum, Bearer token auth, 30-second timeout, returns raw JSON `Data`
+- Extended `SettingsViewModel` with 4 new state properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`) and `exportUserData()` async method that calls the backend, pretty-prints the JSON response, writes it to a temp file (`knot-export-{date}.json`), and triggers the share sheet
+- Replaced the placeholder "coming soon" export alert in `SettingsView` with a working confirmation → export → share sheet flow using `UIActivityViewController` wrapped in `ShareSheet: UIViewControllerRepresentable`
+- Added loading overlay with "Exporting your data..." progress indicator during the export API call
+- Added export error alert and share sheet presentation via `.sheet(isPresented: $viewModel.showExportShareSheet)`
+- Created 24 backend tests across 4 test classes covering: export with full vault data (13 tests), export without vault (4 tests), authentication requirements (2 tests), and module imports/defaults (5 tests)
+- Added 5 new iOS tests for export state management (initial state, toggle, set/clear patterns)
+
+**Files created:**
+- `iOS/Knot/Services/ExportService.swift` — Authenticated GET /api/v1/users/me/export client with typed error mapping and raw Data response
+- `backend/tests/test_data_export_api.py` — 24 tests: TestExportWithVault (13), TestExportWithoutVault (4), TestAuthRequired (2), TestModuleImports (5)
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `DataExportResponse` Pydantic model with `exported_at`, `user`, `partner_vault` (optional), `milestones`, `hints`, `recommendations`, `feedback`, `notifications` fields using `dict` and `list[dict]` types; added `from typing import Optional` import
+- `backend/app/api/users.py` — Added `GET /me/export` endpoint that fetches data from `users`, `partner_vaults`, `partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`, `recommendations`, `recommendation_feedback`, and `notification_queue` tables; added `from datetime import datetime, timezone` and `DataExportResponse` imports
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 4 new `@Published` properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`), added `exportUserData()` async method with pretty-print JSON formatting via `JSONSerialization` (`.prettyPrinted`, `.sortedKeys`), temp file writing, and share sheet triggering
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Added `exportLoadingOverlay` computed property (same pattern as `deletionLoadingOverlay`); added `ShareSheet: UIViewControllerRepresentable` wrapping `UIActivityViewController`; replaced placeholder export alert in `SettingsAlerts` modifier with working confirmation alert ("Export" + "Cancel" buttons) + "Export Failed" error alert; added `.sheet(isPresented: $viewModel.showExportShareSheet)` for file sharing
+- `iOS/KnotTests/SettingsViewTests.swift` — Added `// MARK: - Data Export State Tests (Step 11.3)` section with 5 tests: `testExportInitialState`, `testIsExportingDataToggle`, `testExportDataErrorCanBeSetAndCleared`, `testShowExportShareSheetToggle`, `testExportedFileURLCanBeSetAndCleared`
+
+**Test results:**
+- ✅ `pytest tests/test_data_export_api.py -v` — 24 passed, 0 failed
+  - `TestExportWithVault` (13 tests): export returns 200, has exported_at timestamp, user section present with id/email/created_at, vault section present with partner_name/interests/dislikes/vibes/budgets/love_languages, milestones list present, hints list present with correct fields, recommendations list present, feedback list present, notifications list present
+  - `TestExportWithoutVault` (4 tests): returns 200, user section present, partner_vault is null, hints/milestones/recommendations are empty lists
+  - `TestAuthRequired` (2 tests): no auth header → 401, invalid token → 401
+  - `TestModuleImports` (5 tests): DataExportResponse importable, default fields correct, GET /me/export route registered, existing device-token route still registered, existing DELETE /me route still registered
+- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 24 new)
+- ✅ `xcodebuild test -only-testing:KnotTests` — 140 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 23/23 passed (18 from Steps 11.1–11.2 + 5 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
+- ✅ All 114 existing non-settings tests continue to pass
+
+**Key implementation notes:**
+
+143. **Export returns JSON directly instead of a file download (Step 11.3):** The `GET /me/export` endpoint returns the export as a JSON response body rather than a file attachment (`Content-Disposition: attachment`). This simplifies iOS integration — `ExportService` receives raw `Data` from `URLSession`, the ViewModel pretty-prints it with `JSONSerialization` (`.prettyPrinted` + `.sortedKeys` for human readability), writes it to a temp file (`knot-export-{date}.json` in `FileManager.default.temporaryDirectory`), and presents it via `UIActivityViewController` wrapped in a `ShareSheet: UIViewControllerRepresentable`. The user can then save to Files, AirDrop, or share via any system extension.
+
+144. **Hint embeddings are excluded from the export (Step 11.3):** The `hints` table query selects only `id, hint_text, source, is_used, created_at` — deliberately omitting the `hint_embedding` column which contains 768-dimensional pgvector arrays. These float arrays are not human-readable and would bloat the export JSON significantly. The embeddings are a server-side implementation detail for semantic search, not user data.
+
+145. **Export compiles data from interests into likes/dislikes split (Step 11.3):** The `partner_interests` table stores both likes and dislikes with an `interest_type` discriminator column. The export endpoint splits them into separate `interests` (likes) and `dislikes` arrays within the `partner_vault` section using list comprehensions filtered by `interest_type == "like"` and `interest_type == "dislike"`. This matches the user's mental model from onboarding.
+
+146. **No vault returns 200 with null/empty collections (Step 11.3):** If a user hasn't completed onboarding (no partner vault exists), the export still succeeds with `partner_vault: null` and empty arrays for milestones, hints, recommendations, etc. The user account info (`id`, `email`, `created_at`) is always present. This avoids a 404 error that might confuse users who signed up but didn't complete onboarding.
+
+---
+
+### Step 11.4: Implement Notification Preferences (Backend + iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Added `notifications_enabled` boolean column to `public.users` via migration 00019, acting as a global kill switch for push notifications
+- Created `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models in `models/users.py` with field validators for hour range (0-23) and timezone (IANA via `ZoneInfo()`)
+- Added `GET /api/v1/users/me/notification-preferences` and `PUT /api/v1/users/me/notification-preferences` endpoints in `api/users.py` for reading and partially updating notification preferences
+- Extended `check_quiet_hours()` in `services/dnd.py` to return a 3-tuple `(is_quiet, next_delivery, notifications_enabled)`, adding the global toggle as a third element
+- Integrated `notifications_enabled` flag into `api/notifications.py` webhook processing — when `False`, notifications are skipped before quiet hours or push delivery logic runs
+- Created `NotificationPreferencesService.swift` following `ExportService.swift` pattern with `fetchPreferences()` and `updatePreferences()` methods
+- Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` to `DTOs.swift` with snake_case CodingKeys
+- Extended `SettingsViewModel.swift` with quiet hours state (`quietHoursStart`, `quietHoursEnd`, `isLoadingPreferences`, `isSavingPreferences`, `preferencesError`, `showQuietHoursPicker`), `loadNotificationPreferences()`, `saveQuietHours()`, and `formatHour()` helper
+- Replaced the "Quiet Hours coming soon" placeholder in `SettingsView.swift` with an expandable quiet hours section featuring start/end hour pickers (0-23 formatted as 12-hour time), loading indicators, and automatic save on change
+- Created 28 backend tests across 7 test classes and added 8 iOS tests for notification preferences state management
+
+**Files created:**
+- `backend/supabase/migrations/00019_add_notifications_enabled_to_users.sql` — Adds `notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE` to `public.users`
+- `backend/tests/test_notification_preferences_api.py` — 28 tests: TestGetDefaultPreferences (4), TestUpdatePreferences (6), TestValidation (5), TestAuthRequired (4), TestModuleImports (7), TestWebhookNotificationsDisabled (2)
+- `iOS/Knot/Services/NotificationPreferencesService.swift` — Authenticated GET/PUT notification preferences client
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models with validators
+- `backend/app/api/users.py` — Added GET and PUT `/me/notification-preferences` endpoints
+- `backend/app/api/notifications.py` — Updated webhook handler to unpack 3-tuple from `check_quiet_hours()` and skip when `notifications_enabled` is False
+- `backend/app/services/dnd.py` — Extended `check_quiet_hours()` return type to `tuple[bool, datetime | None, bool]`, loading `notifications_enabled` from the same DB query
+- `iOS/Knot/Models/DTOs.swift` — Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` structs
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties and 3 methods for notification preferences management
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced quiet hours placeholder with expandable picker UI, removed placeholder alert from `SettingsAlerts`
+- `iOS/KnotTests/SettingsViewTests.swift` — Added 8 new notification preferences tests (quietHoursStart/End, isLoadingPreferences, isSavingPreferences, preferencesError, formatHour, showQuietHoursPicker)
+- `iOS/Knot.xcodeproj/project.pbxproj` — Added `NotificationPreferencesService.swift` to PBXBuildFile, PBXFileReference, Services group, and Sources build phase
+
+**Test results:**
+- ✅ `pytest tests/test_notification_preferences_api.py -v` — 28 passed, 0 failed
+  - `TestGetDefaultPreferences` (4 tests): returns 200, notifications_enabled defaults to True, quiet_hours_start defaults to 22, quiet_hours_end defaults to 8
+  - `TestUpdatePreferences` (6 tests): updates quiet hours, updates notifications_enabled to False, updates timezone, partial update preserves other fields, reflects changes on subsequent GET, can update single field
+  - `TestValidation` (5 tests): rejects negative quiet hours, rejects hour > 23, rejects invalid timezone string, accepts valid timezone, accepts edge case hour 0
+  - `TestAuthRequired` (4 tests): GET without auth → 401, PUT without auth → 401, GET with invalid token → 401, PUT with invalid token → 401
+  - `TestModuleImports` (7 tests): models importable, defaults correct, GET route registered, PUT route registered, existing device-token route still works, existing DELETE /me route still works, existing GET /me/export route still works
+  - `TestWebhookNotificationsDisabled` (2 tests): disabled notifications → webhook skips with "skipped" status, enabled notifications → webhook processes normally
+- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 28 new)
+- ✅ `xcodebuild test -only-testing:KnotTests` — 147 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 30/30 passed (22 from Steps 11.1–11.3 + 8 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
+- ✅ All 114 existing non-settings tests continue to pass
+- ✅ Full iOS test suite (unit + UI) passes: 147 unit tests + 4 UI tests = all green
+
+**Key implementation notes:**
+
+147. **`check_quiet_hours()` returns a 3-tuple to avoid extra DB queries (Step 11.4):** Rather than adding a separate DB query for `notifications_enabled` in the webhook handler, the existing `check_quiet_hours()` function was extended to also read `notifications_enabled` from the same `users` table query it already makes. The return type changed from `tuple[bool, datetime | None]` to `tuple[bool, datetime | None, bool]` where the third element is the global toggle. This avoids an additional round-trip to the database during webhook processing.
+
+148. **Notification preferences use partial updates (Step 11.4):** The `PUT /me/notification-preferences` endpoint accepts a partial payload — only fields that are present in the request body are updated. This is implemented by checking each field for `None` before including it in the Supabase update dict. This allows the iOS app to update just quiet hours without needing to resend the `notifications_enabled` flag, and vice versa.
+
+149. **Quiet hours displayed as 12-hour time on iOS (Step 11.4):** The backend stores quiet hours as integers 0-23, but the iOS UI displays them in 12-hour format via `formatHour()` (e.g., 22 → "10:00 PM", 0 → "12:00 AM", 12 → "12:00 PM"). The `Picker` wheel shows all 24 hours formatted this way. The conversion is purely a display concern — the backend always receives and returns 0-23 integers.
+
+150. **PostgREST schema cache must be reloaded after DDL changes:** After applying migration 00019 (and previously unapplied migration 00014) to Supabase, PostgREST continued to return errors because its schema cache was stale. The "Reload schema" button is not visible in newer Supabase dashboard versions. The fix is to run `NOTIFY pgrst, 'reload schema'` in the SQL Editor, which tells PostgREST to re-read the database schema.
+
+151. **Mock patch paths must target the import location (Step 11.4):** The webhook tests for `verify_qstash_signature` initially failed because the mock patched `app.services.qstash.verify_qstash_signature` (the definition location) instead of `app.api.notifications.verify_qstash_signature` (the import location). Python's `unittest.mock.patch` intercepts at the module where the name is looked up, not where it's defined. Similarly, mocking `check_quiet_hours` directly (rather than mocking the DB layer beneath it) was necessary to control the 3-tuple return value deterministically.
+
+---
+
+---
+
+## Next Steps
 
 ### Phase 12: Testing & Quality Assurance
 - [ ] **Step 12.1:** Write Unit Tests for LangGraph Nodes
 - [ ] **Step 12.2:** Write Integration Tests for API Endpoints
 - [ ] **Step 12.3:** Write UI Tests for Critical Flows (iOS)
+- [ ] **Step 12.4:** Perform End-to-End Testing
+- [ ] **Step 12.5:** Performance Testing
 
 ---
 
@@ -4238,234 +4466,3 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 131. **All three pipeline callers load weights before state construction (Step 10.3):** `generate_recommendations()`, `refresh_recommendations()` (both in `recommendations.py`), and the notification processor (in `notifications.py`) each call `await load_learned_weights(user_id)` after loading vault data but before constructing `RecommendationState`. The weight loading is positioned after vault data loading because it has the same failure semantics — if it fails, the pipeline proceeds with defaults. All three callers already had `user_id` available from authentication context.
 
 132. **Learned weights integration tests: 36 tests across 10 classes (Step 10.3):** `backend/tests/test_learned_weights_integration.py` covers: TestStateSchemaUpdated (3 — accepts weights, defaults None, serializes), TestFilteringWithWeights (7 — amplifies, reduces, neutral, None, metadata bonus not scaled, dislikes still filter, full node), TestVibeBoostWithWeights (5 — boosted, penalized, neutral, None, mixed), TestLoveLanguageBoostWithWeights (4 — boosted primary, secondary, None, both), TestTypeWeightMultiplier (2 — gift boost, experience penalty), TestFullMatchingNodeWithWeights (2 — ranking change, no-weights preserves), TestSpecRequirement (2 — receiving_gifts ranks gifts higher, even with competing vibes), TestNoWeightsDefaultBehavior (2 — filtering unchanged, matching unchanged), TestModuleImports (6 — all new parameters importable), TestLoadLearnedWeights (3 — returns weights, returns None, nonexistent user).
-
----
-
-### Step 11.1: Build Settings Screen (iOS) ✅
-**Date:** February 16, 2026
-**Status:** Complete
-
-**What was done:**
-- Created a dedicated Settings screen (`SettingsView`) with five grouped sections: Account, Partner Profile, Notifications, Privacy, and About
-- Built `SettingsViewModel` with state management for email loading from Supabase session, notification authorization status via `UNUserNotificationCenter`, bulk hint clearing via existing `HintService`, and app version display from `Bundle.main.infoDictionary`
-- Replaced the three temporary toolbar buttons in HomeView (Notifications bell, Edit Profile, Sign Out) with a single Settings gear icon that opens SettingsView as a sheet
-- Moved the Edit Profile flow (`EditVaultView` fullScreenCover) from HomeView into SettingsView
-- Added placeholder "coming soon" alerts for Delete Account (Step 11.2), Export Data (Step 11.3), and Quiet Hours (Step 11.4)
-- Implemented functional Clear All Hints with confirmation dialog and success/error feedback
-- Implemented notification toggle that reads current authorization status and either requests permission or directs to system Settings
-- Created reusable row components following `EditVaultView.editSectionButton` visual patterns: `settingsRow`, `settingsInfoRow`, `settingsToggleRow`, `sectionHeader`
-- Added 13 new unit tests covering ViewModel state management, app version format validation, and view rendering
-
-**Files created:**
-- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Settings state management: email loading, notification toggle, hint clearing, app version, placeholder alert flags
-- `iOS/Knot/Features/Settings/SettingsView.swift` — Settings screen with five sections, reusable row components, alerts, and EditVaultView integration
-- `iOS/KnotTests/SettingsViewTests.swift` — 13 tests: SettingsViewModelTests (11 — initial state, app version format, alert toggles, email, hints state) + SettingsViewRenderingTests (2 — render, dark mode)
-
-**Files modified:**
-- `iOS/Knot/Features/Home/HomeView.swift` — Removed `showEditProfile` and `showNotifications` state, removed three toolbar buttons (notifications bell, edit profile, sign out), removed EditVaultView fullScreenCover and NotificationsView sheet, added `showSettings` state, added single Settings gear toolbar button, added SettingsView sheet with data refresh on dismiss
-
-**Test results:**
-- ✅ `xcodebuild test -only-testing:KnotTests` — 127 passed, 0 failed
-- ✅ `SettingsViewModelTests` — 11/11 passed:
-  - `testInitialState` — all defaults verified
-  - `testAppVersionFormat` — regex matches `X.Y (N)` or `X.Y.Z (N)`
-  - `testDeleteAccountAlertToggle` — toggle works
-  - `testClearHintsConfirmationToggle` — toggle works
-  - `testExportDataAlertToggle` — toggle works
-  - `testQuietHoursAlertToggle` — toggle works
-  - `testNotificationsEnabledToggle` — toggle works
-  - `testUserEmailCanBeSet` — email assignment works
-  - `testClearingHintsInitialState` — defaults correct
-  - `testClearHintsSuccessToggle` — toggle works
-  - `testClearHintsErrorCanBeSetAndCleared` — set and nil works
-- ✅ `SettingsViewRenderingTests` — 2/2 passed:
-  - `testViewRenders` — UIHostingController instantiation succeeds
-  - `testViewRendersInDarkMode` — dark mode rendering succeeds
-- ✅ All 114 existing tests continue to pass
-
----
-
-133. **Settings screen replaces three temporary HomeView toolbar buttons with a single gear icon (Step 11.1):** The original HomeView toolbar had three buttons (notifications bell, edit profile, sign out) that were always intended as temporary. The comment on HomeView line 8 noted "Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1)." The Settings gear icon (`Lucide.settings`) consolidates all three actions plus additional functionality into a proper Settings screen. The `.sheet(isPresented: $showSettings)` presentation style was chosen over `.fullScreenCover` because Settings is a utility screen, not a primary flow — sheets feel less modal and can be dismissed with a swipe gesture.
-
-134. **SettingsView reuses row patterns from EditVaultView but with three row variants (Step 11.1):** The `settingsRow` helper mirrors `EditVaultView.editSectionButton` exactly (HStack with Lucide icon, title/subtitle VStack, chevronRight, surface background, 12pt rounded rect, surfaceBorder stroke). Two additional variants were needed: `settingsInfoRow` for non-tappable display rows (email, version) with a right-aligned value label instead of a chevron, and `settingsToggleRow` for the notifications toggle with a `Toggle` control replacing the chevron. All three variants share the same padding (16pt horizontal, 14pt vertical), background (Theme.surface), and border treatment for visual consistency.
-
-135. **Notification toggle handles iOS permission lifecycle correctly (Step 11.1):** iOS does not allow apps to programmatically revoke notification permission once granted. The `toggleNotifications()` method checks the current `notificationsEnabled` state: if notifications are currently enabled and the user toggles off, it opens the system Settings app via `UIApplication.openSettingsURLString` where the user can manually disable notifications. If notifications are currently disabled, it requests permission via `UNUserNotificationCenter.requestAuthorization()` and registers for remote notifications on success. The initial authorization status is loaded in `.task` via `loadNotificationStatus()` which reads from `UNUserNotificationCenter.current().notificationSettings()`.
-
-136. **Clear All Hints uses paginated sequential deletion via existing HintService (Step 11.1):** There is no bulk delete endpoint in the backend API. `clearAllHints()` in SettingsViewModel paginates through all hints via `HintService.listHints(limit: 100, offset: 0)` in a `while true` loop (backend enforces limit ≤ 100), deleting each hint via `HintService.deleteHint(id:)`. The offset stays at 0 each iteration because deletions shift remaining hints forward. This reuses the existing service layer without requiring backend changes. A confirmation alert with a destructive "Clear All" button prevents accidental deletion. The loading state (`isClearingHints`) and success/error alerts provide user feedback throughout the operation.
-
-137. **HomeView data refresh on Settings dismissal covers all three data sources (Step 11.1):** The `.onChange(of: showSettings)` handler reloads vault data, recent hints, and saved recommendations when Settings is dismissed. This is necessary because the user may have (1) edited their profile via Settings > Edit Profile, (2) cleared all hints via Settings > Privacy > Clear All Hints, or (3) changed other settings that affect the Home screen display. All three data sources — `viewModel.loadVault()`, `viewModel.loadRecentHints()`, and `viewModel.loadSavedRecommendations()` — are refreshed to ensure the Home screen reflects the latest state.
-
----
-
-### Step 11.2: Implement Account Deletion (iOS + Backend) ✅
-**Date:** February 16, 2026
-**Status:** Complete
-
-**What was done:**
-- Implemented a three-stage account deletion flow on iOS: initial warning alert, Apple Sign-In re-authentication sheet, and final confirmation alert
-- Created `DELETE /api/v1/users/me` backend endpoint that deletes the auth user via Supabase Admin API, triggering CASCADE deletion through all 12+ database tables
-- Built `AccountService.swift` following the `DeviceTokenService` pattern for authenticated HTTP DELETE calls
-- Created `ReauthenticationSheet.swift` — a dedicated Apple Sign-In re-authentication view that verifies user identity without creating a new Supabase session
-- Added `signOutAfterDeletion()` to `AuthViewModel` using `signOut(scope: .local)` to clear only the local Keychain session (server-side user already deleted)
-- Extended `SettingsViewModel` with deletion state management: re-authentication flow orchestration, backend API call, and local SwiftData cleanup (clears PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation)
-- Refactored `SettingsView` alerts into two `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`) to prevent Swift type checker timeout from 8+ chained `.alert` modifiers
-- Added loading overlay with "Deleting account..." progress indicator during the deletion API call
-- Added `AccountDeleteResponse` Pydantic model to backend with default "deleted" status and confirmation message
-- Created 9 backend tests covering valid deletion (200 response, auth user removed, public user cascade), authentication requirements (401 for missing/invalid tokens), and module imports (response model defaults, route registration)
-- Added 8 new iOS tests: 7 SettingsViewModel state tests (deletion initial state, request flow, re-auth success/failure, error handling, loading toggle) + 1 ReauthenticationSheet rendering test
-
-**Files created:**
-- `iOS/Knot/Services/AccountService.swift` — Authenticated DELETE /api/v1/users/me client with error mapping
-- `iOS/Knot/Features/Settings/ReauthenticationSheet.swift` — Apple Sign-In re-authentication UI for identity verification before deletion
-- `backend/tests/test_account_deletion_api.py` — 9 tests: TestValidDeletion (3), TestAuthRequired (2), TestModuleImports (4)
-
-**Files modified:**
-- `backend/app/models/users.py` — Added `AccountDeleteResponse` model with "deleted" status and confirmation message
-- `backend/app/api/users.py` — Added `DELETE /api/v1/users/me` endpoint using httpx.AsyncClient to call Supabase Admin API with CASCADE deletion; added imports for httpx, config vars, and new model
-- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties (showReauthentication, showFinalDeleteConfirmation, isDeletingAccount, deleteAccountError, isReauthenticated), 5 methods (requestAccountDeletion, confirmDeleteAndReauthenticate, onReauthenticationSuccess, onReauthenticationFailure, executeAccountDeletion), and clearLocalData helper; added SwiftData import
-- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `signOutAfterDeletion()` with `signOut(scope: .local)` for Keychain-only cleanup
-- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced placeholder "coming soon" alert with three-stage deletion flow; extracted alerts into AccountDeletionAlerts and SettingsAlerts ViewModifiers; added modelContext environment, loading overlay, and ReauthenticationSheet presentation
-- `iOS/KnotTests/SettingsViewTests.swift` — Added 7 SettingsViewModelTests (deletion initial state, request flow, re-auth success/failure, error, loading toggle) + 1 SettingsViewRenderingTests (ReauthenticationSheet)
-
-**Test results:**
-- ✅ `pytest tests/test_account_deletion_api.py -v` — 9 passed, 0 failed
-  - `TestValidDeletion::test_delete_returns_200_with_status` — 200 with "deleted" status
-  - `TestValidDeletion::test_auth_user_removed_after_deletion` — auth.users row gone
-  - `TestValidDeletion::test_public_user_removed_after_deletion` — public.users CASCADE verified
-  - `TestAuthRequired::test_no_auth_header_returns_401` — no auth → 401
-  - `TestAuthRequired::test_invalid_token_returns_401` — bad token → 401
-  - `TestModuleImports::test_account_delete_response_import` — importable
-  - `TestModuleImports::test_account_delete_response_defaults` — correct defaults
-  - `TestModuleImports::test_users_router_has_delete_route` — DELETE route registered
-  - `TestModuleImports::test_existing_device_token_route_still_registered` — no regression
-- ✅ `xcodebuild test -only-testing:KnotTests` — 135 passed, 0 failed
-- ✅ `SettingsViewModelTests` — 18/18 passed (11 from Step 11.1 + 7 new)
-- ✅ `SettingsViewRenderingTests` — 3/3 passed (2 from Step 11.1 + 1 new)
-- ✅ All 114 existing non-settings tests continue to pass
-
-**Key implementation notes:**
-
-138. **CASCADE deletion strategy avoids manual table-by-table cleanup (Step 11.2):** The backend endpoint only calls `DELETE /auth/v1/admin/users/{user_id}` via the Supabase Admin API. This deletes the `auth.users` row, which cascades to `public.users` (ON DELETE CASCADE on the `id` FK), which cascades to `partner_vaults` (FK on user_id), which cascades to child tables (`partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`). Direct FK references from `recommendations`, `notification_queue`, and `user_preferences_weights` to `public.users` also cascade. No explicit multi-table deletion logic is needed — the database handles everything in a single atomic operation.
-
-139. **Re-authentication verifies identity without creating a new Supabase session (Step 11.2):** The `ReauthenticationSheet` presents Apple's `SignInWithAppleButton` but does NOT exchange the resulting identity token with Supabase. It only confirms the user can complete Apple Sign-In (which requires biometric/passcode confirmation), proving they are the account owner. The existing Supabase JWT session is still valid and is used for the actual `DELETE /api/v1/users/me` call. This avoids token/session conflicts that could occur if we created a second Supabase session during re-auth.
-
-140. **Local sign-out uses `scope: .local` after deletion (Step 11.2):** After the backend deletes the auth user, calling the regular `signOut()` would fail because it contacts the Supabase server (which would return 401 or user-not-found). `signOutAfterDeletion()` uses `SupabaseManager.client.auth.signOut(scope: .local)` which only clears the local Keychain session without making a network request. The `authStateChanges` listener picks up the `signedOut` event and sets `isAuthenticated = false`, navigating back to the Sign-In screen.
-
-141. **ViewModifier extraction prevents Swift type checker timeout (Step 11.2):** Adding 3 deletion alerts to the existing 5 settings alerts created a chain of 8+ `.alert` modifiers on a single view, which exceeded the Swift type checker's expression complexity threshold (error: "unable to type-check this expression in reasonable time"). The solution was to extract alerts into two separate `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`), each with their own `body(content:)` method. This breaks the monolithic expression into smaller, independently type-checked units. The toolbar was also extracted into a `settingsToolbar` computed property and the loading overlay into `deletionLoadingOverlay`.
-
-142. **SwiftData local data clearing is non-fatal (Step 11.2):** `clearLocalData(modelContext:)` deletes all SwiftData entities (PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation) but wraps the operation in a `do/catch` that only prints to console on failure. Backend data has already been deleted at this point, so local data clearing failure is non-fatal — orphaned local data would be harmless and cleared on next install.
-
----
-
-### Step 11.3: Implement Data Export (Backend + iOS) ✅
-**Date:** February 16, 2026
-**Status:** Complete
-
-**What was done:**
-- Built `GET /api/v1/users/me/export` backend endpoint that compiles all user data from 10+ database tables into a single JSON response for GDPR/privacy compliance
-- Created `DataExportResponse` Pydantic model with flexible `dict` types for nested data (avoids many single-use models for a user-facing export, not API interop)
-- Endpoint fetches: user account info, partner vault (with interests split into likes/dislikes, vibes, budgets, love languages), milestones, hints (excluding 768-dim `hint_embedding` vectors), recommendations, recommendation feedback, and notification queue history
-- Returns 200 even if the user has no vault (export still includes account info with empty collections)
-- Created `ExportService.swift` following the `AccountService.swift` pattern — `@MainActor final class: Sendable` with typed `ExportServiceError` enum, Bearer token auth, 30-second timeout, returns raw JSON `Data`
-- Extended `SettingsViewModel` with 4 new state properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`) and `exportUserData()` async method that calls the backend, pretty-prints the JSON response, writes it to a temp file (`knot-export-{date}.json`), and triggers the share sheet
-- Replaced the placeholder "coming soon" export alert in `SettingsView` with a working confirmation → export → share sheet flow using `UIActivityViewController` wrapped in `ShareSheet: UIViewControllerRepresentable`
-- Added loading overlay with "Exporting your data..." progress indicator during the export API call
-- Added export error alert and share sheet presentation via `.sheet(isPresented: $viewModel.showExportShareSheet)`
-- Created 24 backend tests across 4 test classes covering: export with full vault data (13 tests), export without vault (4 tests), authentication requirements (2 tests), and module imports/defaults (5 tests)
-- Added 5 new iOS tests for export state management (initial state, toggle, set/clear patterns)
-
-**Files created:**
-- `iOS/Knot/Services/ExportService.swift` — Authenticated GET /api/v1/users/me/export client with typed error mapping and raw Data response
-- `backend/tests/test_data_export_api.py` — 24 tests: TestExportWithVault (13), TestExportWithoutVault (4), TestAuthRequired (2), TestModuleImports (5)
-
-**Files modified:**
-- `backend/app/models/users.py` — Added `DataExportResponse` Pydantic model with `exported_at`, `user`, `partner_vault` (optional), `milestones`, `hints`, `recommendations`, `feedback`, `notifications` fields using `dict` and `list[dict]` types; added `from typing import Optional` import
-- `backend/app/api/users.py` — Added `GET /me/export` endpoint that fetches data from `users`, `partner_vaults`, `partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`, `recommendations`, `recommendation_feedback`, and `notification_queue` tables; added `from datetime import datetime, timezone` and `DataExportResponse` imports
-- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 4 new `@Published` properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`), added `exportUserData()` async method with pretty-print JSON formatting via `JSONSerialization` (`.prettyPrinted`, `.sortedKeys`), temp file writing, and share sheet triggering
-- `iOS/Knot/Features/Settings/SettingsView.swift` — Added `exportLoadingOverlay` computed property (same pattern as `deletionLoadingOverlay`); added `ShareSheet: UIViewControllerRepresentable` wrapping `UIActivityViewController`; replaced placeholder export alert in `SettingsAlerts` modifier with working confirmation alert ("Export" + "Cancel" buttons) + "Export Failed" error alert; added `.sheet(isPresented: $viewModel.showExportShareSheet)` for file sharing
-- `iOS/KnotTests/SettingsViewTests.swift` — Added `// MARK: - Data Export State Tests (Step 11.3)` section with 5 tests: `testExportInitialState`, `testIsExportingDataToggle`, `testExportDataErrorCanBeSetAndCleared`, `testShowExportShareSheetToggle`, `testExportedFileURLCanBeSetAndCleared`
-
-**Test results:**
-- ✅ `pytest tests/test_data_export_api.py -v` — 24 passed, 0 failed
-  - `TestExportWithVault` (13 tests): export returns 200, has exported_at timestamp, user section present with id/email/created_at, vault section present with partner_name/interests/dislikes/vibes/budgets/love_languages, milestones list present, hints list present with correct fields, recommendations list present, feedback list present, notifications list present
-  - `TestExportWithoutVault` (4 tests): returns 200, user section present, partner_vault is null, hints/milestones/recommendations are empty lists
-  - `TestAuthRequired` (2 tests): no auth header → 401, invalid token → 401
-  - `TestModuleImports` (5 tests): DataExportResponse importable, default fields correct, GET /me/export route registered, existing device-token route still registered, existing DELETE /me route still registered
-- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 24 new)
-- ✅ `xcodebuild test -only-testing:KnotTests` — 140 passed, 0 failed
-- ✅ `SettingsViewModelTests` — 23/23 passed (18 from Steps 11.1–11.2 + 5 new)
-- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
-- ✅ All 114 existing non-settings tests continue to pass
-
-**Key implementation notes:**
-
-143. **Export returns JSON directly instead of a file download (Step 11.3):** The `GET /me/export` endpoint returns the export as a JSON response body rather than a file attachment (`Content-Disposition: attachment`). This simplifies iOS integration — `ExportService` receives raw `Data` from `URLSession`, the ViewModel pretty-prints it with `JSONSerialization` (`.prettyPrinted` + `.sortedKeys` for human readability), writes it to a temp file (`knot-export-{date}.json` in `FileManager.default.temporaryDirectory`), and presents it via `UIActivityViewController` wrapped in a `ShareSheet: UIViewControllerRepresentable`. The user can then save to Files, AirDrop, or share via any system extension.
-
-144. **Hint embeddings are excluded from the export (Step 11.3):** The `hints` table query selects only `id, hint_text, source, is_used, created_at` — deliberately omitting the `hint_embedding` column which contains 768-dimensional pgvector arrays. These float arrays are not human-readable and would bloat the export JSON significantly. The embeddings are a server-side implementation detail for semantic search, not user data.
-
-145. **Export compiles data from interests into likes/dislikes split (Step 11.3):** The `partner_interests` table stores both likes and dislikes with an `interest_type` discriminator column. The export endpoint splits them into separate `interests` (likes) and `dislikes` arrays within the `partner_vault` section using list comprehensions filtered by `interest_type == "like"` and `interest_type == "dislike"`. This matches the user's mental model from onboarding.
-
-146. **No vault returns 200 with null/empty collections (Step 11.3):** If a user hasn't completed onboarding (no partner vault exists), the export still succeeds with `partner_vault: null` and empty arrays for milestones, hints, recommendations, etc. The user account info (`id`, `email`, `created_at`) is always present. This avoids a 404 error that might confuse users who signed up but didn't complete onboarding.
-
----
-
-### Step 11.4: Implement Notification Preferences (Backend + iOS) ✅
-**Date:** February 16, 2026
-**Status:** Complete
-
-**What was done:**
-- Added `notifications_enabled` boolean column to `public.users` via migration 00019, acting as a global kill switch for push notifications
-- Created `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models in `models/users.py` with field validators for hour range (0-23) and timezone (IANA via `ZoneInfo()`)
-- Added `GET /api/v1/users/me/notification-preferences` and `PUT /api/v1/users/me/notification-preferences` endpoints in `api/users.py` for reading and partially updating notification preferences
-- Extended `check_quiet_hours()` in `services/dnd.py` to return a 3-tuple `(is_quiet, next_delivery, notifications_enabled)`, adding the global toggle as a third element
-- Integrated `notifications_enabled` flag into `api/notifications.py` webhook processing — when `False`, notifications are skipped before quiet hours or push delivery logic runs
-- Created `NotificationPreferencesService.swift` following `ExportService.swift` pattern with `fetchPreferences()` and `updatePreferences()` methods
-- Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` to `DTOs.swift` with snake_case CodingKeys
-- Extended `SettingsViewModel.swift` with quiet hours state (`quietHoursStart`, `quietHoursEnd`, `isLoadingPreferences`, `isSavingPreferences`, `preferencesError`, `showQuietHoursPicker`), `loadNotificationPreferences()`, `saveQuietHours()`, and `formatHour()` helper
-- Replaced the "Quiet Hours coming soon" placeholder in `SettingsView.swift` with an expandable quiet hours section featuring start/end hour pickers (0-23 formatted as 12-hour time), loading indicators, and automatic save on change
-- Created 28 backend tests across 7 test classes and added 8 iOS tests for notification preferences state management
-
-**Files created:**
-- `backend/supabase/migrations/00019_add_notifications_enabled_to_users.sql` — Adds `notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE` to `public.users`
-- `backend/tests/test_notification_preferences_api.py` — 28 tests: TestGetDefaultPreferences (4), TestUpdatePreferences (6), TestValidation (5), TestAuthRequired (4), TestModuleImports (7), TestWebhookNotificationsDisabled (2)
-- `iOS/Knot/Services/NotificationPreferencesService.swift` — Authenticated GET/PUT notification preferences client
-
-**Files modified:**
-- `backend/app/models/users.py` — Added `NotificationPreferencesResponse` and `NotificationPreferencesRequest` Pydantic models with validators
-- `backend/app/api/users.py` — Added GET and PUT `/me/notification-preferences` endpoints
-- `backend/app/api/notifications.py` — Updated webhook handler to unpack 3-tuple from `check_quiet_hours()` and skip when `notifications_enabled` is False
-- `backend/app/services/dnd.py` — Extended `check_quiet_hours()` return type to `tuple[bool, datetime | None, bool]`, loading `notifications_enabled` from the same DB query
-- `iOS/Knot/Models/DTOs.swift` — Added `NotificationPreferencesDTO` and `NotificationPreferencesUpdateDTO` structs
-- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 6 new state properties and 3 methods for notification preferences management
-- `iOS/Knot/Features/Settings/SettingsView.swift` — Replaced quiet hours placeholder with expandable picker UI, removed placeholder alert from `SettingsAlerts`
-- `iOS/KnotTests/SettingsViewTests.swift` — Added 8 new notification preferences tests (quietHoursStart/End, isLoadingPreferences, isSavingPreferences, preferencesError, formatHour, showQuietHoursPicker)
-- `iOS/Knot.xcodeproj/project.pbxproj` — Added `NotificationPreferencesService.swift` to PBXBuildFile, PBXFileReference, Services group, and Sources build phase
-
-**Test results:**
-- ✅ `pytest tests/test_notification_preferences_api.py -v` — 28 passed, 0 failed
-  - `TestGetDefaultPreferences` (4 tests): returns 200, notifications_enabled defaults to True, quiet_hours_start defaults to 22, quiet_hours_end defaults to 8
-  - `TestUpdatePreferences` (6 tests): updates quiet hours, updates notifications_enabled to False, updates timezone, partial update preserves other fields, reflects changes on subsequent GET, can update single field
-  - `TestValidation` (5 tests): rejects negative quiet hours, rejects hour > 23, rejects invalid timezone string, accepts valid timezone, accepts edge case hour 0
-  - `TestAuthRequired` (4 tests): GET without auth → 401, PUT without auth → 401, GET with invalid token → 401, PUT with invalid token → 401
-  - `TestModuleImports` (7 tests): models importable, defaults correct, GET route registered, PUT route registered, existing device-token route still works, existing DELETE /me route still works, existing GET /me/export route still works
-  - `TestWebhookNotificationsDisabled` (2 tests): disabled notifications → webhook skips with "skipped" status, enabled notifications → webhook processes normally
-- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 28 new)
-- ✅ `xcodebuild test -only-testing:KnotTests` — 147 passed, 0 failed
-- ✅ `SettingsViewModelTests` — 30/30 passed (22 from Steps 11.1–11.3 + 8 new)
-- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
-- ✅ All 114 existing non-settings tests continue to pass
-- ✅ Full iOS test suite (unit + UI) passes: 147 unit tests + 4 UI tests = all green
-
-**Key implementation notes:**
-
-147. **`check_quiet_hours()` returns a 3-tuple to avoid extra DB queries (Step 11.4):** Rather than adding a separate DB query for `notifications_enabled` in the webhook handler, the existing `check_quiet_hours()` function was extended to also read `notifications_enabled` from the same `users` table query it already makes. The return type changed from `tuple[bool, datetime | None]` to `tuple[bool, datetime | None, bool]` where the third element is the global toggle. This avoids an additional round-trip to the database during webhook processing.
-
-148. **Notification preferences use partial updates (Step 11.4):** The `PUT /me/notification-preferences` endpoint accepts a partial payload — only fields that are present in the request body are updated. This is implemented by checking each field for `None` before including it in the Supabase update dict. This allows the iOS app to update just quiet hours without needing to resend the `notifications_enabled` flag, and vice versa.
-
-149. **Quiet hours displayed as 12-hour time on iOS (Step 11.4):** The backend stores quiet hours as integers 0-23, but the iOS UI displays them in 12-hour format via `formatHour()` (e.g., 22 → "10:00 PM", 0 → "12:00 AM", 12 → "12:00 PM"). The `Picker` wheel shows all 24 hours formatted this way. The conversion is purely a display concern — the backend always receives and returns 0-23 integers.
-
-150. **PostgREST schema cache must be reloaded after DDL changes:** After applying migration 00019 (and previously unapplied migration 00014) to Supabase, PostgREST continued to return errors because its schema cache was stale. The "Reload schema" button is not visible in newer Supabase dashboard versions. The fix is to run `NOTIFY pgrst, 'reload schema'` in the SQL Editor, which tells PostgREST to re-read the database schema.
-
-151. **Mock patch paths must target the import location (Step 11.4):** The webhook tests for `verify_qstash_signature` initially failed because the mock patched `app.services.qstash.verify_qstash_signature` (the definition location) instead of `app.api.notifications.verify_qstash_signature` (the import location). Python's `unittest.mock.patch` intercepts at the module where the name is looked up, not where it's defined. Similarly, mocking `check_quiet_hours` directly (rather than mocking the DB layer beneath it) was necessary to control the 3-tuple return value deterministically.
-
----
