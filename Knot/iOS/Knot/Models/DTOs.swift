@@ -499,3 +499,164 @@ struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
         case createdAt = "created_at"
     }
 }
+
+// MARK: - Data Export DTOs (Step 11.3)
+
+/// Full data export returned by `GET /api/v1/users/me/export`.
+/// Decoded on iOS to render a styled PDF export document.
+struct DataExportResponse: Codable, Sendable {
+    let exportedAt: String
+    let user: ExportUser
+    let partnerVault: ExportVault?
+    let milestones: [ExportMilestone]
+    let hints: [ExportHint]
+    let recommendations: [ExportRecommendation]
+    let feedback: [ExportFeedback]
+    let notifications: [ExportNotification]
+
+    enum CodingKeys: String, CodingKey {
+        case exportedAt = "exported_at"
+        case user
+        case partnerVault = "partner_vault"
+        case milestones, hints, recommendations, feedback, notifications
+    }
+}
+
+struct ExportUser: Codable, Sendable {
+    let id: String
+    let email: String?
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, email
+        case createdAt = "created_at"
+    }
+}
+
+struct ExportVault: Codable, Sendable {
+    let partnerName: String
+    let relationshipTenureMonths: Int?
+    let cohabitationStatus: String?
+    let locationCity: String?
+    let locationState: String?
+    let locationCountry: String?
+    let interests: [String]
+    let dislikes: [String]
+    let vibes: [String]
+    let budgets: [ExportBudget]
+    let loveLanguages: [ExportLoveLanguage]
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case partnerName = "partner_name"
+        case relationshipTenureMonths = "relationship_tenure_months"
+        case cohabitationStatus = "cohabitation_status"
+        case locationCity = "location_city"
+        case locationState = "location_state"
+        case locationCountry = "location_country"
+        case interests, dislikes, vibes, budgets
+        case loveLanguages = "love_languages"
+        case createdAt = "created_at"
+    }
+}
+
+struct ExportBudget: Codable, Sendable {
+    let occasionType: String
+    let minAmount: Int
+    let maxAmount: Int
+    let currency: String
+
+    enum CodingKeys: String, CodingKey {
+        case occasionType = "occasion_type"
+        case minAmount = "min_amount"
+        case maxAmount = "max_amount"
+        case currency
+    }
+}
+
+struct ExportLoveLanguage: Codable, Sendable {
+    let language: String
+    let priority: Int
+}
+
+struct ExportMilestone: Codable, Sendable {
+    let milestoneType: String
+    let milestoneName: String
+    let milestoneDate: String
+    let recurrence: String
+    let budgetTier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case milestoneType = "milestone_type"
+        case milestoneName = "milestone_name"
+        case milestoneDate = "milestone_date"
+        case recurrence
+        case budgetTier = "budget_tier"
+    }
+}
+
+struct ExportHint: Codable, Sendable {
+    let hintText: String
+    let source: String
+    let isUsed: Bool
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case hintText = "hint_text"
+        case source
+        case isUsed = "is_used"
+        case createdAt = "created_at"
+    }
+}
+
+struct ExportRecommendation: Codable, Sendable {
+    let recommendationType: String
+    let title: String
+    let description: String?
+    let externalUrl: String?
+    let priceCents: Int?
+    let merchantName: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case recommendationType = "recommendation_type"
+        case title, description
+        case externalUrl = "external_url"
+        case priceCents = "price_cents"
+        case merchantName = "merchant_name"
+        case createdAt = "created_at"
+    }
+}
+
+struct ExportFeedback: Codable, Sendable {
+    let recommendationId: String
+    let action: String
+    let rating: Int?
+    let feedbackText: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case recommendationId = "recommendation_id"
+        case action, rating
+        case feedbackText = "feedback_text"
+        case createdAt = "created_at"
+    }
+}
+
+struct ExportNotification: Codable, Sendable {
+    let milestoneId: String
+    let scheduledFor: String
+    let daysBefore: Int
+    let status: String
+    let sentAt: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case milestoneId = "milestone_id"
+        case scheduledFor = "scheduled_for"
+        case daysBefore = "days_before"
+        case status
+        case sentAt = "sent_at"
+        case createdAt = "created_at"
+    }
+}

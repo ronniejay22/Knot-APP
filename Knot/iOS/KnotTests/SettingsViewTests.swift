@@ -5,6 +5,7 @@
 //  Created on February 16, 2026.
 //  Step 11.1: Unit tests for SettingsView and SettingsViewModel.
 //  Step 11.2: Account deletion state management and ReauthenticationSheet tests.
+//  Step 11.3: Data export state management tests.
 //
 
 import XCTest
@@ -211,6 +212,63 @@ final class SettingsViewModelTests: XCTestCase {
 
         vm.isDeletingAccount = false
         XCTAssertFalse(vm.isDeletingAccount)
+    }
+
+    // MARK: - Data Export State Tests (Step 11.3)
+
+    /// Verify new export state properties have correct defaults.
+    func testExportInitialState() {
+        let vm = SettingsViewModel()
+
+        XCTAssertFalse(vm.isExportingData)
+        XCTAssertNil(vm.exportDataError)
+        XCTAssertFalse(vm.showExportShareSheet)
+        XCTAssertNil(vm.exportedFileURL)
+    }
+
+    /// Verify isExportingData can be toggled.
+    func testIsExportingDataToggle() {
+        let vm = SettingsViewModel()
+
+        vm.isExportingData = true
+        XCTAssertTrue(vm.isExportingData)
+
+        vm.isExportingData = false
+        XCTAssertFalse(vm.isExportingData)
+    }
+
+    /// Verify exportDataError can be set and cleared.
+    func testExportDataErrorCanBeSetAndCleared() {
+        let vm = SettingsViewModel()
+
+        vm.exportDataError = "Network error"
+        XCTAssertEqual(vm.exportDataError, "Network error")
+
+        vm.exportDataError = nil
+        XCTAssertNil(vm.exportDataError)
+    }
+
+    /// Verify showExportShareSheet can be toggled.
+    func testShowExportShareSheetToggle() {
+        let vm = SettingsViewModel()
+
+        vm.showExportShareSheet = true
+        XCTAssertTrue(vm.showExportShareSheet)
+
+        vm.showExportShareSheet = false
+        XCTAssertFalse(vm.showExportShareSheet)
+    }
+
+    /// Verify exportedFileURL can be set and cleared.
+    func testExportedFileURLCanBeSetAndCleared() {
+        let vm = SettingsViewModel()
+
+        let testURL = URL(fileURLWithPath: "/tmp/test-export.pdf")
+        vm.exportedFileURL = testURL
+        XCTAssertEqual(vm.exportedFileURL, testURL)
+
+        vm.exportedFileURL = nil
+        XCTAssertNil(vm.exportedFileURL)
     }
 }
 

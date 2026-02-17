@@ -19,7 +19,7 @@ import LucideIcons
 /// - **Account** — email display, sign out, delete account (Step 11.2)
 /// - **Partner Profile** — edit vault (reuses `EditVaultView`)
 /// - **Notifications** — enable/disable toggle, quiet hours (Step 11.4 placeholder)
-/// - **Privacy** — data export (Step 11.3 placeholder), clear all hints
+/// - **Privacy** — data export (Step 11.3), clear all hints
 /// - **About** — app version, terms of service, privacy policy
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -49,9 +49,12 @@ struct SettingsView: View {
                     .padding(.top, 8)
                 }
 
-                // MARK: - Deletion Loading Overlay (Step 11.2)
+                // MARK: - Loading Overlays
                 if viewModel.isDeletingAccount {
                     deletionLoadingOverlay
+                }
+                if viewModel.isExportingData {
+                    exportLoadingOverlay
                 }
             }
             .navigationTitle("Settings")
@@ -77,6 +80,11 @@ struct SettingsView: View {
                     onCancel: { viewModel.onReauthenticationFailure() }
                 )
             }
+            .sheet(isPresented: $viewModel.showExportShareSheet) {
+                if let fileURL = viewModel.exportedFileURL {
+                    ShareSheet(items: [fileURL])
+                }
+            }
             .task {
                 await viewModel.loadUserEmail()
                 await viewModel.loadNotificationStatus()
@@ -93,6 +101,24 @@ struct SettingsView: View {
                 ProgressView()
                     .tint(.white)
                 Text("Deleting account...")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    /// Loading overlay shown during data export.
+    private var exportLoadingOverlay: some View {
+        Group {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView()
+                    .tint(.white)
+                Text("Exporting your data...")
                     .font(.subheadline)
                     .foregroundStyle(.white)
             }
@@ -202,7 +228,7 @@ struct SettingsView: View {
             settingsRow(
                 icon: Lucide.download,
                 title: "Export My Data",
-                subtitle: "Download your data as JSON"
+                subtitle: "Download your data as a PDF"
             ) {
                 viewModel.showExportDataAlert = true
             }
@@ -462,9 +488,20 @@ private struct SettingsAlerts: ViewModifier {
                 Text("All hints have been cleared successfully.")
             }
             .alert("Export My Data", isPresented: $viewModel.showExportDataAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Export") {
+                    Task { await viewModel.exportUserData() }
+                }
+            } message: {
+                Text("This will export all your Knot data as a PDF. You can save it or share it.")
+            }
+            .alert("Export Failed", isPresented: Binding(
+                get: { viewModel.exportDataError != nil },
+                set: { if !$0 { viewModel.exportDataError = nil } }
+            )) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Data export will be available in a future update.")
+                Text(viewModel.exportDataError ?? "An unexpected error occurred.")
             }
             .alert("Quiet Hours", isPresented: $viewModel.showQuietHoursAlert) {
                 Button("OK", role: .cancel) { }
@@ -480,6 +517,22 @@ private struct SettingsAlerts: ViewModifier {
                 Text(viewModel.clearHintsError ?? "An unexpected error occurred.")
             }
     }
+}
+
+// MARK: - Share Sheet (Step 11.3)
+
+/// Wraps `UIActivityViewController` for use in SwiftUI sheets.
+///
+/// Used by the data export flow to present the system share sheet with
+/// the exported JSON file, allowing the user to save to Files, AirDrop, etc.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
 }
 
 // MARK: - Previews

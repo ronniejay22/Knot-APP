@@ -61,6 +61,8 @@
 		B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */; };
 		B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */; };
 		BB1BF9D7EFDB096248E5F005 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */; };
+		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
+		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
@@ -96,6 +98,7 @@
 		02978CA31C43A88F5065E75D /* Knot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Knot.entitlements; sourceTree = "<group>"; };
 		05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseRatingSheet.swift; sourceTree = "<group>"; };
 		0C29B361DC709BF91BBF303D /* MerchantHandoffService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantHandoffService.swift; sourceTree = "<group>"; };
+		0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportRenderer.swift; sourceTree = "<group>"; };
 		0DCCE19756089A177B0B31FA /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
 		13D5AEEE5FEBF1EE92002601 /* SavedRecommendation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedRecommendation.swift; sourceTree = "<group>"; };
 		21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingVibesView.swift; sourceTree = "<group>"; };
@@ -120,6 +123,7 @@
 		65623696E83EBB3DD785BD2D /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		693B88ED4559E3D46BAC3E5D /* VaultService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultService.swift; sourceTree = "<group>"; };
 		6AB350F92D604D47901732E6 /* DTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOs.swift; sourceTree = "<group>"; };
+		6AC7D2C17D189446F4586EF2 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		6D0923D42485ED34C6E165B1 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
 		71DF8EE438910DDA2E1CCC1A /* OnboardingBasicInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBasicInfoView.swift; sourceTree = "<group>"; };
@@ -181,9 +185,11 @@
 			children = (
 				27AC80CFB913B9EFCC18506D /* AccountService.swift */,
 				9131AE157A0315E3D726AA8D /* DeviceTokenService.swift */,
+				6AC7D2C17D189446F4586EF2 /* ExportService.swift */,
 				91DD62D4760696C298A091D4 /* HintService.swift */,
 				0C29B361DC709BF91BBF303D /* MerchantHandoffService.swift */,
 				5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */,
+				0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */,
 				6D0923D42485ED34C6E165B1 /* RecommendationService.swift */,
 				5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */,
 				693B88ED4559E3D46BAC3E5D /* VaultService.swift */,
@@ -552,6 +558,7 @@
 				278ECB519185373C6923BDD9 /* DeepLinkRecommendationView.swift in Sources */,
 				8A20E14FFD4274B9C04D273C /* DeviceTokenService.swift in Sources */,
 				22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */,
+				BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */,
 				F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */,
 				029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */,
 				2320F84E7581775AE98DBDF9 /* HintService.swift in Sources */,
@@ -577,6 +584,7 @@
 				E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */,
 				165A8F6527B1F20D47746B69 /* OnboardingViewModel.swift in Sources */,
 				13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */,
+				BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */,
 				868B2F83C136C7392D9DEF5B /* PartnerVaultLocal.swift in Sources */,
 				A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */,
 				03B65E3B26EFA2D4644F34F9 /* PurchaseRatingSheet.swift in Sources */,

@@ -7,6 +7,7 @@
 //  notification toggle, app version display.
 //  Step 11.2: Account deletion state management — re-authentication flow,
 //  backend deletion call, local SwiftData cleanup.
+//  Step 11.3: Data export — export all user data as JSON via share sheet.
 //
 
 import Foundation
@@ -58,8 +59,20 @@ final class SettingsViewModel {
     /// Whether the re-authentication succeeded (ready to proceed with deletion).
     var isReauthenticated = false
 
-    /// Whether to show the "export data coming soon" alert (Step 11.3).
+    /// Whether to show the export data confirmation alert (Step 11.3).
     var showExportDataAlert = false
+
+    /// Whether a data export is currently in progress.
+    var isExportingData = false
+
+    /// Error message from the data export operation.
+    var exportDataError: String?
+
+    /// Whether the export completed successfully (triggers share sheet).
+    var showExportShareSheet = false
+
+    /// The temporary file URL of the exported JSON file for sharing.
+    var exportedFileURL: URL?
 
     /// Whether to show the "quiet hours coming soon" alert (Step 11.4).
     var showQuietHoursAlert = false
@@ -151,6 +164,44 @@ final class SettingsViewModel {
         } catch {
             isClearingHints = false
             clearHintsError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Data Export (Step 11.3)
+
+    /// Exports all user data as a styled PDF and prepares a temporary file for sharing.
+    ///
+    /// Calls `GET /api/v1/users/me/export`, decodes the JSON into a structured
+    /// model, renders a branded PDF via `PDFExportRenderer`, writes it to a
+    /// temporary file, and triggers the system share sheet.
+    func exportUserData() async {
+        isExportingData = true
+        exportDataError = nil
+
+        do {
+            let service = ExportService()
+            let rawData = try await service.exportData()
+
+            let decoder = JSONDecoder()
+            let exportData = try decoder.decode(DataExportResponse.self, from: rawData)
+
+            let renderer = PDFExportRenderer()
+            let pdfData = try await renderer.renderPDF(from: exportData)
+
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: Date())
+            let fileName = "Knot Data Export \u{2014} \(dateString).pdf"
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+            try pdfData.write(to: tempURL)
+
+            exportedFileURL = tempURL
+            isExportingData = false
+            showExportShareSheet = true
+        } catch {
+            isExportingData = false
+            exportDataError = error.localizedDescription
         }
     }
 

@@ -3957,7 +3957,7 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 ### Phase 11: Settings & Profile Management
 - [x] **Step 11.1:** Build Settings Screen (iOS)
 - [x] **Step 11.2:** Implement Account Deletion (iOS + Backend)
-- [ ] **Step 11.3:** Implement Data Export (Backend)
+- [x] **Step 11.3:** Implement Data Export (Backend + iOS)
 - [ ] **Step 11.4:** Implement Notification Preferences (iOS + Backend)
 
 ### Phase 12: Testing & Quality Assurance
@@ -4354,5 +4354,57 @@ Both use `CodingKeys` for snake_case ↔ camelCase mapping.
 141. **ViewModifier extraction prevents Swift type checker timeout (Step 11.2):** Adding 3 deletion alerts to the existing 5 settings alerts created a chain of 8+ `.alert` modifiers on a single view, which exceeded the Swift type checker's expression complexity threshold (error: "unable to type-check this expression in reasonable time"). The solution was to extract alerts into two separate `ViewModifier` structs (`AccountDeletionAlerts` and `SettingsAlerts`), each with their own `body(content:)` method. This breaks the monolithic expression into smaller, independently type-checked units. The toolbar was also extracted into a `settingsToolbar` computed property and the loading overlay into `deletionLoadingOverlay`.
 
 142. **SwiftData local data clearing is non-fatal (Step 11.2):** `clearLocalData(modelContext:)` deletes all SwiftData entities (PartnerVaultLocal, HintLocal, MilestoneLocal, RecommendationLocal, SavedRecommendation) but wraps the operation in a `do/catch` that only prints to console on failure. Backend data has already been deleted at this point, so local data clearing failure is non-fatal — orphaned local data would be harmless and cleared on next install.
+
+---
+
+### Step 11.3: Implement Data Export (Backend + iOS) ✅
+**Date:** February 16, 2026
+**Status:** Complete
+
+**What was done:**
+- Built `GET /api/v1/users/me/export` backend endpoint that compiles all user data from 10+ database tables into a single JSON response for GDPR/privacy compliance
+- Created `DataExportResponse` Pydantic model with flexible `dict` types for nested data (avoids many single-use models for a user-facing export, not API interop)
+- Endpoint fetches: user account info, partner vault (with interests split into likes/dislikes, vibes, budgets, love languages), milestones, hints (excluding 768-dim `hint_embedding` vectors), recommendations, recommendation feedback, and notification queue history
+- Returns 200 even if the user has no vault (export still includes account info with empty collections)
+- Created `ExportService.swift` following the `AccountService.swift` pattern — `@MainActor final class: Sendable` with typed `ExportServiceError` enum, Bearer token auth, 30-second timeout, returns raw JSON `Data`
+- Extended `SettingsViewModel` with 4 new state properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`) and `exportUserData()` async method that calls the backend, pretty-prints the JSON response, writes it to a temp file (`knot-export-{date}.json`), and triggers the share sheet
+- Replaced the placeholder "coming soon" export alert in `SettingsView` with a working confirmation → export → share sheet flow using `UIActivityViewController` wrapped in `ShareSheet: UIViewControllerRepresentable`
+- Added loading overlay with "Exporting your data..." progress indicator during the export API call
+- Added export error alert and share sheet presentation via `.sheet(isPresented: $viewModel.showExportShareSheet)`
+- Created 24 backend tests across 4 test classes covering: export with full vault data (13 tests), export without vault (4 tests), authentication requirements (2 tests), and module imports/defaults (5 tests)
+- Added 5 new iOS tests for export state management (initial state, toggle, set/clear patterns)
+
+**Files created:**
+- `iOS/Knot/Services/ExportService.swift` — Authenticated GET /api/v1/users/me/export client with typed error mapping and raw Data response
+- `backend/tests/test_data_export_api.py` — 24 tests: TestExportWithVault (13), TestExportWithoutVault (4), TestAuthRequired (2), TestModuleImports (5)
+
+**Files modified:**
+- `backend/app/models/users.py` — Added `DataExportResponse` Pydantic model with `exported_at`, `user`, `partner_vault` (optional), `milestones`, `hints`, `recommendations`, `feedback`, `notifications` fields using `dict` and `list[dict]` types; added `from typing import Optional` import
+- `backend/app/api/users.py` — Added `GET /me/export` endpoint that fetches data from `users`, `partner_vaults`, `partner_interests`, `partner_milestones`, `partner_vibes`, `partner_budgets`, `partner_love_languages`, `hints`, `recommendations`, `recommendation_feedback`, and `notification_queue` tables; added `from datetime import datetime, timezone` and `DataExportResponse` imports
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added 4 new `@Published` properties (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`), added `exportUserData()` async method with pretty-print JSON formatting via `JSONSerialization` (`.prettyPrinted`, `.sortedKeys`), temp file writing, and share sheet triggering
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Added `exportLoadingOverlay` computed property (same pattern as `deletionLoadingOverlay`); added `ShareSheet: UIViewControllerRepresentable` wrapping `UIActivityViewController`; replaced placeholder export alert in `SettingsAlerts` modifier with working confirmation alert ("Export" + "Cancel" buttons) + "Export Failed" error alert; added `.sheet(isPresented: $viewModel.showExportShareSheet)` for file sharing
+- `iOS/KnotTests/SettingsViewTests.swift` — Added `// MARK: - Data Export State Tests (Step 11.3)` section with 5 tests: `testExportInitialState`, `testIsExportingDataToggle`, `testExportDataErrorCanBeSetAndCleared`, `testShowExportShareSheetToggle`, `testExportedFileURLCanBeSetAndCleared`
+
+**Test results:**
+- ✅ `pytest tests/test_data_export_api.py -v` — 24 passed, 0 failed
+  - `TestExportWithVault` (13 tests): export returns 200, has exported_at timestamp, user section present with id/email/created_at, vault section present with partner_name/interests/dislikes/vibes/budgets/love_languages, milestones list present, hints list present with correct fields, recommendations list present, feedback list present, notifications list present
+  - `TestExportWithoutVault` (4 tests): returns 200, user section present, partner_vault is null, hints/milestones/recommendations are empty lists
+  - `TestAuthRequired` (2 tests): no auth header → 401, invalid token → 401
+  - `TestModuleImports` (5 tests): DataExportResponse importable, default fields correct, GET /me/export route registered, existing device-token route still registered, existing DELETE /me route still registered
+- ✅ `pytest tests/ -v` — Full backend suite passes (all existing + 24 new)
+- ✅ `xcodebuild test -only-testing:KnotTests` — 140 passed, 0 failed
+- ✅ `SettingsViewModelTests` — 23/23 passed (18 from Steps 11.1–11.2 + 5 new)
+- ✅ `SettingsViewRenderingTests` — 3/3 passed (no changes)
+- ✅ All 114 existing non-settings tests continue to pass
+
+**Key implementation notes:**
+
+143. **Export returns JSON directly instead of a file download (Step 11.3):** The `GET /me/export` endpoint returns the export as a JSON response body rather than a file attachment (`Content-Disposition: attachment`). This simplifies iOS integration — `ExportService` receives raw `Data` from `URLSession`, the ViewModel pretty-prints it with `JSONSerialization` (`.prettyPrinted` + `.sortedKeys` for human readability), writes it to a temp file (`knot-export-{date}.json` in `FileManager.default.temporaryDirectory`), and presents it via `UIActivityViewController` wrapped in a `ShareSheet: UIViewControllerRepresentable`. The user can then save to Files, AirDrop, or share via any system extension.
+
+144. **Hint embeddings are excluded from the export (Step 11.3):** The `hints` table query selects only `id, hint_text, source, is_used, created_at` — deliberately omitting the `hint_embedding` column which contains 768-dimensional pgvector arrays. These float arrays are not human-readable and would bloat the export JSON significantly. The embeddings are a server-side implementation detail for semantic search, not user data.
+
+145. **Export compiles data from interests into likes/dislikes split (Step 11.3):** The `partner_interests` table stores both likes and dislikes with an `interest_type` discriminator column. The export endpoint splits them into separate `interests` (likes) and `dislikes` arrays within the `partner_vault` section using list comprehensions filtered by `interest_type == "like"` and `interest_type == "dislike"`. This matches the user's mental model from onboarding.
+
+146. **No vault returns 200 with null/empty collections (Step 11.3):** If a user hasn't completed onboarding (no partner vault exists), the export still succeeds with `partner_vault: null` and empty arrays for milestones, hints, recommendations, etc. The user account info (`id`, `email`, `created_at`) is always present. This avoids a 404 error that might confuse users who signed up but didn't complete onboarding.
 
 ---
