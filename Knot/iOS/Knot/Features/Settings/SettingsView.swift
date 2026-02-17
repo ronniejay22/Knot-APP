@@ -524,7 +524,7 @@ private struct SettingsAlerts: ViewModifier {
 /// Wraps `UIActivityViewController` for use in SwiftUI sheets.
 ///
 /// Used by the data export flow to present the system share sheet with
-/// the exported JSON file, allowing the user to save to Files, AirDrop, etc.
+/// the exported PDF file, allowing the user to save to Files, AirDrop, etc.
 private struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 

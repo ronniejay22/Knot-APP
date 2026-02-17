@@ -7,7 +7,7 @@
 //  notification toggle, app version display.
 //  Step 11.2: Account deletion state management — re-authentication flow,
 //  backend deletion call, local SwiftData cleanup.
-//  Step 11.3: Data export — export all user data as JSON via share sheet.
+//  Step 11.3: Data export — export all user data as PDF via share sheet.
 //
 
 import Foundation
@@ -71,7 +71,7 @@ final class SettingsViewModel {
     /// Whether the export completed successfully (triggers share sheet).
     var showExportShareSheet = false
 
-    /// The temporary file URL of the exported JSON file for sharing.
+    /// The temporary file URL of the exported PDF file for sharing.
     var exportedFileURL: URL?
 
     /// Whether to show the "quiet hours coming soon" alert (Step 11.4).
