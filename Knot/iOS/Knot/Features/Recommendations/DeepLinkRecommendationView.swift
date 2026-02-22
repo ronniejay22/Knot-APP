@@ -116,9 +116,13 @@ struct DeepLinkRecommendationView: View {
                     recommendationType: rec.recommendationType,
                     priceCents: rec.priceCents,
                     currency: "USD",
+                    priceConfidence: "unknown",
                     merchantName: rec.merchantName,
                     imageURL: rec.imageUrl,
                     isSaved: false,
+                    matchedInterests: [],
+                    matchedVibes: [],
+                    matchedLoveLanguages: [],
                     onSelect: {
                         openExternalURL(rec.externalUrl)
                     },

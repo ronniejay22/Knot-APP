@@ -371,14 +371,17 @@ def _normalize_claude_result(
             "address": None,
         }
 
+    price_cents = raw.get("price_cents")
+
     return {
         "id": str(uuid.uuid4()),
         "source": "claude_search",
         "type": rec_type,
         "title": raw.get("title", "Unknown"),
         "description": raw.get("description"),
-        "price_cents": raw.get("price_cents"),
+        "price_cents": price_cents,
         "currency": currency,
+        "price_confidence": "estimated" if price_cents is not None else "unknown",
         "external_url": raw.get("external_url", ""),
         "image_url": raw.get("image_url"),
         "merchant_name": raw.get("merchant_name"),

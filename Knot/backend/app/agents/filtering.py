@@ -80,7 +80,7 @@ def _score_candidate(
     interests: list[str],
     dislikes: list[str],
     interest_weights: dict[str, float] | None = None,
-) -> float:
+) -> tuple[float, list[str]]:
     """
     Score a candidate based on interest alignment.
 
@@ -100,21 +100,23 @@ def _score_candidate(
                           centered at 1.0, clamped to [0.5, 2.0].
 
     Returns:
-        A float score. Negative means dislike match (remove).
-        Zero or positive means keep (higher = better rank).
+        A tuple of (score, matched_interests). Negative score means dislike
+        match (remove). Zero or positive means keep (higher = better rank).
     """
     # Check dislikes first — any match means remove
     for dislike in dislikes:
         if _matches_category(candidate, dislike):
-            return -1.0
+            return (-1.0, [])
 
     score = 0.0
+    matched: list[str] = []
 
     # Score based on interest matches, scaled by learned weights
     for interest in interests:
         if _matches_category(candidate, interest):
             weight = interest_weights.get(interest, 1.0) if interest_weights else 1.0
             score += 1.0 * weight
+            matched.append(interest)
 
     # Bonus for metadata-tagged interest (exact catalog match)
     # This is a fixed signal strength bonus, not scaled by learned weights
@@ -122,7 +124,7 @@ def _score_candidate(
     if metadata_interest and metadata_interest in interests:
         score += 0.5
 
-    return score
+    return (score, matched)
 
 
 # ======================================================================
@@ -186,7 +188,7 @@ async def filter_by_interests(
     removed_count = 0
 
     for candidate in candidates:
-        score = _score_candidate(candidate, interests, dislikes, interest_weights)
+        score, matched_interests = _score_candidate(candidate, interests, dislikes, interest_weights)
         if score < 0:
             removed_count += 1
             logger.debug(
@@ -194,8 +196,11 @@ async def filter_by_interests(
             )
             continue
 
-        # Update the candidate's interest_score
-        candidate = candidate.model_copy(update={"interest_score": score})
+        # Update the candidate's interest_score and matched interests
+        candidate = candidate.model_copy(update={
+            "interest_score": score,
+            "matched_interests": matched_interests,
+        })
         scored.append((candidate, score))
 
     # Sort by score descending, then by title for deterministic ordering

@@ -216,9 +216,13 @@ struct RecommendationsView: View {
                                 recommendationType: item.recommendationType,
                                 priceCents: item.priceCents,
                                 currency: item.currency,
+                                priceConfidence: item.priceConfidence ?? "unknown",
                                 merchantName: item.merchantName,
                                 imageURL: item.imageUrl,
                                 isSaved: viewModel.isSaved(item.id),
+                                matchedInterests: item.matchedInterests ?? [],
+                                matchedVibes: item.matchedVibes ?? [],
+                                matchedLoveLanguages: item.matchedLoveLanguages ?? [],
                                 onSelect: {
                                     viewModel.selectRecommendation(item)
                                 },
@@ -499,7 +503,8 @@ struct SelectionConfirmationSheet: View {
                         Spacer()
 
                         if let priceCents = item.priceCents {
-                            Text(formattedPrice(cents: priceCents, currency: item.currency))
+                            let prefix = item.priceConfidence == "estimated" ? "~" : ""
+                            Text(prefix + formattedPrice(cents: priceCents, currency: item.currency))
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12)
@@ -968,6 +973,7 @@ private let _previewGiftItem: RecommendationItemResponse = {
         "description": "A hands-on pottery experience where you and your partner create custom pieces together. Includes all materials and firing.",
         "price_cents": 8500,
         "currency": "USD",
+        "price_confidence": "verified",
         "external_url": "https://example.com/pottery",
         "image_url": null,
         "merchant_name": "Clay Studio Brooklyn",
@@ -976,7 +982,10 @@ private let _previewGiftItem: RecommendationItemResponse = {
         "interest_score": 0.85,
         "vibe_score": 0.72,
         "love_language_score": 0.9,
-        "final_score": 0.82
+        "final_score": 0.82,
+        "matched_interests": ["Art", "Cooking"],
+        "matched_vibes": ["bohemian"],
+        "matched_love_languages": ["quality_time"]
     }
     """.data(using: .utf8)!
     return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
@@ -991,6 +1000,7 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         "description": "Enjoy a 2-hour private sailing trip with champagne and charcuterie as the sun sets over the bay.",
         "price_cents": 24900,
         "currency": "USD",
+        "price_confidence": "verified",
         "external_url": "https://example.com/sailing",
         "image_url": null,
         "merchant_name": "Bay Sailing Co.",
@@ -1004,7 +1014,10 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         "interest_score": 0.9,
         "vibe_score": 0.8,
         "love_language_score": 0.7,
-        "final_score": 0.8
+        "final_score": 0.8,
+        "matched_interests": ["Travel"],
+        "matched_vibes": ["romantic", "quiet_luxury"],
+        "matched_love_languages": ["quality_time"]
     }
     """.data(using: .utf8)!
     return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)

@@ -424,6 +424,27 @@ class TestNormalization:
 
         assert result["currency"] == "USD"
 
+    def test_price_confidence_estimated_when_price_present(self):
+        """price_confidence is 'estimated' when Claude returns a price."""
+        raw = {"title": "Test", "type": "gift", "price_cents": 5000, "external_url": "https://example.com"}
+        result = _normalize_claude_result(raw, "Austin", "TX", "US")
+
+        assert result["price_confidence"] == "estimated"
+
+    def test_price_confidence_unknown_when_price_null(self):
+        """price_confidence is 'unknown' when Claude returns null price."""
+        raw = {"title": "Test", "type": "gift", "price_cents": None, "external_url": "https://example.com"}
+        result = _normalize_claude_result(raw, "Austin", "TX", "US")
+
+        assert result["price_confidence"] == "unknown"
+
+    def test_price_confidence_unknown_when_price_missing(self):
+        """price_confidence is 'unknown' when price_cents is not in the dict."""
+        raw = {"title": "Test", "type": "gift", "external_url": "https://example.com"}
+        result = _normalize_claude_result(raw, "Austin", "TX", "US")
+
+        assert result["price_confidence"] == "unknown"
+
 
 # ======================================================================
 # 5. Full service flow

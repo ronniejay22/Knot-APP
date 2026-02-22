@@ -314,6 +314,23 @@ class TestDictToCandidate:
         assert candidate.title == "Handmade Ceramic Ramen Bowl Set"
         assert candidate.metadata["search_source"] == "claude_search"
 
+    def test_price_confidence_passed_through(self):
+        raw = {
+            "source": "claude_search", "type": "gift", "title": "Test",
+            "external_url": "https://example.com/item",
+            "price_cents": 5000, "price_confidence": "estimated",
+        }
+        candidate = _dict_to_candidate(raw)
+        assert candidate.price_confidence == "estimated"
+
+    def test_price_confidence_defaults_to_unknown(self):
+        raw = {
+            "source": "yelp", "type": "gift", "title": "Test",
+            "external_url": "https://example.com/item",
+        }
+        candidate = _dict_to_candidate(raw)
+        assert candidate.price_confidence == "unknown"
+
 
 # ======================================================================
 # 2. Claude Search primary path
@@ -643,6 +660,8 @@ class TestBuildCandidates:
         assert candidate.source == "amazon"
         assert candidate.metadata["matched_interest"] == "Cooking"
         assert candidate.metadata["catalog"] == "stub"
+        assert candidate.price_confidence == "estimated"
+        assert "amazon.com/s?k=" in candidate.external_url
 
     def test_build_gift_candidate_has_unique_id(self):
         entry = ("Test Gift", "Desc", 5000, "Amazon", "amazon")
@@ -661,6 +680,8 @@ class TestBuildCandidates:
         assert candidate.location is not None
         assert candidate.location.city == "Austin"
         assert candidate.metadata["matched_vibe"] == "romantic"
+        assert candidate.price_confidence == "estimated"
+        assert "yelp.com/search?find_desc=" in candidate.external_url
 
     def test_build_experience_candidate_null_location(self):
         entry = ("Test Exp", "Desc", 8000, "Venue", "yelp", "experience")

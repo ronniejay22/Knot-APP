@@ -1,14 +1,18 @@
 """
-Step 5.7 Verification: Availability Verification Node
+Step 5.7 / 14.1 Verification: Availability Verification & Price Enrichment Node
 
 Tests that the verify_availability LangGraph node:
-1. Verifies URLs of the 3 selected recommendations via HTTP HEAD/GET
+1. Verifies URLs of the 3 selected recommendations via HTTP GET (with page content)
 2. Replaces unavailable recommendations with next-best candidates from the pool
-3. Handles edge cases (all unavailable, empty input, HEAD 405 fallback)
-4. Returns result compatible with RecommendationState update
+3. Verifies prices from page content via Claude extraction
+4. Handles edge cases (all unavailable, empty input, Claude failures)
+5. Returns result compatible with RecommendationState update
 
 Test categories:
-- URL checking: Verify _check_url handles various HTTP responses
+- URL checking: Verify _check_url handles various HTTP responses (for replacements)
+- Page fetching: Verify _fetch_page returns availability + page content
+- HTML extraction: Verify _extract_text_from_html extracts relevant content
+- Price verification: Verify _verify_prices_with_claude extracts prices
 - Replacement logic: Verify _get_backup_candidates excludes used IDs
 - Full node: Verify verify_availability end-to-end behavior
 - Spec tests: The 2 specific tests from the implementation plan
@@ -21,8 +25,9 @@ Prerequisites:
 Run with: pytest tests/test_availability_node.py -v
 """
 
+import json
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -38,7 +43,10 @@ from app.agents.availability import (
     REQUEST_TIMEOUT,
     VALID_STATUS_RANGE,
     _check_url,
+    _extract_text_from_html,
+    _fetch_page,
     _get_backup_candidates,
+    _verify_prices_with_claude,
     verify_availability,
 )
 
@@ -121,6 +129,7 @@ def _make_candidate(
     final_score: float = 1.0,
     external_url: str | None = None,
     candidate_id: str | None = None,
+    price_confidence: str = "estimated",
     **overrides,
 ) -> CandidateRecommendation:
     """Build a CandidateRecommendation with sensible defaults."""
@@ -132,6 +141,7 @@ def _make_candidate(
         "title": title,
         "description": f"A {rec_type} recommendation",
         "price_cents": price_cents,
+        "price_confidence": price_confidence,
         "external_url": external_url or f"https://{source}.com/products/{cid}",
         "image_url": "https://images.example.com/test.jpg",
         "merchant_name": merchant_name,
@@ -153,7 +163,7 @@ def _mock_response(status_code: int = 200):
 
 
 # ======================================================================
-# 1. URL checking (_check_url)
+# 1. URL checking (_check_url — used for replacement candidates)
 # ======================================================================
 
 class TestCheckUrl:
@@ -238,7 +248,242 @@ class TestCheckUrl:
 
 
 # ======================================================================
-# 2. Backup candidate logic
+# 2. Page fetching (_fetch_page)
+# ======================================================================
+
+class TestFetchPage:
+    """Verify _fetch_page returns availability and page content."""
+
+    async def test_200_html_returns_content(self):
+        """A 200 OK with HTML content returns (True, extracted_text)."""
+        response = AsyncMock()
+        response.status_code = 200
+        response.headers = {"content-type": "text/html; charset=utf-8"}
+        response.text = "<html><title>Test Product</title><body><p>$49.99</p></body></html>"
+
+        client = AsyncMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=response)
+
+        is_available, content = await _fetch_page("https://example.com/product", client)
+        assert is_available is True
+        assert "Test Product" in content
+        assert "$49.99" in content
+
+    async def test_200_non_html_returns_empty_content(self):
+        """A 200 OK with non-HTML content returns (True, '')."""
+        response = AsyncMock()
+        response.status_code = 200
+        response.headers = {"content-type": "application/pdf"}
+        response.text = "%PDF-1.4"
+
+        client = AsyncMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=response)
+
+        is_available, content = await _fetch_page("https://example.com/file.pdf", client)
+        assert is_available is True
+        assert content == ""
+
+    async def test_404_returns_false(self):
+        """A 404 returns (False, '')."""
+        response = AsyncMock()
+        response.status_code = 404
+        response.headers = {"content-type": "text/html"}
+
+        client = AsyncMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(return_value=response)
+
+        is_available, content = await _fetch_page("https://example.com/gone", client)
+        assert is_available is False
+        assert content == ""
+
+    async def test_timeout_returns_false(self):
+        """A timeout returns (False, '')."""
+        client = AsyncMock(spec=httpx.AsyncClient)
+        client.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
+
+        is_available, content = await _fetch_page("https://example.com/slow", client)
+        assert is_available is False
+        assert content == ""
+
+
+# ======================================================================
+# 3. HTML text extraction
+# ======================================================================
+
+class TestExtractTextFromHtml:
+    """Verify _extract_text_from_html extracts price-relevant content."""
+
+    def test_extracts_title(self):
+        html = "<html><head><title>Premium Chef Knife - $89.99</title></head></html>"
+        result = _extract_text_from_html(html)
+        assert "Premium Chef Knife - $89.99" in result
+
+    def test_extracts_meta_description(self):
+        html = '<html><head><meta name="description" content="Buy the best knife for $89.99"></head></html>'
+        result = _extract_text_from_html(html)
+        assert "$89.99" in result
+
+    def test_extracts_jsonld_structured_data(self):
+        jsonld = json.dumps({"@type": "Product", "offers": {"price": "89.99"}})
+        html = f'<html><head><script type="application/ld+json">{jsonld}</script></head></html>'
+        result = _extract_text_from_html(html)
+        assert "89.99" in result
+        assert "Structured Data" in result
+
+    def test_strips_script_tags(self):
+        html = "<html><script>var x = 1;</script><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "var x = 1" not in result
+        assert "$49.99" in result
+
+    def test_strips_style_tags(self):
+        html = "<html><style>.price { color: red; }</style><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "color: red" not in result
+        assert "$49.99" in result
+
+    def test_preserves_jsonld_scripts(self):
+        """JSON-LD scripts should NOT be stripped (they contain price data)."""
+        jsonld = '{"@type": "Product", "offers": {"price": "50.00"}}'
+        html = f'<script type="application/ld+json">{jsonld}</script><script>var x=1;</script>'
+        result = _extract_text_from_html(html)
+        assert "50.00" in result
+
+    def test_caps_output_length(self):
+        html = "<html><body>" + "x" * 20000 + "</body></html>"
+        result = _extract_text_from_html(html)
+        assert len(result) <= 8000
+
+    def test_handles_empty_html(self):
+        result = _extract_text_from_html("")
+        assert isinstance(result, str)
+
+
+# ======================================================================
+# 4. Claude price verification
+# ======================================================================
+
+class TestVerifyPricesWithClaude:
+    """Verify _verify_prices_with_claude extracts prices from page content."""
+
+    async def test_returns_verified_prices(self):
+        """Claude returns verified prices for candidates."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1", price_cents=5000)
+        claude_result = [
+            {"id": "id-1", "price_cents": 4999, "verified": True},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text=json.dumps(claude_result))]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.config.is_claude_search_configured", return_value=True), \
+             patch("app.core.config.ANTHROPIC_API_KEY", "test-key"), \
+             patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            results = await _verify_prices_with_claude([(c1, "Page with $49.99")])
+
+        assert "id-1" in results
+        assert results["id-1"]["price_cents"] == 4999
+        assert results["id-1"]["verified"] is True
+
+    async def test_returns_empty_when_not_configured(self):
+        """Returns empty dict when Claude is not configured."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1")
+
+        with patch("app.core.config.is_claude_search_configured", return_value=False):
+            results = await _verify_prices_with_claude([(c1, "Page content")])
+
+        assert results == {}
+
+    async def test_returns_empty_on_api_error(self):
+        """Returns empty dict when Claude API call fails."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1")
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(side_effect=RuntimeError("API error"))
+
+        with patch("app.core.config.is_claude_search_configured", return_value=True), \
+             patch("app.core.config.ANTHROPIC_API_KEY", "test-key"), \
+             patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            results = await _verify_prices_with_claude([(c1, "Page content")])
+
+        assert results == {}
+
+    async def test_returns_empty_on_invalid_json(self):
+        """Returns empty dict when Claude returns invalid JSON."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1")
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text="Not valid JSON")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.config.is_claude_search_configured", return_value=True), \
+             patch("app.core.config.ANTHROPIC_API_KEY", "test-key"), \
+             patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            results = await _verify_prices_with_claude([(c1, "Page content")])
+
+        assert results == {}
+
+    async def test_returns_empty_for_empty_input(self):
+        """Returns empty dict when no candidates provided."""
+        results = await _verify_prices_with_claude([])
+        assert results == {}
+
+    async def test_handles_markdown_fenced_response(self):
+        """Strips markdown code fences from Claude response."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1")
+        claude_result = [{"id": "id-1", "price_cents": 5000, "verified": True}]
+        fenced = f"```json\n{json.dumps(claude_result)}\n```"
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text=fenced)]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.config.is_claude_search_configured", return_value=True), \
+             patch("app.core.config.ANTHROPIC_API_KEY", "test-key"), \
+             patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            results = await _verify_prices_with_claude([(c1, "Page content")])
+
+        assert "id-1" in results
+
+    async def test_batches_multiple_candidates(self):
+        """All candidates are sent in a single Claude call."""
+        c1 = _make_candidate(title="Gift A", candidate_id="id-1")
+        c2 = _make_candidate(title="Gift B", candidate_id="id-2")
+        c3 = _make_candidate(title="Gift C", candidate_id="id-3")
+
+        claude_result = [
+            {"id": "id-1", "price_cents": 5000, "verified": True},
+            {"id": "id-2", "price_cents": 8000, "verified": True},
+            {"id": "id-3", "price_cents": None, "verified": False},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text=json.dumps(claude_result))]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.config.is_claude_search_configured", return_value=True), \
+             patch("app.core.config.ANTHROPIC_API_KEY", "test-key"), \
+             patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            results = await _verify_prices_with_claude([
+                (c1, "Page 1"), (c2, "Page 2"), (c3, "Page 3"),
+            ])
+
+        # Single Claude call
+        mock_client.messages.create.assert_called_once()
+        assert len(results) == 3
+
+
+# ======================================================================
+# 5. Backup candidate logic
 # ======================================================================
 
 class TestGetBackupCandidates:
@@ -278,7 +523,7 @@ class TestGetBackupCandidates:
 
 
 # ======================================================================
-# 3. Full node (end-to-end with mocked HTTP)
+# 6. Full node (end-to-end with mocked HTTP + Claude)
 # ======================================================================
 
 class TestVerifyAvailability:
@@ -293,8 +538,10 @@ class TestVerifyAvailability:
         ]
         state = _make_state(final_three=candidates, filtered=candidates)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 3
@@ -317,19 +564,101 @@ class TestVerifyAvailability:
 
         state = _make_state(final_three=selected, filtered=filtered)
 
-        async def mock_check(url, client):
-            # "Bad B" has an unavailable URL
+        async def mock_fetch(url, client):
             if "b" in url:
-                return False
-            return True
+                return (False, "")
+            return (True, "")
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_check.return_value = True
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         titles = [c.title for c in result["final_three"]]
         assert len(result["final_three"]) == 3
         assert "Bad B" not in titles
         assert "Backup D" in titles
+
+    async def test_price_verified_from_page_content(self):
+        """Prices are updated when Claude verifies them from page content."""
+        candidates = [
+            _make_candidate(
+                title="Gift A", candidate_id="id-1",
+                price_cents=5000, price_confidence="estimated",
+            ),
+        ]
+        state = _make_state(final_three=candidates, filtered=candidates)
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "<html><body>$49.99</body></html>")
+            mock_verify.return_value = {
+                "id-1": {"id": "id-1", "price_cents": 4999, "verified": True},
+            }
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 1
+        assert result["final_three"][0].price_cents == 4999
+        assert result["final_three"][0].price_confidence == "verified"
+
+    async def test_price_stays_estimated_when_claude_uncertain(self):
+        """Price confidence stays estimated when Claude is not confident."""
+        candidates = [
+            _make_candidate(
+                title="Gift A", candidate_id="id-1",
+                price_cents=5000, price_confidence="estimated",
+            ),
+        ]
+        state = _make_state(final_three=candidates, filtered=candidates)
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "<html><body>Maybe $50?</body></html>")
+            mock_verify.return_value = {
+                "id-1": {"id": "id-1", "price_cents": 5000, "verified": False},
+            }
+            result = await verify_availability(state)
+
+        assert result["final_three"][0].price_confidence == "estimated"
+
+    async def test_price_unchanged_on_page_fetch_failure(self):
+        """Price and confidence are unchanged when page has no content."""
+        candidates = [
+            _make_candidate(
+                title="Gift A", candidate_id="id-1",
+                price_cents=5000, price_confidence="estimated",
+            ),
+        ]
+        state = _make_state(final_three=candidates, filtered=candidates)
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            # Available but no page content (e.g., PDF or non-HTML)
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert result["final_three"][0].price_cents == 5000
+        assert result["final_three"][0].price_confidence == "estimated"
+
+    async def test_pipeline_continues_on_claude_failure(self):
+        """Pipeline returns results even when Claude price verification fails."""
+        candidates = [
+            _make_candidate(title="Gift A", candidate_id="a", final_score=5.0),
+            _make_candidate(title="Gift B", candidate_id="b", final_score=4.0),
+        ]
+        state = _make_state(final_three=candidates, filtered=candidates)
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "<html><body>Some content</body></html>")
+            mock_verify.return_value = {}  # Claude returned nothing
+            result = await verify_availability(state)
+
+        # Candidates still returned, just without verified prices
+        assert len(result["final_three"]) == 2
 
     async def test_replacement_also_checked(self):
         """Replacement candidates are also URL-checked before being accepted."""
@@ -351,11 +680,16 @@ class TestVerifyAvailability:
 
         state = _make_state(final_three=selected, filtered=filtered)
 
+        async def mock_fetch(url, client):
+            return (False, "")  # Original is unavailable
+
         async def mock_check(url, client):
-            # Only the "good" backup URL is available
             return "backup-good" in url
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", side_effect=mock_check), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 1
@@ -368,7 +702,6 @@ class TestVerifyAvailability:
             _make_candidate(title="Bad B", candidate_id="b", final_score=4.0),
             _make_candidate(title="Good C", candidate_id="c", final_score=3.0),
         ]
-        # Pool includes selected + one backup; "a" and "c" should NOT be re-picked
         backup = _make_candidate(
             title="Backup D", candidate_id="d", final_score=2.0,
         )
@@ -376,25 +709,28 @@ class TestVerifyAvailability:
 
         state = _make_state(final_three=selected, filtered=filtered)
 
-        async def mock_check(url, client):
+        async def mock_fetch(url, client):
             if "b" in url:
-                return False
-            return True
+                return (False, "")
+            return (True, "")
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_check.return_value = True
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         ids = [c.id for c in result["final_three"]]
-        assert ids.count("a") == 1  # not duplicated
-        assert ids.count("c") == 1  # not duplicated
-        assert "d" in ids  # backup used
+        assert ids.count("a") == 1
+        assert ids.count("c") == 1
+        assert "d" in ids
 
     async def test_max_replacement_attempts_respected(self):
         """Stops trying replacements after MAX_REPLACEMENT_ATTEMPTS failures."""
         selected = [
             _make_candidate(title="Bad A", candidate_id="a", final_score=5.0),
         ]
-        # Create more backups than MAX_REPLACEMENT_ATTEMPTS
         backups = [
             _make_candidate(
                 title=f"Bad Backup {i}",
@@ -407,15 +743,16 @@ class TestVerifyAvailability:
 
         state = _make_state(final_three=selected, filtered=filtered)
 
-        # All URLs fail
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")
             mock_check.return_value = False
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        # Should stop after MAX_REPLACEMENT_ATTEMPTS and return empty
         assert len(result["final_three"]) == 0
-        # Original (1) + MAX_REPLACEMENT_ATTEMPTS backups checked
-        assert mock_check.call_count == 1 + MAX_REPLACEMENT_ATTEMPTS
+        assert mock_check.call_count == MAX_REPLACEMENT_ATTEMPTS
 
     async def test_returns_final_three_key(self):
         """Node returns dict with 'final_three' key."""
@@ -424,8 +761,10 @@ class TestVerifyAvailability:
         ]
         state = _make_state(final_three=candidates, filtered=candidates)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert "final_three" in result
@@ -433,7 +772,7 @@ class TestVerifyAvailability:
 
 
 # ======================================================================
-# 4. Spec tests (from implementation plan)
+# 7. Spec tests (from implementation plan)
 # ======================================================================
 
 class TestSpecRequirements:
@@ -485,11 +824,16 @@ class TestSpecRequirements:
         filtered = selected + [backup]
         state = _make_state(final_three=selected, filtered=filtered)
 
-        async def mock_check(url, client):
-            # Only the Yelp URL is "dead"
-            return "closed-restaurant" not in url
+        async def mock_fetch(url, client):
+            if "closed-restaurant" in url:
+                return (False, "")
+            return (True, "")
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_check.return_value = True
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         titles = [c.title for c in result["final_three"]]
@@ -520,20 +864,19 @@ class TestSpecRequirements:
             filtered=candidates,
         )
 
-        # Track which URLs were checked
         checked_urls = []
 
-        async def mock_check(url, client):
+        async def mock_fetch(url, client):
             checked_urls.append(url)
-            return True
+            return (True, "")
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        # All 3 final recommendations should have been checked
         assert len(result["final_three"]) == 3
         final_urls = {c.external_url for c in result["final_three"]}
-        # Every final URL was verified
         for url in final_urls:
             assert url in checked_urls, (
                 f"URL {url} was in final results but never verified"
@@ -541,7 +884,7 @@ class TestSpecRequirements:
 
 
 # ======================================================================
-# 5. Edge cases
+# 8. Edge cases
 # ======================================================================
 
 class TestEdgeCases:
@@ -561,8 +904,12 @@ class TestEdgeCases:
         ]
         state = _make_state(final_three=candidates, filtered=candidates)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")
             mock_check.return_value = False
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert result["final_three"] == []
@@ -572,8 +919,10 @@ class TestEdgeCases:
         candidate = _make_candidate(title="Solo", candidate_id="solo")
         state = _make_state(final_three=[candidate], filtered=[candidate])
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 1
@@ -585,13 +934,18 @@ class TestEdgeCases:
             _make_candidate(title="Good", candidate_id="good", final_score=5.0),
             _make_candidate(title="Bad", candidate_id="bad", final_score=4.0),
         ]
-        # No backup pool beyond the selected ones
         state = _make_state(final_three=candidates, filtered=candidates)
 
-        async def mock_check(url, client):
-            return "good" in url
+        async def mock_fetch(url, client):
+            if "good" in url:
+                return (True, "")
+            return (False, "")
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_check.return_value = False
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 1
@@ -604,8 +958,10 @@ class TestEdgeCases:
         ]
         state = _make_state(final_three=candidates, filtered=[])
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = False
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert result["final_three"] == []
@@ -620,15 +976,17 @@ class TestEdgeCases:
         state = _make_state(final_three=candidates, filtered=candidates)
         original_len = len(state.final_three)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             await verify_availability(state)
 
         assert len(state.final_three) == original_len
 
 
 # ======================================================================
-# 6. State compatibility
+# 9. State compatibility
 # ======================================================================
 
 class TestStateCompatibility:
@@ -643,8 +1001,10 @@ class TestStateCompatibility:
         ]
         state = _make_state(final_three=candidates, filtered=candidates)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         updated = state.model_copy(update=result)
@@ -658,8 +1018,10 @@ class TestStateCompatibility:
         ]
         state = _make_state(final_three=candidates[:3], filtered=candidates)
 
-        with patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (True, "")
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         updated = state.model_copy(update=result)
@@ -685,10 +1047,16 @@ class TestStateCompatibility:
             filtered=[original, backup],
         )
 
+        async def mock_fetch(url, client):
+            return (False, "")  # Original unavailable
+
         async def mock_check(url, client):
             return "great.com" in url
 
-        with patch("app.agents.availability._check_url", side_effect=mock_check):
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._check_url", side_effect=mock_check), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {}
             result = await verify_availability(state)
 
         replaced = result["final_three"][0]
@@ -701,7 +1069,7 @@ class TestStateCompatibility:
 
 
 # ======================================================================
-# 7. Constants verification
+# 10. Constants verification
 # ======================================================================
 
 class TestConstants:

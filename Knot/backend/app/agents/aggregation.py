@@ -14,6 +14,7 @@ Step 13.1: Replace External APIs with Claude Search Agent
 import asyncio
 import logging
 import uuid
+from urllib.parse import quote_plus
 from typing import Any
 
 from app.agents.state import (
@@ -66,6 +67,7 @@ def _dict_to_candidate(raw: dict[str, Any]) -> CandidateRecommendation:
         merchant_name=raw.get("merchant_name"),
         location=location,
         metadata=raw.get("metadata", {}),
+        price_confidence=raw.get("price_confidence", "unknown"),
     )
 
 
@@ -256,12 +258,29 @@ def _generate_candidate_id() -> str:
     return str(uuid.uuid4())
 
 
+# Merchant search URL templates — these resolve to real search pages
+_MERCHANT_SEARCH_URLS: dict[str, str] = {
+    "amazon": "https://www.amazon.com/s?k={query}",
+    "etsy": "https://www.etsy.com/search?q={query}",
+    "shopify": "https://www.google.com/search?q={query}+buy+online",
+    "yelp": "https://www.yelp.com/search?find_desc={query}",
+    "ticketmaster": "https://www.ticketmaster.com/search?q={query}",
+}
+
+
+def _merchant_search_url(source: str, title: str) -> str:
+    """Build a real search URL for the given merchant and product title."""
+    template = _MERCHANT_SEARCH_URLS.get(
+        source, "https://www.google.com/search?q={query}",
+    )
+    return template.format(query=quote_plus(title))
+
+
 def _build_gift_candidate(
     interest: str,
     entry: tuple[str, str, int, str, str],
 ) -> CandidateRecommendation:
     title, description, price_cents, merchant_name, source = entry
-    slug = title.lower().replace(" ", "-").replace("'", "")
     return CandidateRecommendation(
         id=_generate_candidate_id(),
         source=source,
@@ -269,8 +288,9 @@ def _build_gift_candidate(
         title=title,
         description=description,
         price_cents=price_cents,
-        external_url=f"https://{source}.com/products/{slug}",
-        image_url=f"https://images.example.com/{slug}.jpg",
+        price_confidence="estimated",
+        external_url=_merchant_search_url(source, title),
+        image_url=None,
         merchant_name=merchant_name,
         location=None,
         metadata={"matched_interest": interest, "catalog": "stub"},
@@ -283,7 +303,6 @@ def _build_experience_candidate(
     location: LocationData | None,
 ) -> CandidateRecommendation:
     title, description, price_cents, merchant_name, source, rec_type = entry
-    slug = title.lower().replace(" ", "-").replace("'", "")
     return CandidateRecommendation(
         id=_generate_candidate_id(),
         source=source,
@@ -291,8 +310,9 @@ def _build_experience_candidate(
         title=title,
         description=description,
         price_cents=price_cents,
-        external_url=f"https://{source}.com/events/{slug}",
-        image_url=f"https://images.example.com/{slug}.jpg",
+        price_confidence="estimated",
+        external_url=_merchant_search_url(source, title),
+        image_url=None,
         merchant_name=merchant_name,
         location=location,
         metadata={"matched_vibe": vibe, "catalog": "stub"},

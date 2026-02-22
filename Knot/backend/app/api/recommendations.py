@@ -966,6 +966,7 @@ def _build_response_items(
                 description=candidate.description,
                 price_cents=candidate.price_cents,
                 currency=candidate.currency,
+                price_confidence=candidate.price_confidence,
                 external_url=candidate.external_url,
                 image_url=candidate.image_url,
                 merchant_name=candidate.merchant_name,
@@ -975,6 +976,9 @@ def _build_response_items(
                 vibe_score=candidate.vibe_score,
                 love_language_score=candidate.love_language_score,
                 final_score=candidate.final_score,
+                matched_interests=candidate.matched_interests,
+                matched_vibes=candidate.matched_vibes,
+                matched_love_languages=candidate.matched_love_languages,
             )
         )
     return response_items

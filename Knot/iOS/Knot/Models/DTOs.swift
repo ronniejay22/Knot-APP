@@ -335,6 +335,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let description: String?
     let priceCents: Int?
     let currency: String
+    let priceConfidence: String?
     let externalUrl: String
     let imageUrl: String?
     let merchantName: String?
@@ -344,6 +345,9 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let vibeScore: Double
     let loveLanguageScore: Double
     let finalScore: Double
+    let matchedInterests: [String]?
+    let matchedVibes: [String]?
+    let matchedLoveLanguages: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -351,6 +355,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case title, description
         case priceCents = "price_cents"
         case currency
+        case priceConfidence = "price_confidence"
         case externalUrl = "external_url"
         case imageUrl = "image_url"
         case merchantName = "merchant_name"
@@ -359,6 +364,9 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case vibeScore = "vibe_score"
         case loveLanguageScore = "love_language_score"
         case finalScore = "final_score"
+        case matchedInterests = "matched_interests"
+        case matchedVibes = "matched_vibes"
+        case matchedLoveLanguages = "matched_love_languages"
     }
 }
 

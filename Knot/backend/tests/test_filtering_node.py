@@ -249,12 +249,13 @@ class TestScoreCandidate:
             title="Gaming Keyboard",
             matched_interest="Gaming",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
         )
         assert score == -1.0
+        assert matched == []
 
     def test_interest_match_returns_positive(self):
         """A candidate matching an interest gets a positive score."""
@@ -262,12 +263,13 @@ class TestScoreCandidate:
             title="Japanese Chef Knife",
             matched_interest="Cooking",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
         )
         assert score > 0
+        assert "Cooking" in matched
 
     def test_metadata_interest_gets_bonus(self):
         """Metadata-tagged interest match gets base + bonus."""
@@ -275,13 +277,14 @@ class TestScoreCandidate:
             title="Japanese Chef Knife",
             matched_interest="Cooking",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
         )
         # 1.0 (interest match via metadata) + 0.5 (metadata bonus)
         assert score == 1.5
+        assert matched == ["Cooking"]
 
     def test_no_match_returns_zero(self):
         """A candidate matching neither interest nor dislike gets 0.0."""
@@ -290,12 +293,13 @@ class TestScoreCandidate:
             description="A nice item",
             matched_interest="Reading",  # not in interests or dislikes
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
         )
         assert score == 0.0
+        assert matched == []
 
     def test_multiple_interest_matches(self):
         """Candidate matching multiple interests accumulates higher score."""
@@ -304,7 +308,7 @@ class TestScoreCandidate:
             description="Cook while you travel with this hiking set",
             matched_interest="Cooking",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
@@ -312,6 +316,9 @@ class TestScoreCandidate:
         # Cooking (metadata=1.0 + title=already counted), Travel (title=1.0),
         # Hiking (description=1.0), metadata bonus=0.5
         assert score >= 2.5
+        assert "Cooking" in matched
+        assert "Travel" in matched
+        assert "Hiking" in matched
 
     def test_dislike_takes_priority_over_interest(self):
         """If a candidate matches BOTH an interest and a dislike, it is removed."""
@@ -320,13 +327,14 @@ class TestScoreCandidate:
             description="For the cooking gamer",
             matched_interest="Cooking",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking"],
             dislikes=["Gaming"],
         )
         # Gaming in title means dislike match → -1.0
         assert score == -1.0
+        assert matched == []
 
     def test_experience_without_interest_metadata_gets_zero(self):
         """Experience candidates (matched_vibe only) get 0.0 from interest scoring."""
@@ -337,12 +345,13 @@ class TestScoreCandidate:
             source="yelp",
             matched_vibe="quiet_luxury",
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking", "Travel", "Music", "Art", "Hiking"],
             dislikes=["Gaming", "Cars", "Skiing", "Karaoke", "Surfing"],
         )
         assert score == 0.0
+        assert matched == []
 
     def test_title_only_interest_match_no_metadata_bonus(self):
         """Title-only match without metadata gets 1.0 (no bonus)."""
@@ -351,13 +360,14 @@ class TestScoreCandidate:
             description="Learn to cook from experts",
             # no matched_interest metadata
         )
-        score = _score_candidate(
+        score, matched = _score_candidate(
             candidate,
             interests=["Cooking"],
             dislikes=["Gaming"],
         )
         # 1.0 (title match) + 0.0 (no metadata bonus since matched_interest not set)
         assert score == 1.0
+        assert matched == ["Cooking"]
 
 
 # ======================================================================
@@ -503,6 +513,30 @@ class TestInterestRanking:
         result = await filter_by_interests(state)
         for c in result["filtered_recommendations"]:
             assert isinstance(c.interest_score, float)
+
+    async def test_matched_interests_populated(self):
+        """Filtered candidates have matched_interests lists set."""
+        candidates = [
+            _make_candidate(title="Chef Knife", matched_interest="Cooking"),
+            _make_candidate(title="Passport Holder", matched_interest="Travel"),
+            _make_candidate(title="Spa Day", rec_type="experience", matched_vibe="romantic"),
+        ]
+        state = _make_state(candidates=candidates)
+
+        result = await filter_by_interests(state)
+        filtered = result["filtered_recommendations"]
+
+        # Cooking-matched candidate should have "Cooking" in matched_interests
+        cooking_candidate = next(c for c in filtered if c.title == "Chef Knife")
+        assert "Cooking" in cooking_candidate.matched_interests
+
+        # Travel-matched candidate should have "Travel"
+        travel_candidate = next(c for c in filtered if c.title == "Passport Holder")
+        assert "Travel" in travel_candidate.matched_interests
+
+        # Experience with no interest match should have empty list
+        spa_candidate = next(c for c in filtered if c.title == "Spa Day")
+        assert spa_candidate.matched_interests == []
 
 
 # ======================================================================

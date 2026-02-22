@@ -46,9 +46,13 @@ struct RecommendationCard: View {
     let recommendationType: String
     let priceCents: Int?
     let currency: String
+    let priceConfidence: String
     let merchantName: String?
     let imageURL: String?
     let isSaved: Bool
+    let matchedInterests: [String]
+    let matchedVibes: [String]
+    let matchedLoveLanguages: [String]
     let onSelect: @MainActor @Sendable () -> Void
     let onSave: @MainActor @Sendable () -> Void
     let onShare: @MainActor @Sendable () -> Void
@@ -214,13 +218,19 @@ struct RecommendationCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // Matching factor chips
+            if !matchedInterests.isEmpty || !matchedVibes.isEmpty || !matchedLoveLanguages.isEmpty {
+                matchingFactorsSection
+            }
+
             Spacer(minLength: 4)
 
             // Bottom row: price + select button
             HStack {
                 // Price badge
                 if let priceCents {
-                    Text(Self.formattedPrice(cents: priceCents, currency: currency))
+                    let prefix = priceConfidence == "estimated" ? "~" : ""
+                    Text(prefix + Self.formattedPrice(cents: priceCents, currency: currency))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
@@ -353,6 +363,28 @@ struct RecommendationCard: View {
         }
     }
 
+    // MARK: - Matching Factors
+
+    private var matchingFactorsSection: some View {
+        FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
+            ForEach(matchedInterests, id: \.self) { interest in
+                MatchingFactorChip(label: interest, style: .interest)
+            }
+            ForEach(matchedVibes, id: \.self) { vibe in
+                MatchingFactorChip(
+                    label: OnboardingVibesView.displayName(for: vibe),
+                    style: .vibe
+                )
+            }
+            ForEach(matchedLoveLanguages, id: \.self) { language in
+                MatchingFactorChip(
+                    label: OnboardingLoveLanguagesView.displayName(for: language),
+                    style: .loveLanguage
+                )
+            }
+        }
+    }
+
     /// Formats price from cents to a currency string (e.g., 4999 → "$49.99").
     static func formattedPrice(cents: Int, currency: String) -> String {
         let amount = Double(cents) / 100.0
@@ -361,6 +393,71 @@ struct RecommendationCard: View {
         formatter.currencyCode = currency
         formatter.maximumFractionDigits = (cents % 100 == 0) ? 0 : 2
         return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+    }
+}
+
+// MARK: - Matching Factor Chip
+
+/// A compact chip displaying a matched factor (interest, vibe, or love language)
+/// that contributed to the recommendation's score.
+private struct MatchingFactorChip: View {
+    let label: String
+    let style: ChipStyle
+
+    enum ChipStyle {
+        case interest
+        case vibe
+        case loveLanguage
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: iconName)
+                .font(.system(size: 8, weight: .bold))
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+        }
+        .foregroundStyle(foregroundColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(backgroundColor)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(borderColor, lineWidth: 0.5)
+        )
+    }
+
+    private var iconName: String {
+        switch style {
+        case .interest: return "heart.fill"
+        case .vibe: return "sparkles"
+        case .loveLanguage: return "hand.raised.fill"
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch style {
+        case .interest: return .white
+        case .vibe: return .white.opacity(0.9)
+        case .loveLanguage: return .white.opacity(0.9)
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch style {
+        case .interest: return Theme.accent.opacity(0.18)
+        case .vibe: return Color.purple.opacity(0.18)
+        case .loveLanguage: return Color.orange.opacity(0.18)
+        }
+    }
+
+    private var borderColor: Color {
+        switch style {
+        case .interest: return Theme.accent.opacity(0.3)
+        case .vibe: return Color.purple.opacity(0.3)
+        case .loveLanguage: return Color.orange.opacity(0.3)
+        }
     }
 }
 
@@ -374,9 +471,13 @@ struct RecommendationCard: View {
             recommendationType: "gift",
             priceCents: 8500,
             currency: "USD",
+            priceConfidence: "verified",
             merchantName: "Clay Studio Brooklyn",
             imageURL: nil,
             isSaved: false,
+            matchedInterests: ["Art", "Cooking"],
+            matchedVibes: ["bohemian"],
+            matchedLoveLanguages: ["quality_time"],
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -395,9 +496,13 @@ struct RecommendationCard: View {
             recommendationType: "experience",
             priceCents: 24900,
             currency: "USD",
+            priceConfidence: "verified",
             merchantName: "Bay Sailing Co.",
             imageURL: "https://images.unsplash.com/photo-1500514966906-fe245eea9344?w=600",
             isSaved: true,
+            matchedInterests: ["Travel"],
+            matchedVibes: ["romantic", "quiet_luxury"],
+            matchedLoveLanguages: ["quality_time"],
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -416,9 +521,13 @@ struct RecommendationCard: View {
             recommendationType: "date",
             priceCents: nil,
             currency: "USD",
+            priceConfidence: "unknown",
             merchantName: "Skyline Restaurant",
             imageURL: nil,
             isSaved: false,
+            matchedInterests: ["Food"],
+            matchedVibes: ["romantic"],
+            matchedLoveLanguages: [],
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -429,7 +538,7 @@ struct RecommendationCard: View {
     .preferredColorScheme(.dark)
 }
 
-#Preview("Minimal Data Card") {
+#Preview("Minimal Data Card — No Factors") {
     ScrollView {
         RecommendationCard(
             title: "Vintage Leather Journal",
@@ -437,9 +546,13 @@ struct RecommendationCard: View {
             recommendationType: "gift",
             priceCents: 3200,
             currency: "USD",
+            priceConfidence: "estimated",
             merchantName: nil,
             imageURL: nil,
             isSaved: false,
+            matchedInterests: [],
+            matchedVibes: [],
+            matchedLoveLanguages: [],
             onSelect: {},
             onSave: {},
             onShare: {}

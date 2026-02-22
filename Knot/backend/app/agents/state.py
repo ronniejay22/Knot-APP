@@ -125,6 +125,7 @@ class CandidateRecommendation(BaseModel):
     description: Optional[str] = None
     price_cents: Optional[int] = None
     currency: str = "USD"
+    price_confidence: Literal["verified", "estimated", "unknown"] = "unknown"
     external_url: str
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
@@ -136,6 +137,11 @@ class CandidateRecommendation(BaseModel):
     vibe_score: float = 0.0
     love_language_score: float = 0.0
     final_score: float = 0.0
+
+    # Matched factor lists — populated alongside scores for UI transparency
+    matched_interests: list[str] = Field(default_factory=list)
+    matched_vibes: list[str] = Field(default_factory=list)
+    matched_love_languages: list[str] = Field(default_factory=list)
 
 
 # ======================================================================

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # ======================================================================
@@ -83,6 +83,7 @@ class RecommendationItemResponse(BaseModel):
     description: Optional[str] = None
     price_cents: Optional[int] = None
     currency: str = "USD"
+    price_confidence: str = "unknown"
     external_url: str
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
@@ -93,6 +94,10 @@ class RecommendationItemResponse(BaseModel):
     vibe_score: float = 0.0
     love_language_score: float = 0.0
     final_score: float = 0.0
+    # Matched factors — which specific interests/vibes/love languages caused the match
+    matched_interests: list[str] = Field(default_factory=list)
+    matched_vibes: list[str] = Field(default_factory=list)
+    matched_love_languages: list[str] = Field(default_factory=list)
 
 
 class RecommendationGenerateResponse(BaseModel):

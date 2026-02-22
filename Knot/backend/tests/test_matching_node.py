@@ -271,8 +271,9 @@ class TestComputeVibeBoost:
             rec_type="experience",
             matched_vibe="quiet_luxury",
         )
-        boost = _compute_vibe_boost(candidate, ["quiet_luxury"])
+        boost, matched = _compute_vibe_boost(candidate, ["quiet_luxury"])
         assert boost == VIBE_MATCH_BOOST  # 0.30
+        assert matched == ["quiet_luxury"]
 
     def test_two_vibe_matches(self):
         """Two matching vibes stack to +0.60."""
@@ -283,8 +284,10 @@ class TestComputeVibeBoost:
             matched_vibe="romantic",
         )
         # Matches "romantic" via metadata, and "quiet_luxury" via keywords
-        boost = _compute_vibe_boost(candidate, ["romantic", "quiet_luxury"])
+        boost, matched = _compute_vibe_boost(candidate, ["romantic", "quiet_luxury"])
         assert boost == VIBE_MATCH_BOOST * 2  # 0.60
+        assert "romantic" in matched
+        assert "quiet_luxury" in matched
 
     def test_no_vibe_match(self):
         """No matching vibes gives 0.0."""
@@ -293,8 +296,9 @@ class TestComputeVibeBoost:
             rec_type="gift",
             matched_interest="Music",
         )
-        boost = _compute_vibe_boost(candidate, ["outdoorsy", "bohemian"])
+        boost, matched = _compute_vibe_boost(candidate, ["outdoorsy", "bohemian"])
         assert boost == 0.0
+        assert matched == []
 
     def test_empty_vibes_list(self):
         """Empty vault vibes gives 0.0."""
@@ -303,8 +307,9 @@ class TestComputeVibeBoost:
             rec_type="experience",
             matched_vibe="quiet_luxury",
         )
-        boost = _compute_vibe_boost(candidate, [])
+        boost, matched = _compute_vibe_boost(candidate, [])
         assert boost == 0.0
+        assert matched == []
 
     def test_partial_match_from_multiple(self):
         """Only matching vibes contribute, unmatched ones don't."""
@@ -314,8 +319,9 @@ class TestComputeVibeBoost:
             matched_vibe="bohemian",
         )
         # Only "bohemian" matches, not "quiet_luxury"
-        boost = _compute_vibe_boost(candidate, ["quiet_luxury", "bohemian"])
+        boost, matched = _compute_vibe_boost(candidate, ["quiet_luxury", "bohemian"])
         assert boost == VIBE_MATCH_BOOST  # 0.30
+        assert matched == ["bohemian"]
 
 
 # ======================================================================
@@ -429,34 +435,38 @@ class TestComputeLoveLanguageBoost:
     def test_primary_receiving_gifts_boosts_gift(self):
         """Primary receiving_gifts gives +40% to gifts."""
         candidate = _make_candidate(rec_type="gift")
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "receiving_gifts", "quality_time",
         )
         assert boost == 0.40
+        assert matched == ["receiving_gifts"]
 
     def test_secondary_receiving_gifts_boosts_gift(self):
         """Secondary receiving_gifts gives +20% to gifts."""
         candidate = _make_candidate(rec_type="gift")
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "quality_time", "receiving_gifts",
         )
         assert boost == 0.20
+        assert matched == ["receiving_gifts"]
 
     def test_primary_quality_time_boosts_experience(self):
         """Primary quality_time gives +40% to experiences."""
         candidate = _make_candidate(rec_type="experience")
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "quality_time", "receiving_gifts",
         )
         assert boost == 0.40
+        assert matched == ["quality_time"]
 
     def test_secondary_quality_time_boosts_date(self):
         """Secondary quality_time gives +20% to dates."""
         candidate = _make_candidate(rec_type="date")
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "receiving_gifts", "quality_time",
         )
         assert boost == 0.20
+        assert matched == ["quality_time"]
 
     def test_both_match_stacks_boosts(self):
         """When both primary and secondary match, boosts stack."""
@@ -466,11 +476,13 @@ class TestComputeLoveLanguageBoost:
             description="Couples massage and spa treatment",
             rec_type="experience",
         )
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "quality_time", "physical_touch",
         )
         # quality_time primary: +0.40, physical_touch secondary: +0.10
         assert boost == 0.50
+        assert "quality_time" in matched
+        assert "physical_touch" in matched
 
     def test_no_match_returns_zero(self):
         """No matching love language gives 0.0."""
@@ -478,11 +490,12 @@ class TestComputeLoveLanguageBoost:
             title="Wireless Headphones",
             rec_type="gift",
         )
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "quality_time", "physical_touch",
         )
         # Gift doesn't match quality_time; headphones don't match physical_touch
         assert boost == 0.0
+        assert matched == []
 
     def test_acts_of_service_primary_boost(self):
         """Primary acts_of_service gives +20% to practical items."""
@@ -491,10 +504,11 @@ class TestComputeLoveLanguageBoost:
             description="Repair tool kit for home",
             rec_type="gift",
         )
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "acts_of_service", "quality_time",
         )
         assert boost == 0.20
+        assert matched == ["acts_of_service"]
 
     def test_words_of_affirmation_secondary_boost(self):
         """Secondary words_of_affirmation gives +10% to personalized items."""
@@ -503,12 +517,14 @@ class TestComputeLoveLanguageBoost:
             description="Personalized portrait from your photo",
             rec_type="gift",
         )
-        boost = _compute_love_language_boost(
+        boost, matched = _compute_love_language_boost(
             candidate, "receiving_gifts", "words_of_affirmation",
         )
         # receiving_gifts primary: +0.40 (it's a gift)
         # words_of_affirmation secondary: +0.10 ("personalized", "custom", "portrait")
         assert boost == 0.50
+        assert "receiving_gifts" in matched
+        assert "words_of_affirmation" in matched
 
 
 # ======================================================================
@@ -526,8 +542,8 @@ class TestFinalScoring:
             interest_score=0.0,
             matched_vibe="quiet_luxury",
         )
-        vibe_boost = _compute_vibe_boost(candidate, ["quiet_luxury"])
-        ll_boost = _compute_love_language_boost(candidate, "quality_time", "receiving_gifts")
+        vibe_boost, _ = _compute_vibe_boost(candidate, ["quiet_luxury"])
+        ll_boost, _ = _compute_love_language_boost(candidate, "quality_time", "receiving_gifts")
         base = max(candidate.interest_score, 1.0)
         final = base * (1 + vibe_boost) * (1 + ll_boost)
         # base=1.0 (floor), vibe=+0.30, ll=+0.40 → 1.0 × 1.30 × 1.40 = 1.82
@@ -541,8 +557,8 @@ class TestFinalScoring:
             interest_score=1.5,
             matched_interest="Cooking",
         )
-        vibe_boost = _compute_vibe_boost(candidate, ["quiet_luxury"])
-        ll_boost = _compute_love_language_boost(candidate, "receiving_gifts", "quality_time")
+        vibe_boost, _ = _compute_vibe_boost(candidate, ["quiet_luxury"])
+        ll_boost, _ = _compute_love_language_boost(candidate, "receiving_gifts", "quality_time")
         base = max(candidate.interest_score, 1.0)
         final = base * (1 + vibe_boost) * (1 + ll_boost)
         # base=1.5 (interest_score > 1.0), vibe=0.0, ll=+0.40 → 1.5 × 1.0 × 1.40 = 2.10
@@ -555,8 +571,8 @@ class TestFinalScoring:
             rec_type="gift",
             interest_score=1.0,
         )
-        vibe_boost = _compute_vibe_boost(candidate, ["outdoorsy"])
-        ll_boost = _compute_love_language_boost(candidate, "quality_time", "physical_touch")
+        vibe_boost, _ = _compute_vibe_boost(candidate, ["outdoorsy"])
+        ll_boost, _ = _compute_love_language_boost(candidate, "quality_time", "physical_touch")
         base = max(candidate.interest_score, 1.0)
         final = base * (1 + vibe_boost) * (1 + ll_boost)
         # base=1.0, no vibe match, no ll match → 1.0 × 1.0 × 1.0 = 1.0
@@ -662,6 +678,32 @@ class TestMatchVibesAndLoveLanguages:
         # Same final_score → alphabetical by title
         assert ranked[0].title == "A Gift"
         assert ranked[1].title == "B Gift"
+
+    async def test_matched_factors_populated(self):
+        """Node populates matched_vibes and matched_love_languages lists."""
+        candidates = [
+            _make_candidate(
+                title="Fine Dining Omakase",
+                rec_type="date",
+                interest_score=0.0,
+                matched_vibe="quiet_luxury",
+            ),
+        ]
+        state = _make_state(
+            filtered=candidates,
+            vault_data=VaultData(**_sample_vault_data(
+                vibes=["quiet_luxury", "romantic"],
+                primary_love_language="quality_time",
+                secondary_love_language="receiving_gifts",
+            )),
+        )
+        result = await match_vibes_and_love_languages(state)
+        c = result["filtered_recommendations"][0]
+
+        # Should have quiet_luxury in matched_vibes (matches via metadata)
+        assert "quiet_luxury" in c.matched_vibes
+        # Should have quality_time in matched_love_languages (date type matches quality_time)
+        assert "quality_time" in c.matched_love_languages
 
     async def test_does_not_mutate_original_candidates(self):
         """Node uses model_copy instead of mutating original candidates."""

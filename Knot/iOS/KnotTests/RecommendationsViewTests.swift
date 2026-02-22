@@ -29,6 +29,7 @@ final class RecommendationDTOTests: XCTestCase {
             "description": "A hands-on pottery experience.",
             "price_cents": 8500,
             "currency": "USD",
+            "price_confidence": "verified",
             "external_url": "https://example.com/pottery",
             "image_url": "https://example.com/image.jpg",
             "merchant_name": "Clay Studio",
@@ -42,7 +43,10 @@ final class RecommendationDTOTests: XCTestCase {
             "interest_score": 0.85,
             "vibe_score": 0.72,
             "love_language_score": 0.9,
-            "final_score": 0.82
+            "final_score": 0.82,
+            "matched_interests": ["Art", "Cooking"],
+            "matched_vibes": ["bohemian"],
+            "matched_love_languages": ["quality_time"]
         }
         """.data(using: .utf8)!
 
@@ -54,6 +58,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.description, "A hands-on pottery experience.")
         XCTAssertEqual(item.priceCents, 8500)
         XCTAssertEqual(item.currency, "USD")
+        XCTAssertEqual(item.priceConfidence, "verified")
         XCTAssertEqual(item.externalUrl, "https://example.com/pottery")
         XCTAssertEqual(item.imageUrl, "https://example.com/image.jpg")
         XCTAssertEqual(item.merchantName, "Clay Studio")
@@ -64,6 +69,9 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.vibeScore, 0.72, accuracy: 0.001)
         XCTAssertEqual(item.loveLanguageScore, 0.9, accuracy: 0.001)
         XCTAssertEqual(item.finalScore, 0.82, accuracy: 0.001)
+        XCTAssertEqual(item.matchedInterests, ["Art", "Cooking"])
+        XCTAssertEqual(item.matchedVibes, ["bohemian"])
+        XCTAssertEqual(item.matchedLoveLanguages, ["quality_time"])
     }
 
     /// Verify RecommendationItemResponse decodes with nil optionals.
@@ -98,6 +106,12 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.imageUrl)
         XCTAssertNil(item.merchantName)
         XCTAssertNil(item.location)
+        // Matched factors should be nil when not present in JSON (backward compatibility)
+        XCTAssertNil(item.matchedInterests)
+        XCTAssertNil(item.matchedVibes)
+        XCTAssertNil(item.matchedLoveLanguages)
+        // Price confidence should be nil when not present in JSON (backward compatibility)
+        XCTAssertNil(item.priceConfidence)
     }
 
     /// Verify RecommendationGenerateResponse decodes correctly.
