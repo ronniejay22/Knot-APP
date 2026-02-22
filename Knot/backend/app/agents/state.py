@@ -119,7 +119,7 @@ class CandidateRecommendation(BaseModel):
     """
 
     id: str
-    source: Literal["yelp", "ticketmaster", "amazon", "shopify", "firecrawl", "opentable", "resy"]
+    source: Literal["yelp", "ticketmaster", "amazon", "shopify", "firecrawl", "opentable", "resy", "claude_search"]
     type: Literal["gift", "experience", "date"]
     title: str
     description: Optional[str] = None

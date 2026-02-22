@@ -861,7 +861,7 @@ class TestModuleImports:
         assert AggregationError is not None
 
     def test_source_priority_importable(self):
-        """Should export SOURCE_PRIORITY dict with all 7 sources."""
+        """Should export SOURCE_PRIORITY dict with all 8 sources."""
         from app.services.integrations.aggregator import SOURCE_PRIORITY
 
         assert isinstance(SOURCE_PRIORITY, dict)
@@ -872,4 +872,5 @@ class TestModuleImports:
         assert "firecrawl" in SOURCE_PRIORITY
         assert "opentable" in SOURCE_PRIORITY
         assert "resy" in SOURCE_PRIORITY
-        assert len(SOURCE_PRIORITY) == 7
+        assert "claude_search" in SOURCE_PRIORITY
+        assert len(SOURCE_PRIORITY) == 8

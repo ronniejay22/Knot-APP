@@ -259,21 +259,22 @@ class TestRecommendationPipelinePerformance:
             mock_table.execute.return_value = MagicMock(data=[])
             mock_db.return_value.table.return_value = mock_table
 
-            # Mock the private fetch functions used inside aggregate_external_data
-            with patch("app.agents.aggregation._fetch_gift_candidates", new_callable=AsyncMock, return_value=candidates[:5]):
-                with patch("app.agents.aggregation._fetch_experience_candidates", new_callable=AsyncMock, return_value=candidates[5:10]):
-                    with patch("app.agents.availability.httpx") as mock_httpx:
-                        mock_response = MagicMock()
-                        mock_response.status_code = 200
-                        mock_httpx_client = AsyncMock()
-                        mock_httpx_client.head = AsyncMock(return_value=mock_response)
-                        mock_httpx_client.__aenter__ = AsyncMock(return_value=mock_httpx_client)
-                        mock_httpx_client.__aexit__ = AsyncMock(return_value=False)
-                        mock_httpx.AsyncClient.return_value = mock_httpx_client
+            # Mock the AggregatorService used inside aggregate_external_data
+            mock_aggregator = AsyncMock()
+            mock_aggregator.aggregate.return_value = [c.model_dump() for c in candidates[:10]]
+            with patch("app.agents.aggregation.AggregatorService", return_value=mock_aggregator):
+                with patch("app.agents.availability.httpx") as mock_httpx:
+                    mock_response = MagicMock()
+                    mock_response.status_code = 200
+                    mock_httpx_client = AsyncMock()
+                    mock_httpx_client.head = AsyncMock(return_value=mock_response)
+                    mock_httpx_client.__aenter__ = AsyncMock(return_value=mock_httpx_client)
+                    mock_httpx_client.__aexit__ = AsyncMock(return_value=False)
+                    mock_httpx.AsyncClient.return_value = mock_httpx_client
 
-                        start = time.perf_counter()
-                        result = await graph.ainvoke(state.model_dump())
-                        elapsed_s = time.perf_counter() - start
+                    start = time.perf_counter()
+                    result = await graph.ainvoke(state.model_dump())
+                    elapsed_s = time.perf_counter() - start
 
         assert elapsed_s < 3.0, f"Pipeline took {elapsed_s:.2f}s (limit: 3.0s)"
         print(f"  Recommendation pipeline completed in {elapsed_s:.2f}s")

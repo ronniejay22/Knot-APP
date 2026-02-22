@@ -11,6 +11,9 @@ langgraph
 # --- AI Model (Gemini 1.5 Pro via Vertex AI) ---
 google-cloud-aiplatform
 
+# --- AI Model (Claude for recommendation search) ---
+anthropic
+
 # --- Data Validation ---
 pydantic
 pydantic-ai

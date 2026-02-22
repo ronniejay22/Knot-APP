@@ -335,7 +335,10 @@ class TestFullPipeline:
             assert rec.title
             assert rec.external_url
             assert rec.type in ("gift", "experience", "date")
-            assert rec.source in ("yelp", "ticketmaster", "amazon", "shopify", "firecrawl")
+            assert rec.source in (
+                "yelp", "ticketmaster", "amazon", "shopify",
+                "firecrawl", "opentable", "resy", "claude_search",
+            )
 
     async def test_full_pipeline_recommendations_match_interests_or_vibes(
         self, mock_embedding, mock_hint_db, mock_url_check,

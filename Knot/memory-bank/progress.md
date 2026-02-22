@@ -4446,10 +4446,53 @@ xcodebuild test -project iOS/Knot.xcodeproj -scheme Knot \
 
 ---
 
+### Step 13.1: Replace External APIs with Claude-Powered Search Agent ✅
+**Date:** February 21, 2026
+**Status:** Complete
+
+**What was done:**
+- Replaced 6 unconfigured external API integrations (Yelp, Ticketmaster, Amazon, Shopify, OpenTable, Firecrawl) with a single Claude + Brave Search pipeline requiring only 2 API keys
+- Created `backend/app/services/integrations/claude_search_service.py` (~530 lines) — `ClaudeSearchService` that builds targeted search queries from vault data, runs parallel Brave web searches, extracts structured candidate data via Claude Sonnet, normalizes to `CandidateRecommendation` schema, and deduplicates by URL
+- Restructured `backend/app/agents/aggregation.py` with 3-tier fallback: Claude Search → AggregatorService → Stub catalogs (supplementary)
+- Added stub supplementing: when primary tiers return fewer than `TARGET_CANDIDATE_COUNT` (20) candidates, stubs fill the gap (deduplicated by title) rather than being skipped entirely
+- Added post-collection budget filtering to remove candidates with `price_cents` outside `budget.min_amount` to `budget.max_amount` range
+- Updated `backend/app/agents/state.py` to add `"claude_search"` to `CandidateRecommendation.source` Literal type
+- Updated `backend/app/core/config.py` with `ANTHROPIC_API_KEY`, `BRAVE_SEARCH_API_KEY` env vars and `is_claude_search_configured()` helper
+- Updated `backend/app/services/integrations/aggregator.py` with `"claude_search": 6` in `SOURCE_PRIORITY`
+- Added `anthropic` to `backend/requirements.txt`
+
+**Test results:**
+- All 1679 tests pass, 18 skipped, 0 failures
+- Created `backend/tests/test_claude_search_service.py` — 24 unit tests covering query construction, Brave Search mocking, Claude extraction, normalization, deduplication, error handling, and unconfigured state
+- Updated `backend/tests/test_aggregation_node.py` — adjusted 3 tests for stub supplementing and budget filtering behavior
+- Updated `backend/tests/test_pipeline.py` — expanded source assertion to include `opentable`, `resy`, and `claude_search`
+
+**Live integration verified:**
+- Ran live test with real API keys against Austin, TX vault data
+- Returned 16 real candidates with actual URLs (pottery classes, restaurants, gifts from real merchants)
+- Pipeline produces personalized, location-aware recommendations with purchasable/bookable links
+
+**Files created:**
+- `backend/app/services/integrations/claude_search_service.py` — ClaudeSearchService with Brave Search + Claude Sonnet extraction
+- `backend/tests/test_claude_search_service.py` — 24 unit tests
+
+**Files modified:**
+- `backend/app/agents/aggregation.py` — 3-tier fallback with stub supplementing and budget filtering
+- `backend/app/agents/state.py` — Added `claude_search` source type
+- `backend/app/core/config.py` — Claude Search configuration helpers
+- `backend/app/services/integrations/aggregator.py` — Source priority for claude_search
+- `backend/requirements.txt` — Added anthropic dependency
+- `backend/.env.example` — Added ANTHROPIC_API_KEY, BRAVE_SEARCH_API_KEY placeholders
+- `backend/tests/test_aggregation_node.py` — 3 test assertion updates
+- `backend/tests/test_pipeline.py` — Source assertion update
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
-- [ ] **Step 13.1:** App Store Submission Preparation
+- [x] **Step 13.1:** Replace External APIs with Claude Search Agent
+- [ ] **Step 13.2:** App Store Submission Preparation
 
 ---
 

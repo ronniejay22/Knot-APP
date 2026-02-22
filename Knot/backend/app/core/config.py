@@ -64,6 +64,12 @@ OPENTABLE_AFFILIATE_ID: str = os.getenv("OPENTABLE_AFFILIATE_ID", "")
 # --- Firecrawl (Curated Content Crawling) ---
 FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
 
+# --- Anthropic (Claude for recommendation search) ---
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+
+# --- Brave Search API ---
+BRAVE_SEARCH_API_KEY: str = os.getenv("BRAVE_SEARCH_API_KEY", "")
+
 # --- Universal Links (Apple App Site Association) ---
 APP_DOMAIN: str = os.getenv("APP_DOMAIN", "api.knot-app.com")
 
@@ -182,6 +188,53 @@ def is_firecrawl_configured() -> bool:
     Used by tests and services to conditionally enable curated content features.
     """
     return bool(FIRECRAWL_API_KEY)
+
+
+def validate_anthropic_config() -> bool:
+    """
+    Check that Anthropic API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — Claude
+    search will be disabled but the app will still function).
+    """
+    return bool(ANTHROPIC_API_KEY)
+
+
+def is_anthropic_configured() -> bool:
+    """
+    Check if Anthropic Claude is available without raising exceptions.
+
+    Used by tests and services to conditionally enable Claude features.
+    """
+    return bool(ANTHROPIC_API_KEY)
+
+
+def validate_brave_search_config() -> bool:
+    """
+    Check that Brave Search API credentials are configured.
+
+    Returns True if configured, False if not (non-fatal — web
+    search will be disabled but the app will still function).
+    """
+    return bool(BRAVE_SEARCH_API_KEY)
+
+
+def is_brave_search_configured() -> bool:
+    """
+    Check if Brave Search is available without raising exceptions.
+
+    Used by tests and services to conditionally enable web search features.
+    """
+    return bool(BRAVE_SEARCH_API_KEY)
+
+
+def is_claude_search_configured() -> bool:
+    """
+    Check if both Claude and Brave Search are configured for the combined service.
+
+    Both ANTHROPIC_API_KEY and BRAVE_SEARCH_API_KEY must be set.
+    """
+    return bool(ANTHROPIC_API_KEY and BRAVE_SEARCH_API_KEY)
 
 
 def validate_supabase_config() -> bool:

@@ -32,6 +32,7 @@ SOURCE_PRIORITY: dict[str, int] = {
     "firecrawl": 4,
     "opentable": 5,
     "resy": 5,
+    "claude_search": 6,
 }
 
 
