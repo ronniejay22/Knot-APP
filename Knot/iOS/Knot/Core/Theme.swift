@@ -76,4 +76,18 @@ enum Theme {
 
     /// Progress bar fill.
     static let progressFill = Color.pink
+
+    // MARK: - Sign-In Screen
+
+    /// Warm cream background for the photo grid section of the sign-in screen.
+    static let signInCream = Color(red: 1.0, green: 0.94, blue: 0.88)
+
+    /// Coral-pink fill for the primary "Get Started" CTA button.
+    static let signInButtonPrimary = Color(red: 0.96, green: 0.26, blue: 0.40)
+
+    /// Dark translucent fill for the secondary "I already have an account" button.
+    static let signInButtonSecondary = Color.white.opacity(0.10)
+
+    /// Border for the secondary sign-in button.
+    static let signInButtonSecondaryBorder = Color.white.opacity(0.20)
 }

@@ -54,6 +54,7 @@
 		8FEFC8AAD111CA83F1ECA171 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0923D42485ED34C6E165B1 /* RecommendationService.swift */; };
 		9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */; };
 		950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */; };
+		99E3A5C6B1B426D184CEB165 /* GetStartedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7362123756B3AC2288C59B0 /* GetStartedView.swift */; };
 		9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D4AED680722D46D3983508 /* RecommendationsView.swift */; };
 		A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9576279FACB0210014A38F96 /* MilestoneLocal.swift */; };
 		A3EDB10EF71EF3D6DCD10DC4 /* SavedRecommendation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D5AEEE5FEBF1EE92002601 /* SavedRecommendation.swift */; };
@@ -63,8 +64,8 @@
 		BB1BF9D7EFDB096248E5F005 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */; };
 		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
 		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
-		C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
+		C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
@@ -118,7 +119,6 @@
 		4ED289B139BA05DEAE2125F2 /* HintsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintsListViewModel.swift; sourceTree = "<group>"; };
 		554263B4D803E9B67716AEEF /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryService.swift; sourceTree = "<group>"; };
-		7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
 		5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDislikesView.swift; sourceTree = "<group>"; };
 		63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -130,6 +130,7 @@
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
 		71DF8EE438910DDA2E1CCC1A /* OnboardingBasicInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBasicInfoView.swift; sourceTree = "<group>"; };
 		77B1EA1A3CFCD077D2E7D7C3 /* OnboardingMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingMilestonesView.swift; sourceTree = "<group>"; };
+		7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
 		82D8C028DEC10B2C02A3FB2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		842768D146B565195D8F3390 /* Knot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Knot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8706879774F71CFAE5954F25 /* KnotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTests.swift; sourceTree = "<group>"; };
@@ -154,6 +155,7 @@
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompletionView.swift; sourceTree = "<group>"; };
 		D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
+		D7362123756B3AC2288C59B0 /* GetStartedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GetStartedView.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkRecommendationView.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 			children = (
 				4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */,
 				2DB2C0E473B2693C71D80BC2 /* SignInView.swift */,
+				D7362123756B3AC2288C59B0 /* GetStartedView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -440,8 +443,6 @@
 				4E9ACB94ABEABB2213A2D300 /* PBXTargetDependency */,
 			);
 			name = KnotUITests;
-			packageProductDependencies = (
-			);
 			productName = KnotUITests;
 			productReference = 45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -458,8 +459,6 @@
 				98449036F455C6A5C6165931 /* PBXTargetDependency */,
 			);
 			name = KnotTests;
-			packageProductDependencies = (
-			);
 			productName = KnotTests;
 			productReference = D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -503,6 +502,7 @@
 				7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = F7E46C8D3CE8BBD34B623C23 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -606,6 +606,7 @@
 				1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */,
 				72EC0668AF413912D66810A4 /* Theme.swift in Sources */,
 				E4833E28863AD353409A7973 /* VaultService.swift in Sources */,
+				99E3A5C6B1B426D184CEB165 /* GetStartedView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
