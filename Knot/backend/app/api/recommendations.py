@@ -227,8 +227,8 @@ async def generate_recommendations(
         if getattr(candidate, "is_idea", False):
             row["is_idea"] = True
             if getattr(candidate, "content_sections", None):
-                import json as _json
-                row["content_sections"] = _json.dumps(candidate.content_sections)
+                import json
+                row["content_sections"] = json.dumps(candidate.content_sections)
         rec_rows.append(row)
 
     try:
@@ -484,8 +484,8 @@ async def refresh_recommendations(
         if getattr(candidate, "is_idea", False):
             row["is_idea"] = True
             if getattr(candidate, "content_sections", None):
-                import json as _json
-                row["content_sections"] = _json.dumps(candidate.content_sections)
+                import json
+                row["content_sections"] = json.dumps(candidate.content_sections)
         rec_rows.append(row)
 
     try:
