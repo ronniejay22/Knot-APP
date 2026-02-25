@@ -8,6 +8,9 @@
 //  Step 6.5: Added vibeOverride to RecommendationRefreshPayload for manual vibe override.
 //  Step 7.7: Added Notification History and Milestone Recommendations DTOs.
 //  Step 11.4: Added Notification Preferences DTOs.
+//  Step 14.6: Added Knot Originals DTOs (IdeaContentSection, IdeaGeneratePayload,
+//             IdeaItemResponse, IdeaGenerateResponse, IdeaListResponse).
+//             Made externalUrl optional on RecommendationItemResponse for ideas.
 //
 
 import Foundation
@@ -336,11 +339,14 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let priceCents: Int?
     let currency: String
     let priceConfidence: String?
-    let externalUrl: String
+    let externalUrl: String?
     let imageUrl: String?
     let merchantName: String?
     let source: String
     let location: RecommendationLocationResponse?
+    // Knot Originals fields (Step 14.6)
+    let isIdea: Bool?
+    let contentSections: [IdeaContentSection]?
     let interestScore: Double
     let vibeScore: Double
     let loveLanguageScore: Double
@@ -360,6 +366,8 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case imageUrl = "image_url"
         case merchantName = "merchant_name"
         case source, location
+        case isIdea = "is_idea"
+        case contentSections = "content_sections"
         case interestScore = "interest_score"
         case vibeScore = "vibe_score"
         case loveLanguageScore = "love_language_score"
@@ -376,6 +384,78 @@ struct RecommendationLocationResponse: Codable, Sendable {
     let state: String?
     let country: String?
     let address: String?
+}
+
+// MARK: - Knot Originals / Ideas DTOs (Step 14.6)
+
+/// A single section of structured content within a Knot Original idea.
+///
+/// Each idea contains multiple sections (overview, steps, tips, etc.) that are
+/// rendered in a dedicated detail view. Sections use either `body` (paragraph text)
+/// or `items` (list of strings), never both.
+struct IdeaContentSection: Codable, Sendable, Identifiable {
+    /// Local-only identifier for SwiftUI list rendering.
+    var id: String { "\(type)-\(heading)" }
+
+    let type: String
+    let heading: String
+    let body: String?
+    let items: [String]?
+}
+
+/// Payload for `POST /api/v1/ideas/generate`.
+struct IdeaGeneratePayload: Codable, Sendable {
+    let count: Int
+    let occasionType: String
+    let category: String?
+
+    init(count: Int = 3, occasionType: String = "just_because", category: String? = nil) {
+        self.count = count
+        self.occasionType = occasionType
+        self.category = category
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case count
+        case occasionType = "occasion_type"
+        case category
+    }
+}
+
+/// A single Knot Original idea in the API response.
+struct IdeaItemResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let title: String
+    let description: String?
+    let recommendationType: String
+    let contentSections: [IdeaContentSection]
+    let matchedInterests: [String]?
+    let matchedVibes: [String]?
+    let matchedLoveLanguages: [String]?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description
+        case recommendationType = "recommendation_type"
+        case contentSections = "content_sections"
+        case matchedInterests = "matched_interests"
+        case matchedVibes = "matched_vibes"
+        case matchedLoveLanguages = "matched_love_languages"
+        case createdAt = "created_at"
+    }
+}
+
+/// Response from `POST /api/v1/ideas/generate`.
+struct IdeaGenerateResponse: Codable, Sendable {
+    let ideas: [IdeaItemResponse]
+    let count: Int
+}
+
+/// Response from `GET /api/v1/ideas` (paginated).
+struct IdeaListResponse: Codable, Sendable {
+    let ideas: [IdeaItemResponse]
+    let count: Int
+    let total: Int
 }
 
 // MARK: - Recommendation Feedback Request (Step 6.3, Step 9.4)

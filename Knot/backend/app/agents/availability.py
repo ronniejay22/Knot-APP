@@ -351,6 +351,15 @@ async def verify_availability(
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
         for i, candidate in enumerate(selected):
+            # Skip URL verification for ideas — they have no external URL (Step 14.5)
+            if candidate.is_idea or candidate.external_url is None:
+                logger.debug(
+                    "Slot %d: '%s' is an idea — skipping URL verification",
+                    i + 1, candidate.title,
+                )
+                verified.append(candidate)
+                continue
+
             # Fetch the page (availability check + content extraction)
             is_available, page_content = await _fetch_page(
                 candidate.external_url, client,

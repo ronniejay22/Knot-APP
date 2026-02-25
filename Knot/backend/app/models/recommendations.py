@@ -5,10 +5,13 @@ Defines request/response models for the recommendation endpoints:
 - POST /api/v1/recommendations/generate — Generate Choice-of-Three (Step 5.9)
 - POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions (Step 5.10)
 - POST /api/v1/recommendations/feedback — Record user feedback (Step 6.3)
+- POST /api/v1/ideas/generate — Generate Knot Original ideas (Step 14.2)
+- GET /api/v1/ideas — List user's AI-generated ideas (Step 14.2)
 
 Step 5.9: Create Recommendations API Endpoint
 Step 5.10: Implement Refresh (Re-roll) Logic
 Step 6.3: Implement Card Selection Flow
+Step 14.2: Add Knot Originals (AI-Generated Ideas) Models
 """
 
 from __future__ import annotations
@@ -74,21 +77,36 @@ class LocationResponse(BaseModel):
     address: Optional[str] = None
 
 
+class IdeaContentSection(BaseModel):
+    """A single section of structured content within a Knot Original idea."""
+
+    type: Literal[
+        "overview", "setup", "steps", "tips", "conversation",
+        "budget_tips", "variations", "music", "food_pairing",
+    ]
+    heading: str
+    body: Optional[str] = None
+    items: Optional[list[str]] = None
+
+
 class RecommendationItemResponse(BaseModel):
     """A single recommendation in the Choice-of-Three response."""
 
     id: str
-    recommendation_type: Literal["gift", "experience", "date"]
+    recommendation_type: Literal["gift", "experience", "date", "idea"]
     title: str
     description: Optional[str] = None
     price_cents: Optional[int] = None
     currency: str = "USD"
     price_confidence: str = "unknown"
-    external_url: str
+    external_url: Optional[str] = None
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
     source: str
     location: Optional[LocationResponse] = None
+    # Knot Originals fields (Step 14.2)
+    is_idea: bool = False
+    content_sections: Optional[list[IdeaContentSection]] = None
     # Scoring metadata (useful for debugging / transparency)
     interest_score: float = 0.0
     vibe_score: float = 0.0
@@ -158,3 +176,51 @@ class RecommendationFeedbackResponse(BaseModel):
     recommendation_id: str
     action: str
     created_at: str
+
+
+# ======================================================================
+# Knot Originals (AI-Generated Ideas) Models (Step 14.2)
+# ======================================================================
+
+class IdeaGenerateRequest(BaseModel):
+    """
+    Payload for POST /api/v1/ideas/generate.
+
+    Generates AI-powered personalized ideas using the partner's vault data,
+    captured hints, and occasion context.
+    """
+
+    count: int = Field(default=3, ge=1, le=10)
+    occasion_type: Literal[
+        "just_because", "minor_occasion", "major_milestone"
+    ] = "just_because"
+    category: Optional[str] = None  # e.g., "activity", "gesture", "challenge"
+
+
+class IdeaItemResponse(BaseModel):
+    """A single Knot Original idea in the response."""
+
+    id: str
+    title: str
+    description: Optional[str] = None
+    recommendation_type: str = "idea"
+    content_sections: list[IdeaContentSection]
+    matched_interests: list[str] = Field(default_factory=list)
+    matched_vibes: list[str] = Field(default_factory=list)
+    matched_love_languages: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class IdeaGenerateResponse(BaseModel):
+    """Response for POST /api/v1/ideas/generate."""
+
+    ideas: list[IdeaItemResponse]
+    count: int
+
+
+class IdeaListResponse(BaseModel):
+    """Response for GET /api/v1/ideas."""
+
+    ideas: list[IdeaItemResponse]
+    count: int
+    total: int

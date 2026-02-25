@@ -361,7 +361,7 @@ class TestFilteringWithWeights:
         dislikes = []
 
         # With weight 2.0: interest match = 1.0 * 2.0 = 2.0, bonus = 0.5 → total 2.5
-        score = _score_candidate(
+        score, _ = _score_candidate(
             candidate, interests, dislikes,
             interest_weights={"Cooking": 2.0},
         )
@@ -376,7 +376,7 @@ class TestFilteringWithWeights:
         interests = ["Cooking"]
         dislikes = ["Gaming"]
 
-        score = _score_candidate(
+        score, _ = _score_candidate(
             candidate, interests, dislikes,
             interest_weights={"Gaming": 0.5},
         )
@@ -420,8 +420,8 @@ class TestVibeBoostWithWeights:
             rec_type="experience",
             matched_vibe="quiet_luxury",
         )
-        default_boost = _compute_vibe_boost(candidate, ["quiet_luxury"])
-        weighted_boost = _compute_vibe_boost(
+        default_boost, _ = _compute_vibe_boost(candidate, ["quiet_luxury"])
+        weighted_boost, _ = _compute_vibe_boost(
             candidate, ["quiet_luxury"],
             vibe_weights={"quiet_luxury": 1.5},
         )
@@ -436,8 +436,8 @@ class TestVibeBoostWithWeights:
             rec_type="experience",
             matched_vibe="adventurous",
         )
-        default_boost = _compute_vibe_boost(candidate, ["adventurous"])
-        weighted_boost = _compute_vibe_boost(
+        default_boost, _ = _compute_vibe_boost(candidate, ["adventurous"])
+        weighted_boost, _ = _compute_vibe_boost(
             candidate, ["adventurous"],
             vibe_weights={"adventurous": 0.7},
         )
@@ -451,8 +451,8 @@ class TestVibeBoostWithWeights:
             rec_type="experience",
             matched_vibe="quiet_luxury",
         )
-        default_boost = _compute_vibe_boost(candidate, ["quiet_luxury"])
-        neutral_boost = _compute_vibe_boost(
+        default_boost, _ = _compute_vibe_boost(candidate, ["quiet_luxury"])
+        neutral_boost, _ = _compute_vibe_boost(
             candidate, ["quiet_luxury"],
             vibe_weights={"quiet_luxury": 1.0},
         )
@@ -478,7 +478,7 @@ class TestVibeBoostWithWeights:
             matched_vibe="romantic",
         )
         # Matches romantic (metadata) and quiet_luxury (keyword "luxury")
-        boost = _compute_vibe_boost(
+        boost, _ = _compute_vibe_boost(
             candidate, ["romantic", "quiet_luxury"],
             vibe_weights={"romantic": 1.5, "quiet_luxury": 0.8},
         )
@@ -496,10 +496,10 @@ class TestLoveLanguageBoostWithWeights:
     def test_boosted_primary_ll_weight(self):
         """A boosted primary love language weight should increase the boost."""
         candidate = _make_candidate(rec_type="gift")
-        default_boost = _compute_love_language_boost(
+        default_boost, _ = _compute_love_language_boost(
             candidate, "receiving_gifts", "quality_time",
         )
-        weighted_boost = _compute_love_language_boost(
+        weighted_boost, _ = _compute_love_language_boost(
             candidate, "receiving_gifts", "quality_time",
             ll_weights={"receiving_gifts": 1.5},
         )
@@ -511,10 +511,10 @@ class TestLoveLanguageBoostWithWeights:
     def test_boosted_secondary_ll_weight(self):
         """A boosted secondary love language weight should increase the boost."""
         candidate = _make_candidate(rec_type="gift")
-        default_boost = _compute_love_language_boost(
+        default_boost, _ = _compute_love_language_boost(
             candidate, "quality_time", "receiving_gifts",
         )
-        weighted_boost = _compute_love_language_boost(
+        weighted_boost, _ = _compute_love_language_boost(
             candidate, "quality_time", "receiving_gifts",
             ll_weights={"receiving_gifts": 1.8},
         )
@@ -542,7 +542,7 @@ class TestLoveLanguageBoostWithWeights:
             description="Couples massage and spa treatment",
             rec_type="experience",
         )
-        boost = _compute_love_language_boost(
+        boost, _ = _compute_love_language_boost(
             candidate, "quality_time", "physical_touch",
             ll_weights={"quality_time": 1.3, "physical_touch": 1.5},
         )

@@ -212,7 +212,7 @@ async def generate_recommendations(
     # =================================================================
     rec_rows = []
     for candidate in final_three:
-        rec_rows.append({
+        row = {
             "vault_id": vault_id,
             "milestone_id": payload.milestone_id,
             "recommendation_type": candidate.type,
@@ -222,7 +222,14 @@ async def generate_recommendations(
             "price_cents": candidate.price_cents,
             "merchant_name": candidate.merchant_name,
             "image_url": candidate.image_url,
-        })
+        }
+        # Include idea-specific fields only when the candidate is an idea (Step 14.4)
+        if getattr(candidate, "is_idea", False):
+            row["is_idea"] = True
+            if getattr(candidate, "content_sections", None):
+                import json as _json
+                row["content_sections"] = _json.dumps(candidate.content_sections)
+        rec_rows.append(row)
 
     try:
         db_result = client.table("recommendations").insert(rec_rows).execute()
@@ -464,7 +471,7 @@ async def refresh_recommendations(
     # =================================================================
     rec_rows = []
     for candidate in new_three:
-        rec_rows.append({
+        row = {
             "vault_id": vault_id,
             "recommendation_type": candidate.type,
             "title": candidate.title,
@@ -473,7 +480,13 @@ async def refresh_recommendations(
             "price_cents": candidate.price_cents,
             "merchant_name": candidate.merchant_name,
             "image_url": candidate.image_url,
-        })
+        }
+        if getattr(candidate, "is_idea", False):
+            row["is_idea"] = True
+            if getattr(candidate, "content_sections", None):
+                import json as _json
+                row["content_sections"] = _json.dumps(candidate.content_sections)
+        rec_rows.append(row)
 
     try:
         db_result = client.table("recommendations").insert(rec_rows).execute()
@@ -958,6 +971,16 @@ def _build_response_items(
                 address=candidate.location.address,
             )
 
+        # Build content_sections for ideas (Step 14.4)
+        content_sections_resp = None
+        is_idea = getattr(candidate, "is_idea", False)
+        if is_idea and getattr(candidate, "content_sections", None):
+            from app.models.recommendations import IdeaContentSection
+            content_sections_resp = [
+                IdeaContentSection(**s) if isinstance(s, dict) else s
+                for s in candidate.content_sections
+            ]
+
         response_items.append(
             RecommendationItemResponse(
                 id=db_id,
@@ -972,6 +995,8 @@ def _build_response_items(
                 merchant_name=candidate.merchant_name,
                 source=candidate.source,
                 location=location_resp,
+                is_idea=is_idea,
+                content_sections=content_sections_resp,
                 interest_score=candidate.interest_score,
                 vibe_score=candidate.vibe_score,
                 love_language_score=candidate.love_language_score,

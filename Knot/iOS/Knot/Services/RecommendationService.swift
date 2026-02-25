@@ -5,6 +5,7 @@
 //  Created on February 10, 2026.
 //  Step 6.2: Service for generating and refreshing AI recommendations via backend API.
 //  Step 6.5: Added vibeOverride parameter to refreshRecommendations for manual vibe override.
+//  Step 14.7: Added Knot Originals idea methods (generateIdeas, fetchIdeas, fetchIdea).
 //
 
 import Foundation
@@ -376,6 +377,210 @@ final class RecommendationService: Sendable {
         case 200:
             do {
                 return try decoder.decode(MilestoneRecommendationItemResponse.self, from: data)
+            } catch {
+                throw RecommendationServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw RecommendationServiceError.noAuthSession
+
+        case 404:
+            throw RecommendationServiceError.notFound
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Generate Ideas (Step 14.7)
+
+    /// Generates personalized Knot Original ideas using Claude.
+    ///
+    /// Sends `POST /api/v1/ideas/generate` with count, occasion type,
+    /// and optional category filter. The backend generates rich, structured
+    /// idea content using the partner's vault data and captured hints.
+    ///
+    /// - Parameters:
+    ///   - count: Number of ideas to generate (1-10, default 3)
+    ///   - occasionType: Budget tier context
+    ///   - category: Optional category filter (e.g., "activity", "gesture")
+    /// - Returns: The generate response with ideas and content sections
+    /// - Throws: `RecommendationServiceError` if the request fails
+    func generateIdeas(
+        count: Int = 3,
+        occasionType: String = "just_because",
+        category: String? = nil
+    ) async throws -> IdeaGenerateResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/ideas/generate") else {
+            throw RecommendationServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 60
+
+        let payload = IdeaGeneratePayload(
+            count: count,
+            occasionType: occasionType,
+            category: category
+        )
+
+        do {
+            request.httpBody = try encoder.encode(payload)
+        } catch {
+            throw RecommendationServiceError.decodingError(
+                "Failed to encode request: \(error.localizedDescription)"
+            )
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw RecommendationServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw RecommendationServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RecommendationServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(IdeaGenerateResponse.self, from: data)
+            } catch {
+                throw RecommendationServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw RecommendationServiceError.noAuthSession
+
+        case 404:
+            throw RecommendationServiceError.noVault
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Fetch Ideas (Step 14.7)
+
+    /// Fetches the user's Knot Original ideas (paginated).
+    ///
+    /// Sends `GET /api/v1/ideas?limit=N&offset=M`.
+    /// Returns ideas ordered by most recent first.
+    ///
+    /// - Parameters:
+    ///   - limit: Maximum number of ideas to return (default 20)
+    ///   - offset: Number of ideas to skip for pagination (default 0)
+    /// - Returns: Paginated list of ideas with total count
+    /// - Throws: `RecommendationServiceError` if the request fails
+    func fetchIdeas(
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> IdeaListResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/ideas/?limit=\(limit)&offset=\(offset)") else {
+            throw RecommendationServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw RecommendationServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw RecommendationServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RecommendationServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(IdeaListResponse.self, from: data)
+            } catch {
+                throw RecommendationServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw RecommendationServiceError.noAuthSession
+
+        case 404:
+            throw RecommendationServiceError.noVault
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw RecommendationServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
+    // MARK: - Fetch Single Idea (Step 14.7)
+
+    /// Fetches a single Knot Original idea by its database ID.
+    ///
+    /// Sends `GET /api/v1/ideas/{ideaId}`.
+    ///
+    /// - Parameter ideaId: The UUID of the idea to fetch
+    /// - Returns: The idea with full content sections
+    /// - Throws: `RecommendationServiceError` if the request fails
+    func fetchIdea(id ideaId: String) async throws -> IdeaItemResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/ideas/\(ideaId)") else {
+            throw RecommendationServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw RecommendationServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw RecommendationServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RecommendationServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(IdeaItemResponse.self, from: data)
             } catch {
                 throw RecommendationServiceError.decodingError(error.localizedDescription)
             }

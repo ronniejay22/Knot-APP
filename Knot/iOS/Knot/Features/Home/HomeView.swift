@@ -820,20 +820,20 @@ struct HomeView: View {
 
             Spacer()
 
-            // Open link button
-            Button {
-                if let url = URL(string: saved.externalURL) {
+            // Open link button (hidden for Knot Originals with no external URL)
+            if let urlString = saved.externalURL, let url = URL(string: urlString) {
+                Button {
                     UIApplication.shared.open(url)
+                } label: {
+                    Image(uiImage: Lucide.externalLink)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 14, height: 14)
+                        .foregroundStyle(Theme.textTertiary)
                 }
-            } label: {
-                Image(uiImage: Lucide.externalLink)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
-                    .foregroundStyle(Theme.textTertiary)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             // Delete button
             Button {

@@ -251,13 +251,13 @@ struct RecommendationCard: View {
 
                 Spacer()
 
-                // Select button
+                // Select / Read button
                 Button(action: onSelect) {
                     HStack(spacing: 6) {
-                        Text("Select")
+                        Text(recommendationType == "idea" ? "Read" : "Select")
                             .font(.subheadline.weight(.semibold))
 
-                        Image(systemName: "arrow.right")
+                        Image(systemName: recommendationType == "idea" ? "book" : "arrow.right")
                             .font(.caption.weight(.bold))
                     }
                     .foregroundStyle(.white)

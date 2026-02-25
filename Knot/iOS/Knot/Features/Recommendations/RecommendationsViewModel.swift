@@ -10,11 +10,18 @@
 //  Step 6.6: Save/Share actions with local persistence and feedback recording.
 //  Step 9.4: Return-to-app flow — purchase confirmation and rating after merchant handoff.
 //  Step 10.4: App Store review prompt after 5-star rating with 90-day rate limiting.
+//  Step 14.8: Added ideas mode, ideas feed state and methods for Knot Originals.
 //
 
 import Foundation
 import SwiftData
 import UIKit
+
+/// Toggle between "Suggestions" (Choice-of-Three) and "Ideas" (Knot Originals) feeds.
+enum RecommendationMode: String, CaseIterable {
+    case suggestions = "Suggestions"
+    case ideas = "Ideas"
+}
 
 /// State container for the recommendations screen.
 ///
@@ -25,6 +32,9 @@ import UIKit
 final class RecommendationsViewModel {
 
     // MARK: - State
+
+    /// The active feed mode (Suggestions or Ideas).
+    var selectedMode: RecommendationMode = .suggestions
 
     /// The current set of recommendations (up to 3).
     var recommendations: [RecommendationItemResponse] = []
@@ -94,6 +104,26 @@ final class RecommendationsViewModel {
 
     /// Whether the App Store review prompt is currently shown.
     var showAppReviewPrompt = false
+
+    // MARK: - Ideas Feed State (Step 14.8)
+
+    /// The list of Knot Original ideas in the ideas feed.
+    var ideas: [IdeaItemResponse] = []
+
+    /// Whether ideas are currently being fetched or generated.
+    var isLoadingIdeas = false
+
+    /// Error message for the ideas feed.
+    var ideasErrorMessage: String?
+
+    /// Whether the initial load of ideas has been attempted.
+    var hasLoadedIdeas = false
+
+    /// The idea selected for detail view navigation.
+    var selectedIdea: IdeaItemResponse?
+
+    /// Whether the idea detail view is presented.
+    var showIdeaDetail = false
 
     // MARK: - Dependencies
 
@@ -291,11 +321,14 @@ final class RecommendationsViewModel {
         selectedRecommendation = nil
 
         // Open the merchant URL with native-app preference and log handoff (Step 9.3)
-        await MerchantHandoffService.openMerchantURL(
-            urlString: item.externalUrl,
-            recommendationId: item.id,
-            service: service
-        )
+        // Ideas have no external URL — skip merchant handoff for them.
+        if let urlString = item.externalUrl {
+            await MerchantHandoffService.openMerchantURL(
+                urlString: urlString,
+                recommendationId: item.id,
+                service: service
+            )
+        }
     }
 
     /// Dismisses the confirmation sheet without confirming.
@@ -320,6 +353,11 @@ final class RecommendationsViewModel {
 
         // Insert into SwiftData
         if let modelContext {
+            let contentData: Data? = if let sections = item.contentSections {
+                try? JSONEncoder().encode(sections)
+            } else {
+                nil
+            }
             let saved = SavedRecommendation(
                 recommendationId: item.id,
                 recommendationType: item.recommendationType,
@@ -329,7 +367,9 @@ final class RecommendationsViewModel {
                 priceCents: item.priceCents,
                 currency: item.currency,
                 merchantName: item.merchantName,
-                imageURL: item.imageUrl
+                imageURL: item.imageUrl,
+                isIdea: item.isIdea == true,
+                contentSectionsData: contentData
             )
             modelContext.insert(saved)
             try? modelContext.save()
@@ -362,7 +402,7 @@ final class RecommendationsViewModel {
         let message = "Check out this recommendation\(merchantText): \(title)"
 
         var items: [Any] = [message]
-        if let url = URL(string: item.externalUrl) {
+        if let urlString = item.externalUrl, let url = URL(string: urlString) {
             items.append(url)
         }
 
@@ -476,6 +516,74 @@ final class RecommendationsViewModel {
     func dismissPurchasePrompt() {
         showPurchasePromptSheet = false
         pendingHandoffRecommendation = nil
+    }
+
+    // MARK: - Ideas Feed (Step 14.8)
+
+    /// Loads existing ideas from the backend (paginated fetch).
+    /// Called when the user first switches to the Ideas tab.
+    func loadIdeas() async {
+        guard !isLoadingIdeas else { return }
+
+        isLoadingIdeas = true
+        ideasErrorMessage = nil
+
+        do {
+            let response = try await service.fetchIdeas(limit: 20, offset: 0)
+            ideas = response.ideas
+            hasLoadedIdeas = true
+        } catch {
+            ideasErrorMessage = error.localizedDescription
+        }
+
+        isLoadingIdeas = false
+    }
+
+    /// Generates new ideas via Claude and adds them to the feed.
+    func generateIdeas() async {
+        guard !isLoadingIdeas else { return }
+
+        isLoadingIdeas = true
+        ideasErrorMessage = nil
+
+        do {
+            let response = try await service.generateIdeas(
+                count: 3,
+                occasionType: "just_because"
+            )
+            // Prepend new ideas to the top of the feed
+            let newIds = Set(response.ideas.map(\.id))
+            let deduplicated = ideas.filter { !newIds.contains($0.id) }
+            ideas = response.ideas + deduplicated
+            hasLoadedIdeas = true
+        } catch {
+            ideasErrorMessage = error.localizedDescription
+        }
+
+        isLoadingIdeas = false
+    }
+
+    /// Opens the idea detail view for the given idea.
+    func selectIdea(_ idea: IdeaItemResponse) {
+        selectedIdea = idea
+        showIdeaDetail = true
+    }
+
+    /// Opens the idea detail view for an idea that appeared in the Choice-of-Three trio.
+    /// Converts the `RecommendationItemResponse` to `IdeaItemResponse` for the detail view.
+    func openIdeaFromTrio(_ item: RecommendationItemResponse) {
+        let idea = IdeaItemResponse(
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            recommendationType: item.recommendationType,
+            contentSections: item.contentSections ?? [],
+            matchedInterests: item.matchedInterests,
+            matchedVibes: item.matchedVibes,
+            matchedLoveLanguages: item.matchedLoveLanguages,
+            createdAt: ""
+        )
+        selectIdea(idea)
     }
 
     // MARK: - Private Helpers

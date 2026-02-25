@@ -10,6 +10,7 @@
 //  Step 6.6: Save and Share action buttons wired into RecommendationCard.
 //  Step 9.4: Return-to-app purchase prompt and rating sheets after merchant handoff.
 //  Step 10.4: App Store review prompt after 5-star purchase ratings.
+//  Step 14.8: Added "Suggestions"/"Ideas" segmented control and ideas feed.
 //
 
 import SwiftUI
@@ -44,21 +45,32 @@ struct RecommendationsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Theme.backgroundGradient.ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Segmented control (Step 14.8)
+                Picker("Mode", selection: $viewModel.selectedMode) {
+                    ForEach(RecommendationMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-                Group {
-                    if viewModel.isLoading {
-                        loadingState
-                    } else if let error = viewModel.errorMessage {
-                        errorState(message: error)
-                    } else if viewModel.recommendations.isEmpty {
-                        emptyState
-                    } else {
-                        recommendationsContent
+                ZStack {
+                    Theme.backgroundGradient.ignoresSafeArea()
+
+                    Group {
+                        switch viewModel.selectedMode {
+                        case .suggestions:
+                            suggestionsContent
+                        case .ideas:
+                            ideasContent
+                        }
                     }
                 }
             }
+            .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -193,6 +205,185 @@ struct RecommendationsView: View {
                     viewModel.handleReturnFromMerchant()
                 }
             }
+            // Idea detail view (Step 14.9)
+            .fullScreenCover(isPresented: $viewModel.showIdeaDetail) {
+                if let idea = viewModel.selectedIdea {
+                    IdeaDetailView(idea: idea) {
+                        viewModel.showIdeaDetail = false
+                        viewModel.selectedIdea = nil
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Suggestions Content (Step 14.8)
+
+    /// The suggestions tab content — loading, error, empty, or recommendation cards.
+    @ViewBuilder
+    private var suggestionsContent: some View {
+        if viewModel.isLoading {
+            loadingState
+        } else if let error = viewModel.errorMessage {
+            errorState(message: error)
+        } else if viewModel.recommendations.isEmpty {
+            emptyState
+        } else {
+            recommendationsContent
+        }
+    }
+
+    // MARK: - Ideas Content (Step 14.8)
+
+    /// The ideas tab content — Knot Originals feed with vertical scrolling cards.
+    @ViewBuilder
+    private var ideasContent: some View {
+        if viewModel.isLoadingIdeas && viewModel.ideas.isEmpty {
+            VStack(spacing: 16) {
+                ProgressView()
+                    .tint(Theme.accent)
+                    .scaleEffect(1.2)
+
+                Text("Loading ideas...")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        } else if let error = viewModel.ideasErrorMessage, viewModel.ideas.isEmpty {
+            VStack(spacing: 16) {
+                Image(uiImage: Lucide.circleAlert)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)
+                    .foregroundStyle(Theme.textTertiary)
+
+                Text(error)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+
+                Button {
+                    Task { await viewModel.loadIdeas() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(uiImage: Lucide.refreshCw)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
+
+                        Text("Try Again")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(Theme.accent))
+                }
+            }
+        } else if viewModel.ideas.isEmpty && viewModel.hasLoadedIdeas {
+            ideasEmptyState
+        } else {
+            ideasFeed
+        }
+    }
+
+    /// Empty state shown when no ideas have been generated yet.
+    private var ideasEmptyState: some View {
+        VStack(spacing: 16) {
+            Image(uiImage: Lucide.lightbulb)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+                .foregroundStyle(Theme.textTertiary)
+
+            Text("No ideas yet")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+
+            Text("Generate personalized activity ideas, date concepts, and creative gestures tailored to your partner.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Button {
+                Task { await viewModel.generateIdeas() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(uiImage: Lucide.sparkles)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+
+                    Text("Generate Ideas")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 14)
+                .background(Capsule().fill(Theme.accent))
+            }
+        }
+    }
+
+    /// Scrollable feed of idea cards.
+    private var ideasFeed: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(viewModel.ideas) { idea in
+                    IdeaFeedCard(idea: idea) {
+                        viewModel.selectIdea(idea)
+                    }
+                }
+
+                // Generate more button at the bottom of the feed
+                Button {
+                    Task { await viewModel.generateIdeas() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if viewModel.isLoadingIdeas {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(uiImage: Lucide.plus)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+                        }
+
+                        Text(viewModel.isLoadingIdeas ? "Generating..." : "Generate More Ideas")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Theme.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Theme.surfaceBorder, lineWidth: 1)
+                            )
+                    )
+                }
+                .disabled(viewModel.isLoadingIdeas)
+                .opacity(viewModel.isLoadingIdeas ? 0.6 : 1.0)
+                .padding(.top, 8)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+        .scrollIndicators(.hidden)
+        .task {
+            if !viewModel.hasLoadedIdeas {
+                await viewModel.loadIdeas()
+            }
         }
     }
 
@@ -217,14 +408,18 @@ struct RecommendationsView: View {
                                 priceCents: item.priceCents,
                                 currency: item.currency,
                                 priceConfidence: item.priceConfidence ?? "unknown",
-                                merchantName: item.merchantName,
+                                merchantName: item.isIdea == true ? nil : item.merchantName,
                                 imageURL: item.imageUrl,
                                 isSaved: viewModel.isSaved(item.id),
                                 matchedInterests: item.matchedInterests ?? [],
                                 matchedVibes: item.matchedVibes ?? [],
                                 matchedLoveLanguages: item.matchedLoveLanguages ?? [],
                                 onSelect: {
-                                    viewModel.selectRecommendation(item)
+                                    if item.isIdea == true {
+                                        viewModel.openIdeaFromTrio(item)
+                                    } else {
+                                        viewModel.selectRecommendation(item)
+                                    }
                                 },
                                 onSave: {
                                     viewModel.saveRecommendation(item)
@@ -952,6 +1147,88 @@ private struct VibeOverrideCard: View {
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.25), value: isSelected)
+    }
+}
+
+// MARK: - Idea Feed Card (Step 14.8)
+
+/// A compact card for the ideas feed showing title, description, and matched factors.
+struct IdeaFeedCard: View {
+    let idea: IdeaItemResponse
+    let onTap: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Type badge
+                HStack(spacing: 5) {
+                    Image(uiImage: Lucide.lightbulb)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 12, height: 12)
+
+                    Text("IDEA")
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                }
+                .foregroundStyle(Theme.accent)
+
+                // Title
+                Text(idea.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                // Description
+                if let description = idea.description, !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                }
+
+                // Matched factors chips
+                let chips = (idea.matchedInterests ?? []) + (idea.matchedVibes ?? [])
+                if !chips.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(chips.prefix(5), id: \.self) { chip in
+                                Text(chip)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        Capsule()
+                                            .fill(Theme.accent.opacity(0.15))
+                                    )
+                            }
+                        }
+                    }
+                }
+
+                // Read button
+                HStack {
+                    Spacer()
+                    Text("Read")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Theme.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.surfaceBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

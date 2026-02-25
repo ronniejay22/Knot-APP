@@ -229,6 +229,22 @@ async def select_diverse_three(
                 best_candidate.merchant_name,
             )
 
+    # --- Step 14.5: Fill remaining slots with idea candidates ---
+    idea_candidates = list(state.idea_candidates) if state.idea_candidates else []
+    if len(selected) < TARGET_COUNT and idea_candidates:
+        logger.info(
+            "Filling %d remaining slot(s) with idea candidates (%d available)",
+            TARGET_COUNT - len(selected), len(idea_candidates),
+        )
+        for idea in idea_candidates:
+            if len(selected) >= TARGET_COUNT:
+                break
+            selected.append(idea)
+            logger.debug(
+                "Pick %d (idea): '%s' (type=%s)",
+                len(selected), idea.title, idea.type,
+            )
+
     logger.info(
         "Selected %d diverse recommendations: %s",
         len(selected),

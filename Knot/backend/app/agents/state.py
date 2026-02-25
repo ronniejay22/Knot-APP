@@ -10,6 +10,7 @@ Defines the state that flows through the recommendation generation graph:
 6. verify_availability — Confirm external URLs are valid
 
 Step 5.1: Define Recommendation State Schema
+Step 14.5: Add idea support (is_idea, content_sections, optional external_url)
 """
 
 from __future__ import annotations
@@ -112,25 +113,29 @@ class LocationData(BaseModel):
 
 class CandidateRecommendation(BaseModel):
     """
-    A recommendation candidate from an external API.
+    A recommendation candidate from an external API or AI idea generation.
 
-    Starts as a raw result from aggregate_external_data, then accumulates
-    scores as it passes through filtering and matching nodes.
+    Starts as a raw result from aggregate_external_data (or idea generation),
+    then accumulates scores as it passes through filtering and matching nodes.
     """
 
     id: str
-    source: Literal["yelp", "ticketmaster", "amazon", "shopify", "firecrawl", "opentable", "resy", "claude_search"]
-    type: Literal["gift", "experience", "date"]
+    source: Literal["yelp", "ticketmaster", "amazon", "shopify", "firecrawl", "opentable", "resy", "claude_search", "knot"]
+    type: Literal["gift", "experience", "date", "idea"]
     title: str
     description: Optional[str] = None
     price_cents: Optional[int] = None
     currency: str = "USD"
     price_confidence: Literal["verified", "estimated", "unknown"] = "unknown"
-    external_url: str
+    external_url: Optional[str] = None  # None for ideas (Step 14.5)
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
     location: Optional[LocationData] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    # Knot Originals fields (Step 14.5)
+    is_idea: bool = False
+    content_sections: Optional[list[dict[str, Any]]] = None
 
     # Scoring fields — populated by filtering/matching nodes
     interest_score: float = 0.0
@@ -177,6 +182,9 @@ class RecommendationState(BaseModel):
         default_factory=list
     )
     final_three: list[CandidateRecommendation] = Field(default_factory=list)
+
+    # --- Knot Originals idea candidates (Step 14.5) ---
+    idea_candidates: list[CandidateRecommendation] = Field(default_factory=list)
 
     # --- Error/status tracking ---
     error: Optional[str] = None

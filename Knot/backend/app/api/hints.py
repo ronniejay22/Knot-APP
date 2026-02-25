@@ -8,6 +8,7 @@ Step 4.2: POST /api/v1/hints — Create hint with text storage
 Step 4.4: POST /api/v1/hints — Now generates 768-dim embeddings via Vertex AI
           GET /api/v1/hints — List hints for the authenticated user
 Step 4.6: DELETE /api/v1/hints/{hint_id} — Delete a hint
+Step 14.11: Trigger background idea generation via QStash after hint creation
 """
 
 import logging
@@ -125,6 +126,39 @@ async def create_hint(
         )
 
     hint = hint_result.data[0]
+
+    # --- 4. Trigger background idea generation via QStash (Step 14.11) ---
+    # Fires with a 30-second delay (to batch multiple rapid hints) and
+    # daily deduplication (max one background generation per user per day).
+    try:
+        from datetime import date
+        from app.core.config import WEBHOOK_BASE_URL, is_qstash_configured
+        from app.services.qstash import publish_to_qstash
+
+        if is_qstash_configured() and WEBHOOK_BASE_URL:
+            today = date.today().isoformat()
+            dedup_key = f"idea-gen-{user_id}-{today}"
+            webhook_url = f"{WEBHOOK_BASE_URL}/api/v1/ideas/generate-background"
+
+            await publish_to_qstash(
+                destination_url=webhook_url,
+                body={
+                    "user_id": user_id,
+                    "vault_id": vault_id,
+                },
+                delay_seconds=30,
+                deduplication_id=dedup_key,
+            )
+            logger.info(
+                "Queued background idea generation for user %s (dedup: %s)",
+                user_id[:8], dedup_key,
+            )
+    except Exception as exc:
+        # Non-blocking — hint creation still succeeds even if QStash fails
+        logger.warning(
+            "Failed to queue background idea generation for user %s: %s",
+            user_id[:8], exc,
+        )
 
     return HintCreateResponse(
         id=hint["id"],

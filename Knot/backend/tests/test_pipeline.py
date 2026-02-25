@@ -631,18 +631,24 @@ class TestSpecRequirements:
         """
         state = _make_state(budget_min=2000, budget_max=30000)
 
-        # Make ALL URLs unavailable
+        # Make ALL URLs unavailable (patch both primary fetch and replacement check)
         with patch(
             "app.agents.availability._check_url",
             new_callable=AsyncMock,
             return_value=False,
+        ), patch(
+            "app.agents.availability._fetch_page",
+            new_callable=AsyncMock,
+            return_value=(False, None),
         ):
             result = await recommendation_graph.ainvoke(state)
 
-        # When all URLs fail with no valid replacements, we get 0 results
+        # When all URLs fail, linked recs are dropped but idea candidates
+        # (which skip URL verification) may fill empty slots via selection.
         final = result.get("final_three", [])
-        assert len(final) < 3, (
-            "With all URLs unavailable, should have fewer than 3 results"
+        non_idea = [c for c in final if not getattr(c, "is_idea", False)]
+        assert len(non_idea) == 0, (
+            "With all URLs unavailable, no linked (non-idea) recs should survive"
         )
 
 
