@@ -18,15 +18,15 @@ final class MainTabViewTests: XCTestCase {
 
     /// Verify AppTab enum has correct raw values for all four tabs.
     func testAppTabRawValues() {
-        XCTAssertEqual(MainTabView.AppTab.home.rawValue, 0)
-        XCTAssertEqual(MainTabView.AppTab.discover.rawValue, 1)
+        XCTAssertEqual(MainTabView.AppTab.forYou.rawValue, 0)
+        XCTAssertEqual(MainTabView.AppTab.hints.rawValue, 1)
         XCTAssertEqual(MainTabView.AppTab.saved.rawValue, 2)
         XCTAssertEqual(MainTabView.AppTab.profile.rawValue, 3)
     }
 
     /// Verify all four AppTab cases exist.
     func testAppTabHasFourCases() {
-        let allCases: [MainTabView.AppTab] = [.home, .discover, .saved, .profile]
+        let allCases: [MainTabView.AppTab] = [.forYou, .hints, .saved, .profile]
         XCTAssertEqual(allCases.count, 4)
     }
 

@@ -3,7 +3,7 @@
 //  Knot
 //
 //  Created on February 26, 2026.
-//  Bottom tab bar navigation — segments Home, Discover, Saved, and Profile.
+//  Bottom tab bar navigation — segments For You, Hints, Saved, and Profile.
 //
 
 import SwiftUI
@@ -15,12 +15,12 @@ import LucideIcons
 /// Hosts the `NetworkMonitor` and injects it into the environment so all
 /// tabs can access connectivity state.
 struct MainTabView: View {
-    @State private var selectedTab: AppTab = .home
+    @State private var selectedTab: AppTab = .forYou
     @State private var networkMonitor = NetworkMonitor()
 
     enum AppTab: Int {
-        case home = 0
-        case discover = 1
+        case forYou = 0
+        case hints = 1
         case saved = 2
         case profile = 3
     }
@@ -42,27 +42,27 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView()
-                .tabItem {
-                    Label {
-                        Text("Home")
-                    } icon: {
-                        Image(uiImage: Lucide.house)
-                            .renderingMode(.template)
-                    }
-                }
-                .tag(AppTab.home)
-
             RecommendationsView(isTabEmbedded: true)
                 .tabItem {
                     Label {
-                        Text("Discover")
+                        Text("For You")
                     } icon: {
                         Image(uiImage: Lucide.sparkles)
                             .renderingMode(.template)
                     }
                 }
-                .tag(AppTab.discover)
+                .tag(AppTab.forYou)
+
+            HintsTabView()
+                .tabItem {
+                    Label {
+                        Text("Hints")
+                    } icon: {
+                        Image(uiImage: Lucide.lightbulb)
+                            .renderingMode(.template)
+                    }
+                }
+                .tag(AppTab.hints)
 
             SavedView()
                 .tabItem {

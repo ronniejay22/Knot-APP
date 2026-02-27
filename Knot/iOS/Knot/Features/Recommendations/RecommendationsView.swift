@@ -46,18 +46,12 @@ struct RecommendationsView: View {
 
     @State private var viewModel = RecommendationsViewModel()
 
-    /// Whether the user has tapped the CTA to start generating recommendations (tab mode only).
-    @State private var hasStarted = false
+    /// Loads milestone data for the contextual banner when tab-embedded.
+    @State private var milestoneViewModel = HomeViewModel()
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isTabEmbedded && !hasStarted {
-                    discoverLandingView
-                } else {
-                    recommendationsBody
-                }
-            }
+            recommendationsBody
             .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -77,16 +71,17 @@ struct RecommendationsView: View {
                 }
 
                 ToolbarItem(placement: .principal) {
-                    Text(isTabEmbedded ? "Discover" : "Recommendations")
+                    Text(isTabEmbedded ? "For You" : "Recommendations")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
                 }
             }
             .task {
                 viewModel.configure(modelContext: modelContext)
-                if !isTabEmbedded {
-                    await viewModel.generateRecommendations()
+                if isTabEmbedded {
+                    await milestoneViewModel.loadVault()
                 }
+                await viewModel.generateRecommendations()
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -211,10 +206,16 @@ struct RecommendationsView: View {
 
     // MARK: - Recommendations Body
 
-    /// The full recommendations UI (segmented control + content). Shown after the user
-    /// taps the CTA in tab mode, or immediately when presented as a modal.
+    /// The full recommendations UI (milestone banner + segmented control + content).
     private var recommendationsBody: some View {
         VStack(spacing: 0) {
+            // Milestone alert banner (shown when a milestone is ≤14 days away)
+            if isTabEmbedded, let milestone = milestoneViewModel.nextMilestone, milestone.daysUntil <= 14 {
+                milestoneBanner(milestone)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+            }
+
             // Segmented control (Step 14.8)
             Picker("Mode", selection: $viewModel.selectedMode) {
                 ForEach(RecommendationMode.allCases, id: \.self) { mode in
@@ -241,65 +242,52 @@ struct RecommendationsView: View {
         }
     }
 
-    // MARK: - Discover Landing (Tab CTA)
+    // MARK: - Milestone Banner
 
-    /// Landing screen shown in the Discover tab before the user starts the recommendation engine.
-    private var discoverLandingView: some View {
-        ZStack {
-            Theme.backgroundGradient.ignoresSafeArea()
+    /// Compact banner shown when a milestone is within 14 days — provides urgency context
+    /// for the recommendation cards below.
+    private func milestoneBanner(_ milestone: UpcomingMilestone) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: milestone.iconName)
+                .font(.caption)
+                .foregroundStyle(milestoneBannerColor(milestone))
 
-            VStack(spacing: 24) {
-                Spacer()
+            Text("\(milestoneViewModel.partnerName)'s \(milestone.name) \(milestone.countdownText)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
 
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 56, height: 56)
-                    .foregroundStyle(Theme.accent)
+            Spacer()
 
-                VStack(spacing: 10) {
-                    Text("Discover")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(.white)
+            Text("\(milestone.daysUntil)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(milestoneBannerColor(milestone))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(milestoneBannerColor(milestone).opacity(0.15))
+                )
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Theme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(milestoneBannerColor(milestone).opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
 
-                    Text("AI-powered gift & experience ideas\ntailored to your partner's interests and vibes.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(2)
-                        .padding(.horizontal, 32)
-                }
-
-                Button {
-                    hasStarted = true
-                    Task {
-                        await viewModel.generateRecommendations()
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(uiImage: Lucide.sparkles)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
-
-                        Text("Get Recommendations")
-                            .font(.headline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Theme.accent)
-                    )
-                }
-                .padding(.horizontal, 40)
-
-                Spacer()
-                Spacer()
-            }
+    /// Color based on milestone urgency.
+    private func milestoneBannerColor(_ milestone: UpcomingMilestone) -> Color {
+        switch milestone.urgencyLevel {
+        case .critical: return .red
+        case .soon: return .orange
+        case .upcoming: return .yellow
+        case .distant: return Theme.accent
         }
     }
 

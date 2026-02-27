@@ -62,7 +62,7 @@ struct SavedView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text("Save recommendations from Discover to find them here later.")
+                Text("Save recommendations from For You to find them here later.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
