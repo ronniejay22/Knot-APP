@@ -4591,6 +4591,27 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ---
 
+### Fix Apple Sign-In Button Not Responding ✅
+**Date:** February 26, 2026
+**Status:** Complete
+
+**What was done:**
+- Fixed the "Continue with Apple" button on the login screen which did nothing when tapped
+- Root cause: the invisible `SignInWithAppleButton` overlay pattern (`.opacity(0.011)` + `.blendMode(.overlay)`) was not receiving touch events — Apple's anti-spoofing checks likely refused to present the sign-in sheet for a near-invisible button
+- Replaced the overlay approach with a programmatic `ASAuthorizationController` flow, matching the existing Google Sign-In button pattern (plain `Button` → async ViewModel method)
+- Added `AppleSignInDelegate` class to bridge delegate callbacks to Swift concurrency via `CheckedContinuation`
+- Eliminated the `nonisolated` + `MainActor.assumeIsolated` pattern in the old `configureRequest()` method which risked a runtime crash under Swift 6 strict concurrency
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Removed `configureRequest()` and `handleResult()`, added `signInWithApple()`, `performAppleSignIn()`, and `AppleSignInDelegate` class
+- `iOS/Knot/Features/Auth/LoginView.swift` — Replaced `AppleSignInProviderButton` invisible overlay struct with a plain `Button`, removed unused `AuthenticationServices` import
+
+**Test results:**
+- ✅ Build succeeds with zero errors
+- ✅ Apple Sign-In sheet appears on tap and completes authentication flow
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

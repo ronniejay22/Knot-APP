@@ -64,9 +64,12 @@ final class AuthViewModel {
     // MARK: - Private State
 
     /// Raw nonce generated before the Apple Sign-In request.
-    /// Persists between `configureRequest` and `handleResult` so it can be
-    /// forwarded to Supabase for OIDC nonce verification.
+    /// Forwarded to Supabase for OIDC nonce verification.
     private var currentNonce: String?
+
+    /// Retains the Apple Sign-In delegate while the authorization sheet is presented.
+    /// Cleared after the continuation resumes.
+    private var appleSignInDelegate: AppleSignInDelegate?
 
     /// Tracks whether the auth state listener task is already running
     /// to prevent duplicate listeners.
@@ -158,33 +161,33 @@ final class AuthViewModel {
         }
     }
 
-    // MARK: - Apple Sign-In Request Configuration
+    // MARK: - Apple Sign-In (Programmatic)
 
-    /// Configures the `ASAuthorizationAppleIDRequest` with scopes and a hashed nonce.
+    /// Signs in with Apple using ASAuthorizationController.
     ///
-    /// Called from the `SignInWithAppleButton` request closure. Generates a
-    /// cryptographically secure random nonce, stores the raw value for later
-    /// Supabase submission, and sets the SHA-256 hash on the Apple request.
-    nonisolated func configureRequest(_ request: ASAuthorizationAppleIDRequest) {
+    /// Presents Apple's native sign-in sheet programmatically. On success,
+    /// extracts the identity token and forwards it to Supabase via
+    /// `signInWithIdToken`. This replaces the previous invisible-overlay
+    /// `SignInWithAppleButton` approach that failed to receive touches.
+    func signInWithApple() async {
+        isLoading = true
+        defer { isLoading = false }
+
         let nonce = Self.randomNonceString()
-        MainActor.assumeIsolated {
-            currentNonce = nonce
-        }
+        currentNonce = nonce
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
         request.requestedScopes = [.email]
         request.nonce = Self.sha256(nonce)
-    }
 
-    // MARK: - Apple Sign-In Result Handler
+        let controller = ASAuthorizationController(authorizationRequests: [request])
 
-    /// Processes the Apple Sign-In result and forwards the identity token to Supabase.
-    ///
-    /// On success, extracts the identity token from the Apple credential and
-    /// calls `signInWithSupabase`. On failure, shows an error alert (unless the
-    /// user cancelled, which is silently ignored per standard iOS behavior).
-    func handleResult(_ result: Result<ASAuthorization, any Error>) {
-        switch result {
-        case .success(let authorization):
+        do {
+            let authorization = try await performAppleSignIn(controller: controller)
+
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                currentNonce = nil
                 signInError = "Unexpected credential type received."
                 showError = true
                 return
@@ -192,32 +195,38 @@ final class AuthViewModel {
 
             guard let identityTokenData = credential.identityToken,
                   let idToken = String(data: identityTokenData, encoding: .utf8) else {
+                currentNonce = nil
                 signInError = "Unable to retrieve identity token."
                 showError = true
                 return
             }
 
-            // Log credential info (email only available on first sign-in)
             print("[Knot] Apple Sign-In succeeded — forwarding to Supabase")
             if let email = credential.email {
                 print("[Knot] Email: \(email)")
             }
 
-            Task {
-                await signInWithSupabase(idToken: idToken)
-            }
+            await signInWithSupabase(idToken: idToken)
 
-        case .failure(let error):
-            let nsError = error as NSError
-            // User dismissed the Apple Sign-In sheet — not an error
-            if nsError.domain == ASAuthorizationError.errorDomain,
-               nsError.code == ASAuthorizationError.canceled.rawValue {
-                print("[Knot] Apple Sign-In cancelled by user")
-                return
-            }
+        } catch let error as ASAuthorizationError where error.code == .canceled {
+            currentNonce = nil
+            print("[Knot] Apple Sign-In cancelled by user")
+        } catch {
+            currentNonce = nil
             signInError = error.localizedDescription
             showError = true
             print("[Knot] Apple Sign-In error: \(error.localizedDescription)")
+        }
+    }
+
+    /// Bridges the delegate-based ASAuthorizationController to Swift concurrency.
+    private func performAppleSignIn(controller: ASAuthorizationController) async throws -> ASAuthorization {
+        try await withCheckedThrowingContinuation { continuation in
+            let delegate = AppleSignInDelegate(continuation: continuation)
+            self.appleSignInDelegate = delegate
+            controller.delegate = delegate
+            controller.presentationContextProvider = delegate
+            controller.performRequests()
         }
     }
 
@@ -431,5 +440,45 @@ final class AuthViewModel {
         let inputData = Data(input.utf8)
         let hashed = SHA256.hash(data: inputData)
         return hashed.compactMap { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - Apple Sign-In Delegate Bridge
+
+/// Bridges ASAuthorizationController delegate callbacks to a CheckedContinuation.
+///
+/// `@unchecked Sendable` because the delegate callbacks are called by the system
+/// and the continuation is only resumed once.
+private final class AppleSignInDelegate: NSObject,
+    ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding,
+    @unchecked Sendable
+{
+    private let continuation: CheckedContinuation<ASAuthorization, any Error>
+
+    init(continuation: CheckedContinuation<ASAuthorization, any Error>) {
+        self.continuation = continuation
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        continuation.resume(returning: authorization)
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: any Error
+    ) {
+        continuation.resume(throwing: error)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first else {
+            return UIWindow()
+        }
+        return window
     }
 }

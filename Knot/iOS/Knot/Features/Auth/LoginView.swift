@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import AuthenticationServices
 import LucideIcons
 
 /// Login screen presenting Apple, Google, and Email sign-in options.
@@ -33,7 +32,19 @@ struct LoginView: View {
                 // MARK: - Provider Buttons
                 VStack(spacing: 14) {
                     // 1. Continue with Apple
-                    AppleSignInProviderButton(authViewModel: authViewModel)
+                    Button {
+                        Task { await authViewModel.signInWithApple() }
+                    } label: {
+                        ProviderButtonLabel(
+                            icon: AnyView(
+                                Image(systemName: "apple.logo")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(.black)
+                            ),
+                            title: "Continue with Apple"
+                        )
+                    }
+                    .disabled(authViewModel.isLoading)
 
                     // 2. Continue with Google
                     Button {
@@ -106,40 +117,6 @@ private struct ProviderButtonLabel: View {
         .frame(height: 54)
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 27))
-    }
-}
-
-// MARK: - Apple Sign-In Provider Button
-
-/// Apple Sign-In button using the invisible overlay pattern.
-/// The visible label matches other provider buttons; the native
-/// `SignInWithAppleButton` overlay handles the actual authentication.
-private struct AppleSignInProviderButton: View {
-    let authViewModel: AuthViewModel
-
-    var body: some View {
-        ZStack {
-            ProviderButtonLabel(
-                icon: AnyView(
-                    Image(systemName: "apple.logo")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.black)
-                ),
-                title: "Continue with Apple"
-            )
-
-            SignInWithAppleButton(.signIn) { request in
-                authViewModel.configureRequest(request)
-            } onCompletion: { result in
-                authViewModel.handleResult(result)
-            }
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: 54)
-            .clipShape(RoundedRectangle(cornerRadius: 27))
-            .blendMode(.overlay)
-            .opacity(0.011)
-            .disabled(authViewModel.isLoading)
-        }
     }
 }
 
