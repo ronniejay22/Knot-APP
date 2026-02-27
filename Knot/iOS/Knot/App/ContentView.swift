@@ -35,8 +35,8 @@ struct ContentView: View {
                 sessionCheckView
             } else if authViewModel.isAuthenticated {
                 if authViewModel.hasCompletedOnboarding {
-                    // MARK: - Authenticated + Vault exists → Home
-                    HomeView()
+                    // MARK: - Authenticated + Vault exists → Tab Bar
+                    MainTabView()
                 } else {
                     // MARK: - Authenticated + No vault → Onboarding
                     OnboardingContainerView {

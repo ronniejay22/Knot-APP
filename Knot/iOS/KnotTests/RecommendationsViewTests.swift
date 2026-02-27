@@ -1173,14 +1173,14 @@ final class SavedRecommendationModelTests: XCTestCase {
     }
 }
 
-// MARK: - HomeViewModel Saved Recommendations Tests (Step 6.6)
+// MARK: - SavedViewModel Tests (moved from HomeViewModel in tab navigation refactor)
 
 @MainActor
-final class HomeViewModelSavedTests: XCTestCase {
+final class SavedViewModelTests: XCTestCase {
 
     /// Verify savedRecommendations is empty on init.
     func testSavedRecommendationsInitiallyEmpty() {
-        let vm = HomeViewModel()
+        let vm = SavedViewModel()
 
         XCTAssertTrue(vm.savedRecommendations.isEmpty)
     }

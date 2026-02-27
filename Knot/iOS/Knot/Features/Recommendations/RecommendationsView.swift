@@ -36,6 +36,9 @@ import LucideIcons
 /// └─────────────────────────────────────┘
 /// ```
 struct RecommendationsView: View {
+    /// When `true`, the view is embedded in the tab bar and hides the dismiss button.
+    var isTabEmbedded: Bool = false
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -43,58 +46,47 @@ struct RecommendationsView: View {
 
     @State private var viewModel = RecommendationsViewModel()
 
+    /// Whether the user has tapped the CTA to start generating recommendations (tab mode only).
+    @State private var hasStarted = false
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Segmented control (Step 14.8)
-                Picker("Mode", selection: $viewModel.selectedMode) {
-                    ForEach(RecommendationMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-
-                ZStack {
-                    Theme.backgroundGradient.ignoresSafeArea()
-
-                    Group {
-                        switch viewModel.selectedMode {
-                        case .suggestions:
-                            suggestionsContent
-                        case .ideas:
-                            ideasContent
-                        }
-                    }
+            Group {
+                if isTabEmbedded && !hasStarted {
+                    discoverLandingView
+                } else {
+                    recommendationsBody
                 }
             }
             .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(uiImage: Lucide.arrowLeft)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                if !isTabEmbedded {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(uiImage: Lucide.arrowLeft)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                        }
+                        .tint(.white)
                     }
-                    .tint(.white)
                 }
 
                 ToolbarItem(placement: .principal) {
-                    Text("Recommendations")
+                    Text(isTabEmbedded ? "Discover" : "Recommendations")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
                 }
             }
             .task {
                 viewModel.configure(modelContext: modelContext)
-                await viewModel.generateRecommendations()
+                if !isTabEmbedded {
+                    await viewModel.generateRecommendations()
+                }
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -217,9 +209,102 @@ struct RecommendationsView: View {
         }
     }
 
-    // MARK: - Suggestions Content (Step 14.8)
+    // MARK: - Recommendations Body
 
-    /// The suggestions tab content — loading, error, empty, or recommendation cards.
+    /// The full recommendations UI (segmented control + content). Shown after the user
+    /// taps the CTA in tab mode, or immediately when presented as a modal.
+    private var recommendationsBody: some View {
+        VStack(spacing: 0) {
+            // Segmented control (Step 14.8)
+            Picker("Mode", selection: $viewModel.selectedMode) {
+                ForEach(RecommendationMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            ZStack {
+                Theme.backgroundGradient.ignoresSafeArea()
+
+                Group {
+                    switch viewModel.selectedMode {
+                    case .suggestions:
+                        suggestionsContent
+                    case .ideas:
+                        ideasContent
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Discover Landing (Tab CTA)
+
+    /// Landing screen shown in the Discover tab before the user starts the recommendation engine.
+    private var discoverLandingView: some View {
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                Spacer()
+
+                Image(uiImage: Lucide.sparkles)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 56, height: 56)
+                    .foregroundStyle(Theme.accent)
+
+                VStack(spacing: 10) {
+                    Text("Discover")
+                        .font(.title.weight(.bold))
+                        .foregroundStyle(.white)
+
+                    Text("AI-powered gift & experience ideas\ntailored to your partner's interests and vibes.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.horizontal, 32)
+                }
+
+                Button {
+                    hasStarted = true
+                    Task {
+                        await viewModel.generateRecommendations()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(uiImage: Lucide.sparkles)
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 18, height: 18)
+
+                        Text("Get Recommendations")
+                            .font(.headline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Theme.accent)
+                    )
+                }
+                .padding(.horizontal, 40)
+
+                Spacer()
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - Suggestions Content
+
     @ViewBuilder
     private var suggestionsContent: some View {
         if viewModel.isLoading {

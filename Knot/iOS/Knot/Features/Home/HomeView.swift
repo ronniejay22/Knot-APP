@@ -12,6 +12,7 @@
 //            haptic feedback, recent hints loading from backend, error handling.
 //  Step 6.6: Added Saved Recommendations section between Recommendations button and Recent Hints.
 //  Step 7.7: Added Notifications bell icon in toolbar and sheet presentation.
+//  Tab Navigation: Removed recommendations, saved, and settings sections (moved to Discover, Saved, Profile tabs).
 //
 
 import SwiftUI
@@ -29,22 +30,15 @@ import LucideIcons
 /// Interactive elements are disabled when offline (network monitoring via `NWPathMonitor`).
 struct HomeView: View {
     @Environment(AuthViewModel.self) private var authViewModel
-    @Environment(\.modelContext) private var modelContext
 
     @State private var viewModel = HomeViewModel()
-    @State private var networkMonitor = NetworkMonitor()
+    @Environment(NetworkMonitor.self) private var networkMonitor
 
     /// Text for the hint capture input.
     @State private var hintText = ""
 
     /// Controls the Hints List sheet presentation.
     @State private var showHintsList = false
-
-    /// Controls the Recommendations screen presentation.
-    @State private var showRecommendations = false
-
-    /// Controls the Settings sheet presentation (Step 11.1).
-    @State private var showSettings = false
 
     /// Focus state for the hint text field.
     @FocusState private var isHintFieldFocused: Bool
@@ -77,16 +71,6 @@ struct HomeView: View {
                             .disabled(!networkMonitor.isConnected)
                             .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
 
-                        // MARK: - Recommendations
-                        recommendationsButton
-                            .disabled(!networkMonitor.isConnected)
-                            .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
-
-                        // MARK: - Saved Recommendations (Step 6.6)
-                        if !viewModel.savedRecommendations.isEmpty {
-                            savedRecommendationsSection
-                        }
-
                         // MARK: - Recent Hints
                         recentHintsSection
                             .disabled(!networkMonitor.isConnected)
@@ -116,45 +100,11 @@ struct HomeView: View {
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(uiImage: Lucide.settings)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
-                    }
-                    .tint(.white)
-                }
             }
             .alert("Error", isPresented: $authVM.showError) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(authViewModel.signInError ?? "An unknown error occurred.")
-            }
-            .fullScreenCover(isPresented: $showRecommendations) {
-                RecommendationsView()
-            }
-            .onChange(of: showRecommendations) { _, isPresented in
-                // Reload saved recommendations when returning from Recommendations screen
-                if !isPresented {
-                    viewModel.loadSavedRecommendations(modelContext: modelContext)
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-            }
-            .onChange(of: showSettings) { _, isPresented in
-                // Refresh data when returning from Settings (user may have edited profile or cleared hints)
-                if !isPresented {
-                    Task {
-                        await viewModel.loadVault()
-                        await viewModel.loadRecentHints()
-                    }
-                    viewModel.loadSavedRecommendations(modelContext: modelContext)
-                }
             }
             .sheet(isPresented: $showHintsList) {
                 HintsListView()
@@ -170,7 +120,6 @@ struct HomeView: View {
             .task {
                 await viewModel.loadVault()
                 await viewModel.loadRecentHints()
-                viewModel.loadSavedRecommendations(modelContext: modelContext)
             }
         }
     }
@@ -696,184 +645,6 @@ struct HomeView: View {
         )
     }
 
-    // MARK: - Recommendations Button
-
-    /// Button that presents the Recommendations screen.
-    private var recommendationsButton: some View {
-        Button {
-            showRecommendations = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.accent.opacity(0.2))
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Get Recommendations")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-
-                    Text("AI-powered gift & experience ideas")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-
-                Spacer()
-
-                Image(uiImage: Lucide.chevronRight)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Theme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Theme.accent.opacity(0.3), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Saved Recommendations Section (Step 6.6)
-
-    /// Shows saved recommendations as compact cards with swipe-to-delete.
-    private var savedRecommendationsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Section header
-            HStack {
-                HStack(spacing: 6) {
-                    Image(uiImage: Lucide.bookmark)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(Theme.accent)
-
-                    Text("Saved")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                Text("\(viewModel.savedRecommendations.count)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Theme.textTertiary)
-            }
-
-            // Saved recommendation cards
-            ForEach(viewModel.savedRecommendations) { saved in
-                savedRecommendationCard(saved)
-            }
-        }
-    }
-
-    /// A compact card for a saved recommendation with type icon, title, merchant, price, and open link.
-    private func savedRecommendationCard(_ saved: SavedRecommendation) -> some View {
-        HStack(spacing: 12) {
-            // Type icon
-            Image(systemName: savedTypeIcon(saved.recommendationType))
-                .font(.subheadline)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 34, height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Theme.accent.opacity(0.12))
-                )
-
-            // Details
-            VStack(alignment: .leading, spacing: 2) {
-                Text(saved.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                HStack(spacing: 6) {
-                    if let merchantName = saved.merchantName, !merchantName.isEmpty {
-                        Text(merchantName)
-                            .font(.caption2)
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineLimit(1)
-                    }
-
-                    if let priceCents = saved.priceCents {
-                        Text(savedFormattedPrice(cents: priceCents, currency: saved.currency))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                }
-            }
-
-            Spacer()
-
-            // Open link button (hidden for Knot Originals with no external URL)
-            if let urlString = saved.externalURL, let url = URL(string: urlString) {
-                Button {
-                    UIApplication.shared.open(url)
-                } label: {
-                    Image(uiImage: Lucide.externalLink)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(Theme.textTertiary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            // Delete button
-            Button {
-                viewModel.deleteSavedRecommendation(saved, modelContext: modelContext)
-            } label: {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
-    }
-
-    /// SF Symbol for saved recommendation type.
-    private func savedTypeIcon(_ type: String) -> String {
-        switch type {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        default: return "star.fill"
-        }
-    }
-
-    /// Formats price from cents for the saved card (delegates to RecommendationCard's shared helper).
-    private func savedFormattedPrice(cents: Int, currency: String) -> String {
-        RecommendationCard.formattedPrice(cents: cents, currency: currency)
-    }
-
     // MARK: - Helpers
 
     /// Time-of-day greeting.
@@ -978,9 +749,11 @@ struct HomeView: View {
 #Preview("Home — Loading") {
     HomeView()
         .environment(AuthViewModel())
+        .environment(NetworkMonitor())
 }
 
 #Preview("Home — Empty") {
     HomeView()
         .environment(AuthViewModel())
+        .environment(NetworkMonitor())
 }

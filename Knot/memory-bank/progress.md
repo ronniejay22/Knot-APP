@@ -4635,6 +4635,47 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ---
 
+### Step 16.1: Add Bottom Tab Bar Navigation ✅
+**Date:** February 26, 2026
+**Status:** Complete
+
+**What was done:**
+- Added a 4-tab bottom navigation bar using SwiftUI `TabView` to segment the previously overloaded Home screen into logical sections: Home, Discover, Saved, and Profile.
+- Created `MainTabView.swift` as the root tab container, placed between ContentView's auth routing and individual tab views. Configured `UITabBarAppearance` to match the app's dark theme (`Theme.backgroundBottom` background, `Theme.textTertiary` unselected items, `Theme.accent` selected items).
+- Hoisted `NetworkMonitor` from HomeView to MainTabView and injected it via `.environment()` so all tabs can access connectivity state.
+- Modified `RecommendationsView` with an `isTabEmbedded` parameter — when embedded in the Discover tab, hides the dismiss button, shows "Discover" as the nav title, and displays a CTA landing page instead of auto-generating recommendations. Users must tap "Get Recommendations" to start the engine.
+- Modified `SettingsView` with an `isTabEmbedded` parameter — when embedded in the Profile tab, hides the dismiss X button and shows "Profile" as the nav title.
+- Created `SavedView` and `SavedViewModel` for the Saved tab, showing all bookmarked recommendations (no 5-item limit) with delete and external link actions, plus an empty state.
+- Slimmed down `HomeView` by ~180 lines: removed the recommendations button, saved recommendations section, settings gear toolbar item, and all related state variables, sheet/cover modifiers, and onChange handlers.
+- Cleaned up `HomeViewModel` by removing `savedRecommendations` property and `loadSavedRecommendations`/`deleteSavedRecommendation` methods (moved to `SavedViewModel`).
+- Updated `ContentView` to present `MainTabView()` instead of `HomeView()` for the authenticated+onboarded state.
+- Updated test file `RecommendationsViewTests.swift` to reference `SavedViewModel` instead of the removed `HomeViewModel.savedRecommendations`.
+
+**Files created:**
+- `iOS/Knot/App/MainTabView.swift` — Root 4-tab container with tab bar styling and NetworkMonitor environment injection
+- `iOS/Knot/Features/Saved/SavedView.swift` — Saved tab UI with recommendation cards and empty state
+- `iOS/Knot/Features/Saved/SavedViewModel.swift` — @Observable view model for saved recommendations SwiftData operations
+
+**Files modified:**
+- `iOS/Knot/App/ContentView.swift` — Replaced `HomeView()` with `MainTabView()` in auth routing
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Added `isTabEmbedded`, CTA landing view, conditional dismiss button and title
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Added `isTabEmbedded`, conditional dismiss button and title
+- `iOS/Knot/Features/Home/HomeView.swift` — Removed recommendations, saved, settings sections; NetworkMonitor from environment
+- `iOS/Knot/Features/Home/HomeViewModel.swift` — Removed saved recommendation state and methods
+- `iOS/KnotTests/RecommendationsViewTests.swift` — Updated test to use SavedViewModel
+
+**Test results:**
+- ✅ Build succeeds with zero errors
+- ✅ 155 tests passed, 0 failures
+- ✅ Tab bar displays 4 tabs: Home, Discover, Saved, Profile
+- ✅ Home tab shows greeting, milestones, hint capture, recent hints
+- ✅ Discover tab shows CTA landing page; tapping generates recommendations
+- ✅ Saved tab shows bookmarked items or empty state
+- ✅ Profile tab shows settings without dismiss button
+- ✅ Deep links still present via fullScreenCover above tab bar
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
@@ -4643,6 +4684,9 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ### Phase 15: UI Polish
 - [x] **Step 15.1:** Add Sign-In Photo Grid Scrolling Animation
+
+### Phase 16: Navigation & Layout
+- [x] **Step 16.1:** Add Bottom Tab Bar Navigation
 
 ---
 

@@ -22,6 +22,9 @@ import LucideIcons
 /// - **Privacy** — data export (Step 11.3), clear all hints
 /// - **About** — app version, terms of service, privacy policy
 struct SettingsView: View {
+    /// When `true`, the view is embedded in the tab bar and hides the dismiss button.
+    var isTabEmbedded: Bool = false
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -58,9 +61,13 @@ struct SettingsView: View {
                     exportLoadingOverlay
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(isTabEmbedded ? "Profile" : "Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { settingsToolbar }
+            .toolbar {
+                if !isTabEmbedded {
+                    settingsToolbar
+                }
+            }
             // Split alerts into two groups to help the Swift type checker.
             // Group 1: Account deletion alerts (Step 11.2)
             .modifier(AccountDeletionAlerts(
