@@ -92,6 +92,9 @@ struct RecommendationCard: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
+                            .frame(minWidth: 0, maxWidth: .infinity)
+                            .frame(height: heroHeight)
+                            .clipped()
                     case .failure:
                         fallbackGradient
                     case .empty:

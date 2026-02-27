@@ -951,6 +951,21 @@ async def get_recommendation_by_id(
 # ===================================================================
 
 
+def _fallback_image_url(candidate: CandidateRecommendation) -> str | None:
+    """Return a fallback Unsplash image based on matched interests or vibes."""
+    from app.agents.aggregation import _INTEREST_IMAGES, _VIBE_IMAGES
+
+    for interest in candidate.matched_interests:
+        url = _INTEREST_IMAGES.get(interest)
+        if url:
+            return url
+    for vibe in candidate.matched_vibes:
+        url = _VIBE_IMAGES.get(vibe)
+        if url:
+            return url
+    return None
+
+
 def _build_response_items(
     candidates: list[CandidateRecommendation],
     db_result=None,
@@ -981,6 +996,9 @@ def _build_response_items(
                 for s in candidate.content_sections
             ]
 
+        # Use candidate image_url, falling back to interest/vibe-based image
+        image_url = candidate.image_url or _fallback_image_url(candidate)
+
         response_items.append(
             RecommendationItemResponse(
                 id=db_id,
@@ -991,7 +1009,7 @@ def _build_response_items(
                 currency=candidate.currency,
                 price_confidence=candidate.price_confidence,
                 external_url=candidate.external_url,
-                image_url=candidate.image_url,
+                image_url=image_url,
                 merchant_name=candidate.merchant_name,
                 source=candidate.source,
                 location=location_resp,

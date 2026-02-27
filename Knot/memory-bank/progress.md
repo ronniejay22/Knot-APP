@@ -4676,6 +4676,30 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ---
 
+### Step 16.2: Fix Missing Images on Recommendation Cards ✅
+**Date:** February 27, 2026
+**Status:** Complete
+
+**What was done:**
+- Fixed recommendation cards showing gradient fallbacks with placeholder icons instead of actual product images. The root cause was twofold: (1) the stub catalog in the aggregation pipeline hardcoded `image_url=None` for all entries, and (2) candidates from Claude Search (Tier 1) could also arrive without image URLs, with no fallback mechanism.
+- Added `_INTEREST_IMAGES` dict mapping all 40 interest categories to curated Unsplash photo URLs and `_VIBE_IMAGES` dict mapping all 8 vibe categories to curated Unsplash photo URLs in `aggregation.py`.
+- Updated `_build_gift_candidate()` and `_build_experience_candidate()` to use `_INTEREST_IMAGES.get(interest)` and `_VIBE_IMAGES.get(vibe)` respectively instead of `None`.
+- Added `_fallback_image_url()` helper in `recommendations.py` that looks up an interest or vibe-based Unsplash image when a candidate has no `image_url`. Wired into `_build_response_items()` so all recommendations — whether from Claude Search, AggregatorService, or stubs — consistently have images.
+- Fixed image bleeding beyond card bounds in `RecommendationCard.swift` by applying `.frame(minWidth: 0, maxWidth: .infinity)`, `.frame(height: heroHeight)`, and `.clipped()` directly on the `AsyncImage` success phase, constraining `.fill` mode within the hero section.
+
+**Files modified:**
+- `backend/app/agents/aggregation.py` — Added `_INTEREST_IMAGES` (40 entries) and `_VIBE_IMAGES` (8 entries) dicts; updated both stub candidate builders to use them
+- `backend/app/api/recommendations.py` — Added `_fallback_image_url()` helper; updated `_build_response_items()` to apply fallback when `candidate.image_url` is None
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — Added frame and clipping constraints to AsyncImage success case to prevent image overflow
+
+**Test results:**
+- ✅ Backend import tests pass (11/11)
+- ✅ Stub candidates now include image URLs (verified via Python)
+- ✅ Fallback logic correctly returns interest-based images for candidates without URLs
+- ✅ Existing images are preserved when present (no unnecessary fallback)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
