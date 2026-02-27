@@ -4516,6 +4516,81 @@ xcodebuild test -project iOS/Knot.xcodeproj -scheme Knot \
 
 ---
 
+### Step 15.2: Multi-Provider Login Screen (Apple, Google, Email) ✅
+**Date:** February 26, 2026
+**Status:** Complete
+
+**What was done:**
+- Created a multi-provider login screen (`LoginView.swift`) with three sign-in options: Apple, Google OAuth, and Email magic link
+- Added Google OAuth sign-in via Supabase's `signInWithOAuth(provider: .google)` using `ASWebAuthenticationSession`
+- Added passwordless email sign-in via Supabase's `signInWithOTP(email:)` which sends a magic link
+- Created `MagicLinkView.swift` with email input form and "check your email" confirmation state
+- Configured custom URL scheme (`com.ronniejay.knot://login-callback`) for OAuth/magic link callbacks
+- Updated `SupabaseClient.swift` to include `redirectToURL` in client options
+- Updated `KnotApp.swift` to route auth callback URLs to `auth.session(from:)` via `.onOpenURL`
+- Replaced `GetStartedView.swift` — both "Get Started" and "I already have an account" now navigate to `LoginView`
+- Updated `SignInView.swift` navigation to route to `LoginView` and `MagicLinkView`
+- Added `signInWithGoogle()` and `sendMagicLink(email:)` methods to `AuthViewModel.swift`
+
+**Files created:**
+- `iOS/Knot/Features/Auth/LoginView.swift` — Multi-provider login screen with Apple, Google, Email buttons
+- `iOS/Knot/Features/Auth/MagicLinkView.swift` — Email input + "check your email" confirmation view
+- `iOS/KnotTests/LoginViewTests.swift` — Tests for redirect URL configuration and AuthViewModel initial state
+
+**Files modified:**
+- `iOS/Knot/Info.plist` — Added `CFBundleURLTypes` with `com.ronniejay.knot` custom URL scheme
+- `iOS/Knot/Core/Constants.swift` — Added `Supabase.redirectURL` constant
+- `iOS/Knot/Services/SupabaseClient.swift` — Added `redirectToURL` to SupabaseClient options
+- `iOS/Knot/App/KnotApp.swift` — Updated `.onOpenURL` to route auth callbacks to Supabase SDK
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Added `signInWithGoogle()` and `sendMagicLink()` methods
+- `iOS/Knot/Features/Auth/SignInView.swift` — Updated navigation destinations, replaced Apple Sign-In overlay with NavigationLink
+
+**Files deleted:**
+- `iOS/Knot/Features/Auth/GetStartedView.swift` — Replaced by `LoginView.swift`
+
+**Test results:**
+- ✅ Build succeeds with zero errors, zero warnings
+- ✅ 4 new LoginViewTests passed (redirect URL scheme, host, full string, AuthViewModel initial state)
+
+**Notes:**
+- Google OAuth and Email magic link require Supabase dashboard configuration before they work:
+  - Add `com.ronniejay.knot://login-callback` to Supabase Auth Redirect URLs
+  - Enable Google provider with Google Cloud OAuth Client ID + Secret
+  - Ensure Email provider has magic links enabled
+- The Google "G" logo uses a gradient text placeholder — replace with an actual Google logo asset for production
+
+---
+
+### Step 15.3: Switch Google Sign-In to Native SDK ✅
+**Date:** February 26, 2026
+**Status:** Complete
+
+**What was done:**
+Replaced the Supabase web OAuth flow (`signInWithOAuth`) for Google authentication with the native Google Sign-In iOS SDK. The web OAuth flow displayed an unfriendly Supabase URL (`nmruwlfvhkvkbcdncwaq.supabase.co`) in the browser bar, which was a poor user experience. The native SDK presents Google's own sign-in UI directly in-app without any browser URL visible.
+
+Added the `GoogleSignIn-iOS` SPM package (v8.0.0) to the project dependencies and configured the reversed client ID URL scheme (`com.googleusercontent.apps.528827192667-...`) in Info.plist for the SDK's callback handling.
+
+Updated `AuthViewModel.signInWithGoogle()` to use `GIDSignIn.sharedInstance.signIn(withPresenting:)` to obtain a Google ID token, then forward it to Supabase via `signInWithIdToken(provider: .google, idToken:)`. This triggers the existing `authStateChanges` listener to handle the `signedIn` event.
+
+Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn.sharedInstance.handle(url)` before falling through to Supabase or deep link handlers.
+
+**Files modified:**
+- `iOS/project.yml` — Added `GoogleSignIn` SPM package and dependency
+- `iOS/Knot/Info.plist` — Added `GIDClientID` key and reversed client ID URL scheme
+- `iOS/Knot/Core/Constants.swift` — Added `Google.clientID` constant
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — Replaced web OAuth with native `GIDSignIn` flow
+- `iOS/Knot/App/KnotApp.swift` — Added Google Sign-In URL handling in `.onOpenURL`
+
+**Test results:**
+- ✅ Build succeeds with zero errors
+- ✅ All 151 tests pass
+
+**Notes:**
+- Requires "Skip nonce checks" enabled for Google provider in Supabase dashboard (Authentication > Providers > Google) since the native SDK does not support custom nonces
+- Google Cloud Console OAuth Client ID (Web application type): `528827192667-nk58fts62eq99v1d96djqc7gg311iske.apps.googleusercontent.com`
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

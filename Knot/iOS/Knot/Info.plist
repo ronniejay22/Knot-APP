@@ -54,5 +54,28 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <key>GIDClientID</key>
+    <string>528827192667-b0tsanftdkjjn616b4bph5sv3un35859.apps.googleusercontent.com</string>
+    <key>GIDServerClientID</key>
+    <string>528827192667-nk58fts62eq99v1d96djqc7gg311iske.apps.googleusercontent.com</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.ronniejay.knot</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.ronniejay.knot</string>
+        </dict>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.googleusercontent.apps.528827192667-b0tsanftdkjjn616b4bph5sv3un35859</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>Google Sign-In</string>
+        </dict>
+    </array>
 </dict>
 </plist>

@@ -28,6 +28,16 @@ enum Constants {
     enum Supabase {
         static let projectURL = URL(string: "https://nmruwlfvhkvkbcdncwaq.supabase.co")!
         static let anonKey = "sb_publishable_QhaP3fnVMLpH-lE2n1XWvQ_X-1zodXi"
+        static let redirectURL = URL(string: "com.ronniejay.knot://login-callback")!
+    }
+
+    /// Google Sign-In Configuration
+    /// Uses the native Google Sign-In SDK for a seamless in-app authentication experience.
+    /// `clientID` is the iOS OAuth Client ID (used by the native SDK on device).
+    /// `webClientID` is the Web OAuth Client ID (used by Supabase for token verification).
+    enum Google {
+        static let clientID = "528827192667-b0tsanftdkjjn616b4bph5sv3un35859.apps.googleusercontent.com"
+        static let webClientID = "528827192667-nk58fts62eq99v1d96djqc7gg311iske.apps.googleusercontent.com"
     }
     
     /// Validation Rules

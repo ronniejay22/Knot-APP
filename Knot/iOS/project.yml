@@ -14,6 +14,9 @@ packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift.git
     from: "2.0.0"
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: "8.0.0"
 
 settings:
   base:
@@ -61,6 +64,7 @@ targets:
         product: PostgREST
       - package: Supabase
         product: Supabase
+      - package: GoogleSignIn
     preBuildScripts: []
     postBuildScripts: []
 

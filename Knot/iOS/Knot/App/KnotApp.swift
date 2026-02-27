@@ -6,8 +6,10 @@
 //  Relational Excellence on Autopilot.
 //
 
+import GoogleSignIn
 import SwiftUI
 import SwiftData
+import Supabase
 
 @main
 struct KnotApp: App {
@@ -37,7 +39,18 @@ struct KnotApp: App {
                 .preferredColorScheme(.dark)
                 .environment(deepLinkHandler)
                 .onOpenURL { url in
-                    deepLinkHandler.handleURL(url)
+                    // Google Sign-In callback (reversed client ID scheme)
+                    if GIDSignIn.sharedInstance.handle(url) {
+                        return
+                    }
+                    // Supabase auth callback (magic link, etc.)
+                    if url.scheme == "com.ronniejay.knot" && url.host == "login-callback" {
+                        Task {
+                            try? await SupabaseManager.client.auth.session(from: url)
+                        }
+                    } else {
+                        deepLinkHandler.handleURL(url)
+                    }
                 }
         }
         .modelContainer(sharedModelContainer)

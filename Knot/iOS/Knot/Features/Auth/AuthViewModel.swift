@@ -12,6 +12,7 @@
 
 import AuthenticationServices
 import CryptoKit
+import GoogleSignIn
 import Supabase
 import UIKit
 import UserNotifications
@@ -254,6 +255,82 @@ final class AuthViewModel {
             signInError = "Sign-in failed. Please try again."
             showError = true
             print("[Knot] Supabase sign-in error: \(error)")
+        }
+    }
+
+    // MARK: - Google Sign-In (Native SDK)
+
+    /// Signs in with Google using the native Google Sign-In SDK.
+    ///
+    /// Presents Google's native sign-in UI (no browser URL bar). On success,
+    /// extracts the ID token and forwards it to Supabase via `signInWithIdToken`.
+    /// The Supabase auth listener then emits a `signedIn` event.
+    ///
+    /// Requires "Skip nonce checks" enabled for Google in the Supabase dashboard
+    /// since the native SDK does not support custom nonces.
+    func signInWithGoogle() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootViewController = windowScene.windows.first?.rootViewController else {
+                signInError = "Unable to find root view controller."
+                showError = true
+                return
+            }
+
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+            guard let idToken = result.user.idToken?.tokenString else {
+                signInError = "Unable to retrieve Google ID token."
+                showError = true
+                return
+            }
+
+            let session = try await SupabaseManager.client.auth.signInWithIdToken(
+                credentials: OpenIDConnectCredentials(
+                    provider: .google,
+                    idToken: idToken
+                )
+            )
+
+            print("[Knot] Google native sign-in succeeded")
+            print("[Knot] Supabase User ID: \(session.user.id)")
+            print("[Knot] Email: \(session.user.email ?? "hidden")")
+
+        } catch let error as GIDSignInError where error.code == .canceled {
+            print("[Knot] Google sign-in cancelled by user")
+            return
+        } catch {
+            signInError = "Google sign-in failed. Please try again."
+            showError = true
+            print("[Knot] Google sign-in error: \(error)")
+        }
+    }
+
+    // MARK: - Magic Link (Email OTP)
+
+    /// Sends a magic link to the given email address via Supabase Auth.
+    ///
+    /// The user receives an email with a link. Tapping the link opens the app
+    /// via the custom URL scheme (`com.ronniejay.knot://login-callback`).
+    /// `KnotApp.onOpenURL` routes the URL to `auth.session(from:)`, which
+    /// exchanges the code for a session and emits a `signedIn` event.
+    func sendMagicLink(email: String) async {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await SupabaseManager.client.auth.signInWithOTP(
+                email: email,
+                redirectTo: Constants.Supabase.redirectURL,
+                shouldCreateUser: true
+            )
+            print("[Knot] Magic link sent to \(email)")
+        } catch {
+            signInError = "Failed to send magic link. Please try again."
+            showError = true
+            print("[Knot] Magic link error: \(error)")
         }
     }
 

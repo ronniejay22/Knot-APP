@@ -7,15 +7,14 @@
 //
 
 import SwiftUI
-import AuthenticationServices
 import LucideIcons
 
 /// The sign-in screen displayed when no authenticated session exists.
 /// Features a two-section layout: a cream-colored photo grid on top (~55%)
 /// and a dark-gradient branding section with CTAs on the bottom (~45%).
 ///
-/// "Get Started" navigates to a pre-auth walkthrough (GetStartedView).
-/// "I already have an account" triggers Apple Sign-In directly.
+/// Both "Get Started" and "I already have an account" navigate to the
+/// multi-provider LoginView (Apple, Google, Email magic link).
 struct SignInView: View {
     @Environment(AuthViewModel.self) private var authViewModel
 
@@ -49,8 +48,13 @@ struct SignInView: View {
                 }
             }
             .navigationDestination(for: String.self) { destination in
-                if destination == "getStarted" {
-                    GetStartedView()
+                switch destination {
+                case "getStarted":
+                    LoginView()
+                case "magicLink":
+                    MagicLinkView()
+                default:
+                    EmptyView()
                 }
             }
         }
@@ -164,8 +168,8 @@ private struct BrandingSection: View {
                 }
                 .padding(.bottom, 12)
 
-                // MARK: - I Already Have an Account (Apple Sign-In)
-                ZStack {
+                // MARK: - I Already Have an Account
+                NavigationLink(value: "getStarted") {
                     Text("I already have an account")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
@@ -177,18 +181,6 @@ private struct BrandingSection: View {
                             RoundedRectangle(cornerRadius: 14)
                                 .stroke(Theme.signInButtonSecondaryBorder, lineWidth: 1)
                         )
-
-                    SignInWithAppleButton(.signIn) { request in
-                        authViewModel.configureRequest(request)
-                    } onCompletion: { result in
-                        authViewModel.handleResult(result)
-                    }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .blendMode(.overlay)
-                    .opacity(0.011)
-                    .disabled(authViewModel.isLoading)
                 }
                 .padding(.bottom, 20)
 

@@ -27,14 +27,19 @@
 		22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */; };
 		2320F84E7581775AE98DBDF9 /* HintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DD62D4760696C298A091D4 /* HintService.swift */; };
 		278ECB519185373C6923BDD9 /* DeepLinkRecommendationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */; };
+		2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40694013F15F1931FBD4B467 /* LoginViewTests.swift */; };
 		30BEBF0DA0A5471020C9D32F /* HintsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB188ECFF10A408FE1C50697 /* HintsListView.swift */; };
+		342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */; };
 		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
 		365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */; };
 		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
 		3F5DBBCC7D3535B153EF65D8 /* AppReviewPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */; };
+		40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726769364F3363201EE0535 /* LoginView.swift */; };
 		4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB2C0E473B2693C71D80BC2 /* SignInView.swift */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
+		463FADB1181873781B5F1960 /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */; };
 		4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */ = {isa = PBXBuildFile; productRef = 15C498B5F04CB77F50A32471 /* LucideIcons */; };
+		4E9E28B2417E3A9842A4F10F /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7711E0BB431FC8FD8742B30F /* GoogleSignIn */; };
 		4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */; };
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
 		5F1D462AA8C8892C53A6324C /* KnotUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */; };
@@ -53,8 +58,8 @@
 		8A20E14FFD4274B9C04D273C /* DeviceTokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9131AE157A0315E3D726AA8D /* DeviceTokenService.swift */; };
 		8FEFC8AAD111CA83F1ECA171 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0923D42485ED34C6E165B1 /* RecommendationService.swift */; };
 		9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */; };
+		933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77282BCCC7022C9A21681178 /* IdeaDetailView.swift */; };
 		950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */; };
-		99E3A5C6B1B426D184CEB165 /* GetStartedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7362123756B3AC2288C59B0 /* GetStartedView.swift */; };
 		9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D4AED680722D46D3983508 /* RecommendationsView.swift */; };
 		A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9576279FACB0210014A38F96 /* MilestoneLocal.swift */; };
 		A3EDB10EF71EF3D6DCD10DC4 /* SavedRecommendation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D5AEEE5FEBF1EE92002601 /* SavedRecommendation.swift */; };
@@ -65,7 +70,6 @@
 		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
 		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
-		C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
@@ -74,7 +78,6 @@
 		E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */; };
 		E4833E28863AD353409A7973 /* VaultService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693B88ED4559E3D46BAC3E5D /* VaultService.swift */; };
 		E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */; };
-		EDCD535468883A22B502C93F /* IdeaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C179C7DF88145A7BE7E5E /* IdeaDetailView.swift */; };
 		F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65623696E83EBB3DD785BD2D /* FlowLayout.swift */; };
 		FC338B6E021C99D643D630B8 /* OnboardingBasicInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DF8EE438910DDA2E1CCC1A /* OnboardingBasicInfoView.swift */; };
 /* End PBXBuildFile section */
@@ -100,6 +103,7 @@
 		01EEFEFA72F5F2B66B814742 /* RecommendationLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationLocal.swift; sourceTree = "<group>"; };
 		02978CA31C43A88F5065E75D /* Knot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Knot.entitlements; sourceTree = "<group>"; };
 		05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseRatingSheet.swift; sourceTree = "<group>"; };
+		082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicLinkView.swift; sourceTree = "<group>"; };
 		0C29B361DC709BF91BBF303D /* MerchantHandoffService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantHandoffService.swift; sourceTree = "<group>"; };
 		0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportRenderer.swift; sourceTree = "<group>"; };
 		0DCCE19756089A177B0B31FA /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
@@ -111,10 +115,12 @@
 		2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBudgetView.swift; sourceTree = "<group>"; };
 		2E3B473EB33D90B1F3C92FA0 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		40694013F15F1931FBD4B467 /* LoginViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewTests.swift; sourceTree = "<group>"; };
 		41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4247B99E99F834D9DCE623D0 /* NotificationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsViewModel.swift; sourceTree = "<group>"; };
 		42C0DFE789B202C84A0F6646 /* HintLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintLocal.swift; sourceTree = "<group>"; };
 		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4726769364F3363201EE0535 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		48B33AEA969A81935AC17974 /* PartnerVaultLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerVaultLocal.swift; sourceTree = "<group>"; };
 		4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		4ED289B139BA05DEAE2125F2 /* HintsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintsListViewModel.swift; sourceTree = "<group>"; };
@@ -130,9 +136,9 @@
 		6D0923D42485ED34C6E165B1 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
 		71DF8EE438910DDA2E1CCC1A /* OnboardingBasicInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBasicInfoView.swift; sourceTree = "<group>"; };
-		774C179C7DF88145A7BE7E5E /* IdeaDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
+		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
 		77B1EA1A3CFCD077D2E7D7C3 /* OnboardingMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingMilestonesView.swift; sourceTree = "<group>"; };
-		7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
+		82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
 		82D8C028DEC10B2C02A3FB2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		842768D146B565195D8F3390 /* Knot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Knot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8706879774F71CFAE5954F25 /* KnotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTests.swift; sourceTree = "<group>"; };
@@ -157,7 +163,6 @@
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompletionView.swift; sourceTree = "<group>"; };
 		D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
-		D7362123756B3AC2288C59B0 /* GetStartedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GetStartedView.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkRecommendationView.swift; sourceTree = "<group>"; };
@@ -180,6 +185,7 @@
 				87887A63D053FC1A6B023981 /* Auth in Frameworks */,
 				D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */,
 				08FF4428155608D136787B78 /* Supabase in Frameworks */,
+				4E9E28B2417E3A9842A4F10F /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,7 +201,7 @@
 				91DD62D4760696C298A091D4 /* HintService.swift */,
 				0C29B361DC709BF91BBF303D /* MerchantHandoffService.swift */,
 				5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */,
-				7D4E8F2A1B3C5D6E9F0A2B4C /* NotificationPreferencesService.swift */,
+				82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */,
 				0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */,
 				6D0923D42485ED34C6E165B1 /* RecommendationService.swift */,
 				5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */,
@@ -242,12 +248,12 @@
 			children = (
 				6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */,
 				E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */,
+				77282BCCC7022C9A21681178 /* IdeaDetailView.swift */,
 				895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */,
 				05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */,
 				AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */,
 				A0D4AED680722D46D3983508 /* RecommendationsView.swift */,
 				FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */,
-				774C179C7DF88145A7BE7E5E /* IdeaDetailView.swift */,
 			);
 			path = Recommendations;
 			sourceTree = "<group>";
@@ -272,8 +278,9 @@
 			isa = PBXGroup;
 			children = (
 				4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */,
+				4726769364F3363201EE0535 /* LoginView.swift */,
+				082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */,
 				2DB2C0E473B2693C71D80BC2 /* SignInView.swift */,
-				D7362123756B3AC2288C59B0 /* GetStartedView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -390,6 +397,7 @@
 			isa = PBXGroup;
 			children = (
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
+				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
 				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
@@ -429,6 +437,7 @@
 				2AB9DA03F64ECAF39D6C01B3 /* Auth */,
 				BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */,
 				AA11148E4DFC8D8D22DA69D6 /* Supabase */,
+				7711E0BB431FC8FD8742B30F /* GoogleSignIn */,
 			);
 			productName = Knot;
 			productReference = 842768D146B565195D8F3390 /* Knot.app */;
@@ -446,6 +455,8 @@
 				4E9ACB94ABEABB2213A2D300 /* PBXTargetDependency */,
 			);
 			name = KnotUITests;
+			packageProductDependencies = (
+			);
 			productName = KnotUITests;
 			productReference = 45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -462,6 +473,8 @@
 				98449036F455C6A5C6165931 /* PBXTargetDependency */,
 			);
 			name = KnotTests;
+			packageProductDependencies = (
+			);
 			productName = KnotTests;
 			productReference = D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -501,11 +514,11 @@
 			mainGroup = 7E5240D625C6A27DAE2C5B64;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				2921D8E6D9C6C906057C744D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */,
 				7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = F7E46C8D3CE8BBD34B623C23 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -533,6 +546,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
+				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
 				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,
@@ -572,12 +586,15 @@
 				6EF36347E66A927A99D4D117 /* HintsListViewModel.swift in Sources */,
 				07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */,
 				9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */,
+				933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */,
 				BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */,
+				40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */,
+				342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */,
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */,
 				02989CEE7ADA343855BC038E /* NotificationHistoryService.swift in Sources */,
-				C4B2A19F8E7D6C5B4A3F2E1D /* NotificationPreferencesService.swift in Sources */,
+				463FADB1181873781B5F1960 /* NotificationPreferencesService.swift in Sources */,
 				4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */,
 				07F8A133AEC890D6F2B20EC8 /* NotificationsViewModel.swift in Sources */,
 				FC338B6E021C99D643D630B8 /* OnboardingBasicInfoView.swift in Sources */,
@@ -609,8 +626,6 @@
 				1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */,
 				72EC0668AF413912D66810A4 /* Theme.swift in Sources */,
 				E4833E28863AD353409A7973 /* VaultService.swift in Sources */,
-				99E3A5C6B1B426D184CEB165 /* GetStartedView.swift in Sources */,
-				EDCD535468883A22B502C93F /* IdeaDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -917,6 +932,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		2921D8E6D9C6C906057C744D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		5E1BC889A7044B60D266808A /* XCRemoteSwiftPackageReference "lucide-icons-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/JakubMazur/lucide-icons-swift.git";
@@ -945,6 +968,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Auth;
+		};
+		7711E0BB431FC8FD8742B30F /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2921D8E6D9C6C906057C744D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
 		};
 		AA11148E4DFC8D8D22DA69D6 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;

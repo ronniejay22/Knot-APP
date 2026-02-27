@@ -18,6 +18,7 @@ enum SupabaseManager {
     /// Shared Supabase client instance.
     static let client = SupabaseClient(
         supabaseURL: Constants.Supabase.projectURL,
-        supabaseKey: Constants.Supabase.anonKey
+        supabaseKey: Constants.Supabase.anonKey,
+        options: .init(auth: .init(redirectToURL: Constants.Supabase.redirectURL))
     )
 }
