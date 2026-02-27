@@ -10,7 +10,7 @@ import SwiftUI
 import LucideIcons
 
 /// Login screen presenting Apple, Google, and Email sign-in options.
-/// Reached via "Get Started" or "I already have an account" from SignInView.
+/// Reached via "Get Started" from SignInView.
 struct LoginView: View {
     @Environment(AuthViewModel.self) private var authViewModel
 
@@ -23,11 +23,18 @@ struct LoginView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // MARK: - Title
-                Text("Log In")
+                // MARK: - Title & Subtitle
+                Text("Create Account")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(Theme.accent)
-                    .padding(.bottom, 48)
+                    .padding(.bottom, 8)
+
+                Text("Sign up to start building your partner vault")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
 
                 // MARK: - Provider Buttons
                 VStack(spacing: 14) {

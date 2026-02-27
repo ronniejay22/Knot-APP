@@ -133,8 +133,6 @@ private struct BrandingSection: View {
             Theme.backgroundGradient
 
             VStack(spacing: 0) {
-                Spacer()
-
                 // MARK: - Heart Icon
                 Image(uiImage: Lucide.heart)
                     .renderingMode(.template)
@@ -142,6 +140,7 @@ private struct BrandingSection: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 48, height: 48)
                     .foregroundStyle(Theme.accent)
+                    .padding(.top, 24)
                     .padding(.bottom, 12)
 
                 // MARK: - Two-tone App Name
@@ -154,7 +153,8 @@ private struct BrandingSection: View {
                 Text("Connect Deeply")
                     .font(.title3)
                     .foregroundStyle(Theme.textSecondary)
-                    .padding(.bottom, 28)
+
+                Spacer()
 
                 // MARK: - Get Started Button
                 NavigationLink(value: "getStarted") {
@@ -165,22 +165,6 @@ private struct BrandingSection: View {
                         .frame(height: 54)
                         .background(Theme.signInButtonPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .padding(.bottom, 12)
-
-                // MARK: - I Already Have an Account
-                NavigationLink(value: "getStarted") {
-                    Text("I already have an account")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(Theme.signInButtonSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Theme.signInButtonSecondaryBorder, lineWidth: 1)
-                        )
                 }
                 .padding(.bottom, 20)
 

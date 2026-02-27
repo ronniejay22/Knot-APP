@@ -72,7 +72,7 @@ struct MagicLinkView: View {
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(.white)
 
-            Text("We'll send you a magic link to sign in instantly.")
+            Text("We'll send you a magic link to create your account.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)

@@ -4612,6 +4612,29 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ---
 
+### Step 15.4: Simplify Sign-In Screen UX ✅
+**Date:** February 26, 2026
+**Status:** Complete
+
+**What was done:**
+- Removed the "I already have an account" button from the welcome screen (`SignInView`), leaving a single "Get Started" entry point. Supabase handles both new and returning users transparently, so a separate sign-in path was unnecessary and confusing.
+- Updated `LoginView` title from "Log In" to "Create Account" with a subtitle: "Sign up to start building your partner vault". Removed the `AuthMode` enum that was briefly introduced to differentiate modes.
+- Updated `MagicLinkView` subtitle to "We'll send you a magic link to create your account."
+- Restructured the `BrandingSection` layout in `SignInView` to pin the heart icon, "Knot" title, and "Connect Deeply" tagline near the top of the dark section (24pt top padding), with a `Spacer()` between the tagline and the "Get Started" button to push the CTA toward the bottom.
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/SignInView.swift` — Removed second button, simplified navigation destinations, restructured BrandingSection vertical layout
+- `iOS/Knot/Features/Auth/LoginView.swift` — Removed `AuthMode` enum, hardcoded "Create Account" title and subtitle
+- `iOS/Knot/Features/Auth/MagicLinkView.swift` — Removed `mode` property, hardcoded subtitle
+
+**Test results:**
+- ✅ Build succeeds with zero errors
+- ✅ Welcome screen shows single "Get Started" button with branding pinned near photo grid
+- ✅ "Get Started" navigates to "Create Account" screen with three provider buttons
+- ✅ Email flow shows correct subtitle
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
