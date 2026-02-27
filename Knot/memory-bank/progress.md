@@ -4488,11 +4488,42 @@ xcodebuild test -project iOS/Knot.xcodeproj -scheme Knot \
 
 ---
 
+### Step 15.1: Add Sign-In Photo Grid Scrolling Animation with Images ✅
+**Date:** February 25–26, 2026
+**Status:** Complete
+
+**What was done:**
+- Added continuous horizontal scrolling animation to the `PhotoGridSection` in `SignInView.swift`
+- Rows alternate scroll direction: even rows (1st, 3rd) scroll right, odd rows (2nd, 4th) scroll left
+- Used `TimelineView(.animation)` with continuous time-based offset computation for seamless infinite looping (no visible reset/jump)
+- Replaced colored placeholder rectangles with 20 real photo images (19 unique + 1 reused)
+- Added 20 image sets under `Assets.xcassets/SignIn/` namespace (signin-0 through signin-19), sourced from user-provided 684×400px JPEGs
+- Images displayed with `.resizable().aspectRatio(contentMode: .fill)` cropped to square tiles via `.clipShape(RoundedRectangle)`
+- Made tiles square (`tileHeight = tileWidth`) instead of the original 1.2x portrait ratio
+- Fixed "Invalid frame dimension" warning by clamping tileWidth with `max(0, ...)`
+- 12-second cycle duration for smooth, relaxed scroll speed
+
+**Files created:**
+- `iOS/Knot/Resources/Assets.xcassets/SignIn/` — Namespaced asset folder with 20 image sets (signin-0 through signin-19)
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/SignInView.swift` — `PhotoGridSection` struct: replaced `placeholderColors` with `tileImages` string array, replaced `RoundedRectangle.fill()` with `Image().resizable().aspectRatio().clipShape()`, switched from `.animation(.repeatForever)` to `TimelineView(.animation)` for seamless looping
+
+**Test results:**
+- ✅ Build succeeds with zero errors
+- ✅ 147 unit tests passed, 0 failures
+- ✅ 4 UI tests passed, 0 failures
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
 - [x] **Step 13.1:** Replace External APIs with Claude Search Agent
 - [ ] **Step 13.2:** App Store Submission Preparation
+
+### Phase 15: UI Polish
+- [x] **Step 15.1:** Add Sign-In Photo Grid Scrolling Animation
 
 ---
 

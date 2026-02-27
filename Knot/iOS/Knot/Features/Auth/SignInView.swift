@@ -67,39 +67,53 @@ struct SignInView: View {
 /// Displays a decorative grid of placeholder photo tiles on a cream background.
 /// Tiles are arranged in staggered rows that bleed off-screen for visual interest.
 private struct PhotoGridSection: View {
-    private let placeholderColors: [[Color]] = [
-        [.pink.opacity(0.25), .orange.opacity(0.30), .purple.opacity(0.25), .teal.opacity(0.30), .pink.opacity(0.20)],
-        [.indigo.opacity(0.25), .pink.opacity(0.30), .cyan.opacity(0.25), .orange.opacity(0.25), .purple.opacity(0.20)],
-        [.orange.opacity(0.20), .teal.opacity(0.25), .pink.opacity(0.30), .indigo.opacity(0.25), .orange.opacity(0.30)],
-        [.purple.opacity(0.25), .cyan.opacity(0.20), .orange.opacity(0.25), .pink.opacity(0.30), .teal.opacity(0.25)],
+    private let tileImages: [[String]] = [
+        ["SignIn/signin-0", "SignIn/signin-1", "SignIn/signin-2", "SignIn/signin-3", "SignIn/signin-4"],
+        ["SignIn/signin-5", "SignIn/signin-6", "SignIn/signin-7", "SignIn/signin-8", "SignIn/signin-9"],
+        ["SignIn/signin-10", "SignIn/signin-11", "SignIn/signin-12", "SignIn/signin-13", "SignIn/signin-14"],
+        ["SignIn/signin-15", "SignIn/signin-16", "SignIn/signin-17", "SignIn/signin-18", "SignIn/signin-19"],
     ]
 
     private let tileSpacing: CGFloat = 10
     private let tileCornerRadius: CGFloat = 18
-    private let rowOffset: CGFloat = -35
+    private let cycleDuration: Double = 12
 
     var body: some View {
         GeometryReader { geometry in
-            let tileWidth = (geometry.size.width - tileSpacing * 3) / 3.5
-            let tileHeight = tileWidth * 1.2
+            let tileWidth = max(0, (geometry.size.width - tileSpacing * 3) / 3.5)
+            let tileHeight = tileWidth
+            let singleSetWidth = 5 * (tileWidth + tileSpacing)
 
-            ZStack {
-                Theme.signInCream
+            TimelineView(.animation) { timeline in
+                let elapsed = timeline.date.timeIntervalSinceReferenceDate
+                let progress = CGFloat(elapsed.truncatingRemainder(dividingBy: cycleDuration)) / CGFloat(cycleDuration)
+                let scrollAmount = progress * singleSetWidth
 
-                VStack(spacing: tileSpacing) {
-                    ForEach(0..<4, id: \.self) { row in
-                        HStack(spacing: tileSpacing) {
-                            ForEach(0..<5, id: \.self) { col in
-                                RoundedRectangle(cornerRadius: tileCornerRadius)
-                                    .fill(placeholderColors[row][col])
-                                    .frame(width: tileWidth, height: tileHeight)
+                ZStack {
+                    Theme.signInCream
+
+                    VStack(spacing: tileSpacing) {
+                        ForEach(0..<4, id: \.self) { row in
+                            let scrollsRight = row.isMultiple(of: 2)
+
+                            HStack(spacing: tileSpacing) {
+                                ForEach(0..<10, id: \.self) { col in
+                                    Image(tileImages[row][col % 5])
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: tileWidth, height: tileHeight)
+                                        .clipShape(RoundedRectangle(cornerRadius: tileCornerRadius))
+                                }
                             }
+                            .offset(x: scrollsRight
+                                ? scrollAmount - singleSetWidth
+                                : -scrollAmount
+                            )
                         }
-                        .offset(x: row.isMultiple(of: 2) ? 0 : rowOffset)
                     }
                 }
+                .clipped()
             }
-            .clipped()
         }
     }
 }
