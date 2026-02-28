@@ -55,6 +55,7 @@ class RecommendationRefreshRequest(BaseModel):
         "already_have_similar",
         "show_different",
     ]
+    vibe_override: Optional[list[str]] = None
 
     @field_validator("rejected_recommendation_ids")
     @classmethod

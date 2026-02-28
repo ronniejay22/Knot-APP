@@ -16,6 +16,7 @@ Step 5.6: Create Diversity Selection Node
 """
 
 import logging
+import random
 from typing import Any
 
 from app.agents.state import CandidateRecommendation, RecommendationState
@@ -178,6 +179,26 @@ async def select_diverse_three(
             state.vault_data.vault_id,
         )
         return {"final_three": []}
+
+    # --- Exclude previously shown recommendations ---
+    if state.excluded_titles:
+        excluded_set = set(state.excluded_titles)
+        before_count = len(candidates)
+        candidates = [c for c in candidates if c.title not in excluded_set]
+        logger.info(
+            "Excluded %d previously shown titles (%d → %d candidates)",
+            before_count - len(candidates), before_count, len(candidates),
+        )
+        if not candidates:
+            logger.warning(
+                "All candidates excluded by history for vault %s",
+                state.vault_data.vault_id,
+            )
+            return {"final_three": []}
+
+    # --- Add small random jitter to break deterministic tie-breaking ---
+    # Use sort key (not mutation) to avoid permanently altering candidate scores
+    candidates.sort(key=lambda c: -(c.final_score + random.uniform(-0.03, 0.03)))
 
     # --- Greedy diversity selection ---
     selected: list[CandidateRecommendation] = []

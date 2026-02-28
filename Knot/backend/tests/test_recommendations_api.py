@@ -17,7 +17,7 @@ Tests cover:
 - Invalid occasion_type → 422
 - Milestone not found → 404
 - Pipeline error → 500
-- Pipeline returning empty results → 500
+- Pipeline returning empty results → 200 with count 0
 - Browsing mode (no milestone_id) → 200
 - Budget range determination from vault data
 - Budget range fallback defaults
@@ -915,8 +915,8 @@ class TestPipelineErrors:
         assert resp.status_code == 500
         assert "no candidates" in resp.json()["detail"].lower()
 
-    def test_pipeline_empty_results_uses_mock_fallback(self, client, test_user_with_vault):
-        """Pipeline returning empty final_three should fall back to mock data until Phase 8."""
+    def test_pipeline_empty_results_returns_empty(self, client, test_user_with_vault):
+        """Pipeline returning empty final_three should return count 0."""
         user = test_user_with_vault
 
         empty_result = {
@@ -937,7 +937,7 @@ class TestPipelineErrors:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["count"] == 3
+        assert data["count"] == 0
 
     def test_pipeline_partial_results(self, client, test_user_with_vault):
         """Pipeline returning fewer than 3 should still return successfully."""

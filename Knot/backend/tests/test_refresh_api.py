@@ -411,6 +411,25 @@ class TestRefreshModels:
                 rejection_reason="too_expensive",
             )
 
+    def test_refresh_request_accepts_vibe_override(self):
+        """Request with vibe_override should parse correctly."""
+        from app.models.recommendations import RecommendationRefreshRequest
+        req = RecommendationRefreshRequest(
+            rejected_recommendation_ids=["id-1"],
+            rejection_reason="show_different",
+            vibe_override=["romantic", "vintage"],
+        )
+        assert req.vibe_override == ["romantic", "vintage"]
+
+    def test_refresh_request_vibe_override_defaults_to_none(self):
+        """vibe_override should default to None when not provided."""
+        from app.models.recommendations import RecommendationRefreshRequest
+        req = RecommendationRefreshRequest(
+            rejected_recommendation_ids=["id-1"],
+            rejection_reason="show_different",
+        )
+        assert req.vibe_override is None
+
     def test_refresh_response_model(self):
         """Response model should serialize correctly."""
         from app.models.recommendations import (
@@ -724,6 +743,66 @@ class TestRefreshEndpoint:
         db_recs = _query_recommendations(user["vault_id"])
         assert len(db_recs) >= 6
 
+    def test_refresh_applies_vibe_override_to_pipeline(self, client, test_user_with_vault_and_recs):
+        """When vibe_override is sent, the pipeline should receive the overridden vibes."""
+        user = test_user_with_vault_and_recs
+        mock_result = _mock_pipeline_result(9)
+        captured_states = []
+
+        async def capture_state(state):
+            captured_states.append(state)
+            return mock_result
+
+        with patch(
+            "app.api.recommendations.run_recommendation_pipeline",
+            new_callable=AsyncMock,
+            side_effect=capture_state,
+        ):
+            resp = client.post(
+                "/api/v1/recommendations/refresh",
+                json={
+                    "rejected_recommendation_ids": user["recommendation_ids"][:1],
+                    "rejection_reason": "show_different",
+                    "vibe_override": ["street_urban", "adventurous"],
+                },
+                headers=_auth_headers(user["access_token"]),
+            )
+
+        assert resp.status_code == 200
+        assert len(captured_states) == 1
+        pipeline_state = captured_states[0]
+        assert pipeline_state.vault_data.vibes == ["street_urban", "adventurous"]
+
+    def test_refresh_without_vibe_override_uses_vault_vibes(self, client, test_user_with_vault_and_recs):
+        """When no vibe_override is sent, the pipeline should use the vault's stored vibes."""
+        user = test_user_with_vault_and_recs
+        mock_result = _mock_pipeline_result(9)
+        captured_states = []
+
+        async def capture_state(state):
+            captured_states.append(state)
+            return mock_result
+
+        with patch(
+            "app.api.recommendations.run_recommendation_pipeline",
+            new_callable=AsyncMock,
+            side_effect=capture_state,
+        ):
+            resp = client.post(
+                "/api/v1/recommendations/refresh",
+                json={
+                    "rejected_recommendation_ids": user["recommendation_ids"][:1],
+                    "rejection_reason": "show_different",
+                },
+                headers=_auth_headers(user["access_token"]),
+            )
+
+        assert resp.status_code == 200
+        assert len(captured_states) == 1
+        pipeline_state = captured_states[0]
+        # Vault was created with vibes: ["quiet_luxury", "minimalist", "romantic"]
+        assert set(pipeline_state.vault_data.vibes) == {"quiet_luxury", "minimalist", "romantic"}
+
     def test_recommendations_have_required_fields(self, client, test_user_with_vault_and_recs):
         """Each refreshed recommendation should have required fields."""
         user = test_user_with_vault_and_recs
@@ -942,3 +1021,158 @@ class TestAllRejectionReasons:
         data = resp.json()
         assert data["count"] >= 1
         assert data["rejection_reason"] == reason
+
+
+# ===================================================================
+# 7. History exclusion and randomization
+# ===================================================================
+
+class TestHistoryExclusion:
+    """Verify excluded_titles prevents repetition in selection."""
+
+    def test_excluded_titles_filters_candidates(self):
+        """Candidates whose titles are in excluded_titles should be removed."""
+        import asyncio
+        from app.agents.selection import select_diverse_three
+        from app.agents.state import (
+            RecommendationState, VaultData, BudgetRange,
+            VaultBudget, CandidateRecommendation,
+        )
+
+        candidates = [
+            CandidateRecommendation(
+                id=f"c{i}", source="yelp", type="experience",
+                title=f"Item {i}", price_cents=3000 + i * 1000,
+                external_url=f"https://example.com/{i}",
+                merchant_name=f"Merchant {i}",
+                final_score=2.0 + i * 0.1,
+            )
+            for i in range(6)
+        ]
+
+        vault = VaultData(
+            vault_id="v1", partner_name="Test",
+            interests=["Travel"], dislikes=["Sports"],
+            vibes=["romantic"],
+            primary_love_language="quality_time",
+            secondary_love_language="receiving_gifts",
+            budgets=[VaultBudget(
+                occasion_type="just_because",
+                min_amount=2000, max_amount=10000,
+            )],
+        )
+
+        state = RecommendationState(
+            vault_data=vault,
+            occasion_type="just_because",
+            budget_range=BudgetRange(min_amount=2000, max_amount=10000),
+            filtered_recommendations=candidates,
+            excluded_titles=["Item 5", "Item 4", "Item 3"],
+        )
+
+        result = asyncio.run(
+            select_diverse_three(state)
+        )
+        selected_titles = {c.title for c in result["final_three"]}
+
+        # None of the excluded titles should appear
+        assert "Item 5" not in selected_titles
+        assert "Item 4" not in selected_titles
+        assert "Item 3" not in selected_titles
+
+    def test_all_excluded_returns_empty(self):
+        """If all candidates are excluded, should return empty list."""
+        import asyncio
+        from app.agents.selection import select_diverse_three
+        from app.agents.state import (
+            RecommendationState, VaultData, BudgetRange,
+            VaultBudget, CandidateRecommendation,
+        )
+
+        candidates = [
+            CandidateRecommendation(
+                id="c1", source="yelp", type="gift",
+                title="Only Item", price_cents=5000,
+                external_url="https://example.com/1",
+                final_score=2.0,
+            )
+        ]
+
+        vault = VaultData(
+            vault_id="v1", partner_name="Test",
+            interests=["Travel"], dislikes=["Sports"],
+            vibes=["romantic"],
+            primary_love_language="quality_time",
+            secondary_love_language="receiving_gifts",
+            budgets=[VaultBudget(
+                occasion_type="just_because",
+                min_amount=2000, max_amount=10000,
+            )],
+        )
+
+        state = RecommendationState(
+            vault_data=vault,
+            occasion_type="just_because",
+            budget_range=BudgetRange(min_amount=2000, max_amount=10000),
+            filtered_recommendations=candidates,
+            excluded_titles=["Only Item"],
+        )
+
+        result = asyncio.run(
+            select_diverse_three(state)
+        )
+        assert result["final_three"] == []
+
+    def test_randomization_varies_results(self):
+        """Repeated selection from identical candidates should produce different orderings."""
+        import asyncio
+        from app.agents.selection import select_diverse_three
+        from app.agents.state import (
+            RecommendationState, VaultData, BudgetRange,
+            VaultBudget, CandidateRecommendation,
+        )
+
+        def make_candidates():
+            return [
+                CandidateRecommendation(
+                    id=f"c{i}", source="yelp",
+                    type=["gift", "experience", "date"][i % 3],
+                    title=f"Item {i}", price_cents=5000,
+                    external_url=f"https://example.com/{i}",
+                    merchant_name=f"Merchant {i}",
+                    final_score=2.0,  # All equal scores
+                )
+                for i in range(9)
+            ]
+
+        vault = VaultData(
+            vault_id="v1", partner_name="Test",
+            interests=["Travel"], dislikes=["Sports"],
+            vibes=["romantic"],
+            primary_love_language="quality_time",
+            secondary_love_language="receiving_gifts",
+            budgets=[VaultBudget(
+                occasion_type="just_because",
+                min_amount=2000, max_amount=10000,
+            )],
+        )
+
+        selections = []
+        for _ in range(10):
+            state = RecommendationState(
+                vault_data=vault,
+                occasion_type="just_because",
+                budget_range=BudgetRange(min_amount=2000, max_amount=10000),
+                filtered_recommendations=make_candidates(),
+            )
+            result = asyncio.run(
+                select_diverse_three(state)
+            )
+            titles = tuple(c.title for c in result["final_three"])
+            selections.append(titles)
+
+        # With jitter on equal scores, we should see at least 2 different orderings
+        unique_selections = set(selections)
+        assert len(unique_selections) >= 2, (
+            f"Expected varied selections but got the same result every time: {selections[0]}"
+        )

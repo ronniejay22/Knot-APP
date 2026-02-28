@@ -172,6 +172,7 @@ class RecommendationState(BaseModel):
     milestone_context: Optional[MilestoneContext] = None
     budget_range: BudgetRange
     learned_weights: Optional[UserPreferencesWeights] = None
+    excluded_titles: list[str] = Field(default_factory=list)
 
     # --- Populated by graph nodes ---
     relevant_hints: list[RelevantHint] = Field(default_factory=list)
