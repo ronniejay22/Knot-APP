@@ -1,20 +1,17 @@
 """
-Recommendation Pipeline — Full LangGraph graph composing all 6 nodes.
+Recommendation Pipeline — LangGraph graph for the unified recommendation system.
 
 Chains the recommendation generation nodes into an executable graph:
-1. retrieve_relevant_hints — Fetch semantically similar hints from pgvector
-2. aggregate_external_data — Call external APIs (Yelp, Ticketmaster, Amazon, etc.)
-3. filter_by_interests — Remove candidates matching dislikes, boost matches
-4. match_vibes_and_love_languages — Apply vibe and love language scoring
-5. select_diverse_three — Pick 3 diverse recommendations
-6. verify_availability — Confirm URLs are valid, replace if not
+1. retrieve_hints — Fetch semantically similar hints from pgvector
+2. generate_unified — Claude generates 3 personalized recommendations
+3. resolve_urls — Find real purchase URLs for purchasable items via Brave Search
+4. verify_urls — Confirm URLs are valid, enrich prices via page scraping
 
 Conditional edges short-circuit the pipeline on error:
-- If aggregate_external_data returns 0 candidates → END with error
-- If filter_by_interests filters all candidates → END with error
-- verify_availability returns partial results (with warning) on its own
+- If generate_unified returns 0 recommendations → END with error
 
 Step 5.8: Compose Full LangGraph Pipeline
+Step 15.1: Unified AI Recommendation System — simplified 4-node pipeline
 """
 
 import logging
@@ -22,13 +19,11 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from app.agents.aggregation import aggregate_external_data
 from app.agents.availability import verify_availability
-from app.agents.filtering import filter_by_interests
 from app.agents.hint_retrieval import retrieve_relevant_hints
-from app.agents.matching import match_vibes_and_love_languages
-from app.agents.selection import select_diverse_three
 from app.agents.state import RecommendationState
+from app.agents.unified_generation_node import generate_unified
+from app.agents.url_resolution import resolve_purchase_urls
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +32,14 @@ logger = logging.getLogger(__name__)
 # Conditional edge functions
 # ======================================================================
 
-def _check_after_aggregation(state: RecommendationState) -> str:
+def _check_after_generation(state: RecommendationState) -> str:
     """
-    Route after aggregate_external_data.
+    Route after generate_unified.
 
-    If no candidates were found (empty list), short-circuit to END.
-    The aggregation node already sets the error message in this case.
+    If Claude failed to produce any recommendations, short-circuit to END.
     """
-    if not state.candidate_recommendations:
-        logger.warning("Pipeline short-circuit: no candidates after aggregation")
-        return "error"
-    return "continue"
-
-
-def _check_after_filtering(state: RecommendationState) -> str:
-    """
-    Route after filter_by_interests.
-
-    If all candidates were filtered out (empty list), short-circuit to END.
-    The filtering node already sets the error message in this case.
-    """
-    if not state.filtered_recommendations:
-        logger.warning("Pipeline short-circuit: no candidates after filtering")
+    if not state.final_three:
+        logger.warning("Pipeline short-circuit: no recommendations after unified generation")
         return "error"
     return "continue"
 
@@ -69,52 +50,40 @@ def _check_after_filtering(state: RecommendationState) -> str:
 
 def build_recommendation_graph() -> StateGraph:
     """
-    Build the LangGraph StateGraph for the recommendation pipeline.
+    Build the LangGraph StateGraph for the unified recommendation pipeline.
 
     Returns the uncompiled StateGraph (call .compile() to get the
     executable CompiledStateGraph).
 
     Node names:
     - "retrieve_hints"
-    - "aggregate_data"
-    - "filter_interests"
-    - "match_vibes_ll"
-    - "select_diverse"
+    - "generate_unified"
+    - "resolve_urls"
     - "verify_urls"
     """
     graph = StateGraph(RecommendationState)
 
     # --- Add nodes ---
     graph.add_node("retrieve_hints", retrieve_relevant_hints)
-    graph.add_node("aggregate_data", aggregate_external_data)
-    graph.add_node("filter_interests", filter_by_interests)
-    graph.add_node("match_vibes_ll", match_vibes_and_love_languages)
-    graph.add_node("select_diverse", select_diverse_three)
+    graph.add_node("generate_unified", generate_unified)
+    graph.add_node("resolve_urls", resolve_purchase_urls)
     graph.add_node("verify_urls", verify_availability)
 
     # --- Define edges ---
 
-    # START → retrieve_hints → aggregate_data
+    # START → retrieve_hints → generate_unified
     graph.add_edge(START, "retrieve_hints")
-    graph.add_edge("retrieve_hints", "aggregate_data")
+    graph.add_edge("retrieve_hints", "generate_unified")
 
-    # aggregate_data → (conditional) filter_interests or END
+    # generate_unified → (conditional) resolve_urls or END
     graph.add_conditional_edges(
-        "aggregate_data",
-        _check_after_aggregation,
-        {"continue": "filter_interests", "error": END},
+        "generate_unified",
+        _check_after_generation,
+        {"continue": "resolve_urls", "error": END},
     )
 
-    # filter_interests → (conditional) match_vibes_ll or END
-    graph.add_conditional_edges(
-        "filter_interests",
-        _check_after_filtering,
-        {"continue": "match_vibes_ll", "error": END},
-    )
-
-    # match_vibes_ll → select_diverse → verify_urls → END
-    graph.add_edge("match_vibes_ll", "select_diverse")
-    graph.add_edge("select_diverse", "verify_urls")
+    # resolve_urls → verify_urls → END
+    graph.add_edge("resolve_urls", "verify_urls")
     graph.add_edge("verify_urls", END)
 
     return graph

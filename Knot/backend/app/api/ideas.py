@@ -1,11 +1,14 @@
 """
 Ideas API — Knot Originals AI-generated idea endpoints.
 
-Handles generating, listing, and fetching personalized ideas
-that live entirely in-app with no external links.
+DEPRECATED (Step 15.1): Ideas are now generated as part of the unified
+recommendation pipeline. The iOS client no longer calls these endpoints.
+GET endpoints are preserved for reading legacy stored ideas.
+POST /generate and /generate-background still work but are not actively used.
 
 Step 14.4: Create Ideas API Endpoints
 Step 14.11: Add background generation webhook for QStash triggers
+Step 15.1: Deprecated — unified pipeline handles idea generation
 """
 
 import json
@@ -122,9 +125,9 @@ async def generate_knot_ideas(
     """
     Generate personalized Knot Original ideas.
 
-    Uses the partner's vault data, captured hints, and occasion context
-    to generate rich, structured idea content via Claude. Ideas are
-    stored in the recommendations table with is_idea=True.
+    DEPRECATED: Ideas are now generated as part of the unified recommendation
+    pipeline (POST /api/v1/recommendations/generate). This endpoint still works
+    but is not called by the iOS client.
 
     Returns:
         200: Generated ideas with content sections.

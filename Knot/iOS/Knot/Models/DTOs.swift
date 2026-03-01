@@ -354,6 +354,8 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let matchedInterests: [String]?
     let matchedVibes: [String]?
     let matchedLoveLanguages: [String]?
+    // Unified generation field (Step 15.1)
+    let personalizationNote: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -375,6 +377,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case matchedInterests = "matched_interests"
         case matchedVibes = "matched_vibes"
         case matchedLoveLanguages = "matched_love_languages"
+        case personalizationNote = "personalization_note"
     }
 }
 

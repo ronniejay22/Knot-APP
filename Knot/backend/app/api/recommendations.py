@@ -116,8 +116,9 @@ async def generate_recommendations(
 
     learned_weights = await load_learned_weights(user_id)
 
-    # Load recent recommendation titles to exclude from new results
+    # Load recent recommendation titles + descriptions to exclude from new results
     excluded_titles = _load_recent_titles(client, vault_id)
+    excluded_descriptions = _load_recent_descriptions(client, vault_id)
 
     state = RecommendationState(
         vault_data=vault_data,
@@ -126,6 +127,7 @@ async def generate_recommendations(
         budget_range=budget_range,
         learned_weights=learned_weights,
         excluded_titles=excluded_titles,
+        excluded_descriptions=excluded_descriptions,
     )
 
     try:
@@ -182,6 +184,9 @@ async def generate_recommendations(
             if getattr(candidate, "content_sections", None):
                 import json
                 row["content_sections"] = json.dumps(candidate.content_sections)
+        # Include personalization note (Step 15.1)
+        if getattr(candidate, "personalization_note", None):
+            row["personalization_note"] = candidate.personalization_note
         rec_rows.append(row)
 
     try:
@@ -317,8 +322,9 @@ async def refresh_recommendations(
 
     learned_weights = await load_learned_weights(user_id)
 
-    # Load recent recommendation titles to exclude from new results
+    # Load recent recommendation titles + descriptions to exclude from new results
     excluded_titles = _load_recent_titles(client, vault_id)
+    excluded_descriptions = _load_recent_descriptions(client, vault_id)
 
     state = RecommendationState(
         vault_data=vault_data,
@@ -326,6 +332,9 @@ async def refresh_recommendations(
         budget_range=budget_range,
         learned_weights=learned_weights,
         excluded_titles=excluded_titles,
+        excluded_descriptions=excluded_descriptions,
+        vibe_override=payload.vibe_override,
+        rejection_reason=payload.rejection_reason,
     )
 
     try:
@@ -352,29 +361,14 @@ async def refresh_recommendations(
         )
 
     # =================================================================
-    # 5. Apply exclusion filters based on rejection reason
+    # 5. Use the unified pipeline results directly
     # =================================================================
     candidates = result.get("final_three", [])
-    # Use the filtered pool for replacements (broader candidate set)
-    filtered_pool = result.get("filtered_recommendations", [])
 
-    # Combine final_three and filtered_pool for re-selection
-    all_candidates = list(filtered_pool) if filtered_pool else list(candidates)
-
-    # Apply exclusion filters
-    filtered_candidates = _apply_exclusion_filters(
-        all_candidates,
-        rejected_recs.data,
-        payload.rejection_reason,
-        budget_range,
-    )
-
-    if not filtered_candidates:
+    if not candidates:
         logger.warning("Refresh returned no results for vault %s", vault_id)
 
-    # Select top 3 from the filtered candidates
-    filtered_candidates.sort(key=lambda c: c.final_score, reverse=True)
-    new_three = filtered_candidates[:3]
+    new_three = candidates[:3]
 
     # =================================================================
     # 6. Store new recommendations in the database
@@ -396,6 +390,8 @@ async def refresh_recommendations(
             if getattr(candidate, "content_sections", None):
                 import json
                 row["content_sections"] = json.dumps(candidate.content_sections)
+        if getattr(candidate, "personalization_note", None):
+            row["personalization_note"] = candidate.personalization_note
         rec_rows.append(row)
 
     try:
@@ -861,7 +857,7 @@ async def get_recommendation_by_id(
 # ===================================================================
 
 
-def _load_recent_titles(client, vault_id: str, limit: int = 50) -> list[str]:
+def _load_recent_titles(client, vault_id: str, limit: int = 200) -> list[str]:
     """Load titles of recent recommendations for a vault to exclude from new results."""
     try:
         result = (
@@ -876,6 +872,29 @@ def _load_recent_titles(client, vault_id: str, limit: int = 50) -> list[str]:
     except Exception as exc:
         logger.warning(
             "Failed to load recent titles for vault %s: %s", vault_id, exc,
+        )
+        return []
+
+
+def _load_recent_descriptions(client, vault_id: str, limit: int = 200) -> list[str]:
+    """Load description snippets of recent recommendations for semantic dedup."""
+    try:
+        result = (
+            client.table("recommendations")
+            .select("description")
+            .eq("vault_id", vault_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [
+            row["description"][:100]
+            for row in (result.data or [])
+            if row.get("description")
+        ]
+    except Exception as exc:
+        logger.warning(
+            "Failed to load recent descriptions for vault %s: %s", vault_id, exc,
         )
         return []
 
@@ -951,6 +970,7 @@ def _build_response_items(
                 matched_interests=candidate.matched_interests,
                 matched_vibes=candidate.matched_vibes,
                 matched_love_languages=candidate.matched_love_languages,
+                personalization_note=getattr(candidate, "personalization_note", None),
             )
         )
     return response_items

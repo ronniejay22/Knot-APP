@@ -4698,6 +4698,58 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 - ✅ Fallback logic correctly returns interest-based images for candidates without URLs
 - ✅ Existing images are preserved when present (no unnecessary fallback)
 
+### Step 15.2: Unified AI Recommendation System ✅
+**Date:** February 28, 2026
+**Status:** Complete
+
+**What was done:**
+Created a unified AI recommendation system where Claude generates all 3 recommendations in a single call, producing a mix of purchasable items (gifts, bookable experiences, restaurant reservations) and personalized ideas/gestures. Replaced the fragmented Suggestions/Ideas split UX with one cohesive AI-powered feed.
+
+Restructured the LangGraph pipeline from 6 nodes to 4 nodes: retrieve_hints → generate_unified → resolve_purchase_urls → verify_availability. Claude now handles all the reasoning that was previously done by aggregation, filtering, matching, and selection nodes.
+
+Created `backend/app/services/unified_generation.py` — single Claude call with detailed system prompt that generates exactly 3 personalized recommendations. Every recommendation includes a `personalization_note` explaining WHY it fits the specific partner, referencing their interests, hints, vibes, and love languages. Purchasable items include a `search_query` for URL resolution via Brave Search.
+
+Created `backend/app/agents/url_resolution.py` — new LangGraph node that resolves real purchase URLs for purchasable items via targeted Brave Search, excluding article/review domains. Ideas skip URL resolution entirely.
+
+Enhanced deduplication by increasing history from 50 to 200 recent titles, adding description snippet tracking, and passing full exclusion context to Claude's prompt as a "DO NOT RECOMMEND" section.
+
+Added `personalization_note` column to the recommendations table via migration 00021. Updated backend response models and iOS DTOs to include the new field.
+
+Removed the segmented Suggestions/Ideas `Picker` control from `RecommendationsView.swift`. The unified feed now shows a single horizontal paging view of 3 cards with a mix of types.
+
+Enhanced `RecommendationCard.swift` with personalization note rendering (sparkle icon + accent-colored text), explicit "Idea" type badge with lightbulb icon, idea-specific gradient, and hidden price badge for ideas (no more "Price varies").
+
+Cleaned up `RecommendationsViewModel.swift` by removing `RecommendationMode` enum, `selectedMode` property, and all ideas-specific state/methods (`loadIdeas`, `generateIdeas`, `ideas`, `isLoadingIdeas`, `ideasErrorMessage`, `hasLoadedIdeas`). Kept `openIdeaFromTrio()` for idea detail navigation from the unified feed.
+
+Cleaned up `RecommendationService.swift` by removing `generateIdeas()`, `fetchIdeas()`, and `fetchIdea()` methods. Added `personalizationNote` field to `RecommendationItemResponse` in DTOs.swift.
+
+Deprecated ideas API endpoints in `backend/app/api/ideas.py` — GET endpoints preserved for legacy stored ideas, POST endpoints marked as deprecated.
+
+**Files created:**
+- `backend/app/services/unified_generation.py` — Unified Claude generation service
+- `backend/app/agents/url_resolution.py` — Brave Search URL resolution node
+- `backend/app/agents/unified_generation_node.py` — LangGraph node wrapper
+- `backend/supabase/migrations/00021_add_personalization_note.sql` — DB migration
+- `backend/tests/test_unified_generation.py` — 32 tests for the unified generation service
+
+**Files modified:**
+- `backend/app/agents/state.py` — Added personalization_note, search_query, excluded_descriptions, vibe_override, rejection_reason fields
+- `backend/app/agents/pipeline.py` — Full rewrite: 6-node → 4-node pipeline
+- `backend/app/models/recommendations.py` — Added personalization_note to response model
+- `backend/app/api/recommendations.py` — Enhanced dedup (200 titles + descriptions), pass exclusion context to state
+- `backend/app/api/ideas.py` — Deprecated with deprecation notices
+- `backend/tests/test_pipeline.py` — Full rewrite for 4-node pipeline (19 tests)
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Removed segmented control + ideas tab
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Removed ideas state/methods
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — Added personalization note, idea badge, idea gradient
+- `iOS/Knot/Models/DTOs.swift` — Added personalizationNote field
+- `iOS/Knot/Services/RecommendationService.swift` — Removed ideas methods
+
+**Test results:**
+- ✅ 32 unified generation tests pass (prompt construction, validation, normalization, full flow with mocked Claude)
+- ✅ 19 pipeline tests pass (graph structure, conditional edges, full pipeline, error handling, state compatibility)
+- ✅ All 55 new tests pass in 0.74s
+
 ---
 
 ## Next Steps
@@ -4708,6 +4760,7 @@ Updated `KnotApp.onOpenURL` to route Google Sign-In callback URLs via `GIDSignIn
 
 ### Phase 15: UI Polish
 - [x] **Step 15.1:** Add Sign-In Photo Grid Scrolling Animation
+- [x] **Step 15.2:** Unified AI Recommendation System
 
 ### Phase 16: Navigation & Layout
 - [x] **Step 16.1:** Add Bottom Tab Bar Navigation

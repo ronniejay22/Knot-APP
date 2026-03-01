@@ -123,6 +123,7 @@ struct DeepLinkRecommendationView: View {
                     matchedInterests: [],
                     matchedVibes: [],
                     matchedLoveLanguages: [],
+                    personalizationNote: nil,
                     onSelect: {
                         openExternalURL(rec.externalUrl)
                     },

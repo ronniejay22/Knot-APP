@@ -53,6 +53,7 @@ struct RecommendationCard: View {
     let matchedInterests: [String]
     let matchedVibes: [String]
     let matchedLoveLanguages: [String]
+    let personalizationNote: String?
     let onSelect: @MainActor @Sendable () -> Void
     let onSave: @MainActor @Sendable () -> Void
     let onShare: @MainActor @Sendable () -> Void
@@ -155,6 +156,8 @@ struct RecommendationCard: View {
             return [Color.blue.opacity(0.4), Color.indigo.opacity(0.3)]
         case "date":
             return [Color.orange.opacity(0.3), Color.pink.opacity(0.4)]
+        case "idea":
+            return [Color.yellow.opacity(0.3), Color.orange.opacity(0.3)]
         default:
             return [Color.purple.opacity(0.3), Color.pink.opacity(0.3)]
         }
@@ -221,6 +224,32 @@ struct RecommendationCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // Personalization note (Step 15.1) — why Knot picked this
+            if let personalizationNote, !personalizationNote.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(uiImage: Lucide.sparkles)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 12, height: 12)
+                        .foregroundStyle(Theme.accent)
+                        .padding(.top, 2)
+
+                    Text(personalizationNote)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.accent.opacity(0.9))
+                        .italic()
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Theme.accent.opacity(0.08))
+                )
+            }
+
             // Matching factor chips
             if !matchedInterests.isEmpty || !matchedVibes.isEmpty || !matchedLoveLanguages.isEmpty {
                 matchingFactorsSection
@@ -230,7 +259,7 @@ struct RecommendationCard: View {
 
             // Bottom row: price + select button
             HStack {
-                // Price badge
+                // Price badge (hidden for ideas — they have no price)
                 if let priceCents {
                     let prefix = priceConfidence == "estimated" ? "~" : ""
                     Text(prefix + Self.formattedPrice(cents: priceCents, currency: currency))
@@ -246,7 +275,7 @@ struct RecommendationCard: View {
                                         .stroke(Theme.surfaceBorder, lineWidth: 1)
                                 )
                         )
-                } else {
+                } else if recommendationType != "idea" {
                     Text("Price varies")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.textTertiary)
@@ -342,6 +371,7 @@ struct RecommendationCard: View {
         case "gift": return Lucide.gift
         case "experience": return Lucide.sparkles
         case "date": return Lucide.heart
+        case "idea": return Lucide.lightbulb
         default: return Lucide.star
         }
     }
@@ -352,6 +382,7 @@ struct RecommendationCard: View {
         case "gift": return "gift.fill"
         case "experience": return "sparkles"
         case "date": return "heart.fill"
+        case "idea": return "lightbulb.fill"
         default: return "star.fill"
         }
     }
@@ -362,6 +393,7 @@ struct RecommendationCard: View {
         case "gift": return "Gift"
         case "experience": return "Experience"
         case "date": return "Date"
+        case "idea": return "Idea"
         default: return recommendationType.capitalized
         }
     }
@@ -481,6 +513,7 @@ private struct MatchingFactorChip: View {
             matchedInterests: ["Art", "Cooking"],
             matchedVibes: ["bohemian"],
             matchedLoveLanguages: ["quality_time"],
+            personalizationNote: "Perfect for you two — combines her love of art with quality time together.",
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -506,6 +539,7 @@ private struct MatchingFactorChip: View {
             matchedInterests: ["Travel"],
             matchedVibes: ["romantic", "quiet_luxury"],
             matchedLoveLanguages: ["quality_time"],
+            personalizationNote: "She mentioned wanting to do more outdoor activities — this matches her romantic vibe perfectly.",
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -531,6 +565,7 @@ private struct MatchingFactorChip: View {
             matchedInterests: ["Food"],
             matchedVibes: ["romantic"],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -556,6 +591,7 @@ private struct MatchingFactorChip: View {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}

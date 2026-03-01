@@ -117,6 +117,8 @@ class RecommendationItemResponse(BaseModel):
     matched_interests: list[str] = Field(default_factory=list)
     matched_vibes: list[str] = Field(default_factory=list)
     matched_love_languages: list[str] = Field(default_factory=list)
+    # Personalization note — Claude's explanation of why this fits the partner (Step 15.1)
+    personalization_note: Optional[str] = None
 
 
 class RecommendationGenerateResponse(BaseModel):

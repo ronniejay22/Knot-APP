@@ -31,6 +31,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -56,6 +57,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -83,6 +85,7 @@ final class RecommendationCardTests: XCTestCase {
                 matchedInterests: [],
                 matchedVibes: [],
                 matchedLoveLanguages: [],
+                personalizationNote: nil,
                 onSelect: {},
                 onSave: {},
                 onShare: {}
@@ -108,6 +111,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -175,6 +179,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: { selected = true },
             onSave: {},
             onShare: {}
@@ -204,6 +209,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -230,6 +236,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -258,6 +265,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: { saved = true },
             onShare: {}
@@ -284,6 +292,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: { shared = true }
@@ -308,6 +317,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -332,6 +342,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
@@ -358,6 +369,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedInterests: [],
             matchedVibes: [],
             matchedLoveLanguages: [],
+            personalizationNote: nil,
             onSelect: {},
             onSave: {},
             onShare: {}
