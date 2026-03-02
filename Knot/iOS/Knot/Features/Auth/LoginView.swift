@@ -87,7 +87,7 @@ struct LoginView: View {
 
             // MARK: - Loading Overlay
             if authViewModel.isLoading {
-                Color.black.opacity(0.4)
+                Theme.overlayDim
                     .ignoresSafeArea()
                 ProgressView("Signing in...")
                     .tint(.white)
@@ -97,7 +97,6 @@ struct LoginView: View {
             }
         }
         .navigationBarBackButtonHidden(false)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Sign In Error", isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) { }
         } message: {

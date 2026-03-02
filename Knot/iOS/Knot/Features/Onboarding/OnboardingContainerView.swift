@@ -84,7 +84,7 @@ struct OnboardingContainerView: View {
         .overlay {
             if viewModel.isSubmitting {
                 ZStack {
-                    Color.black.opacity(0.6)
+                    Theme.overlayDim
                         .ignoresSafeArea()
 
                     VStack(spacing: 20) {
@@ -214,7 +214,7 @@ struct OnboardingContainerView: View {
                     .padding(.horizontal, 14)
                 }
                 .buttonStyle(.bordered)
-                .tint(.white)
+                .tint(Theme.textPrimary)
                 .disabled(viewModel.isSubmitting)
             }
 

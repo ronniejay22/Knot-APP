@@ -38,7 +38,7 @@ struct SignInView: View {
 
                 // MARK: - Loading Overlay
                 if authViewModel.isLoading {
-                    Color.black.opacity(0.4)
+                    Theme.overlayDim
                         .ignoresSafeArea()
                     ProgressView("Signing in...")
                         .tint(.white)
@@ -144,7 +144,7 @@ private struct BrandingSection: View {
                     .padding(.bottom, 12)
 
                 // MARK: - Two-tone App Name
-                (Text("Kn").foregroundStyle(.white) + Text("ot").foregroundStyle(Theme.accent))
+                (Text("Kn").foregroundStyle(Theme.textPrimary) + Text("ot").foregroundStyle(Theme.accent))
                     .font(.system(size: 42, weight: .bold))
                     .tracking(-1)
                     .padding(.bottom, 6)

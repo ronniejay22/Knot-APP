@@ -57,7 +57,7 @@ struct EditVaultView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .tint(.white)
+                    .tint(Theme.textPrimary)
                 }
 
                 if viewModel != nil {
@@ -67,7 +67,7 @@ struct EditVaultView: View {
                         } label: {
                             if isSaving {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(Theme.textPrimary)
                             } else {
                                 Text("Save")
                                     .fontWeight(.semibold)
@@ -129,7 +129,7 @@ struct EditVaultView: View {
 
             Text("Unable to Load Profile")
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Text(message)
                 .font(.subheadline)
@@ -155,7 +155,7 @@ struct EditVaultView: View {
                 VStack(spacing: 4) {
                     Text(vm.partnerName.isEmpty ? "Partner" : vm.partnerName)
                         .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                     Text("Tap any section to edit")
                         .font(.caption)
                         .foregroundStyle(Theme.textTertiary)
@@ -234,7 +234,7 @@ struct EditVaultView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)

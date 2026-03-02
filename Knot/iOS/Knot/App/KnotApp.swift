@@ -15,6 +15,7 @@ import Supabase
 struct KnotApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var deepLinkHandler = DeepLinkHandler()
+    @AppStorage("appThemeMode") private var themeMode: String = "light"
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -36,7 +37,7 @@ struct KnotApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(themeMode == "dark" ? .dark : .light)
                 .environment(deepLinkHandler)
                 .onOpenURL { url in
                     // Google Sign-In callback (reversed client ID scheme)

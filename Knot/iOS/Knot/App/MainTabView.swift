@@ -17,6 +17,7 @@ import LucideIcons
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .forYou
     @State private var networkMonitor = NetworkMonitor()
+    @Environment(\.colorScheme) private var colorScheme
 
     enum AppTab: Int {
         case forYou = 0
@@ -26,6 +27,10 @@ struct MainTabView: View {
     }
 
     init() {
+        Self.updateTabBarAppearance()
+    }
+
+    static func updateTabBarAppearance() {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor(Theme.backgroundBottom)
@@ -88,5 +93,33 @@ struct MainTabView: View {
         }
         .tint(Theme.accent)
         .environment(networkMonitor)
+        .onChange(of: colorScheme) { _, _ in
+            Self.updateTabBarAppearance()
+            // Force the existing tab bar to pick up the new appearance.
+            // UITabBar.appearance() only affects new instances, so we must
+            // also update live ones after a theme change.
+            let appearance = UITabBar.appearance().standardAppearance
+            let edgeAppearance = UITabBar.appearance().scrollEdgeAppearance
+            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+                for window in scene.windows {
+                    Self.findTabBars(in: window).forEach { tabBar in
+                        tabBar.standardAppearance = appearance
+                        tabBar.scrollEdgeAppearance = edgeAppearance
+                    }
+                }
+            }
+        }
+    }
+
+    /// Recursively finds all `UITabBar` instances in a view hierarchy.
+    private static func findTabBars(in view: UIView) -> [UITabBar] {
+        var results: [UITabBar] = []
+        if let tabBar = view as? UITabBar {
+            results.append(tabBar)
+        }
+        for subview in view.subviews {
+            results.append(contentsOf: findTabBars(in: subview))
+        }
+        return results
     }
 }

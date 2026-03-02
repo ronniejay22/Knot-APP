@@ -96,7 +96,7 @@ struct HomeView: View {
 
                         Text("Knot")
                             .font(.headline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                     }
                 }
 
@@ -167,7 +167,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.partnerName)
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
 
@@ -238,7 +238,7 @@ struct HomeView: View {
 
                 Text("Capture a Hint")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
             }
 
             // Input area
@@ -256,7 +256,7 @@ struct HomeView: View {
 
                         TextEditor(text: $hintText)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                             .scrollContentBackground(.hidden)
                             .frame(minHeight: 40, maxHeight: 80)
                             .focused($isHintFieldFocused)
@@ -305,7 +305,7 @@ struct HomeView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 18, height: 18)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                             .frame(width: 40, height: 40)
                             .background(
                                 Circle()
@@ -332,7 +332,7 @@ struct HomeView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 18, height: 18)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(canSubmitHint ? .white : Theme.textPrimary)
                             }
                         }
                         .frame(width: 40, height: 40)
@@ -388,7 +388,7 @@ struct HomeView: View {
 
                     Text("Upcoming")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
 
                 Spacer()
@@ -432,7 +432,7 @@ struct HomeView: View {
 
                     Text("Recent Hints")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
 
                 Spacer()
@@ -504,7 +504,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(milestone.name)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
 
                 Text(milestone.formattedDate)
@@ -624,7 +624,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(hint.text)
                     .font(.caption)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
 
                 Text(hint.createdAt, style: .relative)

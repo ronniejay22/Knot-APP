@@ -56,13 +56,13 @@ struct IdeaDetailView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
                     }
-                    .tint(.white)
+                    .tint(Theme.textPrimary)
                 }
 
                 ToolbarItem(placement: .principal) {
                     Text("Idea")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
             }
         }
@@ -88,7 +88,7 @@ struct IdeaDetailView: View {
 
             Text(idea.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             if let description = idea.description, !description.isEmpty {
                 Text(description)
@@ -113,7 +113,7 @@ struct IdeaDetailView: View {
                     ForEach(allChips, id: \.self) { chip in
                         Text(chip)
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.accent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(
@@ -457,6 +457,6 @@ struct IdeaDetailView: View {
     private func sectionHeading(_ text: String) -> some View {
         Text(text)
             .font(.headline.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.textPrimary)
     }
 }

@@ -66,14 +66,14 @@ struct RecommendationsView: View {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 20, height: 20)
                         }
-                        .tint(.white)
+                        .tint(Theme.textPrimary)
                     }
                 }
 
                 ToolbarItem(placement: .principal) {
                     Text(isTabEmbedded ? "For You" : "Recommendations")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
             }
             .task {
@@ -81,7 +81,9 @@ struct RecommendationsView: View {
                 if isTabEmbedded {
                     await milestoneViewModel.loadVault()
                 }
-                await viewModel.generateRecommendations()
+                if !viewModel.hasLoadedInitially {
+                    await viewModel.generateRecommendations()
+                }
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -235,7 +237,7 @@ struct RecommendationsView: View {
 
             Text("\(milestoneViewModel.partnerName)'s \(milestone.name) \(milestone.countdownText)")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .lineLimit(1)
 
             Spacer()
@@ -425,7 +427,7 @@ struct RecommendationsView: View {
             HStack(spacing: 8) {
                 if viewModel.isRefreshing {
                     ProgressView()
-                        .tint(.white)
+                        .tint(Theme.textPrimary)
                         .scaleEffect(0.8)
                 } else {
                     Image(uiImage: Lucide.refreshCw)
@@ -438,7 +440,7 @@ struct RecommendationsView: View {
                 Text(viewModel.isRefreshing ? "Finding better options..." : "Refresh")
                     .font(.subheadline.weight(.semibold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.textPrimary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
@@ -553,7 +555,7 @@ struct SelectionConfirmationSheet: View {
                     // Header
                     Text("Confirm Selection")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
 
@@ -571,7 +573,7 @@ struct SelectionConfirmationSheet: View {
                     // Title
                     Text(item.title)
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
 
                     // Description
                     if let description = item.description, !description.isEmpty {
@@ -602,7 +604,7 @@ struct SelectionConfirmationSheet: View {
                             let prefix = item.priceConfidence == "estimated" ? "~" : ""
                             Text(prefix + formattedPrice(cents: priceCents, currency: item.currency))
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
@@ -738,7 +740,7 @@ struct RefreshReasonSheet: View {
                     // Header
                     Text("Why are you refreshing?")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
                         .padding(.bottom, 4)
@@ -795,7 +797,7 @@ struct RefreshReasonSheet: View {
 
                 Text(label)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
 
                 Spacer()
 
@@ -849,7 +851,7 @@ struct VibeOverrideSheet: View {
                 VStack(spacing: 8) {
                     Text("Adjust Vibe")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
 
                     Text("Temporarily change vibes for this session.\nYour vault preferences won't be modified.")
                         .font(.caption)
@@ -1055,7 +1057,6 @@ private struct VibeOverrideCard: View {
 
 #Preview("Loading") {
     RecommendationsView()
-        .preferredColorScheme(.dark)
 }
 
 // MARK: - Confirmation Sheet Previews (Step 6.3)
@@ -1125,7 +1126,6 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onConfirm: {},
         onCancel: {}
     )
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Confirmation Sheet — Experience with Location") {
@@ -1134,13 +1134,11 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onConfirm: {},
         onCancel: {}
     )
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Refresh Reason Sheet") {
     RefreshReasonSheet(onSelectReason: { _ in })
-        .preferredColorScheme(.dark)
-}
+    }
 
 // MARK: - Vibe Override Sheet Previews (Step 6.5)
 
@@ -1150,7 +1148,6 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onSave: { _ in },
         onClear: {}
     )
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Vibe Override — 2 Selected") {
@@ -1159,5 +1156,4 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onSave: { _ in },
         onClear: {}
     )
-    .preferredColorScheme(.dark)
 }

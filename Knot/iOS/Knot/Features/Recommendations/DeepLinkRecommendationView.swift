@@ -61,13 +61,13 @@ struct DeepLinkRecommendationView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
                     }
-                    .tint(.white)
+                    .tint(Theme.textPrimary)
                 }
 
                 ToolbarItem(placement: .principal) {
                     Text("Recommendation")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
             }
             .task {
@@ -307,5 +307,4 @@ struct DeepLinkRecommendationView: View {
         recommendationId: "preview-123",
         onDismiss: {}
     )
-    .preferredColorScheme(.dark)
 }

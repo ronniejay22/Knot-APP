@@ -66,7 +66,7 @@ struct HintsTabView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Hints")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
             }
             .sheet(isPresented: $showHintsList) {
@@ -127,7 +127,7 @@ struct HintsTabView: View {
 
                 Text("Capture a Hint")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
             }
 
             HStack(alignment: .bottom, spacing: 10) {
@@ -143,7 +143,7 @@ struct HintsTabView: View {
 
                         TextEditor(text: $hintText)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                             .scrollContentBackground(.hidden)
                             .frame(minHeight: 40, maxHeight: 80)
                             .focused($isHintFieldFocused)
@@ -189,7 +189,7 @@ struct HintsTabView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 18, height: 18)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                             .frame(width: 40, height: 40)
                             .background(
                                 Circle()
@@ -215,7 +215,7 @@ struct HintsTabView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 18, height: 18)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(canSubmitHint ? .white : Theme.textPrimary)
                             }
                         }
                         .frame(width: 40, height: 40)
@@ -267,7 +267,7 @@ struct HintsTabView: View {
 
                     Text("Recent Hints")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                 }
 
                 Spacer()
@@ -348,7 +348,7 @@ struct HintsTabView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(hint.text)
                     .font(.caption)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
 
                 Text(hint.createdAt, style: .relative)

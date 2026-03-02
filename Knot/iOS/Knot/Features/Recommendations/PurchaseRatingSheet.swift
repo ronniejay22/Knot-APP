@@ -38,7 +38,7 @@ struct PurchaseRatingSheet: View {
 
                     Text("How was this pick?")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
 
                     Text(itemTitle)
                         .font(.subheadline)
@@ -68,7 +68,7 @@ struct PurchaseRatingSheet: View {
                 TextField("Any notes? (optional)", text: $feedbackText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.subheadline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(12)
                     .lineLimit(3...6)
                     .background(
@@ -124,5 +124,4 @@ struct PurchaseRatingSheet: View {
         },
         onSkip: {}
     )
-    .preferredColorScheme(.dark)
 }

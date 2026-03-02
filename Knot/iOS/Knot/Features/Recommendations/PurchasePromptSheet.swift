@@ -37,7 +37,7 @@ struct PurchasePromptSheet: View {
 
                     Text("Did you complete your purchase?")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 16)
@@ -46,7 +46,7 @@ struct PurchasePromptSheet: View {
                 VStack(spacing: 4) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
 
@@ -131,7 +131,6 @@ struct PurchasePromptSheet: View {
         onSaveForLater: {},
         onDismiss: {}
     )
-    .preferredColorScheme(.dark)
 }
 
 #Preview("No Merchant") {
@@ -142,5 +141,4 @@ struct PurchasePromptSheet: View {
         onSaveForLater: {},
         onDismiss: {}
     )
-    .preferredColorScheme(.dark)
 }

@@ -60,7 +60,7 @@ struct SavedView: View {
             VStack(spacing: 6) {
                 Text("No saved items")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
 
                 Text("Save recommendations from For You to find them here later.")
                     .font(.subheadline)
@@ -90,7 +90,7 @@ struct SavedView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(saved.title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 6) {

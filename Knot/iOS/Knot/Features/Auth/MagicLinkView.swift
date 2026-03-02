@@ -39,7 +39,7 @@ struct MagicLinkView: View {
 
             // MARK: - Loading Overlay
             if authViewModel.isLoading {
-                Color.black.opacity(0.4)
+                Theme.overlayDim
                     .ignoresSafeArea()
                 ProgressView("Sending magic link...")
                     .tint(.white)
@@ -49,7 +49,6 @@ struct MagicLinkView: View {
             }
         }
         .navigationBarBackButtonHidden(false)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -70,7 +69,7 @@ struct MagicLinkView: View {
 
             Text("Enter your email")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Text("We'll send you a magic link to create your account.")
                 .font(.subheadline)
@@ -84,7 +83,7 @@ struct MagicLinkView: View {
                 .autocorrectionDisabled()
                 .focused($isEmailFocused)
                 .font(.body)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .padding(16)
                 .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -127,12 +126,12 @@ struct MagicLinkView: View {
 
             Text("Check your email")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             (Text("We sent a sign-in link to\n")
                 .foregroundStyle(Theme.textSecondary) +
              Text(email)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .bold())
                 .font(.subheadline)
                 .multilineTextAlignment(.center)

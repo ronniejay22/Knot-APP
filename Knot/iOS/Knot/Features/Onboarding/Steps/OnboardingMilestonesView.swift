@@ -579,7 +579,7 @@ private struct HolidayChip: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(holiday.displayName)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(isSelected ? .white : Theme.textSecondary)
+                        .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
 
                     Text(formattedDate(month: holiday.month, day: holiday.day))
                         .font(.caption2)

@@ -194,7 +194,7 @@ struct RecommendationCard: View {
             // Title
             Text(title)
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -264,7 +264,7 @@ struct RecommendationCard: View {
                     let prefix = priceConfidence == "estimated" ? "~" : ""
                     Text(prefix + Self.formattedPrice(cents: priceCents, currency: currency))
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
                         .background(
@@ -473,9 +473,9 @@ private struct MatchingFactorChip: View {
 
     private var foregroundColor: Color {
         switch style {
-        case .interest: return .white
-        case .vibe: return .white.opacity(0.9)
-        case .loveLanguage: return .white.opacity(0.9)
+        case .interest: return Theme.accent
+        case .vibe: return Color.purple
+        case .loveLanguage: return Color.orange
         }
     }
 
@@ -521,7 +521,6 @@ private struct MatchingFactorChip: View {
         .padding(20)
     }
     .background(Theme.backgroundGradient.ignoresSafeArea())
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Experience Card — Saved") {
@@ -547,7 +546,6 @@ private struct MatchingFactorChip: View {
         .padding(20)
     }
     .background(Theme.backgroundGradient.ignoresSafeArea())
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Date Card - No Price") {
@@ -573,7 +571,6 @@ private struct MatchingFactorChip: View {
         .padding(20)
     }
     .background(Theme.backgroundGradient.ignoresSafeArea())
-    .preferredColorScheme(.dark)
 }
 
 #Preview("Minimal Data Card — No Factors") {
@@ -599,5 +596,4 @@ private struct MatchingFactorChip: View {
         .padding(20)
     }
     .background(Theme.backgroundGradient.ignoresSafeArea())
-    .preferredColorScheme(.dark)
 }

@@ -47,7 +47,7 @@ struct ReauthenticationSheet: View {
 
                     Text("Verify Your Identity")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
 
                     Text("To delete your account, please sign in with Apple to confirm your identity.")
                         .font(.subheadline)
@@ -92,7 +92,7 @@ struct ReauthenticationSheet: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
                     }
-                    .tint(.white)
+                    .tint(Theme.textPrimary)
                 }
             }
         }

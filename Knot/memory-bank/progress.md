@@ -4752,6 +4752,26 @@ Deprecated ideas API endpoints in `backend/app/api/ideas.py` — GET endpoints p
 
 ---
 
+### Fix: Prevent Recommendations Tab Auto-Refresh on Tab Switch ✅
+**Date:** February 28, 2026
+**Status:** Complete
+
+**What was done:**
+- Fixed an issue where the Recommendations ("For You") tab would re-fetch recommendations from the backend every time the user switched away and back to the tab
+- Root cause: the `.task` modifier in `RecommendationsView.swift` called `viewModel.generateRecommendations()` unconditionally, and SwiftUI re-triggers `.task` on every tab return in a `TabView`
+- Added a `hasLoadedInitially` flag to `RecommendationsViewModel` that is set to `true` after the first successful fetch
+- Wrapped the `generateRecommendations()` call in the `.task` block with a guard on this flag
+- Explicit refresh via the refresh button is unaffected (uses `handleRefreshReason()` which bypasses the guard)
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Added `hasLoadedInitially` property; set it to `true` after successful fetch
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Guarded `generateRecommendations()` call in `.task` with `!viewModel.hasLoadedInitially`
+
+**Test results:**
+- ✅ Project builds with zero errors
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

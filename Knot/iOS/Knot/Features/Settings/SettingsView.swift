@@ -30,6 +30,7 @@ struct SettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
 
+    @AppStorage("appThemeMode") private var themeMode: String = "light"
     @State private var viewModel = SettingsViewModel()
 
     /// Controls the Edit Profile fullScreenCover (moved from HomeView).
@@ -44,6 +45,7 @@ struct SettingsView: View {
                     VStack(spacing: 24) {
                         accountSection
                         partnerProfileSection
+                        appearanceSection
                         notificationsSection
                         privacySection
                         aboutSection
@@ -109,7 +111,7 @@ struct SettingsView: View {
     /// Loading overlay shown during account deletion.
     private var deletionLoadingOverlay: some View {
         Group {
-            Color.black.opacity(0.4)
+            Theme.overlayDim
                 .ignoresSafeArea()
             VStack(spacing: 12) {
                 ProgressView()
@@ -127,7 +129,7 @@ struct SettingsView: View {
     /// Loading overlay shown during data export.
     private var exportLoadingOverlay: some View {
         Group {
-            Color.black.opacity(0.4)
+            Theme.overlayDim
                 .ignoresSafeArea()
             VStack(spacing: 12) {
                 ProgressView()
@@ -155,7 +157,7 @@ struct SettingsView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 20, height: 20)
             }
-            .tint(.white)
+            .tint(Theme.textPrimary)
         }
     }
 
@@ -206,6 +208,23 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Appearance Section
+
+    private var appearanceSection: some View {
+        VStack(spacing: 10) {
+            sectionHeader(title: "Appearance")
+
+            settingsToggleRow(
+                icon: Lucide.moon,
+                title: "Dark Mode",
+                isOn: Binding(
+                    get: { themeMode == "dark" },
+                    set: { isDark in themeMode = isDark ? "dark" : "light" }
+                )
+            )
+        }
+    }
+
     // MARK: - Notifications Section (Step 11.4)
 
     private var notificationsSection: some View {
@@ -240,7 +259,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Quiet Hours")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                         Text("\(viewModel.formatHour(viewModel.quietHoursStart)) – \(viewModel.formatHour(viewModel.quietHoursEnd))")
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
@@ -312,7 +331,7 @@ struct SettingsView: View {
         HStack {
             Text(label)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Spacer()
 
@@ -419,7 +438,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)
@@ -466,7 +485,7 @@ struct SettingsView: View {
 
             Text(title)
                 .font(.body.weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Spacer()
 
@@ -506,7 +525,7 @@ struct SettingsView: View {
 
             Text(title)
                 .font(.body.weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Spacer()
 

@@ -75,7 +75,7 @@ struct NotificationsView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                     }
                 }
             }
@@ -111,7 +111,7 @@ struct NotificationsView: View {
 
             Text("No notifications yet")
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
 
             Text("You'll see past milestone reminders here once they've been sent.")
                 .font(.subheadline)
@@ -140,7 +140,7 @@ struct NotificationsView: View {
                 HStack(spacing: 6) {
                     Text(notification.milestoneName)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
 
                     // Unviewed indicator dot
@@ -262,7 +262,7 @@ struct NotificationsView: View {
 
                         Text("No recommendations")
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
 
                         Text("No recommendations were generated for this notification.")
                             .font(.subheadline)
@@ -295,7 +295,7 @@ struct NotificationsView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                     }
                 }
             }
@@ -320,7 +320,7 @@ struct NotificationsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(rec.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
                         .lineLimit(2)
 
                     HStack(spacing: 6) {

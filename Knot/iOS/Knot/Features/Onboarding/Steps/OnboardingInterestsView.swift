@@ -127,7 +127,7 @@ struct OnboardingInterestsView: View {
                     .foregroundStyle(Theme.textTertiary)
             )
             .font(.subheadline)
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.textPrimary)
             .tint(Theme.accent)
             .autocorrectionDisabled()
 

@@ -104,6 +104,12 @@ final class RecommendationsViewModel {
     /// Whether the idea detail view is presented.
     var showIdeaDetail = false
 
+    // MARK: - Lifecycle
+
+    /// Whether the initial recommendations have been loaded.
+    /// Prevents re-fetching when the user switches tabs and returns.
+    var hasLoadedInitially = false
+
     // MARK: - Dependencies
 
     private let service: RecommendationService
@@ -142,6 +148,7 @@ final class RecommendationsViewModel {
                 milestoneId: milestoneId
             )
             recommendations = response.recommendations
+            hasLoadedInitially = true
         } catch {
             errorMessage = error.localizedDescription
         }

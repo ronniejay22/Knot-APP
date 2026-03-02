@@ -34,7 +34,7 @@ struct AppReviewPromptSheet: View {
 
                     Text("Glad you loved it!")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.textPrimary)
 
                     Text("Would you like to share your experience with others?")
                         .font(.subheadline)
@@ -101,5 +101,4 @@ struct AppReviewPromptSheet: View {
         onAccept: {},
         onDecline: {}
     )
-    .preferredColorScheme(.dark)
 }

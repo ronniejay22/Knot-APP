@@ -64,7 +64,7 @@ struct HintsListView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 20, height: 20)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.textPrimary)
                     }
                 }
             }
@@ -103,7 +103,7 @@ struct HintsListView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(hint.text)
                     .font(.subheadline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(3)
 
                 HStack(spacing: 8) {
@@ -180,7 +180,7 @@ struct HintsListView: View {
             VStack(spacing: 8) {
                 Text("No hints yet")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.textPrimary)
 
                 Text("Start capturing hints from the Home screen to remember what your partner mentions.")
                     .font(.subheadline)
