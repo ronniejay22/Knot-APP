@@ -81,9 +81,6 @@ struct RecommendationsView: View {
                 if isTabEmbedded {
                     await milestoneViewModel.loadVault()
                 }
-                if !viewModel.hasLoadedInitially {
-                    await viewModel.generateRecommendations()
-                }
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -516,7 +513,7 @@ struct RecommendationsView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Image(uiImage: Lucide.sparkles)
                 .renderingMode(.template)
                 .resizable()
@@ -524,15 +521,40 @@ struct RecommendationsView: View {
                 .frame(width: 40, height: 40)
                 .foregroundStyle(Theme.textTertiary)
 
-            Text("No recommendations yet")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textSecondary)
+            VStack(spacing: 8) {
+                Text("Ready to find a gift?")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
 
-            Text("Complete your partner vault to get personalized recommendations.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textTertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                Text("Tap below and we'll find personalized recommendations for your partner.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+
+            Button {
+                Task { await viewModel.generateRecommendations() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(uiImage: Lucide.sparkles)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                    Text("Get Recommendations")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Theme.accent)
+                )
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 4)
         }
     }
 }

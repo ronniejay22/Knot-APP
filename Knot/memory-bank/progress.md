@@ -4772,6 +4772,23 @@ Deprecated ideas API endpoints in `backend/app/api/ideas.py` — GET endpoints p
 
 ---
 
+### Fix: CTA-Gated Recommendation Generation ✅
+**Date:** March 2, 2026
+**Status:** Complete
+
+**What was done:**
+- Removed the automatic `generateRecommendations()` call from the `.task` modifier in `RecommendationsView.swift`. Previously, opening the "For You" tab immediately fired an API call and showed a loading spinner without any user intent.
+- Replaced the static empty state (`"No recommendations yet"` with informational copy) with an interactive CTA empty state: sparkle icon, "Ready to find a gift?" heading, and a full-width accent-filled "Get Recommendations" button that calls `generateRecommendations()` on tap.
+- The `hasLoadedInitially` flag in `RecommendationsViewModel` remains intact — once the user triggers generation, switching tabs and returning will not re-fire the API call.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Removed auto-generate from `.task`; replaced `emptyState` with CTA version
+
+**Test results:**
+- ✅ All iOS tests pass (`** TEST SUCCEEDED **`)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
