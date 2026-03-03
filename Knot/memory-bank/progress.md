@@ -4831,6 +4831,22 @@ Deprecated ideas API endpoints in `backend/app/api/ideas.py` — GET endpoints p
 
 ---
 
+### Step 14.9: Creative Loading Animation for For You Tab ✅
+**Date:** March 2, 2026
+**Status:** Complete
+
+**What was done:**
+Replaced the plain `ProgressView()` spinner on the For You loading screen with a polished animation inspired by apps like komoot and Alma. The new `ForYouLoadingView` features five Lucide icons (gift, heart, star, shoppingBag, sparkles) orbiting a central pulsing sparkles icon using `TimelineView(.animation)` for smooth 60fps motion. Each icon has a unique radius, angular speed, and phase offset so they spread naturally and move independently. A cycling message system rotates through four contextual messages every 2.5 seconds with a fade animation. The refresh overlay was also upgraded to a compact `RefreshLoadingOverlay` with a pulsing sparkles icon in a floating card, replacing the old bare spinner.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Replaced `loadingState` body with `ForYouLoadingView()`; replaced `isRefreshing` overlay with `RefreshLoadingOverlay()`; added `ForYouLoadingView` and `RefreshLoadingOverlay` private structs after `RecommendationsView`
+
+**Test results:**
+- ✅ Build succeeded with zero errors
+- ✅ All iOS unit and UI tests pass (`** TEST SUCCEEDED **`)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

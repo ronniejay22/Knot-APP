@@ -349,16 +349,8 @@ struct RecommendationsView: View {
 
                 // Refresh loading overlay (Step 6.4)
                 if viewModel.isRefreshing {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .tint(Theme.accent)
-                            .scaleEffect(1.2)
-
-                        Text("Finding better options...")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    .transition(.opacity)
+                    RefreshLoadingOverlay()
+                        .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.isRefreshing)
@@ -464,15 +456,7 @@ struct RecommendationsView: View {
     // MARK: - Loading State
 
     private var loadingState: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .tint(Theme.accent)
-                .scaleEffect(1.2)
-
-            Text("Generating recommendations...")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
-        }
+        ForYouLoadingView()
     }
 
     // MARK: - Error State
@@ -563,6 +547,135 @@ struct RecommendationsView: View {
             }
             .padding(.horizontal, 40)
             .padding(.top, 4)
+        }
+    }
+}
+
+// MARK: - For You Loading Animation
+
+/// Full-screen loading animation shown while AI gift recommendations are being generated.
+/// Five Lucide icons orbit a central pulsing sparkles icon, with contextual messages
+/// that cycle every 2.5 seconds to reassure the user while the AI thinks.
+private struct ForYouLoadingView: View {
+
+    // Orbit parameters — each icon has a different radius, angular speed, and starting phase
+    // so they spread naturally around the center and move at different rates.
+    private static let orbitRadii:     [CGFloat] = [72, 58, 78, 62, 70]
+    private static let orbitSpeeds:    [Double]  = [0.50, 0.70, 0.40, 0.65, 0.55]   // radians/sec
+    private static let orbitPhases:    [Double]  = [0.0, .pi * 2.0 / 5.0, .pi * 4.0 / 5.0,
+                                                     .pi * 6.0 / 5.0, .pi * 8.0 / 5.0]
+    private static let orbitSizes:     [CGFloat] = [18, 16, 18, 17, 15]
+    private static let orbitOpacities: [Double]  = [0.55, 0.45, 0.50, 0.45, 0.40]
+
+    private static let messages = [
+        "Thinking about what they love...",
+        "Finding the perfect vibe...",
+        "Crafting your top picks...",
+        "Almost ready..."
+    ]
+
+    @State private var pulse = false
+    @State private var messageIndex = 0
+
+    private func orbitIcon(at index: Int) -> UIImage {
+        switch index {
+        case 0: return Lucide.gift
+        case 1: return Lucide.heart
+        case 2: return Lucide.star
+        case 3: return Lucide.shoppingBag
+        default: return Lucide.sparkles
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 36) {
+            ZStack {
+                // Orbiting icons — driven by TimelineView for smooth 60fps motion
+                TimelineView(.animation) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    ZStack {
+                        ForEach(0..<5, id: \.self) { i in
+                            let angle = elapsed * Self.orbitSpeeds[i] + Self.orbitPhases[i]
+                            Image(uiImage: orbitIcon(at: i))
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: Self.orbitSizes[i], height: Self.orbitSizes[i])
+                                .foregroundStyle(Theme.accent.opacity(Self.orbitOpacities[i]))
+                                .offset(
+                                    x: cos(angle) * Self.orbitRadii[i],
+                                    y: sin(angle) * Self.orbitRadii[i]
+                                )
+                        }
+                    }
+                    .frame(width: 180, height: 180)
+                }
+
+                // Central pulsing icon
+                Image(uiImage: Lucide.sparkles)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 44, height: 44)
+                    .foregroundStyle(Theme.accent)
+                    .scaleEffect(pulse ? 1.12 : 0.92)
+            }
+            .frame(width: 180, height: 180)
+
+            // Cycling contextual message
+            Text(Self.messages[messageIndex])
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .id(messageIndex)
+                .transition(.opacity)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+        .onReceive(Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()) { _ in
+            withAnimation(.easeInOut(duration: 0.4)) {
+                messageIndex = (messageIndex + 1) % Self.messages.count
+            }
+        }
+    }
+}
+
+// MARK: - Refresh Loading Overlay
+
+/// Compact loading overlay shown over existing recommendation cards during a refresh.
+/// Uses a pulsing sparkles icon without orbiting elements to keep the overlay subtle.
+private struct RefreshLoadingOverlay: View {
+
+    @State private var pulse = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(uiImage: Lucide.sparkles)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 32, height: 32)
+                .foregroundStyle(Theme.accent)
+                .scaleEffect(pulse ? 1.15 : 0.88)
+
+            Text("Finding better options...")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 22)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Theme.surface)
+                .shadow(color: Theme.overlayDim.opacity(0.25), radius: 14, x: 0, y: 4)
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
         }
     }
 }
