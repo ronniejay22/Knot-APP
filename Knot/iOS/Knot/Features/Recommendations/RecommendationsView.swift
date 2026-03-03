@@ -43,6 +43,7 @@ struct RecommendationsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
+    @Environment(AuthViewModel.self) private var authViewModel
 
     @State private var viewModel = RecommendationsViewModel()
 
@@ -189,6 +190,13 @@ struct RecommendationsView: View {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     viewModel.handleReturnFromMerchant()
+                }
+            }
+            // Vault missing — route back to onboarding automatically.
+            // Triggered when generateRecommendations() confirms the vault doesn't exist.
+            .onChange(of: viewModel.vaultMissing) { _, isMissing in
+                if isMissing {
+                    authViewModel.hasCompletedOnboarding = false
                 }
             }
             // Idea detail view (Step 14.9)

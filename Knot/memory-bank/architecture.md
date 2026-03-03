@@ -1200,12 +1200,13 @@ The iOS app communicates with the FastAPI backend via standard HTTP requests usi
 
 This pattern keeps the iOS app thin (no direct database writes for vault creation) while using the same Supabase JWT for both Supabase PostgREST queries (vault existence check) and FastAPI authentication.
 
-### 82. Vault Existence Check via PostgREST (Step 3.11)
+### 82. Vault Existence Check via PostgREST (Step 3.11, updated Step 15.3)
 The `VaultService.vaultExists()` method queries Supabase PostgREST directly from the iOS app (not through the FastAPI backend) to check if the user already has a vault. This is used in two places:
 - `AuthViewModel.initialSession` — On app relaunch, determines whether to show onboarding or Home
 - `AuthViewModel.signedIn` — On returning user sign-in, determines the same
+- `RecommendationsViewModel.generateRecommendations()` — Re-verifies when the backend returns a 404 "no vault" error
 
-The query uses the anon client with RLS: `SELECT id FROM partner_vaults LIMIT 1`. Row Level Security automatically scopes the result to the authenticated user's vault. This avoids adding a `GET /api/v1/vault` endpoint prematurely (planned for Step 3.12).
+The query uses the anon client with an **explicit user_id filter**: `SELECT id FROM partner_vaults WHERE user_id = ? LIMIT 1`. The user_id is fetched from `SupabaseManager.client.auth.session.user.id`. This explicit filter is consistent with the backend's `load_vault_data()` query and prevents false positives if Supabase RLS is misconfigured on the `partner_vaults` table.
 
 ### 83. Conditional Backend URL with `#if DEBUG` (Step 3.11)
 `Constants.API.baseURL` uses a Swift `#if DEBUG` conditional:

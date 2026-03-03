@@ -45,11 +45,14 @@ async def load_vault_data(user_id: str) -> tuple[VaultData, str]:
     """
     client = get_service_client()
 
-    # 1. Load the vault
+    # 1. Load the vault (ORDER BY created_at ensures consistent selection
+    # if a user somehow has multiple vault rows — e.g. from dev testing)
     vault_result = (
         client.table("partner_vaults")
         .select("*")
         .eq("user_id", user_id)
+        .order("created_at", desc=False)
+        .limit(1)
         .execute()
     )
 

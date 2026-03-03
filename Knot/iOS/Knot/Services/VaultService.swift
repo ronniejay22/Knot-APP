@@ -302,15 +302,20 @@ final class VaultService: Sendable {
 
     /// Checks if the authenticated user already has a Partner Vault.
     ///
-    /// Queries Supabase PostgREST directly using the anon client.
-    /// Row Level Security (RLS) ensures only the current user's vault is returned.
+    /// Queries Supabase PostgREST directly with an explicit user_id filter.
+    /// This is consistent with the backend's vault lookup and does not rely
+    /// solely on RLS, preventing false positives if RLS is misconfigured.
     ///
     /// - Returns: `true` if a vault exists for the current user, `false` otherwise.
     func vaultExists() async -> Bool {
         do {
+            let session = try await SupabaseManager.client.auth.session
+            let userId = session.user.id.uuidString.lowercased()
+
             let response = try await SupabaseManager.client
                 .from("partner_vaults")
                 .select("id")
+                .eq("user_id", value: userId)
                 .limit(1)
                 .execute()
 

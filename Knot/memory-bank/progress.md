@@ -4789,6 +4789,48 @@ Deprecated ideas API endpoints in `backend/app/api/ideas.py` — GET endpoints p
 
 ---
 
+### Step 15.3: Fix "No Partner Vault Found" Error on For You Tab ✅
+**Date:** March 2, 2026
+**Status:** Complete
+
+**What was done:**
+- Fixed a recurring bug where the "For You" tab showed "No partner vault found. Complete onboarding first." when the user tapped "Get Recommendations", even though they had completed onboarding.
+- Root cause: `VaultService.vaultExists()` queried `partner_vaults` without an explicit `user_id` filter, relying solely on Supabase RLS. If the RLS policy on `partner_vaults` is disabled or misconfigured, the function returns `true` for users who have no vault (it sees another user's vault), allowing them to bypass onboarding. The backend's `load_vault_data()` always filters by `user_id` explicitly, so it correctly returns 404 when no vault exists for the authenticated user.
+- Added an explicit `.eq("user_id", value: userId)` filter to `vaultExists()` using the current session's user_id from `SupabaseManager.client.auth.session`. This makes the iOS vault check consistent with the backend's filter, regardless of RLS state.
+- Added graceful recovery when the backend returns 404: `generateRecommendations()` now re-verifies vault existence via `vaultExists()` when `.noVault` is caught. If the vault is confirmed missing, it sets `vaultMissing = true` instead of an error message. The view observes this flag and automatically resets `authViewModel.hasCompletedOnboarding = false`, routing the user back to onboarding.
+- Added `@Environment(AuthViewModel.self)` to `RecommendationsView` to support the auto-reroute.
+
+**Files modified:**
+- `iOS/Knot/Services/VaultService.swift` — `vaultExists()` now fetches the session user_id and adds an explicit `user_id` filter to the PostgREST query
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Added `var vaultMissing: Bool = false`; restructured `generateRecommendations()` catch to handle `.noVault` with vault re-verification
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Added `@Environment(AuthViewModel.self) private var authViewModel`; added `.onChange(of: viewModel.vaultMissing)` to auto-route back to onboarding
+
+**Test results:**
+- ✅ All iOS unit and UI tests pass (`** TEST SUCCEEDED **`)
+
+---
+
+### Step 15.4: Fix "No Partner Vault Found" on Refresh ✅
+**Date:** March 2, 2026
+**Status:** Complete
+
+**What was done:**
+- Identified and fixed the root cause of the noVault error appearing after successfully generating recommendations and then tapping Refresh.
+- Root cause: The backend's `load_vault_data()` had no `ORDER BY`, so if a user has multiple vault rows (e.g. from dev testing), `generate` and `refresh` could return different vault rows — recommendations stored with vault_id=A can't be found when refresh queries with vault_id=B → 404 "Rejected recommendations not found". The iOS client was mapping ALL 404s from the refresh endpoint to `.noVault`, causing the confusing "No partner vault found. Complete onboarding first." message even when the vault existed.
+- Added `ORDER BY created_at ASC LIMIT 1` to `load_vault_data()` so both generate and refresh always pick the same (oldest/first) vault, ensuring consistency.
+- Added a new `staleRecommendations` error case to `RecommendationServiceError` in the iOS client. The refresh endpoint's 404 response body is now parsed: if it contains "Rejected recommendations not found", `.staleRecommendations` is thrown instead of `.noVault`.
+- In `RecommendationsViewModel.refreshRecommendations()`, `.staleRecommendations` is handled by clearing the stale recommendations and falling back to `generateRecommendations()` — the user silently gets fresh recommendations instead of an error.
+
+**Files modified:**
+- `backend/app/services/vault_loader.py` — Added `.order("created_at", desc=False).limit(1)` to the vault query in `load_vault_data()`
+- `iOS/Knot/Services/RecommendationService.swift` — Added `.staleRecommendations` case to the error enum; refresh 404 handler now parses the response body to distinguish vault-missing from stale-recs
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — `refreshRecommendations()` catch switched to `switch` statement; `.staleRecommendations` falls back to `generateRecommendations()`; `.noVault` still does vault re-check and rerouting
+
+**Test results:**
+- ✅ All iOS unit and UI tests pass (`** TEST SUCCEEDED **`)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

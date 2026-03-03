@@ -104,6 +104,12 @@ final class RecommendationsViewModel {
     /// Whether the idea detail view is presented.
     var showIdeaDetail = false
 
+    // MARK: - Vault State
+
+    /// Set to `true` when a generate call confirms the partner vault does not exist.
+    /// The view observes this to route the user back to onboarding automatically.
+    var vaultMissing = false
+
     // MARK: - Lifecycle
 
     /// Whether the initial recommendations have been loaded.
@@ -149,6 +155,20 @@ final class RecommendationsViewModel {
             )
             recommendations = response.recommendations
             hasLoadedInitially = true
+        } catch let serviceError as RecommendationServiceError {
+            if case .noVault = serviceError {
+                // Re-verify: the backend says no vault exists. Confirm via Supabase directly.
+                // If vault is truly missing, signal the view to re-route to onboarding.
+                // If vault exists, this is a transient backend error — let the user retry.
+                let vaultService = VaultService()
+                if await !vaultService.vaultExists() {
+                    vaultMissing = true
+                } else {
+                    errorMessage = serviceError.localizedDescription
+                }
+            } else {
+                errorMessage = serviceError.localizedDescription
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -220,6 +240,25 @@ final class RecommendationsViewModel {
                 vibeOverride: vibeOverrideArray
             )
             recommendations = response.recommendations
+        } catch let serviceError as RecommendationServiceError {
+            switch serviceError {
+            case .staleRecommendations:
+                // The rejected IDs aren't in the DB (vault mismatch or prior silent save failure).
+                // Clear the stale state and fall back to a fresh generate.
+                isRefreshing = false
+                recommendations = []
+                await generateRecommendations()
+                return
+            case .noVault:
+                let vaultService = VaultService()
+                if await !vaultService.vaultExists() {
+                    vaultMissing = true
+                } else {
+                    errorMessage = serviceError.localizedDescription
+                }
+            default:
+                errorMessage = serviceError.localizedDescription
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -21,6 +21,7 @@ enum RecommendationServiceError: LocalizedError, Sendable {
     case decodingError(String)
     case validationError(String)
     case noVault
+    case staleRecommendations
     case notFound
 
     var errorDescription: String? {
@@ -37,6 +38,8 @@ enum RecommendationServiceError: LocalizedError, Sendable {
             return message
         case .noVault:
             return "No partner vault found. Complete onboarding first."
+        case .staleRecommendations:
+            return "These recommendations have expired. Fetching fresh ones..."
         case .notFound:
             return "Recommendation not found."
         }
@@ -229,6 +232,12 @@ final class RecommendationService: Sendable {
             throw RecommendationServiceError.noAuthSession
 
         case 404:
+            // Distinguish vault-not-found from stale/missing rejected IDs.
+            // Both return 404 from the backend but require different client handling.
+            let detail = parseErrorMessage(from: data)
+            if detail.contains("Rejected recommendations not found") {
+                throw RecommendationServiceError.staleRecommendations
+            }
             throw RecommendationServiceError.noVault
 
         case 422:
