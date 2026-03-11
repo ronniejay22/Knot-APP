@@ -17,6 +17,7 @@ Step 5.7: Create Availability Verification Node
 Step 14.1: Add Price Verification via Page Scraping
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -350,7 +351,31 @@ async def verify_availability(
     candidates_with_content: list[tuple[CandidateRecommendation, str]] = []
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        for i, candidate in enumerate(selected):
+
+        # ----------------------------------------------------------------
+        # Phase 1: Fetch all pages in parallel (happy path)
+        # Ideas and null-URL candidates are returned immediately as no-ops.
+        # ----------------------------------------------------------------
+        async def _fetch_indexed(
+            idx: int,
+            candidate: CandidateRecommendation,
+        ) -> tuple[int, bool, str]:
+            if candidate.is_idea or candidate.external_url is None:
+                return idx, True, ""
+            is_avail, content = await _fetch_page(candidate.external_url, client)
+            return idx, is_avail, content
+
+        fetch_results = await asyncio.gather(
+            *[_fetch_indexed(i, c) for i, c in enumerate(selected)],
+        )
+
+        # ----------------------------------------------------------------
+        # Phase 2: Process results; handle failures with replacement logic
+        # ----------------------------------------------------------------
+        for idx, is_available, page_content in fetch_results:
+            candidate = selected[idx]
+            i = idx  # keep variable name consistent with original logging
+
             # Skip URL verification for ideas — they have no external URL (Step 14.5)
             if candidate.is_idea or candidate.external_url is None:
                 logger.debug(
@@ -359,11 +384,6 @@ async def verify_availability(
                 )
                 verified.append(candidate)
                 continue
-
-            # Fetch the page (availability check + content extraction)
-            is_available, page_content = await _fetch_page(
-                candidate.external_url, client,
-            )
 
             if is_available:
                 logger.debug(

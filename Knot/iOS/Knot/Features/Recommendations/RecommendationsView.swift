@@ -183,13 +183,16 @@ struct RecommendationsView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
-            // Return-to-app detection (Step 9.4)
+            // Return-to-app detection (Step 9.4) + background loading (Step 15.2)
             // iOS transitions .background → .inactive → .active, so we check
             // for .active arrival rather than direct .background → .active.
             // The guard in handleReturnFromMerchant() prevents false triggers.
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     viewModel.handleReturnFromMerchant()
+                    viewModel.cancelPendingLoadingNotification()
+                } else if newPhase == .background {
+                    viewModel.handleAppBackgroundedWhileLoading()
                 }
             }
             // Vault missing — route back to onboarding automatically.
@@ -576,6 +579,7 @@ private struct ForYouLoadingView: View {
 
     @State private var pulse = false
     @State private var messageIndex = 0
+    @State private var showTimeHint = false
 
     private func orbitIcon(at index: Int) -> UIImage {
         switch index {
@@ -623,16 +627,28 @@ private struct ForYouLoadingView: View {
             .frame(width: 180, height: 180)
 
             // Cycling contextual message
-            Text(Self.messages[messageIndex])
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .id(messageIndex)
-                .transition(.opacity)
+            VStack(spacing: 8) {
+                Text(Self.messages[messageIndex])
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .id(messageIndex)
+                    .transition(.opacity)
+
+                Text("This usually takes about 30 seconds")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    .opacity(showTimeHint ? 1 : 0)
+            }
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 pulse = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                withAnimation(.easeIn(duration: 0.6)) {
+                    showTimeHint = true
+                }
             }
         }
         .onReceive(Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()) { _ in

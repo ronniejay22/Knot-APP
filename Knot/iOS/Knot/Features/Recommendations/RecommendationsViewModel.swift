@@ -11,11 +11,13 @@
 //  Step 9.4: Return-to-app flow — purchase confirmation and rating after merchant handoff.
 //  Step 10.4: App Store review prompt after 5-star rating with 90-day rate limiting.
 //  Step 15.1: Unified AI recommendations — removed ideas mode, ideas feed state/methods.
+//  Step 15.2: Background loading + local notifications when app is backgrounded mid-generation.
 //
 
 import Foundation
 import SwiftData
 import UIKit
+import UserNotifications
 
 /// State container for the recommendations screen.
 ///
@@ -116,6 +118,16 @@ final class RecommendationsViewModel {
     /// Prevents re-fetching when the user switches tabs and returns.
     var hasLoadedInitially = false
 
+    // MARK: - Background Loading State (Step 15.2)
+
+    /// The background task identifier used to keep the app alive while a recommendation
+    /// request is in flight after the user has backgrounded the app.
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+
+    /// Set to `true` when the app backgrounds while `isLoading` or `isRefreshing` is active.
+    /// Used to decide whether to fire a "ready" notification when the request completes.
+    private var wasBackgroundedWhileLoading = false
+
     // MARK: - Dependencies
 
     private let service: RecommendationService
@@ -173,6 +185,7 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
+        completeBackgroundLoadingIfNeeded()
         isLoading = false
     }
 
@@ -263,6 +276,7 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
+        completeBackgroundLoadingIfNeeded()
         isRefreshing = false
     }
 
@@ -609,5 +623,113 @@ final class RecommendationsViewModel {
     /// Dismisses the App Store review prompt without recording the date.
     func dismissAppReviewPrompt() {
         showAppReviewPrompt = false
+    }
+
+    // MARK: - Background Loading (Step 15.2)
+
+    /// Called when the app goes to background while a recommendation request is in flight.
+    /// Begins a background execution window so the HTTP request can complete, and
+    /// schedules a local notification to inform the user the request is still running.
+    func handleAppBackgroundedWhileLoading() {
+        guard isLoading || isRefreshing else { return }
+        guard backgroundTaskID == .invalid else { return } // already running
+
+        wasBackgroundedWhileLoading = true
+
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(
+            withName: "knot.recommendations.generate"
+        ) { [weak self] in
+            // Expiration handler — iOS is about to suspend us.
+            // End the task gracefully; no ready notification fires.
+            print("[Knot] Background task expired before request completed")
+            Task { @MainActor in
+                self?.endBackgroundExecution()
+            }
+        }
+
+        print("[Knot] Began background task (id: \(backgroundTaskID.rawValue)), remaining time: \(String(format: "%.0f", UIApplication.shared.backgroundTimeRemaining))s")
+        scheduleStillLoadingNotification()
+    }
+
+    /// Called when the app returns to the foreground while loading is still in progress
+    /// (or after it has completed). Cancels any pending loading notification and resets state.
+    func cancelPendingLoadingNotification() {
+        wasBackgroundedWhileLoading = false
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["knot.recs.loading", "knot.recs.ready"]
+        )
+    }
+
+    /// Called at the end of generate/refresh to fire the "ready" notification if
+    /// the app was backgrounded, then end the background task.
+    private func completeBackgroundLoadingIfNeeded() {
+        guard wasBackgroundedWhileLoading else {
+            print("[Knot] completeBackgroundLoadingIfNeeded: not backgrounded, skipping")
+            return
+        }
+        wasBackgroundedWhileLoading = false
+
+        if backgroundTaskID != .invalid {
+            print("[Knot] Request completed in background — scheduling ready notification")
+            scheduleReadyNotification()
+            endBackgroundExecution()
+        } else {
+            print("[Knot] completeBackgroundLoadingIfNeeded: background task already expired")
+        }
+    }
+
+    /// Ends the active background execution task and resets the identifier.
+    private func endBackgroundExecution() {
+        guard backgroundTaskID != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        backgroundTaskID = .invalid
+    }
+
+    /// Schedules a local notification that fires 1 second after backgrounding,
+    /// informing the user the request is still running.
+    private func scheduleStillLoadingNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Still working on it…"
+        content.body = "Your recommendations are loading in the background."
+        content.sound = .none
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "knot.recs.loading",
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[Knot] Failed to schedule loading notification: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Schedules a local notification that fires immediately to tell the user
+    /// their recommendations are ready to view.
+    private func scheduleReadyNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Your picks are ready ✨"
+        content.body = "Tap to see your personalized recommendations."
+        content.sound = .default
+
+        // Use a short time interval trigger instead of nil — nil can fail
+        // to deliver when the app is in the background.
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "knot.recs.ready",
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("[Knot] Failed to schedule ready notification: \(error.localizedDescription)")
+            } else {
+                print("[Knot] Ready notification scheduled successfully")
+            }
+        }
     }
 }

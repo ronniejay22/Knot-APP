@@ -4847,6 +4847,55 @@ Replaced the plain `ProgressView()` spinner on the For You loading screen with a
 
 ---
 
+### Step 14.10: Parallelize URL Verification Page Fetches ✅
+**Date:** March 2, 2026
+**Status:** Complete
+
+**What was done:**
+Identified and fixed the primary latency bottleneck in the recommendation pipeline. The `verify_availability` node in `availability.py` was fetching each candidate's product page sequentially — one at a time — adding up to 30 seconds to every recommendation generation request. Refactored the fetch loop into a two-phase approach: Phase 1 uses `asyncio.gather()` to fire all page fetches simultaneously; Phase 2 processes the results in order and runs the existing sequential replacement logic for any unavailable URLs (rare fallback path). Also added the missing `import asyncio` at the top of the file.
+
+**Files modified:**
+- `backend/app/agents/availability.py` — Added `import asyncio`; refactored `verify_availability` fetch loop into parallel Phase 1 (`asyncio.gather`) + sequential Phase 2 (result processing + replacement)
+
+**Test results:**
+- ✅ `python -m pytest tests/test_imports.py` — 11 passed
+- ✅ `from app.agents.availability import verify_availability` imports cleanly
+- ✅ No other files changed
+
+**Expected improvement:**
+- Before: 3 page fetches × up to 10s each = up to 30s sequential
+- After: All 3 fetches run simultaneously = ~10s total (wall-clock time of the slowest fetch)
+- Savings: ~15–20 seconds off every recommendation generation request
+
+---
+
+### Step 15.2: Background Loading + Local Notifications for Recommendations ✅
+**Date:** March 10, 2026
+**Status:** Complete
+
+**What was done:**
+When the user leaves the app while recommendations are generating, iOS suspends the URLSession request. This step keeps the request alive using `UIBackgroundTaskIdentifier` and notifies the user via local notifications. When the app goes to `.background` while `isLoading` or `isRefreshing` is true, the ViewModel begins a background execution window (~30s) and schedules a "Still working on it…" local notification (1s delay). When the pipeline completes in background, it fires a "Your picks are ready ✨" notification and ends the background task. If the user returns before the pipeline finishes, pending notifications are cancelled and no "ready" notification fires.
+
+**Bug fixes during testing:**
+- Changed the "ready" notification trigger from `nil` (immediate) to `UNTimeIntervalNotificationTrigger(timeInterval: 0.5)` — `nil` triggers fail to deliver reliably when the app is in the background.
+- Wrapped the `beginBackgroundTask` expiration handler in `Task { @MainActor in }` — the handler runs on a system thread and was calling a `@MainActor` method from a non-isolated closure, which silently failed.
+- Added diagnostic print logging throughout the background loading flow for future debugging.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — Added `import UserNotifications`; added `backgroundTaskID` and `wasBackgroundedWhileLoading` state; added `handleAppBackgroundedWhileLoading()`, `cancelPendingLoadingNotification()`, `completeBackgroundLoadingIfNeeded()`, `endBackgroundExecution()`, `scheduleStillLoadingNotification()`, `scheduleReadyNotification()` methods; modified `generateRecommendations()` and `refreshRecommendations()` to call `completeBackgroundLoadingIfNeeded()` before clearing loading state
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Extended `scenePhase` `.onChange` handler to detect `.background` (trigger background task) and cancel notifications on `.active` return
+
+**Test results:**
+- ✅ Build succeeded with zero errors
+- ✅ Manually verified: "Still working on it…" notification fires ~1s after backgrounding
+- ✅ Manually verified: "Your picks are ready ✨" notification fires when pipeline completes in background
+
+**Notification identifiers:**
+- `"knot.recs.loading"` — fires 1s after backgrounding; cancelled if user returns
+- `"knot.recs.ready"` — fires 0.5s after pipeline completes in background; cancelled if user already returned
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
