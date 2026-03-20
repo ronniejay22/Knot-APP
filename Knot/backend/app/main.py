@@ -11,6 +11,7 @@ from app.api.deeplinks import router as deeplinks_router
 from app.api.feedback import router as feedback_router
 from app.api.hints import router as hints_router
 from app.api.ideas import router as ideas_router
+from app.api.milestones import router as milestones_router
 from app.api.notifications import router as notifications_router
 from app.api.recommendations import router as recommendations_router
 from app.api.users import router as users_router
@@ -29,6 +30,7 @@ app.include_router(feedback_router)
 app.include_router(vault_router)
 app.include_router(hints_router)
 app.include_router(ideas_router)
+app.include_router(milestones_router)
 app.include_router(recommendations_router)
 app.include_router(notifications_router)
 app.include_router(users_router)

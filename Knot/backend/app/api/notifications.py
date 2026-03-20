@@ -253,6 +253,7 @@ async def process_notification(
     recommendations_count = 0
     vault_data = None
     milestone_context = None
+    briefing_snippet = None
     try:
         vault_data, vault_id = await load_vault_data(payload.user_id)
         milestone_context = await load_milestone_context(
@@ -314,6 +315,25 @@ async def process_notification(
                         payload.notification_id[:8],
                         payload.milestone_id[:8],
                     )
+
+                # Store briefing if generated
+                briefing_text = result.get("briefing_text")
+                briefing_snippet = result.get("briefing_snippet")
+                if briefing_text:
+                    try:
+                        client.table("milestone_briefings").insert({
+                            "vault_id": vault_id,
+                            "milestone_id": payload.milestone_id,
+                            "notification_id": payload.notification_id,
+                            "briefing_text": briefing_text,
+                            "briefing_snippet": briefing_snippet or briefing_text[:100],
+                            "hints_referenced": result.get("briefing_hint_ids", []),
+                        }).execute()
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to store briefing for notification %s: %s",
+                            payload.notification_id[:8], exc,
+                        )
                 else:
                     logger.info(
                         "Pipeline returned no results for notification %s",
@@ -345,6 +365,7 @@ async def process_notification(
                 days_before=payload.days_before,
                 vibes=vault_data.vibes if vault_data else [],
                 recommendations_count=recommendations_count,
+                briefing_snippet=briefing_snippet,
             )
 
             if push_result and push_result.get("success"):

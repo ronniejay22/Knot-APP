@@ -122,13 +122,14 @@ def build_notification_payload(
     recommendations_count: int,
     notification_id: str,
     milestone_id: str,
+    briefing_snippet: str | None = None,
 ) -> dict:
     """
     Build the APNs notification payload.
 
     Title format: "[Partner Name]'s [Milestone] is in [X] days"
-    Body format: "I've found [N] [Vibe] options based on their interests.
-                  Tap to see them."
+    Body: Uses the briefing snippet if available (personalized, hint-aware),
+          otherwise falls back to generic vibe-based text.
 
     The category "MILESTONE_REMINDER" enables "View" and "Snooze"
     actions defined in the iOS app's UNNotificationCategory registration.
@@ -144,19 +145,22 @@ def build_notification_payload(
         recommendations_count: Number of recommendations generated.
         notification_id: UUID of the notification_queue entry.
         milestone_id: UUID of the milestone (for deep-linking).
+        briefing_snippet: Optional condensed briefing for the notification body.
 
     Returns:
         dict: APNs-formatted payload ready for JSON serialization.
     """
     title = f"{partner_name}'s {milestone_name} is in {days_before} days"
 
-    # Use the first vibe tag for the body, capitalize it
-    vibe_label = vibes[0].replace("_", " ").capitalize() if vibes else "curated"
-
-    body = (
-        f"I've found {recommendations_count} {vibe_label} options "
-        f"based on their interests. Tap to see them."
-    )
+    if briefing_snippet:
+        body = briefing_snippet
+    else:
+        # Fallback to generic vibe-based text
+        vibe_label = vibes[0].replace("_", " ").capitalize() if vibes else "curated"
+        body = (
+            f"I've found {recommendations_count} {vibe_label} options "
+            f"based on their interests. Tap to see them."
+        )
 
     return {
         "aps": {
@@ -279,6 +283,7 @@ async def deliver_push_notification(
     days_before: int,
     vibes: list[str],
     recommendations_count: int,
+    briefing_snippet: str | None = None,
 ) -> dict:
     """
     Look up the user's device token and deliver a push notification.
@@ -351,6 +356,7 @@ async def deliver_push_notification(
         recommendations_count=recommendations_count,
         notification_id=notification_id,
         milestone_id=milestone_id,
+        briefing_snippet=briefing_snippet,
     )
 
     return await send_push_notification(device_token, payload)

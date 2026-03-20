@@ -36,6 +36,9 @@ struct SettingsView: View {
     /// Controls the Edit Profile fullScreenCover (moved from HomeView).
     @State private var showEditProfile = false
 
+    /// Controls the Milestones management fullScreenCover.
+    @State private var showMilestones = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -83,6 +86,9 @@ struct SettingsView: View {
             // MARK: - Sheets
             .fullScreenCover(isPresented: $showEditProfile) {
                 EditVaultView()
+            }
+            .fullScreenCover(isPresented: $showMilestones) {
+                MilestonesManagementView()
             }
             .sheet(isPresented: $viewModel.showReauthentication) {
                 ReauthenticationSheet(
@@ -204,6 +210,14 @@ struct SettingsView: View {
                 subtitle: "Update partner details and preferences"
             ) {
                 showEditProfile = true
+            }
+
+            settingsRow(
+                icon: Lucide.calendarHeart,
+                title: "Milestones",
+                subtitle: "Manage birthdays, anniversaries & key dates"
+            ) {
+                showMilestones = true
             }
         }
     }

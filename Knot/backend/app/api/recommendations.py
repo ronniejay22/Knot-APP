@@ -201,7 +201,28 @@ async def generate_recommendations(
         db_result = None
 
     # =================================================================
-    # 6. Build response
+    # 6. Store briefing (if generated for a milestone)
+    # =================================================================
+    briefing_text = result.get("briefing_text")
+    briefing_snippet = result.get("briefing_snippet")
+
+    if briefing_text and payload.milestone_id:
+        try:
+            client.table("milestone_briefings").insert({
+                "vault_id": vault_id,
+                "milestone_id": payload.milestone_id,
+                "briefing_text": briefing_text,
+                "briefing_snippet": briefing_snippet or briefing_text[:100],
+                "hints_referenced": result.get("briefing_hint_ids", []),
+            }).execute()
+        except Exception as exc:
+            logger.warning(
+                "Failed to store briefing for milestone %s: %s",
+                payload.milestone_id, exc,
+            )
+
+    # =================================================================
+    # 7. Build response
     # =================================================================
     response_items = _build_response_items(final_three, db_result)
 
@@ -210,6 +231,8 @@ async def generate_recommendations(
         count=len(response_items),
         milestone_id=payload.milestone_id,
         occasion_type=payload.occasion_type,
+        briefing_text=briefing_text,
+        briefing_snippet=briefing_snippet,
     )
 
 

@@ -4896,6 +4896,55 @@ When the user leaves the app while recommendations are generating, iOS suspends 
 
 ---
 
+### Step 17.1: Milestone Briefings & Contextual Recommendations ✅
+**Date:** March 12, 2026
+**Status:** Complete
+
+**What was done:**
+
+Added a milestone briefing system that generates conversational, hint-aware narratives for upcoming milestones. When a milestone is approaching, Claude synthesizes the user's captured hints, interests, vibes, and love languages into a "friend-like" suggestion displayed above the recommendation cards.
+
+Introduced the "plan" recommendation type — cohesive multi-activity date plans that combine 2-3 activities (e.g., "Bake lemon bars + watch Scream 7") with structured step-by-step timelines. Plans are treated like ideas (not purchasable) and reuse the existing IdeaDetailView.
+
+Enhanced push notifications to use the briefing snippet as the notification body instead of the generic "I've found 3 options" text, making notifications more personal and compelling.
+
+Added post-onboarding milestone CRUD endpoints allowing users to add, edit, and delete milestones from Settings after onboarding. Changes automatically reschedule notifications via QStash.
+
+Created the iOS Milestones management UI (Settings → Milestones) with grouped list, swipe-to-delete, add/edit sheets, and days-until countdown badges.
+
+**Backend files created/modified:**
+- `backend/supabase/migrations/00022_create_milestone_briefings_table.sql` — New table for briefing storage
+- `backend/supabase/migrations/00023_add_plan_recommendation_type.sql` — CHECK constraint update
+- `backend/app/services/briefing_generation.py` — Claude-powered briefing generation service
+- `backend/app/agents/briefing_node.py` — LangGraph pipeline node for briefings
+- `backend/app/agents/pipeline.py` — Added generate_briefing node to pipeline
+- `backend/app/agents/state.py` — Added briefing fields and "plan" type
+- `backend/app/services/unified_generation.py` — Updated prompt for "plan" type
+- `backend/app/services/apns.py` — Briefing snippet in push notifications
+- `backend/app/api/notifications.py` — Store briefing and pass snippet to APNs
+- `backend/app/api/recommendations.py` — Return briefing in generate response
+- `backend/app/api/milestones.py` — Full CRUD API for milestones
+- `backend/app/models/milestones.py` — Pydantic models for milestone CRUD
+- `backend/app/models/recommendations.py` — Added "plan" type and briefing fields
+- `backend/app/main.py` — Registered milestones router
+- `backend/tests/test_briefing_generation.py` — 10 tests for briefing service
+- `backend/tests/test_milestone_crud.py` — 17 tests for models, plan type, APNs
+
+**iOS files created/modified:**
+- `iOS/Knot/Models/DTOs.swift` — Added briefing fields and milestone CRUD DTOs
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Briefing card above cards
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — briefingText state
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — "plan"/"Date Plan" badge
+- `iOS/Knot/Services/MilestoneService.swift` — Milestone CRUD API client
+- `iOS/Knot/Features/Milestones/MilestonesManagementView.swift` — Milestone management UI
+- `iOS/Knot/Features/Milestones/MilestonesViewModel.swift` — Milestone management state
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Added "Milestones" navigation row
+
+**Test results:**
+- ✅ 27/27 backend tests pass (briefing generation, plan validation, APNs snippet, milestone models)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

@@ -286,10 +286,10 @@ struct RecommendationCard: View {
                 // Select / Read button
                 Button(action: onSelect) {
                     HStack(spacing: 6) {
-                        Text(recommendationType == "idea" ? "Read" : "Select")
+                        Text(recommendationType == "idea" || recommendationType == "plan" ? "Read" : "Select")
                             .font(.subheadline.weight(.semibold))
 
-                        Image(systemName: recommendationType == "idea" ? "book" : "arrow.right")
+                        Image(systemName: recommendationType == "idea" || recommendationType == "plan" ? "book" : "arrow.right")
                             .font(.caption.weight(.bold))
                     }
                     .foregroundStyle(.white)
@@ -372,6 +372,7 @@ struct RecommendationCard: View {
         case "experience": return Lucide.sparkles
         case "date": return Lucide.heart
         case "idea": return Lucide.lightbulb
+        case "plan": return Lucide.calendarHeart
         default: return Lucide.star
         }
     }
@@ -383,6 +384,7 @@ struct RecommendationCard: View {
         case "experience": return "sparkles"
         case "date": return "heart.fill"
         case "idea": return "lightbulb.fill"
+        case "plan": return "calendar.badge.clock"
         default: return "star.fill"
         }
     }
@@ -394,6 +396,7 @@ struct RecommendationCard: View {
         case "experience": return "Experience"
         case "date": return "Date"
         case "idea": return "Idea"
+        case "plan": return "Date Plan"
         default: return recommendationType.capitalized
         }
     }

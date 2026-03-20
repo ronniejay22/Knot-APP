@@ -94,7 +94,7 @@ class RecommendationItemResponse(BaseModel):
     """A single recommendation in the Choice-of-Three response."""
 
     id: str
-    recommendation_type: Literal["gift", "experience", "date", "idea"]
+    recommendation_type: Literal["gift", "experience", "date", "idea", "plan"]
     title: str
     description: Optional[str] = None
     price_cents: Optional[int] = None
@@ -133,6 +133,8 @@ class RecommendationGenerateResponse(BaseModel):
     count: int
     milestone_id: Optional[str] = None
     occasion_type: str
+    briefing_text: Optional[str] = None
+    briefing_snippet: Optional[str] = None
 
 
 class RecommendationRefreshResponse(BaseModel):

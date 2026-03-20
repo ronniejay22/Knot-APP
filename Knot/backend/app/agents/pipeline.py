@@ -4,8 +4,9 @@ Recommendation Pipeline — LangGraph graph for the unified recommendation syste
 Chains the recommendation generation nodes into an executable graph:
 1. retrieve_hints — Fetch semantically similar hints from pgvector
 2. generate_unified — Claude generates 3 personalized recommendations
-3. resolve_urls — Find real purchase URLs for purchasable items via Brave Search
-4. verify_urls — Confirm URLs are valid, enrich prices via page scraping
+3. generate_briefing — Claude generates contextual milestone briefing (if milestone present)
+4. resolve_urls — Find real purchase URLs for purchasable items via Brave Search
+5. verify_urls — Confirm URLs are valid, enrich prices via page scraping
 
 Conditional edges short-circuit the pipeline on error:
 - If generate_unified returns 0 recommendations → END with error
@@ -20,6 +21,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from app.agents.availability import verify_availability
+from app.agents.briefing_node import generate_briefing
 from app.agents.hint_retrieval import retrieve_relevant_hints
 from app.agents.state import RecommendationState
 from app.agents.unified_generation_node import generate_unified
@@ -58,6 +60,7 @@ def build_recommendation_graph() -> StateGraph:
     Node names:
     - "retrieve_hints"
     - "generate_unified"
+    - "generate_briefing"
     - "resolve_urls"
     - "verify_urls"
     """
@@ -66,6 +69,7 @@ def build_recommendation_graph() -> StateGraph:
     # --- Add nodes ---
     graph.add_node("retrieve_hints", retrieve_relevant_hints)
     graph.add_node("generate_unified", generate_unified)
+    graph.add_node("generate_briefing", generate_briefing)
     graph.add_node("resolve_urls", resolve_purchase_urls)
     graph.add_node("verify_urls", verify_availability)
 
@@ -75,14 +79,15 @@ def build_recommendation_graph() -> StateGraph:
     graph.add_edge(START, "retrieve_hints")
     graph.add_edge("retrieve_hints", "generate_unified")
 
-    # generate_unified → (conditional) resolve_urls or END
+    # generate_unified → (conditional) generate_briefing or END
     graph.add_conditional_edges(
         "generate_unified",
         _check_after_generation,
-        {"continue": "resolve_urls", "error": END},
+        {"continue": "generate_briefing", "error": END},
     )
 
-    # resolve_urls → verify_urls → END
+    # generate_briefing → resolve_urls → verify_urls → END
+    graph.add_edge("generate_briefing", "resolve_urls")
     graph.add_edge("resolve_urls", "verify_urls")
     graph.add_edge("verify_urls", END)
 

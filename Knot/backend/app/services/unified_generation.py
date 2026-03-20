@@ -84,14 +84,20 @@ experiences with tickets (concerts, spa, classes). These MUST be specific \
 real things (name the actual product, restaurant, or venue).
 - IDEAS: Creative personalized gestures, at-home activities, or date concepts \
 that don't require purchasing a specific product. These live entirely in-app.
+- PLANS: A cohesive multi-activity date plan combining 2-3 activities into \
+one evening or day (e.g., "Bake lemon bars together + watch Scream 7"). \
+Plans weave multiple interests and hints into a single flowing experience. \
+Include structured content_sections with a timeline/flow for the activities. \
+Plans are NOT purchasable — they live in-app like ideas. Use type "plan".
 
 Rules:
 1. Every recommendation MUST feel specifically crafted for THIS partner. \
 Reference their actual interests, hints, and preferences.
 2. NEVER recommend anything related to their dislikes.
 3. NEVER repeat anything from the excluded list.
-4. Ensure DIVERSITY across the 3 cards — vary the type (gift/experience/date/idea), \
-price range, and nature of the recommendation.
+4. Ensure DIVERSITY across the 3 cards — vary the type (gift/experience/date/idea/plan), \
+price range, and nature of the recommendation. When a milestone is approaching, \
+strongly consider including at least one "plan" type that combines activities.
 5. For purchasable items: Name a SPECIFIC real product, restaurant, or experience. \
 Include the actual merchant/brand name and a realistic price estimate. \
 Provide a search_query that would find this exact item online for purchase/booking.
@@ -102,8 +108,8 @@ listicles, or review roundups.
 For each recommendation, return a JSON object with these keys:
 - "title": string (under 60 characters)
 - "description": string (1-2 sentences)
-- "recommendation_type": "gift" | "experience" | "date" | "idea"
-- "is_purchasable": boolean (true for gifts/experiences/dates, false for ideas)
+- "recommendation_type": "gift" | "experience" | "date" | "idea" | "plan"
+- "is_purchasable": boolean (true for gifts/experiences/dates, false for ideas/plans)
 - "merchant_name": string or null (for purchasable items)
 - "price_cents": integer or null (in US cents, e.g. $50 = 5000; null for ideas)
 - "search_query": string or null (for purchasable items: a specific search query \
@@ -113,9 +119,9 @@ for this specific partner, referencing their actual interests/hints/vibes)
 - "matched_interests": array of interest names this connects to
 - "matched_vibes": array of vibe tags this aligns with
 - "matched_love_languages": array of love language names this supports
-- "content_sections": array of section objects (REQUIRED for ideas, optional for purchasable)
+- "content_sections": array of section objects (REQUIRED for ideas and plans, optional for purchasable)
 
-Content section format (for ideas):
+Content section format (for ideas and plans):
 Each section is a JSON object with:
 - "type": "overview" | "steps" | "setup" | "tips" | "conversation" | \
 "budget_tips" | "variations" | "music" | "food_pairing"
@@ -123,7 +129,9 @@ Each section is a JSON object with:
 - "body": paragraph text (for overview, tips, budget_tips, music, food_pairing)
 - "items": array of strings (for setup, steps, conversation, variations)
 Use either "body" or "items" per section, not both.
-Ideas MUST include "overview" and "steps" sections at minimum.
+Ideas and plans MUST include "overview" and "steps" sections at minimum. \
+For plans, the "steps" section should outline the activities in chronological \
+order (e.g., "6:00 PM — Start baking lemon bars together", "7:30 PM — Queue up Scream 7").
 
 Return ONLY a JSON array of 3 objects. No markdown, no code fences, no explanation."""
 
@@ -250,11 +258,11 @@ def _validate_recommendation(rec: dict[str, Any]) -> bool:
         return False
 
     rec_type = rec.get("recommendation_type")
-    if rec_type not in ("gift", "experience", "date", "idea"):
+    if rec_type not in ("gift", "experience", "date", "idea", "plan"):
         return False
 
-    # Ideas must have content_sections with overview + steps
-    if rec_type == "idea":
+    # Ideas and plans must have content_sections with overview + steps
+    if rec_type in ("idea", "plan"):
         sections = rec.get("content_sections")
         if not isinstance(sections, list):
             return False
@@ -271,7 +279,7 @@ def _normalize_recommendation(
 ) -> CandidateRecommendation:
     """Convert a validated recommendation dict into a CandidateRecommendation."""
     rec_type = rec["recommendation_type"]
-    is_idea = rec_type == "idea"
+    is_idea = rec_type in ("idea", "plan")
     is_purchasable = rec.get("is_purchasable", not is_idea)
 
     # Clean content sections for ideas

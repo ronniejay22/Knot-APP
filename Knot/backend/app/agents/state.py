@@ -122,7 +122,7 @@ class CandidateRecommendation(BaseModel):
 
     id: str
     source: Literal["yelp", "ticketmaster", "amazon", "shopify", "firecrawl", "opentable", "resy", "claude_search", "knot", "unified"]
-    type: Literal["gift", "experience", "date", "idea"]
+    type: Literal["gift", "experience", "date", "idea", "plan"]
     title: str
     description: Optional[str] = None
     price_cents: Optional[int] = None
@@ -189,6 +189,11 @@ class RecommendationState(BaseModel):
         default_factory=list
     )
     final_three: list[CandidateRecommendation] = Field(default_factory=list)
+
+    # --- Populated by briefing node ---
+    briefing_text: Optional[str] = None
+    briefing_snippet: Optional[str] = None
+    briefing_hint_ids: list[str] = Field(default_factory=list)
 
     # --- Error/status tracking ---
     error: Optional[str] = None

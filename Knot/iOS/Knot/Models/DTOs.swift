@@ -306,11 +306,15 @@ struct RecommendationGenerateResponse: Codable, Sendable {
     let count: Int
     let milestoneId: String?
     let occasionType: String
+    let briefingText: String?
+    let briefingSnippet: String?
 
     enum CodingKeys: String, CodingKey {
         case recommendations, count
         case milestoneId = "milestone_id"
         case occasionType = "occasion_type"
+        case briefingText = "briefing_text"
+        case briefingSnippet = "briefing_snippet"
     }
 }
 
@@ -788,4 +792,67 @@ struct NotificationPreferencesUpdateDTO: Codable, Sendable {
         case quietHoursEnd = "quiet_hours_end"
         case timezone
     }
+}
+
+// MARK: - Milestone CRUD DTOs
+
+/// Payload for `POST /api/v1/milestones`.
+struct MilestoneCreatePayload: Codable, Sendable {
+    let milestoneType: String
+    let milestoneName: String
+    let milestoneDate: String
+    let recurrence: String
+    let budgetTier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case milestoneType = "milestone_type"
+        case milestoneName = "milestone_name"
+        case milestoneDate = "milestone_date"
+        case recurrence
+        case budgetTier = "budget_tier"
+    }
+}
+
+/// Payload for `PUT /api/v1/milestones/{id}`.
+struct MilestoneUpdatePayload: Codable, Sendable {
+    let milestoneName: String?
+    let milestoneDate: String?
+    let recurrence: String?
+    let budgetTier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case milestoneName = "milestone_name"
+        case milestoneDate = "milestone_date"
+        case recurrence
+        case budgetTier = "budget_tier"
+    }
+}
+
+/// A single milestone returned from the milestones API.
+struct MilestoneItemResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let milestoneType: String
+    let milestoneName: String
+    let milestoneDate: String
+    let recurrence: String
+    let budgetTier: String?
+    let daysUntil: Int?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case milestoneType = "milestone_type"
+        case milestoneName = "milestone_name"
+        case milestoneDate = "milestone_date"
+        case recurrence
+        case budgetTier = "budget_tier"
+        case daysUntil = "days_until"
+        case createdAt = "created_at"
+    }
+}
+
+/// Response from `GET /api/v1/milestones`.
+struct MilestoneListResponse: Codable, Sendable {
+    let milestones: [MilestoneItemResponse]
+    let count: Int
 }

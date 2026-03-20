@@ -49,6 +49,8 @@ struct RecommendationsView: View {
 
     /// Loads milestone data for the contextual banner when tab-embedded.
     @State private var milestoneViewModel = HomeViewModel()
+    @State private var isBriefingExpanded = false
+    @State private var isBriefingDismissed = false
 
     var body: some View {
         NavigationStack {
@@ -219,8 +221,9 @@ struct RecommendationsView: View {
     /// The full recommendations UI (milestone banner + unified content).
     private var recommendationsBody: some View {
         VStack(spacing: 0) {
-            // Milestone alert banner (shown when a milestone is ≤14 days away)
-            if isTabEmbedded, let milestone = milestoneViewModel.nextMilestone, milestone.daysUntil <= 14 {
+            // Milestone alert banner (shown when a milestone is ≤14 days away and no briefing is present)
+            if isTabEmbedded, viewModel.briefingText == nil,
+               let milestone = milestoneViewModel.nextMilestone, milestone.daysUntil <= 14 {
                 milestoneBanner(milestone)
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -282,6 +285,97 @@ struct RecommendationsView: View {
         }
     }
 
+    // MARK: - Milestone-Aware Generation
+
+    /// Generates recommendations with milestone context when an upcoming milestone is detected.
+    /// Falls back to `just_because` when no milestone is within 14 days.
+    private func generateWithMilestoneContext() async {
+        if isTabEmbedded,
+           let milestone = milestoneViewModel.nextMilestone,
+           milestone.daysUntil <= 14 {
+            let occasionType = milestone.budgetTier ?? "major_milestone"
+            await viewModel.generateRecommendations(
+                occasionType: occasionType,
+                milestoneId: milestone.id
+            )
+        } else {
+            await viewModel.generateRecommendations()
+        }
+    }
+
+    // MARK: - Briefing Card
+
+    /// A conversational briefing card displayed above the recommendation cards.
+    /// Synthesizes hints, interests, and milestone context into a friendly narrative.
+    private func briefingCard(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row — always visible
+            HStack(spacing: 10) {
+                Image(uiImage: Lucide.messageCircle)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(Theme.accent)
+
+                Text("Knot's Take")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+
+                Spacer()
+
+                // Dismiss button
+                Button {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        isBriefingDismissed = true
+                    }
+                } label: {
+                    Image(uiImage: Lucide.x)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 14, height: 14)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            // Body text — collapsed (2 lines) or expanded
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .lineSpacing(3)
+                .lineLimit(isBriefingExpanded ? nil : 2)
+                .padding(.horizontal, 14)
+                .padding(.bottom, isBriefingExpanded ? 4 : 10)
+
+            // "Read more" / "Show less" toggle
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isBriefingExpanded.toggle()
+                }
+            } label: {
+                Text(isBriefingExpanded ? "Show less" : "Read more")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Theme.accent.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.accent.opacity(0.15), lineWidth: 1)
+                )
+        )
+    }
+
     // MARK: - Suggestions Content
 
     @ViewBuilder
@@ -301,6 +395,14 @@ struct RecommendationsView: View {
 
     private var recommendationsContent: some View {
         VStack(spacing: 20) {
+            // Milestone briefing card (shown when a contextual briefing was generated)
+            if let briefing = viewModel.briefingText, !isBriefingDismissed {
+                briefingCard(briefing)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             // Page indicator (hidden during refresh animation)
             pageIndicator
                 .opacity(viewModel.cardsVisible ? 1 : 0)
@@ -326,7 +428,7 @@ struct RecommendationsView: View {
                                 matchedLoveLanguages: item.matchedLoveLanguages ?? [],
                                 personalizationNote: item.personalizationNote,
                                 onSelect: {
-                                    if item.isIdea == true {
+                                    if item.isIdea == true || item.recommendationType == "plan" {
                                         viewModel.openIdeaFromTrio(item)
                                     } else {
                                         viewModel.selectRecommendation(item)
@@ -481,7 +583,7 @@ struct RecommendationsView: View {
 
             Button {
                 Task {
-                    await viewModel.generateRecommendations()
+                    await generateWithMilestoneContext()
                 }
             } label: {
                 HStack(spacing: 6) {
@@ -529,7 +631,7 @@ struct RecommendationsView: View {
             }
 
             Button {
-                Task { await viewModel.generateRecommendations() }
+                Task { await generateWithMilestoneContext() }
             } label: {
                 HStack(spacing: 8) {
                     Image(uiImage: Lucide.sparkles)
