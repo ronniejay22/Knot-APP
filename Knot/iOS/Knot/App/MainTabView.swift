@@ -47,7 +47,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            RecommendationsView(isTabEmbedded: true)
+            ForYouView()
                 .tabItem {
                     Label {
                         Text("For You")

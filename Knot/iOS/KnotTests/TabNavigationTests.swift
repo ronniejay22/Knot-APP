@@ -107,35 +107,42 @@ final class SavedViewModelDeleteTests: XCTestCase {
     }
 }
 
-// MARK: - RecommendationsView isTabEmbedded Tests
+// MARK: - RecommendationsView Milestone Context Tests
 
 @MainActor
-final class RecommendationsViewTabEmbeddedTests: XCTestCase {
+final class RecommendationsViewMilestoneContextTests: XCTestCase {
 
-    /// Verify RecommendationsView renders when isTabEmbedded is false (modal mode).
-    func testModalModeRenders() {
-        let view = RecommendationsView(isTabEmbedded: false)
+    /// Verify RecommendationsView renders without milestone context (just because mode).
+    func testJustBecauseModeRenders() {
+        let view = RecommendationsView(milestoneId: nil, milestoneContext: nil)
         let hostingController = UIHostingController(rootView: view)
-        XCTAssertNotNil(hostingController.view, "RecommendationsView in modal mode should render")
+        XCTAssertNotNil(hostingController.view, "RecommendationsView in just-because mode should render")
     }
 
-    /// Verify RecommendationsView renders when isTabEmbedded is true (tab mode).
-    func testTabModeRenders() {
-        let view = RecommendationsView(isTabEmbedded: true)
+    /// Verify RecommendationsView renders with milestone context.
+    func testMilestoneContextModeRenders() {
+        let ctx = MilestoneDisplayContext(
+            name: "Birthday",
+            type: "birthday",
+            daysUntil: 8,
+            partnerName: "Alex",
+            occasionType: "major_milestone"
+        )
+        let view = RecommendationsView(milestoneId: "test-id", milestoneContext: ctx)
         let hostingController = UIHostingController(rootView: view)
-        XCTAssertNotNil(hostingController.view, "RecommendationsView in tab mode should render")
+        XCTAssertNotNil(hostingController.view, "RecommendationsView with milestone context should render")
     }
 
-    /// Verify isTabEmbedded defaults to false.
-    func testIsTabEmbeddedDefaultsFalse() {
+    /// Verify milestoneId defaults to nil.
+    func testMilestoneIdDefaultsNil() {
         let view = RecommendationsView()
-        XCTAssertFalse(view.isTabEmbedded)
+        XCTAssertNil(view.milestoneId)
     }
 
-    /// Verify isTabEmbedded can be set to true.
-    func testIsTabEmbeddedCanBeSetTrue() {
-        let view = RecommendationsView(isTabEmbedded: true)
-        XCTAssertTrue(view.isTabEmbedded)
+    /// Verify milestoneContext defaults to nil.
+    func testMilestoneContextDefaultsNil() {
+        let view = RecommendationsView()
+        XCTAssertNil(view.milestoneContext)
     }
 }
 

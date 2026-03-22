@@ -4945,6 +4945,39 @@ Created the iOS Milestones management UI (Settings → Milestones) with grouped 
 
 ---
 
+### Step 16.2: For You Tab Redesign — Milestone Timeline + Recommendations ✅
+**Date:** March 21, 2026
+**Status:** Complete
+
+**What was done:**
+
+Redesigned the For You tab from a flat recommendation-generation screen into a milestone timeline with integrated recommendation entry points. The new view shows a chronological list of all upcoming milestones with visual timeline indicators (colored dots, connecting lines, date badges, countdown text). Milestones within 60 days display an inline "Get Recommendations" CTA that pushes to the existing recommendation experience with milestone context.
+
+Added a "Surprise them today" card at the top for non-milestone "just because" recommendations, ensuring users can always generate recommendations regardless of milestone proximity.
+
+Refactored RecommendationsView to accept milestone context as parameters (milestoneId, MilestoneDisplayContext) instead of managing its own milestone detection via HomeViewModel. RecommendationsView now auto-generates recommendations on push from the timeline, removing the need for the previous isTabEmbedded flag and milestone urgency banner.
+
+Made MilestoneFormSheet accessible from ForYouView so users can add milestones directly from the timeline via the toolbar "+" button, with the timeline refreshing automatically on dismissal.
+
+**iOS files created:**
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — Main timeline view with NavigationStack, JustBecauseCard, milestone timeline, and empty state
+- `iOS/Knot/Features/ForYou/ForYouViewModel.swift` — Timeline data management (milestone loading, partner name, urgency levels, date formatting)
+- `iOS/Knot/Features/ForYou/TimelineEntryView.swift` — Individual milestone row with vertical timeline line/dot, date badge, countdown, and optional recommendation CTA
+- `iOS/Knot/Features/ForYou/JustBecauseCard.swift` — Top card for non-milestone recommendation generation
+
+**iOS files modified:**
+- `iOS/Knot/App/MainTabView.swift` — Swapped RecommendationsView(isTabEmbedded: true) for ForYouView()
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — Removed isTabEmbedded, milestoneViewModel, milestone banner; added milestoneId/milestoneContext params; auto-generates on .task
+- `iOS/Knot/Features/Milestones/MilestonesManagementView.swift` — Made MilestoneFormSheet internal (was private)
+- `iOS/KnotTests/TabNavigationTests.swift` — Updated tests from isTabEmbedded to milestoneContext API
+- `iOS/KnotTests/ForYouViewModelTests.swift` — 14 new tests for urgency levels, date formatting, occasion types, initial state
+
+**Test results:**
+- All 14 ForYouViewModelTests pass
+- All existing test suites pass (28 suites, 0 failures)
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

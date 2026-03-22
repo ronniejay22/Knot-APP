@@ -274,7 +274,7 @@ struct MilestonesManagementView: View {
 // MARK: - Milestone Form Sheet
 
 /// Sheet for adding or editing a milestone.
-private struct MilestoneFormSheet: View {
+struct MilestoneFormSheet: View {
     @Bindable var viewModel: MilestonesViewModel
     @Environment(\.dismiss) private var dismiss
 

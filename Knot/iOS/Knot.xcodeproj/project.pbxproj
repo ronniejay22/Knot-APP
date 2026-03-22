@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B2C3D4E5F6789012345678A1 /* ForYouViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345678 /* ForYouViewModelTests.swift */; };
+		48242346FF8840B68634DA5F /* ForYouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C9314583B24D6F9B67065E /* ForYouView.swift */; };
+		7A234506B5A747D1A967A7AE /* ForYouViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD08A739C7C4157A6CD4E7F /* ForYouViewModel.swift */; };
+		127605D66F73423E96D1636D /* TimelineEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72155ED535C440DA3B4A247 /* TimelineEntryView.swift */; };
+		5ACBE41BF96749D6A8396B83 /* JustBecauseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC14F6AA51E4EA18B46B214 /* JustBecauseCard.swift */; };
 		003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */; };
 		02989CEE7ADA343855BC038E /* NotificationHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */; };
 		029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0DFE789B202C84A0F6646 /* HintLocal.swift */; };
@@ -108,6 +113,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F6789012345678 /* ForYouViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForYouViewModelTests.swift; sourceTree = "<group>"; };
+		70C9314583B24D6F9B67065E /* ForYouView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForYouView.swift; sourceTree = "<group>"; };
+		0DD08A739C7C4157A6CD4E7F /* ForYouViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForYouViewModel.swift; sourceTree = "<group>"; };
+		D72155ED535C440DA3B4A247 /* TimelineEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineEntryView.swift; sourceTree = "<group>"; };
+		CAC14F6AA51E4EA18B46B214 /* JustBecauseCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JustBecauseCard.swift; sourceTree = "<group>"; };
 		01EEFEFA72F5F2B66B814742 /* RecommendationLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationLocal.swift; sourceTree = "<group>"; };
 		02978CA31C43A88F5065E75D /* Knot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Knot.entitlements; sourceTree = "<group>"; };
 		05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseRatingSheet.swift; sourceTree = "<group>"; };
@@ -233,6 +243,7 @@
 				73D13FA821039CA70FDE1394 /* Auth */,
 				32CD850E58FB297FA2A17FED /* Hints */,
 				382C2703C6A06770F2DF2C25 /* Home */,
+				6AFD730C5DB3471F8CA885D6 /* ForYou */,
 				74C06FBF374DB0A87061622B /* Milestones */,
 				8F689CBB688DD2167669576F /* Notifications */,
 				FDB0DCE8F9ED7B6634F3A030 /* Onboarding */,
@@ -446,6 +457,7 @@
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
 				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
+				A1B2C3D4E5F6789012345678 /* ForYouViewModelTests.swift */,
 				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
 				90925173E680B5538BCBD054 /* SettingsViewTests.swift */,
@@ -462,6 +474,17 @@
 				E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */,
 			);
 			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		6AFD730C5DB3471F8CA885D6 /* ForYou */ = {
+			isa = PBXGroup;
+			children = (
+				70C9314583B24D6F9B67065E /* ForYouView.swift */,
+				0DD08A739C7C4157A6CD4E7F /* ForYouViewModel.swift */,
+				D72155ED535C440DA3B4A247 /* TimelineEntryView.swift */,
+				CAC14F6AA51E4EA18B46B214 /* JustBecauseCard.swift */,
+			);
+			path = ForYou;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -596,6 +619,7 @@
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
 				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
+				B2C3D4E5F6789012345678A1 /* ForYouViewModelTests.swift in Sources */,
 				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,
 				68730C13AE335778310BF282 /* SettingsViewTests.swift in Sources */,
@@ -644,6 +668,10 @@
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				7945CB75D93045A1AF23CFB1 /* MilestoneService.swift in Sources */,
+				48242346FF8840B68634DA5F /* ForYouView.swift in Sources */,
+				7A234506B5A747D1A967A7AE /* ForYouViewModel.swift in Sources */,
+				127605D66F73423E96D1636D /* TimelineEntryView.swift in Sources */,
+				5ACBE41BF96749D6A8396B83 /* JustBecauseCard.swift in Sources */,
 				743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */,
 				FB7C927B11F02D1F7FE9ACD9 /* MilestonesViewModel.swift in Sources */,
 				DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */,

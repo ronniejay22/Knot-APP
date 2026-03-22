@@ -36,8 +36,11 @@ import LucideIcons
 /// └─────────────────────────────────────┘
 /// ```
 struct RecommendationsView: View {
-    /// When `true`, the view is embedded in the tab bar and hides the dismiss button.
-    var isTabEmbedded: Bool = false
+    /// Optional milestone ID for milestone-contextual recommendations.
+    var milestoneId: String?
+
+    /// Display context for the milestone header (nil for "just because" mode).
+    var milestoneContext: MilestoneDisplayContext?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -47,43 +50,34 @@ struct RecommendationsView: View {
 
     @State private var viewModel = RecommendationsViewModel()
 
-    /// Loads milestone data for the contextual banner when tab-embedded.
-    @State private var milestoneViewModel = HomeViewModel()
     @State private var isBriefingExpanded = false
     @State private var isBriefingDismissed = false
 
     var body: some View {
-        NavigationStack {
-            recommendationsBody
+        recommendationsBody
             .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !isTabEmbedded {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(uiImage: Lucide.arrowLeft)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 20, height: 20)
-                        }
-                        .tint(Theme.textPrimary)
-                    }
-                }
-
                 ToolbarItem(placement: .principal) {
-                    Text(isTabEmbedded ? "For You" : "Recommendations")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
+                    if let ctx = milestoneContext {
+                        VStack(spacing: 1) {
+                            Text(ctx.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text(MilestonesViewModel.daysUntilText(ctx.daysUntil))
+                                .font(.caption2)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    } else {
+                        Text("Recommendations")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
                 }
             }
             .task {
                 viewModel.configure(modelContext: modelContext)
-                if isTabEmbedded {
-                    await milestoneViewModel.loadVault()
-                }
+                await generateWithMilestoneContext()
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -213,90 +207,27 @@ struct RecommendationsView: View {
                     }
                 }
             }
-        }
     }
 
     // MARK: - Recommendations Body
 
-    /// The full recommendations UI (milestone banner + unified content).
+    /// The full recommendations UI.
     private var recommendationsBody: some View {
-        VStack(spacing: 0) {
-            // Milestone alert banner (shown when a milestone is ≤14 days away and no briefing is present)
-            if isTabEmbedded, viewModel.briefingText == nil,
-               let milestone = milestoneViewModel.nextMilestone, milestone.daysUntil <= 14 {
-                milestoneBanner(milestone)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-            }
-
-            ZStack {
-                Theme.backgroundGradient.ignoresSafeArea()
-                suggestionsContent
-            }
-        }
-    }
-
-    // MARK: - Milestone Banner
-
-    /// Compact banner shown when a milestone is within 14 days — provides urgency context
-    /// for the recommendation cards below.
-    private func milestoneBanner(_ milestone: UpcomingMilestone) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: milestone.iconName)
-                .font(.caption)
-                .foregroundStyle(milestoneBannerColor(milestone))
-
-            Text("\(milestoneViewModel.partnerName)'s \(milestone.name) \(milestone.countdownText)")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(1)
-
-            Spacer()
-
-            Text("\(milestone.daysUntil)")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(milestoneBannerColor(milestone))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule()
-                        .fill(milestoneBannerColor(milestone).opacity(0.15))
-                )
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(milestoneBannerColor(milestone).opacity(0.3), lineWidth: 1)
-                )
-        )
-    }
-
-    /// Color based on milestone urgency.
-    private func milestoneBannerColor(_ milestone: UpcomingMilestone) -> Color {
-        switch milestone.urgencyLevel {
-        case .critical: return .red
-        case .soon: return .orange
-        case .upcoming: return .yellow
-        case .distant: return Theme.accent
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+            suggestionsContent
         }
     }
 
     // MARK: - Milestone-Aware Generation
 
-    /// Generates recommendations with milestone context when an upcoming milestone is detected.
-    /// Falls back to `just_because` when no milestone is within 14 days.
+    /// Generates recommendations using the milestone context passed from ForYouView,
+    /// or falls back to "just_because" when no milestone context is provided.
     private func generateWithMilestoneContext() async {
-        if isTabEmbedded,
-           let milestone = milestoneViewModel.nextMilestone,
-           milestone.daysUntil <= 14 {
-            let occasionType = milestone.budgetTier ?? "major_milestone"
+        if let ctx = milestoneContext, let mId = milestoneId {
             await viewModel.generateRecommendations(
-                occasionType: occasionType,
-                milestoneId: milestone.id
+                occasionType: ctx.occasionType,
+                milestoneId: mId
             )
         } else {
             await viewModel.generateRecommendations()
