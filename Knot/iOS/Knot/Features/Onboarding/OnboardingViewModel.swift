@@ -125,7 +125,10 @@ final class OnboardingViewModel {
         guard !canProceed else { return nil }
         switch currentStep {
         case .basicInfo:
-            return "Please enter your partner's name."
+            if partnerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Please enter your partner's name."
+            }
+            return "Please enter your city and state."
         case .interests:
             let remaining = Constants.Validation.requiredInterests - selectedInterests.count
             return "Select \(remaining) more interest\(remaining == 1 ? "" : "s") to continue."
@@ -400,8 +403,8 @@ final class OnboardingViewModel {
             partnerName: trimmedName,
             relationshipTenureMonths: relationshipTenureMonths,
             cohabitationStatus: cohabitationStatus,
-            locationCity: trimmedCity.isEmpty ? nil : trimmedCity,
-            locationState: trimmedState.isEmpty ? nil : trimmedState,
+            locationCity: trimmedCity,
+            locationState: trimmedState,
             locationCountry: locationCountry,
             interests: Array(selectedInterests),
             dislikes: Array(selectedDislikes),
@@ -439,6 +442,10 @@ final class OnboardingViewModel {
         switch currentStep {
         case .basicInfo:
             canProceed = !partnerName
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !locationCity
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !locationState
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .interests:
             canProceed = selectedInterests.count == Constants.Validation.requiredInterests

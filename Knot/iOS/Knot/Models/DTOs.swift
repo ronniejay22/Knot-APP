@@ -25,8 +25,8 @@ struct VaultCreatePayload: Codable, Sendable {
     let partnerName: String
     let relationshipTenureMonths: Int?
     let cohabitationStatus: String?
-    let locationCity: String?
-    let locationState: String?
+    let locationCity: String
+    let locationState: String
     let locationCountry: String?
 
     let interests: [String]   // exactly 5 likes

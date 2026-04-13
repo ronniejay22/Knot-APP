@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import MapKit
 import LucideIcons
 
 /// Step 2: Partner basic information collection.
@@ -25,14 +26,18 @@ struct OnboardingBasicInfoView: View {
     /// "Required" hint only shows after interaction to avoid jarring first-load UX.
     @State private var hasInteractedWithName = false
 
+    /// Location search autocomplete.
+    @State private var locationCompleter = LocationSearchCompleter()
+    @State private var locationQuery = ""
+    @State private var showLocationResults = false
+
     /// Focus state for keyboard management across form fields.
     @FocusState private var focusedField: Field?
 
     /// Identifiers for each focusable text field.
     private enum Field: Hashable {
         case name
-        case city
-        case state
+        case location
     }
 
     var body: some View {
@@ -48,7 +53,7 @@ struct OnboardingBasicInfoView: View {
                     nameSection(name: $vm.partnerName)
                     tenureSection
                     cohabitationSection(status: $vm.cohabitationStatus)
-                    locationSection(city: $vm.locationCity, state: $vm.locationState)
+                    locationSection
                 }
                 .padding(.horizontal, 24)
             }
@@ -56,9 +61,18 @@ struct OnboardingBasicInfoView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .onAppear {
+            // Pre-fill the search field if editing an existing vault
+            if !viewModel.locationCity.isEmpty {
+                locationQuery = [viewModel.locationCity, viewModel.locationState]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ", ")
+            }
             viewModel.validateCurrentStep()
         }
         .onChange(of: viewModel.partnerName) { _, _ in
+            viewModel.validateCurrentStep()
+        }
+        .onChange(of: viewModel.locationCity) { _, _ in
             viewModel.validateCurrentStep()
         }
     }
@@ -104,7 +118,7 @@ struct OnboardingBasicInfoView: View {
                 .submitLabel(.next)
                 .focused($focusedField, equals: .name)
                 .onSubmit {
-                    focusedField = .city
+                    focusedField = .location
                 }
                 .onChange(of: viewModel.partnerName) { _, _ in
                     if !hasInteractedWithName {
@@ -237,10 +251,7 @@ struct OnboardingBasicInfoView: View {
 
     // MARK: - Location
 
-    private func locationSection(
-        city: Binding<String>,
-        state: Binding<String>
-    ) -> some View {
+    private var locationSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 Image(uiImage: Lucide.mapPin)
@@ -252,48 +263,93 @@ struct OnboardingBasicInfoView: View {
 
                 Text("Location")
                     .font(.subheadline.weight(.medium))
-
-                Text("(optional)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
 
             Text("Helps us find local experiences and restaurants.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
-                TextField("City", text: city)
-                    .font(.body)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(Theme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.surfaceBorder, lineWidth: 0.5))
-                    .textContentType(.addressCity)
-                    .autocorrectionDisabled()
-                    .submitLabel(.next)
-                    .focused($focusedField, equals: .city)
-                    .onSubmit {
-                        focusedField = .state
-                    }
+            TextField("Search city, state, or zip code", text: $locationQuery)
+                .font(.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Theme.surfaceBorder, lineWidth: 0.5)
+                )
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($focusedField, equals: .location)
+                .onChange(of: locationQuery) { _, newValue in
+                    // Skip search if the query matches the resolved location (programmatic update)
+                    let resolvedText = [viewModel.locationCity, viewModel.locationState]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: ", ")
+                    guard newValue != resolvedText else { return }
 
-                TextField("State", text: state)
-                    .font(.body)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(Theme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.surfaceBorder, lineWidth: 0.5))
-                    .textContentType(.addressState)
-                    .autocorrectionDisabled()
-                    .submitLabel(.done)
-                    .focused($focusedField, equals: .state)
-                    .frame(maxWidth: 120)
-                    .onSubmit {
-                        focusedField = nil
+                    // User is actively typing — clear stale selection and search
+                    viewModel.locationCity = ""
+                    viewModel.locationState = ""
+                    showLocationResults = true
+                    locationCompleter.search(query: newValue)
+                }
+                .onSubmit {
+                    focusedField = nil
+                    showLocationResults = false
+                }
+
+            // Autocomplete results dropdown
+            if showLocationResults && !locationCompleter.results.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(locationCompleter.results.prefix(5), id: \.self) { result in
+                        Button {
+                            selectLocation(result)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.title)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                if !result.subtitle.isEmpty {
+                                    Text(result.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                        }
+
+                        if result != locationCompleter.results.prefix(5).last {
+                            Divider().padding(.leading, 14)
+                        }
                     }
+                }
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Theme.surfaceBorder, lineWidth: 0.5)
+                )
             }
+        }
+    }
+
+    private func selectLocation(_ completion: MKLocalSearchCompletion) {
+        showLocationResults = false
+        focusedField = nil
+
+        Task {
+            await locationCompleter.resolve(completion)
+            viewModel.locationCity = locationCompleter.selectedCity
+            viewModel.locationState = locationCompleter.selectedState
+
+            // Show resolved location in the text field
+            locationQuery = [locationCompleter.selectedCity, locationCompleter.selectedState]
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
         }
     }
 }
@@ -311,7 +367,7 @@ struct OnboardingBasicInfoView: View {
     vm.relationshipTenureMonths = 30
     vm.cohabitationStatus = "living_together"
     vm.locationCity = "San Francisco"
-    vm.locationState = "CA"
+    vm.locationState = "California"
     return OnboardingBasicInfoView()
         .environment(vm)
 }

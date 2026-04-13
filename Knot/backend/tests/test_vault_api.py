@@ -354,7 +354,9 @@ class TestValidPayload:
         """A minimal payload (only required fields) should succeed."""
         payload = {
             "partner_name": "Jordan",
-            # optional fields omitted: tenure, cohabitation, location
+            # optional fields omitted: tenure, cohabitation
+            "location_city": "Austin",
+            "location_state": "TX",
             "interests": ["Art", "Photography", "Nature", "Yoga", "Meditation"],
             "dislikes": ["Gaming", "Cars", "Skiing", "Surfing", "Karaoke"],
             "milestones": [

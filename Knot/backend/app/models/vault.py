@@ -150,8 +150,8 @@ class VaultCreateRequest(BaseModel):
     cohabitation_status: Optional[
         Literal["living_together", "separate", "long_distance"]
     ] = None
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
+    location_city: str
+    location_state: str
     location_country: Optional[str] = "US"
 
     # --- Interests and dislikes ---
