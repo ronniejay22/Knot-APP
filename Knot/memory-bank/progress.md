@@ -4978,6 +4978,38 @@ Made MilestoneFormSheet accessible from ForYouView so users can add milestones d
 
 ---
 
+### Step 3.13: Make Location Required with Search Autocomplete ✅
+**Date:** April 12, 2026  
+**Status:** Complete
+
+**What was done:**
+- Replaced the two separate City and State text fields in the onboarding BasicInfo step with a single unified search field powered by `MKLocalSearchCompleter`
+- Users can now search by city name, state, or zip code and select from up to 5 autocomplete suggestions
+- Selected results are resolved via `MKLocalSearch` to extract structured city (locality), state (administrativeArea), and zip (postalCode)
+- Made location a required field — the "Next" button is blocked until both city and state are populated from a selection
+- Validation message prioritizes partner name check first, then shows "Please enter your city and state"
+- No location permissions required — MapKit search works without them
+- Made `location_city` and `location_state` required fields in the backend Pydantic `VaultCreateRequest` model
+- Updated the `VaultCreatePayload` iOS DTO to use non-optional `String` for city and state
+
+**iOS files created:**
+- `iOS/Knot/Core/LocationSearchCompleter.swift` — `@Observable @MainActor` wrapper around `MKLocalSearchCompleter` with address-only filtering, async resolve, and Swift 6 strict concurrency compliance
+
+**iOS files modified:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBasicInfoView.swift` — Replaced two-field location section with single search field + autocomplete dropdown, added onChange validation for locationCity
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — Added location to basicInfo validation, updated error message, changed payload to send non-optional values
+- `iOS/Knot/Models/DTOs.swift` — Changed `VaultCreatePayload.locationCity`/`locationState` from `String?` to `String`
+
+**Backend files modified:**
+- `backend/app/models/vault.py` — Changed `location_city` and `location_state` from `Optional[str]` to `str` in `VaultCreateRequest`
+- `backend/tests/test_vault_api.py` — Added required location fields to minimal payload test fixture
+
+**Test results:**
+- ✅ Backend `test_valid_payload_minimal` passes with updated fixture
+- ✅ All existing backend test suites unaffected
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
