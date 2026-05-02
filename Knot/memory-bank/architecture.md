@@ -183,8 +183,8 @@ Layout helpers live at the root; shadcn-style design-system primitives live in `
 |------|--------|---------|
 | `FlowLayout.swift` | **Active** | Custom `Layout` protocol implementation for wrapping flow (CSS `flex-wrap` equivalent). Arranges subviews left-to-right, wrapping to the next row when they exceed available width. Configurable `horizontalSpacing` and `verticalSpacing`. Created in Step 3.3 for chip grids; used by DislikesView (Step 3.4) and VibesView (Step 3.6). |
 
-##### `/Components/UI` — shadcn-Style SwiftUI Primitives (Step 18.1)
-Native SwiftUI components in shadcn's aesthetic. Read tokens from `Theme` (colors, `Theme.Spacing`, `Theme.Radius`, `Theme.Typography`, `Theme.Motion`) — callers never pass colors. Closures are typed `@MainActor` for Swift 6 strict concurrency.
+##### `/Components/UI` — shadcn-Style SwiftUI Primitives (Step 18.1, broader rollout in Step 18.2)
+Native SwiftUI components in shadcn's aesthetic. Read tokens from `Theme` (colors, `Theme.Spacing`, `Theme.Radius`, `Theme.Typography`, `Theme.Motion`) — callers never pass colors. Closures are typed `@MainActor` for Swift 6 strict concurrency. **Step 18.2** fanned the primitive-based migration out across the rest of the production screens (RecommendationCard, HomeView, HintsListView, LoginView, OnboardingContainerView, OnboardingWelcomeView, OnboardingBudgetView, OnboardingCompletionView, OnboardingMilestonesView, EditVaultView). The four onboarding card screens (Interests, Dislikes, Vibes, LoveLanguages) and OnboardingBasicInfoView's text fields stayed inline as documented snowflakes — see Step 18.2 in `progress.md` for rationale. No new primitives were added in Phase 3; the original 8 covered every clean-fit migration.
 
 | Component | Status | Purpose |
 |-----------|--------|---------|

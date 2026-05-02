@@ -114,13 +114,7 @@ struct OnboardingMilestonesView: View {
                 Text("Birthday")
                     .font(.headline.weight(.semibold))
 
-                Text("Required")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Theme.accent.opacity(0.15))
-                    .clipShape(Capsule())
+                KnotBadge("Required", variant: .accent, size: .sm)
             }
 
             // Month + Day pickers
@@ -405,15 +399,11 @@ struct OnboardingMilestonesView: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Theme.textSecondary)
 
-                    TextField("e.g., First Date, Gotcha Day", text: $customName)
-                        .font(.body)
-                        .padding(14)
-                        .background(Theme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Theme.surfaceBorder, lineWidth: 1)
-                        )
+                    KnotInput(
+                        text: $customName,
+                        placeholder: "e.g., First Date, Gotcha Day",
+                        style: .singleLine
+                    )
                 }
 
                 // Date pickers

@@ -40,9 +40,6 @@ struct HomeView: View {
     /// Controls the Hints List sheet presentation.
     @State private var showHintsList = false
 
-    /// Focus state for the hint text field.
-    @FocusState private var isHintFieldFocused: Bool
-
     var body: some View {
         @Bindable var authVM = authViewModel
 
@@ -156,70 +153,55 @@ struct HomeView: View {
 
     /// Shows partner name and countdown to next milestone.
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Greeting
-            Text(greetingText)
-                .font(.title3.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
+        KnotCard(padding: .xl, radius: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Greeting
+                Text(greetingText)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(Theme.textSecondary)
 
-            // Partner name + countdown
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.partnerName)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                // Partner name + countdown
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(viewModel.partnerName)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
 
-                    if let milestone = viewModel.nextMilestone {
-                        HStack(spacing: 6) {
-                            Image(systemName: milestone.iconName)
-                                .font(.caption)
-                                .foregroundStyle(milestoneCountdownColor(milestone))
+                        if let milestone = viewModel.nextMilestone {
+                            HStack(spacing: 6) {
+                                Image(systemName: milestone.iconName)
+                                    .font(.caption)
+                                    .foregroundStyle(milestoneCountdownColor(milestone))
 
-                            Text("\(milestone.name) \(milestone.countdownText)")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(milestoneCountdownColor(milestone))
+                                Text("\(milestone.name) \(milestone.countdownText)")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(milestoneCountdownColor(milestone))
+                            }
                         }
+                    }
+
+                    Spacer()
+
+                    // Milestone countdown badge
+                    if let milestone = viewModel.nextMilestone {
+                        countdownBadge(milestone)
                     }
                 }
 
-                Spacer()
-
-                // Milestone countdown badge
-                if let milestone = viewModel.nextMilestone {
-                    countdownBadge(milestone)
-                }
-            }
-
-            // Vibe tags
-            if !viewModel.vibes.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(viewModel.vibes, id: \.self) { vibe in
-                            Text(vibeDisplayName(vibe))
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Theme.accent.opacity(0.15))
-                                )
+                // Vibe tags
+                if !viewModel.vibes.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.vibes, id: \.self) { vibe in
+                                KnotBadge(vibeDisplayName(vibe), variant: .accent, size: .sm)
+                            }
                         }
                     }
                 }
             }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
     }
 
     // MARK: - Hint Capture Section
@@ -227,56 +209,21 @@ struct HomeView: View {
     /// Text input + microphone button for capturing hints about the partner.
     private var hintCaptureSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Section label
-            HStack(spacing: 6) {
-                Image(uiImage: Lucide.lightbulb)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
-                    .foregroundStyle(Theme.accent)
-
-                Text("Capture a Hint")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-            }
+            KnotSectionHeader("Capture a Hint", icon: Lucide.lightbulb, style: .subhead)
 
             // Input area
             HStack(alignment: .bottom, spacing: 10) {
                 // Text field with success overlay
                 ZStack {
-                    ZStack(alignment: .topLeading) {
-                        if hintText.isEmpty && !viewModel.showHintSuccess {
-                            Text("What did they mention today?")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.textTertiary)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 10)
-                        }
-
-                        TextEditor(text: $hintText)
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.textPrimary)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 40, maxHeight: 80)
-                            .focused($isHintFieldFocused)
-                            .opacity(viewModel.showHintSuccess ? 0 : 1)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Theme.surface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(
-                                        viewModel.showHintSuccess
-                                            ? Color.green.opacity(0.5)
-                                            : (isHintFieldFocused ? Theme.accent.opacity(0.5) : Theme.surfaceBorder),
-                                        lineWidth: 1
-                                    )
-                            )
+                    KnotInput(
+                        text: $hintText,
+                        placeholder: "What did they mention today?",
+                        style: .multiLine,
+                        minHeight: 40,
+                        maxHeight: 80,
+                        validationState: viewModel.showHintSuccess ? .success : .neutral
                     )
+                    .opacity(viewModel.showHintSuccess ? 0 : 1)
 
                     // Success checkmark overlay
                     if viewModel.showHintSuccess {
@@ -297,24 +244,8 @@ struct HomeView: View {
                 // Action buttons
                 VStack(spacing: 8) {
                     // Microphone button (Step 4.3 — voice capture)
-                    Button {
+                    KnotIconButton(icon: Lucide.mic, variant: .surface, size: .md) {
                         // Voice capture will be implemented in Step 4.3
-                    } label: {
-                        Image(uiImage: Lucide.mic)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
-                            .foregroundStyle(Theme.textPrimary)
-                            .frame(width: 40, height: 40)
-                            .background(
-                                Circle()
-                                    .fill(Theme.surface)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Theme.surfaceBorder, lineWidth: 1)
-                                    )
-                            )
                     }
 
                     // Submit button (active when text is entered and not submitting)
@@ -376,23 +307,7 @@ struct HomeView: View {
     /// Displays the next 1-2 milestones as countdown cards.
     private var upcomingMilestonesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Section header
-            HStack {
-                HStack(spacing: 6) {
-                    Image(uiImage: Lucide.calendar)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(Theme.accent)
-
-                    Text("Upcoming")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                }
-
-                Spacer()
-            }
+            KnotSectionHeader("Upcoming", icon: Lucide.calendar, style: .subhead)
 
             if viewModel.isLoading {
                 // Loading state
@@ -420,24 +335,7 @@ struct HomeView: View {
     /// Shows the last 3 captured hints, or an empty state.
     private var recentHintsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Section header
-            HStack {
-                HStack(spacing: 6) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(Theme.accent)
-
-                    Text("Recent Hints")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                }
-
-                Spacer()
-
-                // View all button (Step 4.5)
+            KnotSectionHeader("Recent Hints", icon: Lucide.sparkles, style: .subhead) {
                 if !viewModel.recentHints.isEmpty {
                     Button {
                         showHintsList = true
@@ -489,160 +387,126 @@ struct HomeView: View {
 
     /// A card showing milestone details and countdown.
     private func milestoneCard(_ milestone: UpcomingMilestone) -> some View {
-        HStack(spacing: 14) {
-            // Type icon
-            Image(systemName: milestone.iconName)
-                .font(.title3)
-                .foregroundStyle(milestoneCountdownColor(milestone))
-                .frame(width: 40, height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(milestoneCountdownColor(milestone).opacity(0.12))
-                )
+        KnotCard(padding: .md) {
+            HStack(spacing: 14) {
+                // Type icon — color-coded by milestone type, stays inline
+                Image(systemName: milestone.iconName)
+                    .font(.title3)
+                    .foregroundStyle(milestoneCountdownColor(milestone))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(milestoneCountdownColor(milestone).opacity(0.12))
+                    )
 
-            // Details
-            VStack(alignment: .leading, spacing: 3) {
-                Text(milestone.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
+                // Details
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(milestone.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
 
-                Text(milestone.formattedDate)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
+                    Text(milestone.formattedDate)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                // Countdown — urgency-colored capsule, stays inline
+                Text(milestone.countdownText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(milestoneCountdownColor(milestone))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(milestoneCountdownColor(milestone).opacity(0.12))
+                    )
             }
-
-            Spacer()
-
-            // Countdown
-            Text(milestone.countdownText)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(milestoneCountdownColor(milestone))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule()
-                        .fill(milestoneCountdownColor(milestone).opacity(0.12))
-                )
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
     }
 
     // MARK: - Component: Empty States
 
     /// Placeholder when no milestones are set up.
     private var emptyMilestoneCard: some View {
-        HStack(spacing: 12) {
-            Image(uiImage: Lucide.calendarPlus)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
-                .foregroundStyle(Theme.textTertiary)
+        KnotCard(variant: .outlinedDashed, padding: .md) {
+            HStack(spacing: 12) {
+                Image(uiImage: Lucide.calendarPlus)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(Theme.textTertiary)
 
-            Text("No upcoming milestones. Edit your profile to add dates.")
-                .font(.caption)
-                .foregroundStyle(Theme.textTertiary)
+                Text("No upcoming milestones. Edit your profile to add dates.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
 
-            Spacer()
+                Spacer()
+            }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(
-                            Theme.surfaceBorder,
-                            style: StrokeStyle(lineWidth: 1, dash: [6, 4])
-                        )
-                )
-        )
     }
 
     /// Placeholder when no hints have been captured.
     private var emptyHintsCard: some View {
-        VStack(spacing: 10) {
-            Image(uiImage: Lucide.messageSquarePlus)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 28, height: 28)
-                .foregroundStyle(Theme.textTertiary)
+        KnotCard(variant: .outlinedDashed, padding: .xl) {
+            VStack(spacing: 10) {
+                Image(uiImage: Lucide.messageSquarePlus)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(Theme.textTertiary)
 
-            Text("No hints yet")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
+                Text("No hints yet")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textSecondary)
 
-            Text("Capture what your partner mentions — favorite things, wishes, places they want to visit.")
-                .font(.caption)
-                .foregroundStyle(Theme.textTertiary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(2)
+                Text("Capture what your partner mentions — favorite things, wishes, places they want to visit.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(
-                            Theme.surfaceBorder,
-                            style: StrokeStyle(lineWidth: 1, dash: [6, 4])
-                        )
-                )
-        )
     }
 
     // MARK: - Component: Hint Preview Card
 
     /// Shows a single hint preview with text and source icon.
     private func hintPreviewCard(_ hint: HintPreview) -> some View {
-        HStack(spacing: 12) {
-            // Source icon
-            Image(uiImage: hint.source == "voice_transcription" ? Lucide.mic : Lucide.penLine)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 14, height: 14)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Theme.accent.opacity(0.12))
-                )
+        KnotCard(padding: .md) {
+            HStack(spacing: 12) {
+                // Source icon
+                Image(uiImage: hint.source == "voice_transcription" ? Lucide.mic : Lucide.penLine)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 14, height: 14)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Theme.accent.opacity(0.12))
+                    )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(hint.text)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(hint.text)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(2)
 
-                Text(hint.createdAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textTertiary)
+                    Text(hint.createdAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+
+                Spacer()
             }
-
-            Spacer()
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
     }
 
     // MARK: - Helpers
@@ -697,7 +561,10 @@ struct HomeView: View {
 
         // Clear the input immediately for responsiveness
         hintText = ""
-        isHintFieldFocused = false
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
 
         // Submit to the backend
         Task {

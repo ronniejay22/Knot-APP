@@ -66,19 +66,12 @@ struct RecommendationCard: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            heroSection
-            detailsSection
+        KnotCard(variant: .default, padding: .none, radius: cardCornerRadius) {
+            VStack(alignment: .leading, spacing: 0) {
+                heroSection
+                detailsSection
+            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius)
-                .fill(Theme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius)
-                .stroke(Theme.surfaceBorder, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
     }
 
     // MARK: - Hero Image Section
@@ -262,19 +255,11 @@ struct RecommendationCard: View {
                 // Price badge (hidden for ideas — they have no price)
                 if let priceCents {
                     let prefix = priceConfidence == "estimated" ? "~" : ""
-                    Text(prefix + Self.formattedPrice(cents: priceCents, currency: currency))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(Theme.surfaceElevated)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                                )
-                        )
+                    KnotBadge(
+                        prefix + Self.formattedPrice(cents: priceCents, currency: currency),
+                        variant: .secondary,
+                        size: .md
+                    )
                 } else if recommendationType != "idea" {
                     Text("Price varies")
                         .font(.caption.weight(.medium))
@@ -284,78 +269,39 @@ struct RecommendationCard: View {
                 Spacer()
 
                 // Select / Read button
-                Button(action: onSelect) {
-                    HStack(spacing: 6) {
-                        Text(recommendationType == "idea" || recommendationType == "plan" ? "Read" : "Select")
-                            .font(.subheadline.weight(.semibold))
-
-                        Image(systemName: recommendationType == "idea" || recommendationType == "plan" ? "book" : "arrow.right")
-                            .font(.caption.weight(.bold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(
-                        Capsule()
-                            .fill(Theme.accent)
-                    )
-                }
-                .buttonStyle(.plain)
+                let isIdea = recommendationType == "idea" || recommendationType == "plan"
+                KnotButton(
+                    isIdea ? "Read" : "Select",
+                    variant: .primary,
+                    size: .md,
+                    shape: .pill,
+                    trailingIcon: isIdea ? Lucide.book : Lucide.arrowRight,
+                    action: onSelect
+                )
+                .fixedSize()
             }
 
             // Save / Share row (Step 6.6)
             HStack(spacing: 12) {
-                // Save button
-                Button(action: onSave) {
-                    HStack(spacing: 6) {
-                        Image(uiImage: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 14, height: 14)
+                KnotButton(
+                    isSaved ? "Saved" : "Save",
+                    variant: isSaved ? .outline : .secondary,
+                    size: .sm,
+                    shape: .pill,
+                    leadingIcon: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark,
+                    action: onSave
+                )
+                .fixedSize()
 
-                        Text(isSaved ? "Saved" : "Save")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(isSaved ? Theme.accent : Theme.textSecondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(isSaved ? Theme.accent.opacity(0.15) : Theme.surfaceElevated)
-                            .overlay(
-                                Capsule()
-                                    .stroke(isSaved ? Theme.accent.opacity(0.4) : Theme.surfaceBorder, lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-
-                // Share button
-                Button(action: onShare) {
-                    HStack(spacing: 6) {
-                        Image(uiImage: Lucide.share2)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 14, height: 14)
-
-                        Text("Share")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Theme.surfaceElevated)
-                            .overlay(
-                                Capsule()
-                                    .stroke(Theme.surfaceBorder, lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
+                KnotButton(
+                    "Share",
+                    variant: .secondary,
+                    size: .sm,
+                    shape: .pill,
+                    leadingIcon: Lucide.share2,
+                    action: onShare
+                )
+                .fixedSize()
 
                 Spacer()
             }

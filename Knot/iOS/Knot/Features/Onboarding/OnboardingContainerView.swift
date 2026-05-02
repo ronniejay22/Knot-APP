@@ -83,27 +83,9 @@ struct OnboardingContainerView: View {
         // MARK: - Vault Submission Loading Overlay (Step 3.11)
         .overlay {
             if viewModel.isSubmitting {
-                ZStack {
-                    Theme.overlayDim
-                        .ignoresSafeArea()
-
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .controlSize(.large)
-                            .tint(.white)
-
-                        Text("Creating your partner vault...")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
-
-                        Text("This may take a moment")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    .padding(32)
-                    .background(Theme.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
+                KnotProgressIndicator.Overlay(
+                    message: "Creating your partner vault...\nThis may take a moment"
+                )
                 .transition(.opacity)
             }
         }
@@ -196,25 +178,14 @@ struct OnboardingContainerView: View {
         HStack(spacing: 12) {
             // Back button (hidden on first step)
             if !viewModel.currentStep.isFirst {
-                Button {
-                    viewModel.goToPreviousStep()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(uiImage: Lucide.chevronLeft)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-
-                        Text("Back")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(height: 44)
-                    .padding(.horizontal, 14)
-                }
-                .buttonStyle(.bordered)
-                .tint(Theme.textPrimary)
+                KnotButton(
+                    "Back",
+                    variant: .ghost,
+                    size: .md,
+                    leadingIcon: Lucide.chevronLeft,
+                    action: { viewModel.goToPreviousStep() }
+                )
+                .fixedSize()
                 .disabled(viewModel.isSubmitting)
             }
 
@@ -224,66 +195,48 @@ struct OnboardingContainerView: View {
             if viewModel.currentStep.isLast {
                 // Completion step — "Get Started" button
                 // Submits vault to backend, then navigates to Home on success (Step 3.11)
-                Button {
-                    Task {
-                        let success = await viewModel.submitVault()
-                        if success {
-                            onComplete()
+                KnotButton(
+                    "Get Started",
+                    variant: .primary,
+                    size: .md,
+                    trailingIcon: Lucide.arrowRight,
+                    action: {
+                        Task {
+                            let success = await viewModel.submitVault()
+                            if success {
+                                onComplete()
+                            }
                         }
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Get Started")
-                            .font(.subheadline.weight(.semibold))
-
-                        Image(uiImage: Lucide.arrowRight)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(height: 44)
-                    .padding(.horizontal, 20)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                )
+                .fixedSize()
                 .disabled(viewModel.isSubmitting)
             } else {
                 // Normal step — "Next" button
                 // Always tappable; shows validation error banner if step isn't valid.
-                Button {
-                    if viewModel.canProceed {
-                        showValidationError = false
-                        viewModel.goToNextStep()
-                    } else if let message = viewModel.validationMessage {
-                        validationErrorText = message
-                        showValidationError = true
-                        // Cancel any previous dismiss task, then schedule a new one
-                        dismissTask?.cancel()
-                        dismissTask = Task {
-                            try? await Task.sleep(for: .seconds(3))
-                            guard !Task.isCancelled else { return }
+                KnotButton(
+                    "Next",
+                    variant: .primary,
+                    size: .md,
+                    trailingIcon: Lucide.chevronRight,
+                    action: {
+                        if viewModel.canProceed {
                             showValidationError = false
+                            viewModel.goToNextStep()
+                        } else if let message = viewModel.validationMessage {
+                            validationErrorText = message
+                            showValidationError = true
+                            dismissTask?.cancel()
+                            dismissTask = Task {
+                                try? await Task.sleep(for: .seconds(3))
+                                guard !Task.isCancelled else { return }
+                                showValidationError = false
+                            }
                         }
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Next")
-                            .font(.subheadline.weight(.semibold))
-
-                        Image(uiImage: Lucide.chevronRight)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(height: 44)
-                    .padding(.horizontal, 20)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(viewModel.canProceed ? Theme.accent : Theme.accent.opacity(0.4))
+                )
+                .fixedSize()
+                .opacity(viewModel.canProceed ? 1.0 : 0.4)
             }
         }
     }

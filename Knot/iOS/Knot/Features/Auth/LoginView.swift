@@ -87,13 +87,7 @@ struct LoginView: View {
 
             // MARK: - Loading Overlay
             if authViewModel.isLoading {
-                Theme.overlayDim
-                    .ignoresSafeArea()
-                ProgressView("Signing in...")
-                    .tint(.white)
-                    .padding(24)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                KnotProgressIndicator.Overlay(message: "Signing in...")
             }
         }
         .navigationBarBackButtonHidden(false)

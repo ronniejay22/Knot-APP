@@ -130,7 +130,7 @@ struct OnboardingCompletionView: View {
 
                         FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
                             ForEach(viewModel.selectedInterests.sorted(), id: \.self) { interest in
-                                CompactTag(text: interest, style: .accent)
+                                KnotBadge(interest, variant: .accent, size: .sm)
                             }
                         }
                     }
@@ -153,7 +153,7 @@ struct OnboardingCompletionView: View {
 
                         FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
                             ForEach(viewModel.selectedDislikes.sorted(), id: \.self) { dislike in
-                                CompactTag(text: dislike, style: .muted)
+                                KnotBadge(dislike, variant: .default, size: .sm)
                             }
                         }
                     }
@@ -505,62 +505,12 @@ private struct SummaryCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Section header
-            HStack(spacing: 8) {
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(Theme.accent)
-
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
+        KnotCard(padding: .lg) {
+            VStack(alignment: .leading, spacing: 14) {
+                KnotSectionHeader(title, icon: icon, style: .subhead)
+                content
             }
-
-            // Section content
-            content
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Theme.surfaceBorder, lineWidth: 0.5)
-        )
-    }
-}
-
-// MARK: - Compact Tag Component
-
-/// A small pill/chip used to display interests and dislikes compactly.
-private struct CompactTag: View {
-    let text: String
-    let style: TagStyle
-
-    enum TagStyle {
-        case accent
-        case muted
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(style == .accent ? Theme.textPrimary : Theme.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(style == .accent ? Theme.accent.opacity(0.18) : Theme.surface)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(
-                        style == .accent ? Theme.accent.opacity(0.3) : Theme.surfaceBorder,
-                        lineWidth: 0.5
-                    )
-            )
     }
 }
 

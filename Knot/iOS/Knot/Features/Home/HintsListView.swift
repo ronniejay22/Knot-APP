@@ -85,76 +85,57 @@ struct HintsListView: View {
 
     /// A single hint row with swipe-to-delete.
     private func hintRow(_ hint: HintItem) -> some View {
-        HStack(spacing: 14) {
-            // Source icon
-            Image(uiImage: hint.source == "voice_transcription" ? Lucide.mic : Lucide.penLine)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 36, height: 36)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Theme.accent.opacity(0.12))
-                )
+        KnotCard(padding: .md) {
+            HStack(spacing: 14) {
+                // Source icon
+                Image(uiImage: hint.source == "voice_transcription" ? Lucide.mic : Lucide.penLine)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Theme.accent.opacity(0.12))
+                    )
 
-            // Text and date
-            VStack(alignment: .leading, spacing: 4) {
-                Text(hint.text)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(3)
+                // Text and date
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(hint.text)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(3)
 
-                HStack(spacing: 8) {
-                    // Date captured
-                    Text(hint.createdAt, style: .date)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
+                    HStack(spacing: 8) {
+                        Text(hint.createdAt, style: .date)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
 
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
 
-                    // Time captured
-                    Text(hint.createdAt, style: .time)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
+                        Text(hint.createdAt, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
 
-                    // "Used in recommendation" badge (if applicable)
-                    if hint.isUsed {
-                        Spacer()
+                        if hint.isUsed {
+                            Spacer()
 
-                        HStack(spacing: 3) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-
-                            Text("Used")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.green)
+                            KnotBadge(
+                                "Used",
+                                variant: .success,
+                                size: .sm,
+                                leadingIcon: Lucide.check
+                            )
                         }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(.green.opacity(0.12))
-                        )
                     }
                 }
-            }
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 deleteHint(hint)
@@ -189,19 +170,14 @@ struct HintsListView: View {
                     .lineSpacing(2)
             }
 
-            Button {
-                dismiss()
-            } label: {
-                Text("Back to Home")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(
-                        Capsule()
-                            .fill(Theme.accent)
-                    )
-            }
+            KnotButton(
+                "Back to Home",
+                variant: .primary,
+                size: .md,
+                shape: .pill,
+                action: { dismiss() }
+            )
+            .fixedSize()
             .padding(.top, 8)
         }
         .frame(maxWidth: 300)

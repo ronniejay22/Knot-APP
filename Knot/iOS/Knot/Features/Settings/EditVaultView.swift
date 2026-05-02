@@ -220,45 +220,12 @@ struct EditVaultView: View {
     // MARK: - Section Button
 
     private func editSectionButton(icon: UIImage, title: String, subtitle: String, section: EditSection) -> some View {
-        Button {
-            activeSection = section
-        } label: {
-            HStack(spacing: 14) {
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 22, height: 22)
-                    .foregroundStyle(Theme.accent)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Image(uiImage: Lucide.chevronRight)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Theme.surfaceBorder, lineWidth: 1)
-            )
-        }
+        KnotListRow.chevron(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            action: { activeSection = section }
+        )
     }
 
     // MARK: - Sheet Content

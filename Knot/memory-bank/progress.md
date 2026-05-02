@@ -5064,6 +5064,57 @@ Established a codebase rule: domain cards are containers of meaning (`Recommenda
 
 ---
 
+### Step 18.2: Knot UI — shadcn Refactor Phase 3 (Broader Migration) ✅
+**Date:** May 2, 2026
+**Status:** Complete (broader migration across remaining production screens; carve-outs documented)
+
+**What was done:**
+
+Fanned out the primitive-based migration from the Step 18.1 pilots (Settings, ForYou) to the rest of the production screens that had been deliberately left untouched: `RecommendationCard`, `HomeView` + `HintsListView`, `LoginView`, and the onboarding shell (Container, Welcome, Budget, Completion, Milestones, EditVaultView). Per Phase 1+2 principle "domain cards compose primitives; primitives never know about domain," the four onboarding card screens that derive their identity from per-item hand-tuned gradients (Interests, Dislikes, Vibes, LoveLanguages) were intentionally left inline — no `KnotImageCard` was built, since its only callers would have been those four screens, exactly the premature abstraction the project has avoided.
+
+`RecommendationCard.swift` had its outer chrome (`RoundedRectangle.fill(Theme.surface).overlay(stroke).clipShape`) folded into a `KnotCard(variant: .default, padding: .none, radius: 18)` wrapper. The price badge became `KnotBadge(.secondary, .md)`. Select/Read became `KnotButton(.primary, .md, .pill)` with conditional trailing icon, Save became `KnotButton(isSaved ? .outline : .secondary, .sm, .pill)` (the plan's `.primary` for the saved state was downgraded to `.outline` to keep the Select button as the visual primary CTA), and Share became `KnotButton(.secondary, .sm, .pill)`. All buttons wrap content via `.fixedSize()` to keep the bottom row's hug-content layout. Hero image, frosted-glass type badge, personalization callout, and `MatchingFactorChip` + `FlowLayout` stayed inline as documented snowflakes.
+
+`HomeView.swift` and `HintsListView.swift` got the heaviest migration. The hint capture's `TextEditor` became a `KnotInput(style: .multiLine, validationState: showHintSuccess ? .success : .neutral)` — exercising the validation-state API on a real screen for the first time. The hand-rolled `@FocusState isHintFieldFocused` and matching border-color ternary were deleted (KnotInput auto-detects focus); the success-checkmark overlay logic stayed in HomeView as a domain concern. Header card → `KnotCard(.xl, radius: 16)`; vibe tags → `KnotBadge(.accent, .sm)` per vibe; three section headers (Capture / Upcoming / Recent Hints) → `KnotSectionHeader(.subhead)` with the "View All" trailing button passed via the trailing `@ViewBuilder`; microphone button → `KnotIconButton(.surface, .md)`; milestone card and hint preview cards wrapped in `KnotCard(.md)`; both empty states → `KnotCard(variant: .outlinedDashed, padding: .md/.xl)`. The submit-arrow button stayed inline because `KnotIconButton` has no `isLoading` parameter, and adding one for a single caller would violate the discipline. HintsListView swapped the "Used" capsule for `KnotBadge(.success, .sm, leadingIcon: Lucide.check)`, wrapped each hint row in `KnotCard(.md)`, and replaced the empty-state CTA with `KnotButton(.primary, .md, .pill)`.
+
+`LoginView.swift` migration was surgical: the manual loading overlay (`Theme.overlayDim` + `ProgressView` + `.ultraThinMaterial` card) became one line, `KnotProgressIndicator.Overlay(message: "Signing in...")`. The white provider buttons and multicolor Google logo stayed as intentional brand snowflakes.
+
+The onboarding container's `OnboardingContainerView` swapped its vault submission overlay for `KnotProgressIndicator.Overlay(message: "Creating your partner vault...\nThis may take a moment")` (the multi-line string preserves both message lines via `\n` since Overlay only takes a single message parameter). Back/Next/Get Started buttons became `KnotButton(.ghost / .primary, .md, leadingIcon/trailingIcon)` with `.fixedSize()`. The Next button's "always tappable but visually dimmed when invalid" treatment is preserved via `.opacity(viewModel.canProceed ? 1.0 : 0.4)` instead of `.tint(...opacity(0.4))`. The validation error banner and animated progress bar stayed inline (step-flow infrastructure).
+
+`OnboardingWelcomeView` swapped one literal `font(.system(size: 28, weight: .bold))` for the new `Theme.Typography.display` token. `OnboardingBudgetView`'s `BudgetTierCard` outer chrome became `KnotCard(.lg, radius: 16)`; the per-tier accent-colored icon badge, "Select all" link, and range buttons stayed inline because they paint with the per-tier `accentColor` (cyan / orange / pink) that `KnotButton(.primary)`'s hardcoded `Theme.accent` cannot express — the per-tier color IS the design. `OnboardingCompletionView` collapsed its private `SummaryCard<Content>` to `KnotCard(.lg)` + `KnotSectionHeader(.subhead)`, and the private `CompactTag` was deleted entirely (replaced inline with `KnotBadge(.accent / .default, .sm)`). `EditVaultView`'s six edit-section buttons became `KnotListRow.chevron(...)`. `OnboardingMilestonesView` swapped the "Required" badge for `KnotBadge(.accent, .sm)` and the custom milestone sheet's name `TextField` for `KnotInput(.singleLine)`; the `HolidayChip` private component stayed inline (selected/unselected fill states with text + subtitle + trailing icon don't fit any single primitive cleanly), and the Anniversary toggle, day/month pickers, and dashed "Add Custom" button stayed inline as legitimate snowflakes.
+
+`OnboardingBasicInfoView` was intentionally **not** migrated. The name and location text fields use cross-field focus management (`.focused($focusedField, equals: .name/.location)` + `.submitLabel(.next)` + `.onSubmit { focusedField = .location }` + `.textContentType(.givenName)` + `.onChange(of:)` for autocomplete), and `KnotInput`'s internal `@FocusState` is private — there's no API to bind it from a parent or pass through TextField modifiers. Migrating would break form UX. This is the cleanest "primitive doesn't fit" case in Phase 3.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — outer card + price badge + Select/Save/Share buttons
+- `iOS/Knot/Features/Home/HomeView.swift` — header card + vibe tags + section headers + hint capture (KnotInput) + microphone + milestone card + empty states + hint preview card; `@FocusState isHintFieldFocused` deleted; submit hint dismisses keyboard via `UIResponder.resignFirstResponder` since KnotInput owns focus
+- `iOS/Knot/Features/Home/HintsListView.swift` — hint row outer card + "Used" badge + empty-state CTA
+- `iOS/Knot/Features/Auth/LoginView.swift` — loading overlay
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — submission overlay + Back/Next/Get Started buttons
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingWelcomeView.swift` — display typography token
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBudgetView.swift` — tier card outer chrome
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — SummaryCard → KnotCard + KnotSectionHeader; CompactTag deleted, callers use KnotBadge directly
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMilestonesView.swift` — Required badge + custom milestone name input
+- `iOS/Knot/Features/Settings/EditVaultView.swift` — six edit section buttons → KnotListRow.chevron
+
+**Files created:**
+- `iOS/KnotTests/HomeViewTests.swift` — render online + render offline + showHintSuccess flag lifecycle
+- `iOS/KnotTests/HintsListViewTests.swift` — render-without-crash
+- `iOS/KnotTests/OnboardingContainerViewTests.swift` — render at welcome + step navigation + isSubmitting flag
+
+**Test results:**
+- ✅ 224 unit tests pass on iPhone 17 Pro simulator (217 baseline from Step 18.1 + 7 new)
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings
+- ✅ Existing `RecommendationCardTests` (16) continue to pass post-migration
+- ✅ Existing `LoginViewTests`, `SettingsViewTests`, `ForYouViewModelTests` continue to pass
+
+**Notes:**
+- Three intentional divergences from the approved plan, documented above with rationale: (1) RecommendationCard saved-state uses `.outline` instead of the plan's `.primary` to preserve Select as the row's visual primary CTA; (2) OnboardingBudgetView range buttons stayed inline because per-tier accent color is domain identity not chrome; (3) OnboardingBasicInfoView text fields stayed inline due to KnotInput's lack of focus-binding and modifier passthrough. Each is a "primitive doesn't fit cleanly here" call.
+- The plan's typography downgrades (price badge: `.subheadline.bold` → `.caption.semibold`, vibe tags: `.caption2.semibold` → `KnotBadge.sm`) are real visual changes accepted as part of design-system unification. Manual UI verification is the right place to confirm or revert.
+- After Phase 3, the only remaining un-migrated production surfaces with significant chrome are the four onboarding card screens (Interests, Dislikes, Vibes, LoveLanguages). They should stay inline indefinitely unless a future fifth caller appears that would justify a `KnotImageCard` primitive.
+- No new primitives were added. The original 8 covered every migration need that fit cleanly.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

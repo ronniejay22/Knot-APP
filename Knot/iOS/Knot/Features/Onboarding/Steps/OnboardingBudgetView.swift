@@ -253,84 +253,81 @@ private struct BudgetTierCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // MARK: Title Row
-            HStack(spacing: 12) {
-                // Icon badge
-                Circle()
-                    .fill(accentColor.opacity(0.15))
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(uiImage: icon)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
-                            .foregroundStyle(accentColor)
+        KnotCard(padding: .lg, radius: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                // MARK: Title Row
+                HStack(spacing: 12) {
+                    // Icon badge — per-tier accent stays inline (domain color)
+                    Circle()
+                        .fill(accentColor.opacity(0.15))
+                        .frame(width: 42, height: 42)
+                        .overlay {
+                            Image(uiImage: icon)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                                .foregroundStyle(accentColor)
+                        }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(Theme.textPrimary)
+
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
                     }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
 
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-
-                Spacer()
-
-                // Select All button
-                Button {
-                    onSelectAll()
-                } label: {
-                    Text(allSelected ? "All selected" : "Select all")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(allSelected ? Theme.textTertiary : accentColor)
-                }
-                .buttonStyle(.plain)
-                .disabled(allSelected)
-                .animation(.easeInOut(duration: 0.2), value: allSelected)
-            }
-
-            // MARK: Range Buttons (2-column grid)
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(options) { option in
-                    let isSelected = selectedIDs.contains(option.id)
-
+                    // Select All button — uses per-tier accent, stays inline
                     Button {
-                        onToggle(option)
+                        onSelectAll()
                     } label: {
-                        Text(option.label)
-                            .font(.subheadline.weight(.medium).monospacedDigit())
-                            .foregroundStyle(isSelected ? .white : Theme.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(isSelected ? accentColor : Theme.surfaceElevated)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(
-                                        isSelected ? accentColor : Theme.surfaceBorder,
-                                        lineWidth: isSelected ? 2 : 0.5
-                                    )
-                            )
+                        Text(allSelected ? "All selected" : "Select all")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(allSelected ? Theme.textTertiary : accentColor)
                     }
                     .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.2), value: isSelected)
+                    .disabled(allSelected)
+                    .animation(.easeInOut(duration: 0.2), value: allSelected)
+                }
+
+                // MARK: Range Buttons (2-column grid)
+                // Stays inline — selected fill uses per-tier accent (cyan / orange / pink),
+                // which KnotButton's hardcoded Theme.accent for `.primary` cannot express.
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(options) { option in
+                        let isSelected = selectedIDs.contains(option.id)
+
+                        Button {
+                            onToggle(option)
+                        } label: {
+                            Text(option.label)
+                                .font(.subheadline.weight(.medium).monospacedDigit())
+                                .foregroundStyle(isSelected ? .white : Theme.textPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(isSelected ? accentColor : Theme.surfaceElevated)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(
+                                            isSelected ? accentColor : Theme.surfaceBorder,
+                                            lineWidth: isSelected ? 2 : 0.5
+                                        )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .animation(.easeInOut(duration: 0.2), value: isSelected)
+                    }
                 }
             }
         }
-        .padding(18)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Theme.surfaceBorder, lineWidth: 0.5)
-        )
     }
 }
 
