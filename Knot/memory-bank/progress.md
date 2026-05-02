@@ -5006,7 +5006,61 @@ Made MilestoneFormSheet accessible from ForYouView so users can add milestones d
 
 **Test results:**
 - ✅ Backend `test_valid_payload_minimal` passes with updated fixture
-- ✅ All existing backend test suites unaffected
+
+---
+
+### Step 18.1: Knot UI — shadcn-Style SwiftUI Component Library ✅
+**Date:** May 2, 2026
+**Status:** Complete (foundation + 2 pilot screens migrated; broader rollout deferred to Phase 2)
+
+**What was done:**
+
+Built the missing component layer that the original tech-stack document declared ("shadcn/ui (SwiftUI Port)") but was never implemented. Every screen had been reinventing card/button/chip chrome inline; the ~60 duplicated `RoundedRectangle.fill(Theme.surface).overlay(stroke)` blocks that exemplified that drift now have a single home in `Knot/Components/UI/`. The library composes Theme tokens rather than asking callers to wire up colors, paddings, and radii by hand.
+
+Extended `Knot/Core/Theme.swift` with four new nested namespaces — `Spacing` (4pt grid), `Radius` (with `lg=14` matching the dominant corner-radius across the codebase), `Typography` (semantic font tokens), and `Motion` (animation curves) — without touching the existing color tokens. All prior call sites continue to work unchanged.
+
+Created eight must-have primitives, each with `@MainActor` callbacks for Swift 6 strict-concurrency compatibility, `@ViewBuilder` content, and zero color parameters: `KnotCard` (`default`/`elevated`/`outlinedDashed` variants with token-driven padding and radius), `KnotButton` (`primary`/`secondary`/`outline`/`ghost`/`destructive` variants × `sm`/`md`/`lg` sizes × `rounded`/`pill` shapes with built-in `isLoading`), `KnotIconButton` (circular icon-only with `primary`/`surface`/`ghost` variants), `KnotBadge` + `KnotChip` (six semantic badge variants plus a tappable selectable chip), `KnotInput` (single-line `TextField` and multi-line `TextEditor` wrappers with adaptive `neutral`/`focused`/`error`/`success` border states), `KnotListRow` (with `chevron` / `info` / `toggle` / `action` static factories that fold in the previously private `settingsRow`/`settingsInfoRow`/`settingsToggleRow` helpers), `KnotSectionHeader` (with `caption` and `subhead` styles), and `KnotProgressIndicator` (an `Inline` spinner plus an `Overlay` that absorbs the duplicated dim+ultraThinMaterial loading card).
+
+Migrated two pilot screens to validate the API. `SettingsView` swapped its toolbar X button to `KnotIconButton(.ghost)`, both deletion and export loading overlays to `KnotProgressIndicator.Overlay`, every section header to `KnotSectionHeader(.caption)`, and every settings row to a `KnotListRow` factory (chevron / info / toggle / action). The expandable Quiet Hours row uses the generic `KnotListRow` initializer to swap its trailing chevron between up/down. `ForYouView` migrated its empty-state CTA to `KnotButton(.primary, .pill, .sm)` and its "Upcoming" header to `KnotSectionHeader`. `JustBecauseCard` was reduced to a `KnotCard` composing a `KnotSectionHeader` + body text + `KnotButton`. `TimelineEntryView`'s date pill became a `KnotBadge(.secondary, .sm)`. The "Get Recommendations" tinted-soft CTA inside `TimelineEntryView` was deliberately left inline — a snowflake design that doesn't justify a new primitive variant.
+
+Established a codebase rule: domain cards are containers of meaning (`RecommendationCard`, `JustBecauseCard`); primitives are shapes of UI (`KnotCard`, `KnotButton`). Domain cards compose primitives; primitives never know about domain. `RecommendationCard`, `HomeView`, `LoginView`, and onboarding screens were intentionally NOT migrated — those become a Phase 2 pass once the API has settled on real screens.
+
+**Files created:**
+- `iOS/Knot/Components/UI/KnotCard.swift`
+- `iOS/Knot/Components/UI/KnotButton.swift`
+- `iOS/Knot/Components/UI/KnotIconButton.swift`
+- `iOS/Knot/Components/UI/KnotBadge.swift`
+- `iOS/Knot/Components/UI/KnotInput.swift`
+- `iOS/Knot/Components/UI/KnotListRow.swift`
+- `iOS/Knot/Components/UI/KnotSectionHeader.swift`
+- `iOS/Knot/Components/UI/KnotProgressIndicator.swift`
+- `iOS/KnotTests/Components/UI/KnotCardTests.swift`
+- `iOS/KnotTests/Components/UI/KnotButtonTests.swift`
+- `iOS/KnotTests/Components/UI/KnotIconButtonTests.swift`
+- `iOS/KnotTests/Components/UI/KnotBadgeTests.swift`
+- `iOS/KnotTests/Components/UI/KnotInputTests.swift`
+- `iOS/KnotTests/Components/UI/KnotListRowTests.swift`
+- `iOS/KnotTests/Components/UI/KnotSectionHeaderTests.swift`
+- `iOS/KnotTests/Components/UI/KnotProgressIndicatorTests.swift`
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift`
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added `Spacing`, `Radius`, `Typography`, `Motion` namespaces
+- `iOS/Knot/Features/Settings/SettingsView.swift` — pilot 1 migration
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — pilot 2 migration (section header + empty-state CTA)
+- `iOS/Knot/Features/ForYou/JustBecauseCard.swift` — pilot 2 migration (full card)
+- `iOS/Knot/Features/ForYou/TimelineEntryView.swift` — pilot 2 migration (date badge)
+
+**Test results:**
+- ✅ 38 new component tests pass (render-without-crash + callback-fires + token-scale invariants)
+- ✅ All 217 unit tests pass (38 new + 179 pre-existing) on iPhone 17 Pro simulator
+- ✅ All 4 UI tests pass
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings
+- ✅ Existing `SettingsViewTests` and `ForYouViewModelTests` continue to pass post-migration
+
+**Notes:**
+- `Theme.Motion` is named `Motion` rather than `Animation` to avoid any ambiguity with `SwiftUI.Animation` at call sites.
+- Phase 2 (deferred): migrate `RecommendationCard` first (highest test coverage; safest to validate composition), then `HomeView` (which will exercise `KnotInput`'s validation states for real), `LoginView`, and onboarding screens. Decide whether nice-to-have primitives (`KnotToggle`, `KnotAlert`, `KnotSheet`, `KnotAvatar`, `KnotEmptyState`, `KnotDivider`, `KnotChipGroup`) are needed once Phase 2 actually exercises the gaps.
 
 ---
 

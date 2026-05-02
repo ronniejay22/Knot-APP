@@ -114,9 +114,7 @@ struct ForYouView: View {
     private var milestoneTimeline: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Section header
-            Text("Upcoming")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.textSecondary)
+            KnotSectionHeader<EmptyView>("Upcoming")
                 .padding(.bottom, 16)
 
             // Timeline entries
@@ -165,16 +163,14 @@ struct ForYouView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 
-            Button {
-                milestoneFormViewModel.prepareAdd()
-            } label: {
-                Text("Add Your First Milestone")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Theme.accent))
-            }
+            KnotButton(
+                "Add Your First Milestone",
+                variant: .primary,
+                size: .sm,
+                shape: .pill,
+                action: { milestoneFormViewModel.prepareAdd() }
+            )
+            .fixedSize()
             .padding(.top, 4)
         }
         .padding(.vertical, 40)

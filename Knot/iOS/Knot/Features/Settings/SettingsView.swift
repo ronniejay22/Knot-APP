@@ -116,54 +116,21 @@ struct SettingsView: View {
 
     /// Loading overlay shown during account deletion.
     private var deletionLoadingOverlay: some View {
-        Group {
-            Theme.overlayDim
-                .ignoresSafeArea()
-            VStack(spacing: 12) {
-                ProgressView()
-                    .tint(.white)
-                Text("Deleting account...")
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-            }
-            .padding(24)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
+        KnotProgressIndicator.Overlay(message: "Deleting account...")
     }
 
     /// Loading overlay shown during data export.
     private var exportLoadingOverlay: some View {
-        Group {
-            Theme.overlayDim
-                .ignoresSafeArea()
-            VStack(spacing: 12) {
-                ProgressView()
-                    .tint(.white)
-                Text("Exporting your data...")
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-            }
-            .padding(24)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
+        KnotProgressIndicator.Overlay(message: "Exporting your data...")
     }
 
     /// Toolbar content extracted to reduce body complexity.
     @ToolbarContentBuilder
     private var settingsToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button {
+            KnotIconButton(icon: Lucide.x, variant: .ghost, size: .sm) {
                 dismiss()
-            } label: {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
             }
-            .tint(Theme.textPrimary)
         }
     }
 
@@ -171,30 +138,26 @@ struct SettingsView: View {
 
     private var accountSection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "Account")
+            KnotSectionHeader<EmptyView>("Account", style: .caption)
 
-            settingsInfoRow(
+            KnotListRow.info(
                 icon: Lucide.mail,
                 title: "Email",
                 value: viewModel.userEmail
             )
 
-            settingsRow(
+            KnotListRow.action(
                 icon: Lucide.logOut,
                 title: "Sign Out",
-                showChevron: false
-            ) {
-                Task { await authViewModel.signOut() }
-            }
+                action: { Task { await authViewModel.signOut() } }
+            )
 
-            settingsRow(
+            KnotListRow.action(
                 icon: Lucide.trash2,
                 title: "Delete Account",
                 subtitle: "Permanently remove your data",
-                showChevron: false
-            ) {
-                viewModel.requestAccountDeletion()
-            }
+                action: { viewModel.requestAccountDeletion() }
+            )
         }
     }
 
@@ -202,23 +165,21 @@ struct SettingsView: View {
 
     private var partnerProfileSection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "Partner Profile")
+            KnotSectionHeader<EmptyView>("Partner Profile", style: .caption)
 
-            settingsRow(
+            KnotListRow.chevron(
                 icon: Lucide.userPen,
                 title: "Edit Profile",
-                subtitle: "Update partner details and preferences"
-            ) {
-                showEditProfile = true
-            }
+                subtitle: "Update partner details and preferences",
+                action: { showEditProfile = true }
+            )
 
-            settingsRow(
+            KnotListRow.chevron(
                 icon: Lucide.calendarHeart,
                 title: "Milestones",
-                subtitle: "Manage birthdays, anniversaries & key dates"
-            ) {
-                showMilestones = true
-            }
+                subtitle: "Manage birthdays, anniversaries & key dates",
+                action: { showMilestones = true }
+            )
         }
     }
 
@@ -226,9 +187,9 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "Appearance")
+            KnotSectionHeader<EmptyView>("Appearance", style: .caption)
 
-            settingsToggleRow(
+            KnotListRow.toggle(
                 icon: Lucide.moon,
                 title: "Dark Mode",
                 isOn: Binding(
@@ -243,9 +204,9 @@ struct SettingsView: View {
 
     private var notificationsSection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "Notifications")
+            KnotSectionHeader<EmptyView>("Notifications", style: .caption)
 
-            settingsToggleRow(
+            KnotListRow.toggle(
                 icon: Lucide.bellRing,
                 title: "Enable Notifications",
                 isOn: Binding(
@@ -256,82 +217,57 @@ struct SettingsView: View {
                 )
             )
 
-            // Quiet hours row — taps to expand/collapse time pickers
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    viewModel.showQuietHoursPicker.toggle()
-                }
-            } label: {
-                HStack(spacing: 14) {
-                    Image(uiImage: Lucide.moon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-                        .foregroundStyle(Theme.accent)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Quiet Hours")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("\(viewModel.formatHour(viewModel.quietHoursStart)) – \(viewModel.formatHour(viewModel.quietHoursEnd))")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
+            // Quiet hours row — taps to expand/collapse time pickers.
+            // Uses the generic KnotListRow init so the trailing chevron can
+            // animate between up/down with the expanded state.
+            KnotListRow(
+                icon: Lucide.moon,
+                title: "Quiet Hours",
+                subtitle: "\(viewModel.formatHour(viewModel.quietHoursStart)) – \(viewModel.formatHour(viewModel.quietHoursEnd))",
+                action: {
+                    withAnimation(Theme.Motion.standard) {
+                        viewModel.showQuietHoursPicker.toggle()
                     }
-
-                    Spacer()
-
-                    Image(uiImage: viewModel.showQuietHoursPicker ? Lucide.chevronUp : Lucide.chevronDown)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .foregroundStyle(Theme.textTertiary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
+            ) {
+                Image(uiImage: viewModel.showQuietHoursPicker ? Lucide.chevronUp : Lucide.chevronDown)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(Theme.textTertiary)
             }
 
             // Expandable quiet hours time pickers
             if viewModel.showQuietHoursPicker {
-                VStack(spacing: 0) {
-                    quietHoursPickerRow(
-                        label: "Start",
-                        hour: Binding(
-                            get: { viewModel.quietHoursStart },
-                            set: { newValue in
-                                viewModel.quietHoursStart = newValue
-                                Task { await viewModel.saveQuietHours() }
-                            }
+                KnotCard(padding: .none, radius: Theme.Radius.md) {
+                    VStack(spacing: 0) {
+                        quietHoursPickerRow(
+                            label: "Start",
+                            hour: Binding(
+                                get: { viewModel.quietHoursStart },
+                                set: { newValue in
+                                    viewModel.quietHoursStart = newValue
+                                    Task { await viewModel.saveQuietHours() }
+                                }
+                            )
                         )
-                    )
 
-                    Divider()
-                        .background(Theme.surfaceBorder)
+                        Divider()
+                            .background(Theme.surfaceBorder)
 
-                    quietHoursPickerRow(
-                        label: "End",
-                        hour: Binding(
-                            get: { viewModel.quietHoursEnd },
-                            set: { newValue in
-                                viewModel.quietHoursEnd = newValue
-                                Task { await viewModel.saveQuietHours() }
-                            }
+                        quietHoursPickerRow(
+                            label: "End",
+                            hour: Binding(
+                                get: { viewModel.quietHoursEnd },
+                                set: { newValue in
+                                    viewModel.quietHoursEnd = newValue
+                                    Task { await viewModel.saveQuietHours() }
+                                }
+                            )
                         )
-                    )
+                    }
                 }
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -366,24 +302,21 @@ struct SettingsView: View {
 
     private var privacySection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "Privacy")
+            KnotSectionHeader<EmptyView>("Privacy", style: .caption)
 
-            settingsRow(
+            KnotListRow.chevron(
                 icon: Lucide.download,
                 title: "Export My Data",
-                subtitle: "Download your data as a PDF"
-            ) {
-                viewModel.showExportDataAlert = true
-            }
+                subtitle: "Download your data as a PDF",
+                action: { viewModel.showExportDataAlert = true }
+            )
 
-            settingsRow(
+            KnotListRow.action(
                 icon: Lucide.trash,
                 title: "Clear All Hints",
                 subtitle: "Permanently delete all captured hints",
-                showChevron: false
-            ) {
-                viewModel.showClearHintsConfirmation = true
-            }
+                action: { viewModel.showClearHintsConfirmation = true }
+            )
         }
     }
 
@@ -391,170 +324,34 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         VStack(spacing: 10) {
-            sectionHeader(title: "About")
+            KnotSectionHeader<EmptyView>("About", style: .caption)
 
-            settingsInfoRow(
+            KnotListRow.info(
                 icon: Lucide.info,
                 title: "Version",
                 value: viewModel.appVersion
             )
 
-            settingsRow(
+            KnotListRow.chevron(
                 icon: Lucide.fileText,
-                title: "Terms of Service"
-            ) {
-                if let url = URL(string: "https://knot-app.com/terms") {
-                    UIApplication.shared.open(url)
-                }
-            }
-
-            settingsRow(
-                icon: Lucide.shield,
-                title: "Privacy Policy"
-            ) {
-                if let url = URL(string: "https://knot-app.com/privacy") {
-                    UIApplication.shared.open(url)
-                }
-            }
-        }
-    }
-
-    // MARK: - Reusable Row Components
-
-    /// Uppercase section header label.
-    private func sectionHeader(title: String) -> some View {
-        Text(title.uppercased())
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(Theme.textTertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
-    }
-
-    /// Tappable row with icon, title, optional subtitle, and chevron.
-    ///
-    /// Follows the `editSectionButton` pattern from `EditVaultView`.
-    private func settingsRow(
-        icon: UIImage,
-        title: String,
-        subtitle: String? = nil,
-        showChevron: Bool = true,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(Theme.accent)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Theme.textPrimary)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineLimit(1)
+                title: "Terms of Service",
+                action: {
+                    if let url = URL(string: "https://knot-app.com/terms") {
+                        UIApplication.shared.open(url)
                     }
                 }
+            )
 
-                Spacer()
-
-                if showChevron {
-                    Image(uiImage: Lucide.chevronRight)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .foregroundStyle(Theme.textTertiary)
+            KnotListRow.chevron(
+                icon: Lucide.shield,
+                title: "Privacy Policy",
+                action: {
+                    if let url = URL(string: "https://knot-app.com/privacy") {
+                        UIApplication.shared.open(url)
+                    }
                 }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Theme.surfaceBorder, lineWidth: 1)
             )
         }
-    }
-
-    /// Non-tappable info display row with icon, title, and value.
-    private func settingsInfoRow(
-        icon: UIImage,
-        title: String,
-        value: String
-    ) -> some View {
-        HStack(spacing: 14) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
-                .foregroundStyle(Theme.accent)
-
-            Text(title)
-                .font(.body.weight(.medium))
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Theme.surfaceBorder, lineWidth: 1)
-        )
-    }
-
-    /// Row with a toggle switch instead of a chevron.
-    ///
-    /// The caller should pass a custom `Binding` whose setter triggers the
-    /// desired action. This avoids `.onChange` which fires on programmatic
-    /// state changes (e.g., when `loadNotificationStatus()` sets the initial
-    /// value), not just user taps.
-    private func settingsToggleRow(
-        icon: UIImage,
-        title: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        HStack(spacing: 14) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
-                .foregroundStyle(Theme.accent)
-
-            Text(title)
-                .font(.body.weight(.medium))
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Toggle("", isOn: isOn)
-                .tint(Theme.accent)
-                .labelsHidden()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Theme.surfaceBorder, lineWidth: 1)
-        )
     }
 }
 

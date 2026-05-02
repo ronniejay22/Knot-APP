@@ -72,15 +72,7 @@ struct TimelineEntryView: View {
     private var milestoneContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Date badge
-            Text(formattedDate)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule()
-                        .fill(Theme.surfaceElevated)
-                )
+            KnotBadge(formattedDate, variant: .secondary, size: .sm)
 
             // Milestone info
             HStack(spacing: 8) {

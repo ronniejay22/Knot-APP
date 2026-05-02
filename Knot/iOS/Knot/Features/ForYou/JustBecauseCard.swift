@@ -13,56 +13,26 @@ import LucideIcons
 struct JustBecauseCard: View {
 
     let partnerName: String
-    let onGenerate: () -> Void
+    let onGenerate: @MainActor () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(Theme.accent)
+        KnotCard(padding: .lg, radius: Theme.Radius.lg) {
+            VStack(alignment: .leading, spacing: 12) {
+                KnotSectionHeader("Surprise them today", icon: Lucide.sparkles)
 
-                Text("Surprise them today")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-            }
+                Text("Get personalized gift, date, or experience ideas for \(partnerName) \u{2014} no occasion needed.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text("Get personalized gift, date, or experience ideas for \(partnerName) \u{2014} no occasion needed.")
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button(action: onGenerate) {
-                HStack(spacing: 6) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-
-                    Text("Get Recommendations")
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Theme.accent)
+                KnotButton(
+                    "Get Recommendations",
+                    variant: .primary,
+                    size: .md,
+                    leadingIcon: Lucide.sparkles,
+                    action: onGenerate
                 )
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-        )
     }
 }

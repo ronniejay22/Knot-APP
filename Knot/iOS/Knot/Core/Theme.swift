@@ -140,3 +140,48 @@ enum Theme {
             : UIColor.black.withAlphaComponent(0.12)
     })
 }
+
+// MARK: - Token Scales
+
+extension Theme {
+
+    /// 4pt-grid spacing scale used by primitives in `Components/UI`.
+    enum Spacing {
+        static let xxs: CGFloat = 2
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 20
+        static let xxl: CGFloat = 24
+        static let xxxl: CGFloat = 32
+    }
+
+    /// Corner-radius scale. `lg` matches the most common radius across the codebase;
+    /// `xl` matches `RecommendationCard`. `pill` is a sentinel for `Capsule`-shaped components.
+    enum Radius {
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 14
+        static let xl: CGFloat = 18
+        static let pill: CGFloat = 999
+    }
+
+    /// Semantic typography tokens. Maps shadcn text scale onto SwiftUI's `Font` system.
+    enum Typography {
+        static let xs: Font = .caption2
+        static let sm: Font = .caption
+        static let base: Font = .subheadline
+        static let body: Font = .body
+        static let lg: Font = .headline
+        static let xl: Font = .title3
+        static let xxl: Font = .title2
+        static let display: Font = .system(size: 28, weight: .bold)
+    }
+
+    /// Standardized animation curves for primitive interactions.
+    enum Motion {
+        static let standard: SwiftUI.Animation = .easeInOut(duration: 0.25)
+        static let quick: SwiftUI.Animation = .easeInOut(duration: 0.15)
+    }
+}
