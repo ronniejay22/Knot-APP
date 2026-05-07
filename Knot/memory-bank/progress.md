@@ -5115,6 +5115,49 @@ The onboarding container's `OnboardingContainerView` swapped its vault submissio
 
 ---
 
+### Step 18.3: Knot UI — Airbnb-style `KnotTabBar` Bottom Navigation ✅
+**Date:** May 2, 2026
+**Status:** Complete (custom SwiftUI bottom tab bar replaces `TabView`/`UITabBar`; visuals match Airbnb mobile)
+
+**What was done:**
+
+Replaced the SwiftUI `TabView` + `UITabBarAppearance` plumbing in `MainTabView` with a custom `KnotTabBar` SwiftUI primitive plus a `ZStack` content router. The previous implementation carried ~40 lines of `UITabBarAppearance` setup and a window-traversal hack (`findTabBars(in:)`) to push appearance changes to live tab bars on color-scheme change — all of which became unnecessary once visuals were owned by SwiftUI directly. The redesign matches Airbnb's mobile bottom nav: filled-icon active state via SF Symbols' `.symbolVariant(.fill)`, brand-pink `Theme.accent` on the active icon AND label, top hairline `Divider` painted with `Theme.surfaceBorder`, white/light `Theme.backgroundBottom` background that adapts to dark mode, and notification dot scaffolding (a small red `Circle` overlaid topTrailing on the icon when `Item.hasNotification == true`).
+
+`KnotTabBar` follows the established `Components/UI` conventions: zero color params, `Theme` tokens only, generic over a `Hashable` ID so callers use any tag type. The API is a `selection: Binding<ID>` plus an `[Item]` array, where each `Item` carries `id`, `title`, `systemImage` (an SF Symbol name), and `hasNotification: Bool = false`. Internally a `VStack` stacks the hairline divider and an `HStack` of equal-width tab buttons; each button is a `VStack(icon, title)` with `foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)` and `.symbolVariant(isSelected ? .fill : .none)` on the icon. Color/icon transitions animate via `Theme.Motion.quick` (0.15s ease-in-out). A `.sensoryFeedback(.selection, trigger: selection)` modifier (iOS 17+) provides system-standard haptic feedback on tab change. `.accessibilityAddTraits(.isSelected)` on the active tab makes VoiceOver announce selection state correctly.
+
+`MainTabView` migrated to a `ZStack` that mounts all four destinations (`ForYouView`, `HintsTabView`, `SavedView`, `SettingsView(isTabEmbedded: true)`) simultaneously and toggles `.opacity` + `.allowsHitTesting` + `.accessibilityHidden` based on `selectedTab`. This preserves view-tree identity across switches the same way SwiftUI's `TabView` does, so view-model lifetimes (e.g. `RecommendationsViewModel.hasLoadedInitially`) keep working. The `KnotTabBar` is mounted via `.safeAreaInset(edge: .bottom, spacing: 0)`, which shrinks safe-area insets for direct children correctly. The `AppTab` enum and its raw values (forYou=0, hints=1, saved=2, profile=3) were preserved verbatim so existing `TabNavigationTests` keep passing. `NetworkMonitor` `@State` hosting and `.environment(networkMonitor)` injection remained at `MainTabView` level. The `import LucideIcons`, the `init() / static updateTabBarAppearance() / static findTabBars(in:)` helpers, the `@Environment(\.colorScheme)` observer, and the entire `onChange` window-traversal block were all deleted.
+
+`RecommendationsView` needed a bottom-padding fix in this same step. SwiftUI's `safeAreaInset` does **not** propagate the inset value through `navigationDestination` pushes, so pushed destinations inside a tab's `NavigationStack` see only the system home-indicator inset (~34pt), not the additional ~93pt for `KnotTabBar`. `RecommendationsView` is pushed from `ForYouView` via `.navigationDestination(item:)`, which caused the Adjust Vibe / Refresh action buttons to render behind the tab bar. The fix restructured `recommendationsBody` from a bare `ZStack` to a `VStack(spacing: 0)` where the action buttons render as a sibling of the greedy paged content, plus added an explicit `.padding(.bottom, 100)` on the action HStack to clear the `KnotTabBar` height (~93pt content + home indicator) regardless of safe-area propagation. A new `showActionButtons` computed property was added that mirrors `suggestionsContent`'s state guards (loading / climax / error / empty) so the buttons only render in the recommendations state. Other screens reachable via NavigationStack pushes inside a tab may need similar manual clearance — call out as a future audit.
+
+SF Symbol mapping for the four tabs: For You → `sparkles` (no separate fill variant; differentiates by color only), Hints → `lightbulb` / `lightbulb.fill`, Saved → `bookmark` / `bookmark.fill`, Profile → `person.crop.circle` / `person.crop.circle.fill`. Lucide icons remain used everywhere else in the app — only the tab bar adopted SF Symbols, specifically because Lucide ships outline-only icons and the Airbnb look depends on the filled-on-active swap.
+
+The notification dot is **visual scaffolding only** in this PR — `MainTabView` passes no `hasNotification` arguments (defaulting to `false` for all tabs). Future PRs can wire real unread-state from `HintsListViewModel`, `MilestonesViewModel`, or `ForYouViewModel` without touching the bar.
+
+**Files created:**
+- `iOS/Knot/Components/UI/KnotTabBar.swift` — new primitive (~110 lines including DEBUG preview)
+- `iOS/KnotTests/Components/UI/KnotTabBarTests.swift` — render-without-crash + state coverage (6 tests)
+
+**Files modified:**
+- `iOS/Knot/App/MainTabView.swift` — collapsed from 126 to ~65 lines; deleted UITabBarAppearance plumbing, color-scheme observer, window-traversal hack, and Lucide import
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — restructured `recommendationsBody` to a `VStack` with the Adjust Vibe / Refresh action buttons as a sibling of the paged content; added `showActionButtons` computed property; added `.padding(.bottom, 100)` to clear `KnotTabBar` since `safeAreaInset` does not propagate through `navigationDestination` pushes
+- `iOS/Knot.xcodeproj/project.pbxproj` — registered the two new source files (build files, file references, group children, sources build phase entries)
+- `memory-bank/progress.md` — this entry
+- `memory-bank/architecture.md` — updated `MainTabView.swift` row, added `KnotTabBar.swift` row to the Components/UI table
+
+**Test results:**
+- ✅ 230 unit tests pass on iPhone 17 Pro simulator (224 baseline from Step 18.2 + 6 new in `KnotTabBarTests`)
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings
+- ✅ Existing `TabNavigationTests.MainTabViewTests` (3 tests: rawValues, hasFourCases, renders) continue to pass post-migration
+
+**Notes:**
+- SF Symbols' `sparkles` glyph has no separate `.fill` variant. The For You tab differentiates active vs. inactive solely via color. If the lack of shape change reads as too subtle in usage, swap to `wand.and.stars` (still SF Symbols) — no other code changes needed.
+- **Known SwiftUI limitation:** `.safeAreaInset` applied at `MainTabView` does NOT propagate the inset value into `NavigationStack`-pushed destinations (verified via `RecommendationsView` rendering behind the bar). Pushed destinations with bottom-anchored content must manually pad ~100pt. A future audit pass should sweep other tabs (HomeView, HintsListView, SettingsView reachable destinations) for the same pattern.
+- `.safeAreaInset(edge: .bottom)` rides the keyboard by default; if the bar appearing above the keyboard during hint capture is undesirable in practice, add `.ignoresSafeArea(.keyboard, edges: .bottom)` to the `KnotTabBar` invocation in `MainTabView`. Verified manually that current behavior is acceptable.
+- Wiring the notification dot to a real data source is a separate future PR. The `Item.hasNotification: Bool` API is in place; callers just need to pass `true` based on view-model state.
+- No new `Theme` tokens were added. All four colors used (`Theme.accent`, `Theme.backgroundBottom`, `Theme.surfaceBorder`, `Theme.textTertiary`) plus the spacing/typography/motion tokens already existed.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

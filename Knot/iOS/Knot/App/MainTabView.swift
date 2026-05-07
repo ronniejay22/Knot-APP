@@ -7,119 +7,58 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Root tab container for the authenticated + onboarded state.
 ///
 /// Sits between `ContentView`'s auth routing and the individual tab views.
 /// Hosts the `NetworkMonitor` and injects it into the environment so all
 /// tabs can access connectivity state.
+///
+/// Uses a custom `KnotTabBar` mounted via `.safeAreaInset(edge: .bottom)`
+/// over a `ZStack` that keeps all four destinations alive (matching
+/// `TabView`'s default of preserving each tab's view-tree across switches).
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .forYou
     @State private var networkMonitor = NetworkMonitor()
-    @Environment(\.colorScheme) private var colorScheme
 
-    enum AppTab: Int {
+    enum AppTab: Int, Hashable {
         case forYou = 0
         case hints = 1
         case saved = 2
         case profile = 3
     }
 
-    init() {
-        Self.updateTabBarAppearance()
-    }
-
-    static func updateTabBarAppearance() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(Theme.backgroundBottom)
-
-        let normalColor = UIColor(Theme.textTertiary)
-        appearance.stackedLayoutAppearance.normal.iconColor = normalColor
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: normalColor
+    private var tabBarItems: [KnotTabBar<AppTab>.Item] {
+        [
+            .init(id: .forYou,  title: "For You", systemImage: "sparkles"),
+            .init(id: .hints,   title: "Hints",   systemImage: "lightbulb"),
+            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
+            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
         ]
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            ForYouView()
-                .tabItem {
-                    Label {
-                        Text("For You")
-                    } icon: {
-                        Image(uiImage: Lucide.sparkles)
-                            .renderingMode(.template)
-                    }
-                }
-                .tag(AppTab.forYou)
-
-            HintsTabView()
-                .tabItem {
-                    Label {
-                        Text("Hints")
-                    } icon: {
-                        Image(uiImage: Lucide.lightbulb)
-                            .renderingMode(.template)
-                    }
-                }
-                .tag(AppTab.hints)
-
-            SavedView()
-                .tabItem {
-                    Label {
-                        Text("Saved")
-                    } icon: {
-                        Image(uiImage: Lucide.bookmark)
-                            .renderingMode(.template)
-                    }
-                }
-                .tag(AppTab.saved)
-
-            SettingsView(isTabEmbedded: true)
-                .tabItem {
-                    Label {
-                        Text("Profile")
-                    } icon: {
-                        Image(uiImage: Lucide.user)
-                            .renderingMode(.template)
-                    }
-                }
-                .tag(AppTab.profile)
+        ZStack {
+            tabContent(.forYou)  { ForYouView() }
+            tabContent(.hints)   { HintsTabView() }
+            tabContent(.saved)   { SavedView() }
+            tabContent(.profile) { SettingsView(isTabEmbedded: true) }
         }
-        .tint(Theme.accent)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            KnotTabBar(selection: $selectedTab, items: tabBarItems)
+        }
         .environment(networkMonitor)
-        .onChange(of: colorScheme) { _, _ in
-            Self.updateTabBarAppearance()
-            // Force the existing tab bar to pick up the new appearance.
-            // UITabBar.appearance() only affects new instances, so we must
-            // also update live ones after a theme change.
-            let appearance = UITabBar.appearance().standardAppearance
-            let edgeAppearance = UITabBar.appearance().scrollEdgeAppearance
-            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
-                for window in scene.windows {
-                    Self.findTabBars(in: window).forEach { tabBar in
-                        tabBar.standardAppearance = appearance
-                        tabBar.scrollEdgeAppearance = edgeAppearance
-                    }
-                }
-            }
-        }
     }
 
-    /// Recursively finds all `UITabBar` instances in a view hierarchy.
-    private static func findTabBars(in view: UIView) -> [UITabBar] {
-        var results: [UITabBar] = []
-        if let tabBar = view as? UITabBar {
-            results.append(tabBar)
-        }
-        for subview in view.subviews {
-            results.append(contentsOf: findTabBars(in: subview))
-        }
-        return results
+    @ViewBuilder
+    private func tabContent<Content: View>(
+        _ tab: AppTab,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let isActive = selectedTab == tab
+        content()
+            .opacity(isActive ? 1 : 0)
+            .allowsHitTesting(isActive)
+            .accessibilityHidden(!isActive)
     }
 }

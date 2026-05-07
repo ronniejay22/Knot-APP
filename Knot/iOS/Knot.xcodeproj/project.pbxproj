@@ -86,6 +86,8 @@
 		A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9576279FACB0210014A38F96 /* MilestoneLocal.swift */; };
 		A3EDB10EF71EF3D6DCD10DC4 /* SavedRecommendation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D5AEEE5FEBF1EE92002601 /* SavedRecommendation.swift */; };
 		A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* KnotTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* KnotTabBar.swift */; };
+		A1B2C3D4E5F60718293A4B5E /* KnotTabBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5F /* KnotTabBarTests.swift */; };
 		AB8A884D6F0B4D808482D6AD /* KnotButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE385E616111A330CB02F728 /* KnotButton.swift */; };
 		B2F480B32CF173ACAA00C01E /* TabNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */; };
 		B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */; };
@@ -218,6 +220,8 @@
 		AC0CC323FB5ADE12F70A632E /* ForYouView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForYouView.swift; sourceTree = "<group>"; };
 		AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCard.swift; sourceTree = "<group>"; };
 		AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* KnotTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBar.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5F /* KnotTabBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBarTests.swift; sourceTree = "<group>"; };
 		AE385E616111A330CB02F728 /* KnotButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotButton.swift; sourceTree = "<group>"; };
 		B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicator.swift; sourceTree = "<group>"; };
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -335,6 +339,7 @@
 				19A1AC76A335E8A0A59AEF8F /* KnotListRowTests.swift */,
 				3344E208921ACDD3D2B3191A /* KnotProgressIndicatorTests.swift */,
 				1B2940CBA454AF71451B7CFA /* KnotSectionHeaderTests.swift */,
+				A1B2C3D4E5F60718293A4B5F /* KnotTabBarTests.swift */,
 				E2C8EF2118B994A6892D3A66 /* ThemeTokensTests.swift */,
 			);
 			path = UI;
@@ -501,6 +506,7 @@
 				BF842D5AE22164C7C51BADC0 /* KnotListRow.swift */,
 				B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */,
 				770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */,
+				A1B2C3D4E5F60718293A4B5D /* KnotTabBar.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -714,6 +720,7 @@
 				435FE3ED138D1475B5CBD686 /* KnotListRowTests.swift in Sources */,
 				BA0F0F182E850CF45B99F2D1 /* KnotProgressIndicatorTests.swift in Sources */,
 				FDA27469D1DB3FC4B522E9F7 /* KnotSectionHeaderTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5E /* KnotTabBarTests.swift in Sources */,
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
 				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
@@ -772,6 +779,7 @@
 				168A8F125687F66E13CCD309 /* KnotListRow.swift in Sources */,
 				58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */,
 				677839B0436DFCEC95974582 /* KnotSectionHeader.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* KnotTabBar.swift in Sources */,
 				28398616A2FA06CA898657DB /* LocationSearchCompleter.swift in Sources */,
 				40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */,
 				342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */,

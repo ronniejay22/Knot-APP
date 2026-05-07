@@ -215,11 +215,41 @@ struct RecommendationsView: View {
 
     // MARK: - Recommendations Body
 
+    /// Whether the bottom action buttons (Adjust Vibe + Refresh) should render.
+    /// Mirrors the conditions for `recommendationsContent` in `suggestionsContent`.
+    private var showActionButtons: Bool {
+        !viewModel.isLoading
+            && !isPlayingClimax
+            && viewModel.errorMessage == nil
+            && !viewModel.recommendations.isEmpty
+    }
+
     /// The full recommendations UI.
+    ///
+    /// Structured as a `VStack` so the action buttons (Step 6.5: Adjust Vibe + Refresh)
+    /// always render as a sibling of the greedy paged content rather than relying on
+    /// nested `safeAreaInset` composition (which doesn't propagate cleanly through
+    /// NavigationStack pushes inside `MainTabView`'s `safeAreaInset`-mounted `KnotTabBar`).
     private var recommendationsBody: some View {
-        ZStack {
-            Theme.backgroundGradient.ignoresSafeArea()
-            suggestionsContent
+        VStack(spacing: 0) {
+            ZStack {
+                Theme.backgroundGradient.ignoresSafeArea()
+                suggestionsContent
+            }
+
+            if showActionButtons {
+                HStack(spacing: 12) {
+                    adjustVibeButton
+                    refreshButton
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                // Bottom clearance equal to the KnotTabBar height (~93pt content +
+                // home indicator). SwiftUI's `safeAreaInset` from MainTabView does
+                // not propagate through `navigationDestination` pushes, so we pad
+                // explicitly here. Step 18.3.
+                .padding(.bottom, 100)
+            }
         }
         .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
             // Trigger the climax celebration only on a fresh successful load.
@@ -415,14 +445,6 @@ struct RecommendationsView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: viewModel.isRefreshing)
-
-            // Action buttons (Step 6.5: Adjust Vibe + Refresh)
-            HStack(spacing: 12) {
-                adjustVibeButton
-                refreshButton
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
         }
     }
 
