@@ -5193,6 +5193,43 @@ The `ScrollView` wrapper around each `RecommendationCard` page in `Recommendatio
 - `.safeAreaInset` propagation through `navigationDestination` pushes is still the same SwiftUI quirk called out in Step 18.3 — the existing `.padding(.bottom, 100)` on the action HStack in `RecommendationsView` continues to handle bottom clearance for the `KnotTabBar`. No change needed for this step.
 - If a future change needs to surface the merchant on the card surface, the cleanest spot is appending it inline to the personalization line ("...quality time · *Clay Studio Brooklyn*") rather than reintroducing a dedicated row.
 - The `+N` overflow chip is currently non-interactive. A future enhancement could make it tap-to-expand into a small popover listing all matched factors, but the confirm sheet already shows the full set so this is low-priority.
+- **Superseded in part by Step 18.5** — the horizontal Choice-of-Three pager that this entry's compactness work was sized for was replaced with a restaurant-style vertical scroll feed. The card itself was reworked again (hero 160→220pt, merchant restored, personalization moved to image overlay, chip cap removed). What carried over from this step: the Save-on-hero overlay, the icon-only Save button pattern, the full-width Select button at the bottom, and the move away from the boxed personalization callout.
+
+---
+
+### Step 18.5: Recommendations — Restaurant-Style Vertical Scroll Feed ✅
+**Date:** May 8, 2026
+**Status:** Complete (vertical scroll feed chosen over the horizontal Choice-of-Three pager from Step 18.4)
+
+**What was done:**
+
+Replaced the horizontal `TabView` pager in `RecommendationsView` with a `LazyVStack` inside a `ScrollView`, so all recommendations now appear as a Rappi/DoorDash-style vertical feed instead of one card per page. The previous Choice-of-Three layout pushed users to compare three options side-by-side, which Step 18.4 sized the card around (~346pt budget, no inner scroll). The vertical feed treats recommendations as a *menu* rather than a *flashcard deck*: the user scrolls, scans, and picks. The page indicator dots above the pager were removed since vertical scroll has natural progress affordance. This step originated as an experiment branch (`recs/vertical-scroll-v2`) parallel to v1 (`recs/horizontal-cards-v1`) and was merged to `main` after side-by-side comparison.
+
+`RecommendationCard` was reworked for the taller layout. The hero grew from 160pt back up to 220pt — vertical scroll affords taller cards because there's no viewport-fit constraint. The merchant name returned to the card surface, this time as the first element of a restaurant-style meta line under the title (`🏪 Merchant · 💰 $49 · 📍 City, State`), separated by inline dot dividers, with each part conditionally rendered when its data is present. Two new parameters — `locationCity: String?` and `locationState: String?` — were added so the meta line can show city/state where available. The price chip on the hero overlay (added in Step 18.4) was kept since it doubles as a quick-glance affordance during scroll, but the meta line repeats the price as an inline element when the user pauses on a card.
+
+The personalization note was promoted from a body subtitle to a glassy bottom-overlay on the hero image, mirroring Rappi's "ordered recently" badge pattern. The `✨ Why Knot picked this...` snippet renders as a frosted `RoundedRectangle` in the bottom-left of the image, with a darker bottom-edge gradient added behind it for legibility on light or photo-heavy images. When `personalizationNote` is nil/empty, the description falls back into the body section instead — the card never shows both, same dual-fallback discipline as Step 18.4.
+
+The Step 18.4 chip cap of three was removed. Vertical scroll has no viewport-fit constraint, so matched factors render unbounded in a `FlowLayout` — vibes → love languages → interests order, wrapping to multiple rows naturally. The `.overflow` chip style and the `+N` summary chip introduced in Step 18.4 were deleted from `MatchingFactorChip`. The `DisplayChip` ordering struct was kept since it's still useful for priority-ordered chip rendering, just without the overflow logic.
+
+The Save icon overlay on the hero (top-right) and the full-width Select button at the bottom were carried over from Step 18.4 unchanged — both worked well in the compact card and translate cleanly to the taller layout. The previous step's `.padding(.bottom, 100)` on the action HStack in `RecommendationsView` (Step 18.3 — workaround for `safeAreaInset` not propagating through `navigationDestination` pushes) was kept intact, since the same SwiftUI quirk still applies regardless of whether the page area is a paged TabView or a vertical scroll feed.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — hero grew 160 → 220pt; added `locationCity`/`locationState` params and restored `merchantName`; new `personalizationOverlay(note:)` rendered as a frosted bottom-left overlay on the hero image with a darker bottom-edge gradient behind it; replaced the capped chip `HStack` with an unbounded `FlowLayout`; deleted the `.overflow` `MatchingFactorChip.ChipStyle` case; restructured the meta line as `restaurant-style` with `Lucide.store` / `Lucide.dollarSign` / `Lucide.mapPin` icons and inline dot separators
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — replaced the `TabView(.page)` pager + page indicator with a `ScrollView { LazyVStack(spacing: 16) }` vertical feed; removed the centering `VStack(Spacer, card, Spacer)` wrapper from each former page; the `pageIndicator` computed property is now vestigial dead code (kept intentionally for diff readability against v1 — safe to remove in a follow-up cleanup); the `.padding(.bottom, 100)` clearance for `KnotTabBar` from Step 18.3 was preserved
+- `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — passes the new `merchantName` / `locationCity` / `locationState` arguments to `RecommendationCard`
+- `iOS/KnotTests/RecommendationCardTests.swift` — updated all card initializers to include the restored `merchantName` and new `locationCity` / `locationState` arguments; the `testCardRendersWithManyMatchFactors` test from Step 18.4 was updated to expect unbounded chips instead of overflow capping
+- `memory-bank/progress.md` — this entry plus a "superseded" note appended to Step 18.4
+- `memory-bank/architecture.md` — updated `RecommendationCard.swift` and `RecommendationsView.swift` rows to describe the vertical scroll feed and the v2 card layout
+
+**Test results:**
+- ✅ All unit tests pass on iPhone 17 simulator (same baseline as Step 18.4)
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings
+
+**Notes:**
+- v1's compact card and horizontal pager are no longer present on `main`. The `recs/horizontal-cards-v1` branch was preserved during the experiment for side-by-side comparison and can be deleted once the merge has had a few days of usage to confirm v2 is the right direction.
+- The `pageIndicator` private var in `RecommendationsView` is now unreachable (no caller renders it). A small follow-up commit should delete it. Left in place this step to keep the v2 → main diff focused on the layout swap.
+- The vertical feed naturally lazy-loads cards via `LazyVStack`, so off-screen cards' `AsyncImage`s don't fire until they scroll into view. This is a measurable improvement over the eager all-three loading pattern of the previous TabView pager.
+- The Adjust Vibe / Refresh action buttons remain pinned at the bottom of the screen via the same VStack-with-clearance structure from Step 18.3. They sit above the vertical scroll feed (`safeAreaInset`-style behavior, but implemented as siblings since true `safeAreaInset` doesn't cross `navigationDestination` push boundaries).
 
 ---
 
