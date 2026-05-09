@@ -247,12 +247,12 @@ class TestGraphStructure:
         )
 
     def test_graph_node_count(self):
-        """Exactly 4 user-defined nodes plus __start__."""
+        """Exactly 5 user-defined nodes plus __start__ (briefing node added in Step 17.1)."""
         user_nodes = {
             k for k in recommendation_graph.nodes.keys()
             if not k.startswith("__")
         }
-        assert len(user_nodes) == 4
+        assert len(user_nodes) == 5
 
     def test_build_returns_state_graph(self):
         """build_recommendation_graph returns an uncompiled StateGraph."""

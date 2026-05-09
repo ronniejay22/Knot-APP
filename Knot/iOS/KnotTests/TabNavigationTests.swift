@@ -16,18 +16,17 @@ import SwiftUI
 @MainActor
 final class MainTabViewTests: XCTestCase {
 
-    /// Verify AppTab enum has correct raw values for all four tabs.
+    /// Verify AppTab enum has correct raw values for all three tabs.
     func testAppTabRawValues() {
         XCTAssertEqual(MainTabView.AppTab.forYou.rawValue, 0)
-        XCTAssertEqual(MainTabView.AppTab.hints.rawValue, 1)
-        XCTAssertEqual(MainTabView.AppTab.saved.rawValue, 2)
-        XCTAssertEqual(MainTabView.AppTab.profile.rawValue, 3)
+        XCTAssertEqual(MainTabView.AppTab.saved.rawValue, 1)
+        XCTAssertEqual(MainTabView.AppTab.profile.rawValue, 2)
     }
 
-    /// Verify all four AppTab cases exist.
-    func testAppTabHasFourCases() {
-        let allCases: [MainTabView.AppTab] = [.forYou, .hints, .saved, .profile]
-        XCTAssertEqual(allCases.count, 4)
+    /// Verify all three AppTab cases exist.
+    func testAppTabHasThreeCases() {
+        let allCases: [MainTabView.AppTab] = [.forYou, .saved, .profile]
+        XCTAssertEqual(allCases.count, 3)
     }
 
     /// Verify MainTabView renders without crashing.

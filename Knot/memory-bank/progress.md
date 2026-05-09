@@ -5233,6 +5233,86 @@ The Save icon overlay on the hero (top-right) and the full-width Select button a
 
 ---
 
+### Step 18.6: Move Hint Capture into the Recommendation Refresh Flow ✅
+**Date:** May 8, 2026
+**Status:** Complete
+
+**What was done:**
+
+Killed the standalone "Hints" tab and the duplicate Home-screen hint surfaces, and folded hint capture into the recommendation refresh flow as a one-shot bottom sheet. The previous design had hint capture in two places (`HintsTabView` plus a "Capture a Hint" section on `HomeView`) and a separate `HintsListView` to browse the history — none of which made the captured signal feel like it produced an outcome. The new design presents a `SessionHintsSheet` after the user picks a refresh reason and before the new recommendations load, so anything the user types lands in the `hints` table via the existing `POST /api/v1/hints` endpoint and the next pipeline run picks it up via the existing pgvector-based `hint_retrieval.py` node. No backend changes were needed — the persistence and retrieval pipelines already worked end-to-end; only the iOS surface area moved.
+
+The standalone tab and full-list view were deleted: `HintsTabView.swift`, `HintsListView.swift`, and `HintsListViewModel.swift` were removed entirely along with `HintsListViewTests.swift`. The empty `iOS/Knot/Features/Hints/` folder was removed. `MainTabView`'s `AppTab` enum dropped from four cases to three (`forYou=0`, `saved=1`, `profile=2`); the `tabContent(.hints) { HintsTabView() }` row and the lightbulb tab-bar item were both removed. `KnotTabBar.swift`'s preview was trimmed to match. `TabNavigationTests.swift` was updated for the 3-tab enum (raw values renumbered, `testAppTabHasFourCases` renamed to `testAppTabHasThreeCases`).
+
+`HomeView.swift` and `HomeViewModel.swift` were stripped of all hint UI and state. The "Capture a Hint" section (text input + mic button + submit button + character counter + success checkmark animation) and the "Recent Hints" section (3-row preview + "View All" link to `HintsListView`) were both deleted. `@State private var hintText` and `@State private var showHintsList`, the `.sheet(isPresented: $showHintsList) { HintsListView() }` modifier and its companion `.onChange` refresh handler, and the `submitHint()` / `canSubmitHint` / `hintCharacterCountColor` helpers were all removed. `HomeViewModel` lost `recentHints`, `isSubmittingHint`, `showHintSuccess`, `hintErrorMessage`, the `submitHint(text:source:)` and `loadRecentHints()` methods, the `parseISO8601(_:)` static helper (no remaining callers), and the `HintPreview` struct.
+
+`SessionHintsSheet` was added to `RecommendationsView.swift` as a `.medium`-detent bottom sheet modeled after `RefreshReasonSheet`. It shows a title ("Anything new she's mentioned?"), a one-line subtitle hinting that Skip is fine, a multi-line `KnotInput` placeholder text field (max 500 chars, char counter beneath), and a Skip / Submit & Refresh button row. The field auto-focuses ~200ms after appearing so the user can start typing without an extra tap. `RecommendationsViewModel` gained two new state properties (`showSessionHintsSheet`, `pendingRefreshReason`) and a `HintService` dependency injected via the initializer (defaults to `HintService()` so existing call sites still compile). The previous async `handleRefreshReason(_:)` was reworked: it now synchronously dismisses the reason sheet, stores the chosen reason in `pendingRefreshReason`, and schedules `showSessionHintsSheet = true` after a 350ms delay so the reason sheet's dismissal animation lands cleanly. Two new methods, `submitSessionHintAndRefresh(text:)` and `skipSessionHintAndRefresh()`, drive the deferred refresh — the submit path trims input, calls `HintService.createHint(text:source: "text_input")` best-effort (logs and continues on failure so a flaky network never blocks a refresh), then proceeds; skip just proceeds. The shared exit-animation → API call → entry-animation orchestration was extracted into a private `runDeferredRefresh(reason:)` helper so both paths reuse the same animation timing from the original implementation.
+
+`HintService.swift` was kept untouched — its `createHint`, `listHints`, and `deleteHint` methods are still alive: `createHint` is now called from the refresh sheet, and `listHints` + `deleteHint` are still used by `SettingsViewModel.clearAllHints()` for the "Clear All Hints" privacy action. Backend endpoints (`POST/GET/DELETE /api/v1/hints` and the `hint_retrieval.py` node) were not touched.
+
+Test coverage: `SessionHintsRefreshFlowTests` was added to `RecommendationsViewTests.swift` with seven assertions — initial state, `handleRefreshReason` storing the pending reason and presenting the sheet after the 350ms delay, the no-pending-reason guards on both submit and skip paths, sheet rendering via `UIHostingController`, and the sheet's `onSubmit`/`onSkip` callbacks firing with the expected values. `HomeViewTests.HomeViewModelHintSuccessStateTests` was deleted since the `showHintSuccess` flag no longer exists.
+
+**Files modified:**
+- `iOS/Knot/App/MainTabView.swift` — `AppTab` shrunk to 3 cases, tab bar item + tab content row for `.hints` removed
+- `iOS/Knot/Components/UI/KnotTabBar.swift` — preview lost the lightbulb hints item
+- `iOS/Knot/Features/Home/HomeView.swift` — hint capture section, recent hints section, hints-list sheet, and all hint-related state/helpers removed; docstring slimmed to 3 sections
+- `iOS/Knot/Features/Home/HomeViewModel.swift` — hint state, `submitHint`, `loadRecentHints`, `parseISO8601`, and the `HintPreview` struct removed; class shrunk to vault loading + milestone computation
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — RefreshReasonSheet callback no longer wraps in `Task` (the VM method is sync); new `.sheet(isPresented: $viewModel.showSessionHintsSheet)` block + new `SessionHintsSheet` view + preview at end of file
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — `HintService` dependency injected via init; `showSessionHintsSheet` + `pendingRefreshReason` state added; `handleRefreshReason` reworked to defer to the new sheet; `submitSessionHintAndRefresh(text:)` + `skipSessionHintAndRefresh()` + private `runDeferredRefresh(reason:)` added
+- `iOS/KnotTests/RecommendationsViewTests.swift` — `SessionHintsRefreshFlowTests` class added with 7 tests
+- `iOS/KnotTests/TabNavigationTests.swift` — raw-value assertions and case-count test updated for the 3-tab enum
+- `iOS/KnotTests/HomeViewTests.swift` — `HomeViewModelHintSuccessStateTests` removed (the flag it tested no longer exists)
+- `memory-bank/architecture.md` — `MainTabView`, `HomeView`, `HomeViewModel`, and `HintService` rows updated to reflect the consolidation; the standalone `HintsListView` and `HintsListViewModel` rows were removed
+
+**Files deleted:**
+- `iOS/Knot/Features/Hints/HintsTabView.swift`
+- `iOS/Knot/Features/Home/HintsListView.swift`
+- `iOS/Knot/Features/Home/HintsListViewModel.swift`
+- `iOS/KnotTests/HintsListViewTests.swift`
+- The empty `iOS/Knot/Features/Hints/` directory
+
+**Test results:**
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings
+- ✅ All 235 unit tests pass via `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.2)
+- ✅ All 4 UI tests pass
+
+**Notes:**
+- The drag-to-dismiss gesture on `SessionHintsSheet` is intentionally a soft cancel: it leaves `pendingRefreshReason` set but harmless — the next `handleRefreshReason` call simply overwrites it, and `submitSessionHintAndRefresh` / `skipSessionHintAndRefresh` both guard with `guard let reason = pendingRefreshReason else { return }`. This avoids tying refresh semantics to swipe-down direction and keeps the explicit Skip/Submit buttons as the only signals that fire a refresh.
+- Hint capture is intentionally only triggered on the user-initiated Refresh path (not on initial auto-generate via `.task` and not on Adjust Vibe). Asking on every tab visit would be obnoxious; auto-generate stays silent and uses whatever hints are already in the DB. If users rarely refresh, hint capture rate will be low — that's the expected trade-off and the next iteration's signal.
+- Backend was not touched in this step. The hint embedding pipeline already runs asynchronously after `POST /api/v1/hints`, so the just-captured hint may not show up in the *immediately following* refresh's pgvector search (race condition with the embedding job). It will reliably influence the *next* refresh after that. Acceptable for now since hints are weights, not hard filters.
+- `Settings → Privacy → Clear All Hints` still works because it uses `HintService.listHints` + `deleteHint` directly. Verified no broken paths to the deleted views.
+
+---
+
+### Step 18.7: Backend Test Suite Cleanup — Stale Pipeline Assumptions ✅
+**Date:** May 8, 2026
+**Status:** Complete (25 of 33 pre-existing backend test failures fixed; remaining 8 are Supabase rate-limit accumulation, not real bugs)
+
+**What was done:**
+
+While running the full backend pytest suite as a sanity check after Step 18.6, surfaced 33 pre-existing failures that had been masked because the suite is rarely run end-to-end (22 minutes). 25 of them traced back to three deterministic root causes — pipeline structure changes from earlier steps that left orphaned references behind. Fixed all three.
+
+The biggest cluster (23 failures, all in `tests/test_selection_node.py`) was a single dead-code reference. `app/agents/selection.py:253-267` had a "Step 14.5: Fill remaining slots with idea candidates" block that read `state.idea_candidates`, but Step 15.1 ("Unified AI recommendations — removed ideas mode, ideas feed state/methods") had removed the `idea_candidates` field from `RecommendationState`. The block was unreachable orphan code that broke every test exercising `select_diverse_three`. Deleting the 15-line block restored all 41 selection-node tests to green.
+
+`tests/test_pipeline.py::TestGraphStructure::test_graph_node_count` asserted `len(user_nodes) == 4`, but the LangGraph pipeline grew from 4 to 5 nodes when Step 17.1 added the `generate_briefing` milestone-briefing node. Updated the assertion to `== 5` with a comment noting the briefing-node addition.
+
+`tests/test_performance.py::TestRecommendationPipelinePerformance::test_pipeline_under_3_seconds_mocked` was patching `app.agents.aggregation.AggregatorService`, which no longer exists in the pipeline since the unified-Claude refactor (Step 15.1) replaced the old aggregator-fed `aggregate_external_data` node with `generate_unified` + `generate_briefing` + `resolve_urls` + `verify_urls`. The test was therefore running the real `verify_availability` node end-to-end, which makes real HTTP calls — measured at 24.6 seconds against a 3-second limit. Rewrote the test to patch each of the 5 current node entry points (`app.agents.pipeline.retrieve_relevant_hints`, `generate_unified`, `generate_briefing`, `resolve_purchase_urls`, `verify_availability`) and rebuild the graph inside the patch context (LangGraph captures function references at build time). The test now measures only graph orchestration overhead, runs in <0.5s, and is consistent with its docstring intent ("with mocked external APIs").
+
+**Files modified:**
+- `backend/app/agents/selection.py` — removed orphaned idea-candidates fallback block (15 lines, lines 253-267)
+- `backend/tests/test_pipeline.py` — updated `test_graph_node_count` assertion from 4 to 5 nodes
+- `backend/tests/test_performance.py` — rewrote `test_pipeline_under_3_seconds_mocked` to patch the current 5-node pipeline rather than the removed aggregator path
+
+**Test results:**
+- ✅ All 41 selection-node tests pass (was 23 failing, 18 passing)
+- ✅ `test_graph_node_count` passes
+- ✅ `test_pipeline_under_3_seconds_mocked` passes in 0.04s
+
+**Notes:**
+- 8 failures remain in the full pytest run (`test_feedback_analysis_job.py::TestFeedbackAnalysisFlow::*`, `test_hint_deletion_api.py::TestSuccessfulDeletion::*`, `test_refresh_api.py::TestHistoryExclusion::*`). All pass in isolation and even in 6-file slices. The pollution only manifests in the full 1777-test run, where accumulated `_create_auth_user` calls against Supabase Auth's hourly rate limit start failing partway through. Visible in warnings: `_delete_auth_user` returns 404 because Supabase's CASCADE has already cleaned up the user. This is environmental, not a real correctness bug — left for a future cleanup that can either centralize the duplicated `_create_auth_user` helper into a single retry-on-429 wrapper, or change fixture scopes from per-function to per-class to dramatically reduce user-creation count.
+- The orphan `idea_candidates` block in `selection.py` is a good reminder that test failures aren't always the most reliable signal of "what's broken right now" when the suite isn't routinely run end-to-end. Worth running the full suite at least once per significant pipeline change.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

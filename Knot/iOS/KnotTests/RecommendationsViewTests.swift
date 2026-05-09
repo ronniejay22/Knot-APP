@@ -1185,3 +1185,93 @@ final class SavedViewModelTests: XCTestCase {
         XCTAssertTrue(vm.savedRecommendations.isEmpty)
     }
 }
+
+// MARK: - Session Hints (Refresh Flow) Tests (Step 18.6)
+
+@MainActor
+final class SessionHintsRefreshFlowTests: XCTestCase {
+
+    /// Verify the initial state for session hint capture is clean.
+    func testInitialSessionHintsState() {
+        let vm = RecommendationsViewModel()
+
+        XCTAssertFalse(vm.showSessionHintsSheet)
+        XCTAssertNil(vm.pendingRefreshReason)
+    }
+
+    /// Verify handleRefreshReason dismisses the reason sheet, stores the reason, and
+    /// schedules the session hints sheet to appear.
+    func testHandleRefreshReasonStoresPendingReasonAndDismissesReasonSheet() async {
+        let vm = RecommendationsViewModel()
+        vm.showRefreshReasonSheet = true
+
+        vm.handleRefreshReason("too_expensive")
+
+        XCTAssertFalse(vm.showRefreshReasonSheet, "reason sheet should be dismissed")
+        XCTAssertEqual(vm.pendingRefreshReason, "too_expensive",
+                       "the chosen reason must be stored for the deferred refresh")
+
+        // The session hints sheet is presented after a brief delay to let the
+        // reason sheet's dismissal animation complete. Wait long enough for it.
+        try? await Task.sleep(for: .milliseconds(500))
+
+        XCTAssertTrue(vm.showSessionHintsSheet, "session hints sheet should be presented")
+    }
+
+    /// Verify skipSessionHintAndRefresh is a no-op when there is no pending reason.
+    /// (Defensive: prevents a stray refresh if state is somehow desynced.)
+    func testSkipSessionHintIsNoOpWithoutPendingReason() async {
+        let vm = RecommendationsViewModel()
+        vm.showSessionHintsSheet = true
+        vm.pendingRefreshReason = nil
+
+        await vm.skipSessionHintAndRefresh()
+
+        // Without a pending reason, the method returns early — sheet stays as it was.
+        XCTAssertTrue(vm.showSessionHintsSheet,
+                      "without a pending reason, skip should not mutate sheet state")
+    }
+
+    /// Verify submitSessionHintAndRefresh is a no-op when there is no pending reason.
+    func testSubmitSessionHintIsNoOpWithoutPendingReason() async {
+        let vm = RecommendationsViewModel()
+        vm.showSessionHintsSheet = true
+        vm.pendingRefreshReason = nil
+
+        await vm.submitSessionHintAndRefresh(text: "she loves bookstores")
+
+        XCTAssertTrue(vm.showSessionHintsSheet)
+        XCTAssertNil(vm.pendingRefreshReason)
+    }
+
+    /// Verify the SessionHintsSheet renders without crashing.
+    func testSessionHintsSheetRenders() {
+        let sheet = SessionHintsSheet(onSubmit: { _ in }, onSkip: {})
+        let hostingController = UIHostingController(rootView: sheet)
+        XCTAssertNotNil(hostingController.view, "SessionHintsSheet should render a valid view")
+    }
+
+    /// Verify the SessionHintsSheet submit callback fires with the entered text.
+    func testSessionHintsSheetOnSubmitFires() {
+        var submitted: String?
+        let sheet = SessionHintsSheet(
+            onSubmit: { text in submitted = text },
+            onSkip: {}
+        )
+
+        sheet.onSubmit("she mentioned wanting that ramen spot")
+        XCTAssertEqual(submitted, "she mentioned wanting that ramen spot")
+    }
+
+    /// Verify the SessionHintsSheet skip callback fires.
+    func testSessionHintsSheetOnSkipFires() {
+        var skipped = false
+        let sheet = SessionHintsSheet(
+            onSubmit: { _ in },
+            onSkip: { skipped = true }
+        )
+
+        sheet.onSkip()
+        XCTAssertTrue(skipped)
+    }
+}

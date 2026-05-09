@@ -3,8 +3,10 @@
 //  KnotTests
 //
 //  Step 18.2 (shadcn Phase 3): Render-without-crash tests for HomeView
-//  after migration to Knot* primitives (KnotCard, KnotInput, KnotIconButton,
+//  after migration to Knot* primitives (KnotCard, KnotIconButton,
 //  KnotSectionHeader, KnotBadge).
+//  Step 18.6: Removed hint-success state test after standalone hint capture
+//  was moved out of HomeView and into the recommendation refresh flow.
 //
 
 import XCTest
@@ -36,23 +38,5 @@ final class HomeViewTests: XCTestCase {
 
         let host = UIHostingController(rootView: homeView)
         XCTAssertNotNil(host.view, "HomeView should render the offline banner without crashing")
-    }
-}
-
-@MainActor
-final class HomeViewModelHintSuccessStateTests: XCTestCase {
-
-    /// Verify the success-overlay flag flips through its lifecycle.
-    /// HomeView observes this flag to animate the green checkmark over KnotInput.
-    func testShowHintSuccessFlag() {
-        let vm = HomeViewModel()
-
-        XCTAssertFalse(vm.showHintSuccess, "Initial state should be false")
-
-        vm.showHintSuccess = true
-        XCTAssertTrue(vm.showHintSuccess, "Flag should be settable")
-
-        vm.showHintSuccess = false
-        XCTAssertFalse(vm.showHintSuccess, "Flag should reset to false")
     }
 }

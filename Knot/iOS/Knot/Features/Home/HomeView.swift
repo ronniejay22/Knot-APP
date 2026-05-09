@@ -7,12 +7,11 @@
 //  Step 2.4: Added Sign Out button in navigation toolbar.
 //  Step 3.12: Added Edit Profile button (temporary until Settings in Step 11.1).
 //  Step 11.1: Replaced toolbar buttons with single Settings gear icon.
-//  Step 4.1: Full Home screen with header, hint capture, milestones, hints preview, network monitoring.
-//  Step 4.2: Wired up text hint submission via HintService API, success checkmark animation,
-//            haptic feedback, recent hints loading from backend, error handling.
+//  Step 4.1: Full Home screen with header, milestones, network monitoring.
 //  Step 6.6: Added Saved Recommendations section between Recommendations button and Recent Hints.
 //  Step 7.7: Added Notifications bell icon in toolbar and sheet presentation.
 //  Tab Navigation: Removed recommendations, saved, and settings sections (moved to Discover, Saved, Profile tabs).
+//  Step 18.6: Removed standalone hint capture and recent hints surfaces; capture now lives inside the recommendation refresh flow.
 //
 
 import SwiftUI
@@ -23,9 +22,7 @@ import LucideIcons
 /// Contains:
 /// - **Offline banner** — persistent "No internet connection" banner when offline
 /// - **Header** — partner name and days until next milestone
-/// - **Hint Capture** — text input + microphone button for capturing hints
 /// - **Upcoming Milestones** — next 1-2 milestones as countdown cards
-/// - **Recent Hints** — preview of last 3 captured hints
 ///
 /// Interactive elements are disabled when offline (network monitoring via `NWPathMonitor`).
 struct HomeView: View {
@@ -33,12 +30,6 @@ struct HomeView: View {
 
     @State private var viewModel = HomeViewModel()
     @Environment(NetworkMonitor.self) private var networkMonitor
-
-    /// Text for the hint capture input.
-    @State private var hintText = ""
-
-    /// Controls the Hints List sheet presentation.
-    @State private var showHintsList = false
 
     var body: some View {
         @Bindable var authVM = authViewModel
@@ -58,18 +49,8 @@ struct HomeView: View {
                         // MARK: - Header
                         headerSection
 
-                        // MARK: - Hint Capture
-                        hintCaptureSection
-                            .disabled(!networkMonitor.isConnected)
-                            .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
-
                         // MARK: - Upcoming Milestones
                         upcomingMilestonesSection
-                            .disabled(!networkMonitor.isConnected)
-                            .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
-
-                        // MARK: - Recent Hints
-                        recentHintsSection
                             .disabled(!networkMonitor.isConnected)
                             .opacity(networkMonitor.isConnected ? 1.0 : 0.5)
 
@@ -103,20 +84,8 @@ struct HomeView: View {
             } message: {
                 Text(authViewModel.signInError ?? "An unknown error occurred.")
             }
-            .sheet(isPresented: $showHintsList) {
-                HintsListView()
-            }
-            .onChange(of: showHintsList) { _, isPresented in
-                // Refresh recent hints when returning from Hints List
-                if !isPresented {
-                    Task {
-                        await viewModel.loadRecentHints()
-                    }
-                }
-            }
             .task {
                 await viewModel.loadVault()
-                await viewModel.loadRecentHints()
             }
         }
     }
@@ -204,104 +173,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Hint Capture Section
-
-    /// Text input + microphone button for capturing hints about the partner.
-    private var hintCaptureSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            KnotSectionHeader("Capture a Hint", icon: Lucide.lightbulb, style: .subhead)
-
-            // Input area
-            HStack(alignment: .bottom, spacing: 10) {
-                // Text field with success overlay
-                ZStack {
-                    KnotInput(
-                        text: $hintText,
-                        placeholder: "What did they mention today?",
-                        style: .multiLine,
-                        minHeight: 40,
-                        maxHeight: 80,
-                        validationState: viewModel.showHintSuccess ? .success : .neutral
-                    )
-                    .opacity(viewModel.showHintSuccess ? 0 : 1)
-
-                    // Success checkmark overlay
-                    if viewModel.showHintSuccess {
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.green)
-
-                            Text("Hint saved!")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.green)
-                        }
-                        .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .animation(.easeInOut(duration: 0.3), value: viewModel.showHintSuccess)
-
-                // Action buttons
-                VStack(spacing: 8) {
-                    // Microphone button (Step 4.3 — voice capture)
-                    KnotIconButton(icon: Lucide.mic, variant: .surface, size: .md) {
-                        // Voice capture will be implemented in Step 4.3
-                    }
-
-                    // Submit button (active when text is entered and not submitting)
-                    Button {
-                        submitHint()
-                    } label: {
-                        ZStack {
-                            if viewModel.isSubmittingHint {
-                                ProgressView()
-                                    .tint(.white)
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(uiImage: Lucide.arrowUp)
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 18, height: 18)
-                                    .foregroundStyle(canSubmitHint ? .white : Theme.textPrimary)
-                            }
-                        }
-                        .frame(width: 40, height: 40)
-                        .background(
-                            Circle()
-                                .fill(canSubmitHint ? Theme.accent : Theme.surface)
-                                .overlay(
-                                    Circle()
-                                        .stroke(
-                                            canSubmitHint ? Theme.accent : Theme.surfaceBorder,
-                                            lineWidth: 1
-                                        )
-                                )
-                        )
-                    }
-                    .disabled(!canSubmitHint || viewModel.isSubmittingHint)
-                }
-            }
-
-            // Character counter + error message
-            HStack {
-                // Error message (left-aligned)
-                if let error = viewModel.hintErrorMessage {
-                    Text(error)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Text("\(hintText.count)/\(Constants.Validation.maxHintLength)")
-                    .font(.caption2)
-                    .foregroundStyle(hintCharacterCountColor)
-            }
-        }
-    }
-
     // MARK: - Upcoming Milestones Section
 
     /// Displays the next 1-2 milestones as countdown cards.
@@ -325,35 +196,6 @@ struct HomeView: View {
                 // Milestone cards
                 ForEach(viewModel.upcomingMilestones) { milestone in
                     milestoneCard(milestone)
-                }
-            }
-        }
-    }
-
-    // MARK: - Recent Hints Section
-
-    /// Shows the last 3 captured hints, or an empty state.
-    private var recentHintsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            KnotSectionHeader("Recent Hints", icon: Lucide.sparkles, style: .subhead) {
-                if !viewModel.recentHints.isEmpty {
-                    Button {
-                        showHintsList = true
-                    } label: {
-                        Text("View All")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Theme.accent)
-                    }
-                }
-            }
-
-            if viewModel.recentHints.isEmpty {
-                // Empty state
-                emptyHintsCard
-            } else {
-                // Hint preview cards
-                ForEach(viewModel.recentHints) { hint in
-                    hintPreviewCard(hint)
                 }
             }
         }
@@ -449,66 +291,6 @@ struct HomeView: View {
         }
     }
 
-    /// Placeholder when no hints have been captured.
-    private var emptyHintsCard: some View {
-        KnotCard(variant: .outlinedDashed, padding: .xl) {
-            VStack(spacing: 10) {
-                Image(uiImage: Lucide.messageSquarePlus)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 28, height: 28)
-                    .foregroundStyle(Theme.textTertiary)
-
-                Text("No hints yet")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Theme.textSecondary)
-
-                Text("Capture what your partner mentions — favorite things, wishes, places they want to visit.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    // MARK: - Component: Hint Preview Card
-
-    /// Shows a single hint preview with text and source icon.
-    private func hintPreviewCard(_ hint: HintPreview) -> some View {
-        KnotCard(padding: .md) {
-            HStack(spacing: 12) {
-                // Source icon
-                Image(uiImage: hint.source == "voice_transcription" ? Lucide.mic : Lucide.penLine)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Theme.accent.opacity(0.12))
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(hint.text)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(2)
-
-                    Text(hint.createdAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
-                }
-
-                Spacer()
-            }
-        }
-    }
-
     // MARK: - Helpers
 
     /// Time-of-day greeting.
@@ -519,66 +301,6 @@ struct HomeView: View {
         case 12..<17: return "Good afternoon"
         case 17..<22: return "Good evening"
         default: return "Good night"
-        }
-    }
-
-    /// Whether the hint text can be submitted.
-    /// Uses raw `hintText.count` for the length check (not trimmed) so it stays
-    /// consistent with the character counter and color displayed to the user.
-    /// Empty-after-trim is still rejected to prevent whitespace-only submissions.
-    private var canSubmitHint: Bool {
-        let trimmed = hintText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && hintText.count <= Constants.Validation.maxHintLength
-    }
-
-    /// Color for the hint character counter (red when approaching or exceeding limit).
-    private var hintCharacterCountColor: Color {
-        if hintText.count > Constants.Validation.maxHintLength {
-            return .red
-        } else if hintText.count >= 450 {
-            return .red.opacity(0.8)
-        } else {
-            return Theme.textTertiary
-        }
-    }
-
-    /// Submits the current hint text to the backend via `HintService`.
-    ///
-    /// Flow:
-    /// 1. Validate the hint text is submittable
-    /// 2. Provide light haptic feedback on tap
-    /// 3. Call `viewModel.submitHint()` which sends to `POST /api/v1/hints`
-    /// 4. On success: clear input, show checkmark animation, refresh Recent Hints
-    /// 5. On failure: show error message below the input, provide error haptic
-    private func submitHint() {
-        guard canSubmitHint else { return }
-
-        let textToSubmit = hintText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Haptic feedback on submit tap
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
-
-        // Clear the input immediately for responsiveness
-        hintText = ""
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil, from: nil, for: nil
-        )
-
-        // Submit to the backend
-        Task {
-            let success = await viewModel.submitHint(text: textToSubmit)
-
-            if success {
-                // Success haptic (notification-style)
-                let successGenerator = UINotificationFeedbackGenerator()
-                successGenerator.notificationOccurred(.success)
-            } else {
-                // Error haptic
-                let errorGenerator = UINotificationFeedbackGenerator()
-                errorGenerator.notificationOccurred(.error)
-            }
         }
     }
 

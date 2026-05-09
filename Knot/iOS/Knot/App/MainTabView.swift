@@ -3,7 +3,7 @@
 //  Knot
 //
 //  Created on February 26, 2026.
-//  Bottom tab bar navigation — segments For You, Hints, Saved, and Profile.
+//  Bottom tab bar navigation — segments For You, Saved, and Profile.
 //
 
 import SwiftUI
@@ -15,7 +15,7 @@ import SwiftUI
 /// tabs can access connectivity state.
 ///
 /// Uses a custom `KnotTabBar` mounted via `.safeAreaInset(edge: .bottom)`
-/// over a `ZStack` that keeps all four destinations alive (matching
+/// over a `ZStack` that keeps all three destinations alive (matching
 /// `TabView`'s default of preserving each tab's view-tree across switches).
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .forYou
@@ -23,15 +23,13 @@ struct MainTabView: View {
 
     enum AppTab: Int, Hashable {
         case forYou = 0
-        case hints = 1
-        case saved = 2
-        case profile = 3
+        case saved = 1
+        case profile = 2
     }
 
     private var tabBarItems: [KnotTabBar<AppTab>.Item] {
         [
             .init(id: .forYou,  title: "For You", systemImage: "sparkles"),
-            .init(id: .hints,   title: "Hints",   systemImage: "lightbulb"),
             .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
             .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
         ]
@@ -40,7 +38,6 @@ struct MainTabView: View {
     var body: some View {
         ZStack {
             tabContent(.forYou)  { ForYouView() }
-            tabContent(.hints)   { HintsTabView() }
             tabContent(.saved)   { SavedView() }
             tabContent(.profile) { SettingsView(isTabEmbedded: true) }
         }

@@ -12,6 +12,7 @@
 //  Step 10.4: App Store review prompt after 5-star rating with 90-day rate limiting.
 //  Step 15.1: Unified AI recommendations — removed ideas mode, ideas feed state/methods.
 //  Step 15.2: Background loading + local notifications when app is backgrounded mid-generation.
+//  Step 18.6: Session hint capture inside the refresh flow — pending reason + sheet state, hint submission before refresh.
 //
 
 import Foundation
@@ -59,6 +60,15 @@ final class RecommendationsViewModel {
 
     /// Controls card visibility for entry/exit animations during refresh.
     var cardsVisible = true
+
+    // MARK: - Session Hint Capture (Step 18.6)
+
+    /// Whether the session hint capture sheet is presented.
+    /// Shown after the user picks a refresh reason and before the API call.
+    var showSessionHintsSheet = false
+
+    /// The refresh reason the user picked, held until the session hints sheet is dismissed.
+    var pendingRefreshReason: String?
 
     // MARK: - Vibe Override State (Step 6.5)
 
@@ -137,10 +147,15 @@ final class RecommendationsViewModel {
     // MARK: - Dependencies
 
     private let service: RecommendationService
+    private let hintService: HintService
     private var modelContext: ModelContext?
 
-    init(service: RecommendationService = RecommendationService()) {
+    init(
+        service: RecommendationService = RecommendationService(),
+        hintService: HintService = HintService()
+    ) {
         self.service = service
+        self.hintService = hintService
     }
 
     /// Configures the model context for local persistence. Called from the view.
@@ -206,12 +221,62 @@ final class RecommendationsViewModel {
     }
 
     /// Handles the user's selected refresh reason.
-    /// Orchestrates: sheet dismissal → card exit animation → API refresh → card entry animation.
-    func handleRefreshReason(_ reason: String) async {
-        // Dismiss the reason sheet
+    /// Step 18.6: Instead of refreshing immediately, dismisses the reason sheet and
+    /// presents the session hints sheet so the user can capture any new observations
+    /// about their partner before the next set of recommendations is generated.
+    func handleRefreshReason(_ reason: String) {
         showRefreshReasonSheet = false
+        pendingRefreshReason = reason
 
-        // Haptic feedback on sheet dismissal
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Show the session hints sheet on the next runloop tick so the
+        // reason sheet's dismissal animation has somewhere to land before
+        // the new sheet presents.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            showSessionHintsSheet = true
+        }
+    }
+
+    /// Step 18.6: Persists a fresh hint via `HintService` (best-effort) and then
+    /// runs the deferred refresh using the previously-stored `pendingRefreshReason`.
+    /// Trims the input; an empty string is treated as a skip.
+    func submitSessionHintAndRefresh(text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let reason = pendingRefreshReason else { return }
+
+        showSessionHintsSheet = false
+        pendingRefreshReason = nil
+
+        if !trimmed.isEmpty {
+            do {
+                _ = try await hintService.createHint(text: trimmed, source: "text_input")
+            } catch {
+                // Best-effort: log and continue with the refresh so the user is
+                // never blocked by hint persistence failures.
+                print("[Knot] RecommendationsViewModel: session hint submit failed — \(error)")
+            }
+        }
+
+        await runDeferredRefresh(reason: reason)
+    }
+
+    /// Step 18.6: Dismisses the session hints sheet without submitting and runs
+    /// the deferred refresh.
+    func skipSessionHintAndRefresh() async {
+        guard let reason = pendingRefreshReason else { return }
+
+        showSessionHintsSheet = false
+        pendingRefreshReason = nil
+
+        await runDeferredRefresh(reason: reason)
+    }
+
+    /// Shared exit-animate → API → entry-animate orchestration for refresh,
+    /// extracted from the original `handleRefreshReason` so the session hints
+    /// sheet flow can reuse it.
+    private func runDeferredRefresh(reason: String) async {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         // Wait for sheet dismissal animation

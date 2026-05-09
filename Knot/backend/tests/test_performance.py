@@ -235,13 +235,15 @@ class TestRecommendationPipelinePerformance:
     @pytest.mark.asyncio
     async def test_pipeline_under_3_seconds_mocked(self):
         """
-        The full recommendation pipeline with mocked external APIs
-        should complete in < 3 seconds.
+        With every node mocked (no Claude calls, no Brave search, no HTTP, no DB),
+        the LangGraph orchestration itself should run in well under 3 seconds.
+        This is a sanity check on graph structure, not on real-world latency —
+        if this regresses it means the graph is doing something unexpectedly heavy
+        in routing or state propagation.
         """
-        from app.agents.pipeline import build_recommendation_graph
-
         vault_data = _mock_vault_data()
         candidates = _mock_candidates(15)
+        final_three = candidates[:3]
 
         state = RecommendationState(
             vault_data=vault_data,
@@ -249,32 +251,31 @@ class TestRecommendationPipelinePerformance:
             occasion_type="just_because",
         )
 
-        graph = build_recommendation_graph().compile()
+        # Patch each node's entry point in the pipeline namespace and rebuild the
+        # graph inside the patch context. The graph captures function references
+        # at build time, so the rebuild is required for the mocks to take effect.
+        with patch(
+            "app.agents.pipeline.retrieve_relevant_hints",
+            AsyncMock(return_value={"relevant_hints": []}),
+        ), patch(
+            "app.agents.pipeline.generate_unified",
+            AsyncMock(return_value={"final_three": final_three}),
+        ), patch(
+            "app.agents.pipeline.generate_briefing",
+            AsyncMock(return_value={"briefing_text": None}),
+        ), patch(
+            "app.agents.pipeline.resolve_purchase_urls",
+            AsyncMock(return_value={"final_three": final_three}),
+        ), patch(
+            "app.agents.pipeline.verify_availability",
+            AsyncMock(return_value={"final_three": final_three}),
+        ):
+            from app.agents.pipeline import build_recommendation_graph
+            graph = build_recommendation_graph().compile()
 
-        # Mock external API calls and DB access at the node level
-        with patch("app.agents.hint_retrieval.get_service_client") as mock_db:
-            mock_table = MagicMock()
-            mock_table.select.return_value = mock_table
-            mock_table.eq.return_value = mock_table
-            mock_table.execute.return_value = MagicMock(data=[])
-            mock_db.return_value.table.return_value = mock_table
-
-            # Mock the AggregatorService used inside aggregate_external_data
-            mock_aggregator = AsyncMock()
-            mock_aggregator.aggregate.return_value = [c.model_dump() for c in candidates[:10]]
-            with patch("app.agents.aggregation.AggregatorService", return_value=mock_aggregator):
-                with patch("app.agents.availability.httpx") as mock_httpx:
-                    mock_response = MagicMock()
-                    mock_response.status_code = 200
-                    mock_httpx_client = AsyncMock()
-                    mock_httpx_client.head = AsyncMock(return_value=mock_response)
-                    mock_httpx_client.__aenter__ = AsyncMock(return_value=mock_httpx_client)
-                    mock_httpx_client.__aexit__ = AsyncMock(return_value=False)
-                    mock_httpx.AsyncClient.return_value = mock_httpx_client
-
-                    start = time.perf_counter()
-                    result = await graph.ainvoke(state.model_dump())
-                    elapsed_s = time.perf_counter() - start
+            start = time.perf_counter()
+            await graph.ainvoke(state.model_dump())
+            elapsed_s = time.perf_counter() - start
 
         assert elapsed_s < 3.0, f"Pipeline took {elapsed_s:.2f}s (limit: 3.0s)"
         print(f"  Recommendation pipeline completed in {elapsed_s:.2f}s")

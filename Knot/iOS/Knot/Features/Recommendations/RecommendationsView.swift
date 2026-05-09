@@ -102,10 +102,28 @@ struct RecommendationsView: View {
             }
             .sheet(isPresented: $viewModel.showRefreshReasonSheet) {
                 RefreshReasonSheet { reason in
-                    Task {
-                        await viewModel.handleRefreshReason(reason)
-                    }
+                    viewModel.handleRefreshReason(reason)
                 }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+            // Session hint capture sheet (Step 18.6) — shown after the user picks
+            // a refresh reason. Lets them jot down anything new they've noticed
+            // about their partner; the hint persists via HintService and the
+            // pipeline picks it up on the next run via pgvector.
+            .sheet(isPresented: $viewModel.showSessionHintsSheet) {
+                SessionHintsSheet(
+                    onSubmit: { text in
+                        Task {
+                            await viewModel.submitSessionHintAndRefresh(text: text)
+                        }
+                    },
+                    onSkip: {
+                        Task {
+                            await viewModel.skipSessionHintAndRefresh()
+                        }
+                    }
+                )
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
@@ -1746,4 +1764,137 @@ private let _previewExperienceItem: RecommendationItemResponse = {
         onSave: { _ in },
         onClear: {}
     )
+}
+
+// MARK: - Session Hints Sheet (Step 18.6)
+
+/// Bottom sheet that lets the user capture a fresh hint inside the recommendation
+/// refresh flow. The hint is persisted via `HintService` so the next pipeline run
+/// can pick it up via pgvector and weight the recommendations accordingly.
+///
+/// The sheet is purely optional — Skip dismisses without writing.
+struct SessionHintsSheet: View {
+    let onSubmit: @MainActor (String) -> Void
+    let onSkip: @MainActor () -> Void
+
+    @State private var text: String = ""
+    @FocusState private var isFieldFocused: Bool
+
+    private var trimmedCount: Int {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count
+    }
+
+    private var canSubmit: Bool {
+        trimmedCount > 0 && text.count <= Constants.Validation.maxHintLength
+    }
+
+    private var characterCountColor: Color {
+        if text.count > Constants.Validation.maxHintLength {
+            return .red
+        } else if text.count >= 450 {
+            return .red.opacity(0.8)
+        } else {
+            return Theme.textTertiary
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 16) {
+                // Header
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Anything new she's mentioned?")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.textPrimary)
+
+                    Text("A quick note here will shape your next set of picks. Skip if nothing comes to mind.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineSpacing(2)
+                }
+                .padding(.top, 8)
+
+                // Multi-line input
+                KnotInput(
+                    text: $text,
+                    placeholder: "e.g., she mentioned wanting to try that ramen spot in Hayes Valley",
+                    style: .multiLine,
+                    minHeight: 90,
+                    maxHeight: 140,
+                    validationState: isFieldFocused ? .focused : .neutral
+                )
+                .focused($isFieldFocused)
+
+                // Character counter
+                HStack {
+                    Spacer()
+                    Text("\(text.count)/\(Constants.Validation.maxHintLength)")
+                        .font(.caption2)
+                        .foregroundStyle(characterCountColor)
+                }
+
+                Spacer(minLength: 0)
+
+                // Action row — Skip + Submit
+                HStack(spacing: 12) {
+                    Button {
+                        onSkip()
+                    } label: {
+                        Text("Skip")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Theme.surface)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Theme.surfaceBorder, lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onSubmit(text)
+                    } label: {
+                        Text("Submit & Refresh")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(canSubmit ? .white : Theme.textTertiary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(canSubmit ? Theme.accent : Theme.surface)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(
+                                                canSubmit ? Theme.accent : Theme.surfaceBorder,
+                                                lineWidth: 1
+                                            )
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSubmit)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .onAppear {
+            // Focus the field automatically so the user can start typing
+            // without an extra tap.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                isFieldFocused = true
+            }
+        }
+    }
+}
+
+#Preview("Session Hints Sheet") {
+    SessionHintsSheet(onSubmit: { _ in }, onSkip: {})
 }
