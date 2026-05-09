@@ -3,39 +3,29 @@
 //  Knot
 //
 //  Created on February 10, 2026.
-//  Step 6.1: Recommendation card component for the Choice-of-Three UI.
-//  Step 6.6: Added Save and Share action buttons below the Select row.
 //
 
 import SwiftUI
 import LucideIcons
 
-/// A single recommendation card displaying a hero image, title, short description,
-/// price badge, merchant name, and a "Select" action button.
+/// A compact recommendation card built for the Choice-of-Three pager.
 ///
-/// Designed for horizontal paging in the Choice-of-Three scroll view (Step 6.2).
-/// Uses the app's dark-purple aesthetic with frosted-glass surfaces and pink accents.
+/// The card is a *decision aid*, not a product page — it surfaces only the signal
+/// needed to confidently pick one of three options, while merchant, location, full
+/// description, and full match factors remain available in the confirm sheet.
 ///
 /// Layout (top to bottom):
 /// ```
-/// ┌───────────────────────────────────┐
-/// │  [Hero Image / Gradient Fallback] │
-/// │  ┌─ Type Badge ─┐                │
-/// │  │ 🎁 Gift      │                │
-/// │  └──────────────┘                │
-/// ├───────────────────────────────────┤
-/// │  Title (2 lines max)              │
-/// │  📍 Merchant Name                 │
-/// │  Description (3 lines max)        │
-/// │                                   │
-/// │  ┌─ Price ─┐         ┌─ Select ─┐│
-/// │  │  $49.99 │         │  Select  ││
-/// │  └─────────┘         └──────────┘│
-/// │                                   │
-/// │  ┌─ Save ─┐   ┌─ Share ─┐       │
-/// │  │ 🔖 Save│   │ 📤 Share│       │
-/// │  └────────┘   └─────────┘       │
-/// └───────────────────────────────────┘
+/// ┌─────────────────────────────────────┐
+/// │ [Hero image — 160pt]                │
+/// │  ┌Gift┐                  ┌$49┐ ┌🔖┐│
+/// │  └────┘                  └───┘ └──┘│
+/// ├─────────────────────────────────────┤
+/// │ Title (2 lines max)                 │
+/// │ ✨ Why Knot picked this — 1 line    │
+/// │ ❤ Art   ✨ Romantic   +2            │
+/// │ ┌──── Select ────┐                  │
+/// └─────────────────────────────────────┘
 /// ```
 struct RecommendationCard: View {
 
@@ -47,7 +37,6 @@ struct RecommendationCard: View {
     let priceCents: Int?
     let currency: String
     let priceConfidence: String
-    let merchantName: String?
     let imageURL: String?
     let isSaved: Bool
     let matchedInterests: [String]
@@ -56,12 +45,12 @@ struct RecommendationCard: View {
     let personalizationNote: String?
     let onSelect: @MainActor @Sendable () -> Void
     let onSave: @MainActor @Sendable () -> Void
-    let onShare: @MainActor @Sendable () -> Void
 
     // MARK: - Constants
 
     private let cardCornerRadius: CGFloat = 18
-    private let heroHeight: CGFloat = 200
+    private let heroHeight: CGFloat = 160
+    private let maxVisibleChips: Int = 3
 
     // MARK: - Body
 
@@ -77,7 +66,7 @@ struct RecommendationCard: View {
     // MARK: - Hero Image Section
 
     private var heroSection: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .top) {
             // Background: async image or gradient fallback
             if let imageURL, let url = URL(string: imageURL) {
                 AsyncImage(url: url) { phase in
@@ -105,20 +94,27 @@ struct RecommendationCard: View {
                 fallbackGradient
             }
 
-            // Bottom gradient overlay for badge readability
+            // Top edge gradient for overlay readability
             VStack {
-                Spacer()
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.4)],
+                    colors: [.black.opacity(0.35), .clear],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .frame(height: 60)
+                Spacer()
             }
 
-            // Type badge — top-left
-            typeBadge
-                .padding(12)
+            // Top row: type badge (left) + price + save (right)
+            HStack(alignment: .top) {
+                typeBadge
+                Spacer()
+                HStack(spacing: 8) {
+                    priceOverlay
+                    saveOverlay
+                }
+            }
+            .padding(12)
         }
         .frame(height: heroHeight)
         .clipped()
@@ -140,7 +136,6 @@ struct RecommendationCard: View {
         }
     }
 
-    /// Returns gradient colors based on recommendation type.
     private var fallbackGradientColors: [Color] {
         switch recommendationType {
         case "gift":
@@ -156,7 +151,7 @@ struct RecommendationCard: View {
         }
     }
 
-    // MARK: - Type Badge
+    // MARK: - Hero Overlays
 
     private var typeBadge: some View {
         HStack(spacing: 5) {
@@ -180,6 +175,42 @@ struct RecommendationCard: View {
         )
     }
 
+    @ViewBuilder
+    private var priceOverlay: some View {
+        if let priceCents {
+            let prefix = priceConfidence == "estimated" ? "~" : ""
+            Text(prefix + Self.formattedPrice(cents: priceCents, currency: currency))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                )
+        }
+    }
+
+    private var saveOverlay: some View {
+        Button(action: onSave) {
+            Image(uiImage: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 14, height: 14)
+                .foregroundStyle(isSaved ? Theme.accent : .white)
+                .padding(8)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSaved ? "Saved" : "Save")
+    }
+
     // MARK: - Details Section
 
     private var detailsSection: some View {
@@ -191,127 +222,59 @@ struct RecommendationCard: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Merchant name
-            if let merchantName, !merchantName.isEmpty {
-                HStack(spacing: 5) {
-                    Image(uiImage: Lucide.store)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 12, height: 12)
-                        .foregroundStyle(Theme.textTertiary)
+            // Why line: personalization note (preferred) or short description fallback
+            whyLine
 
-                    Text(merchantName)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
-                }
-            }
-
-            // Description
-            if let descriptionText, !descriptionText.isEmpty {
-                Text(descriptionText)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Personalization note (Step 15.1) — why Knot picked this
-            if let personalizationNote, !personalizationNote.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 12, height: 12)
-                        .foregroundStyle(Theme.accent)
-                        .padding(.top, 2)
-
-                    Text(personalizationNote)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Theme.accent.opacity(0.9))
-                        .italic()
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Theme.accent.opacity(0.08))
-                )
-            }
-
-            // Matching factor chips
-            if !matchedInterests.isEmpty || !matchedVibes.isEmpty || !matchedLoveLanguages.isEmpty {
+            // Matching factors — capped, single row, with overflow indicator
+            if !orderedChips.isEmpty {
                 matchingFactorsSection
             }
 
-            Spacer(minLength: 4)
-
-            // Bottom row: price + select button
-            HStack {
-                // Price badge (hidden for ideas — they have no price)
-                if let priceCents {
-                    let prefix = priceConfidence == "estimated" ? "~" : ""
-                    KnotBadge(
-                        prefix + Self.formattedPrice(cents: priceCents, currency: currency),
-                        variant: .secondary,
-                        size: .md
-                    )
-                } else if recommendationType != "idea" {
-                    Text("Price varies")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Theme.textTertiary)
-                }
-
-                Spacer()
-
-                // Select / Read button
-                let isIdea = recommendationType == "idea" || recommendationType == "plan"
-                KnotButton(
-                    isIdea ? "Read" : "Select",
-                    variant: .primary,
-                    size: .md,
-                    shape: .pill,
-                    trailingIcon: isIdea ? Lucide.book : Lucide.arrowRight,
-                    action: onSelect
-                )
-                .fixedSize()
-            }
-
-            // Save / Share row (Step 6.6)
-            HStack(spacing: 12) {
-                KnotButton(
-                    isSaved ? "Saved" : "Save",
-                    variant: isSaved ? .outline : .secondary,
-                    size: .sm,
-                    shape: .pill,
-                    leadingIcon: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark,
-                    action: onSave
-                )
-                .fixedSize()
-
-                KnotButton(
-                    "Share",
-                    variant: .secondary,
-                    size: .sm,
-                    shape: .pill,
-                    leadingIcon: Lucide.share2,
-                    action: onShare
-                )
-                .fixedSize()
-
-                Spacer()
-            }
+            // Full-width Select / Read button
+            let isIdea = recommendationType == "idea" || recommendationType == "plan"
+            KnotButton(
+                isIdea ? "Read" : "Select",
+                variant: .primary,
+                size: .md,
+                shape: .pill,
+                trailingIcon: isIdea ? Lucide.book : Lucide.arrowRight,
+                action: onSelect
+            )
+            .padding(.top, 4)
         }
         .padding(16)
     }
 
+    @ViewBuilder
+    private var whyLine: some View {
+        if let personalizationNote, !personalizationNote.isEmpty {
+            HStack(alignment: .top, spacing: 6) {
+                Image(uiImage: Lucide.sparkles)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                    .foregroundStyle(Theme.accent)
+                    .padding(.top, 2)
+
+                Text(personalizationNote)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.accent.opacity(0.9))
+                    .italic()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        } else if let descriptionText, !descriptionText.isEmpty {
+            Text(descriptionText)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     // MARK: - Helpers
 
-    /// Maps recommendation type to a Lucide icon.
     private var typeIconLucide: UIImage {
         switch recommendationType {
         case "gift": return Lucide.gift
@@ -323,7 +286,6 @@ struct RecommendationCard: View {
         }
     }
 
-    /// Maps recommendation type to an SF Symbol for the fallback gradient.
     private var typeIconSystemName: String {
         switch recommendationType {
         case "gift": return "gift.fill"
@@ -335,7 +297,6 @@ struct RecommendationCard: View {
         }
     }
 
-    /// Human-readable label for the recommendation type.
     private var typeLabel: String {
         switch recommendationType {
         case "gift": return "Gift"
@@ -349,23 +310,35 @@ struct RecommendationCard: View {
 
     // MARK: - Matching Factors
 
+    /// All matched factors in priority order: vibes → love languages → interests.
+    /// Vibes and love languages reflect personality more directly than interest tags,
+    /// so they're surfaced first when the chip row is capped.
+    private var orderedChips: [DisplayChip] {
+        var chips: [DisplayChip] = []
+        chips.append(contentsOf: matchedVibes.map {
+            DisplayChip(label: OnboardingVibesView.displayName(for: $0), style: .vibe)
+        })
+        chips.append(contentsOf: matchedLoveLanguages.map {
+            DisplayChip(label: OnboardingLoveLanguagesView.displayName(for: $0), style: .loveLanguage)
+        })
+        chips.append(contentsOf: matchedInterests.map {
+            DisplayChip(label: $0, style: .interest)
+        })
+        return chips
+    }
+
     private var matchingFactorsSection: some View {
-        FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-            ForEach(matchedInterests, id: \.self) { interest in
-                MatchingFactorChip(label: interest, style: .interest)
+        let visible = Array(orderedChips.prefix(maxVisibleChips))
+        let overflow = max(0, orderedChips.count - maxVisibleChips)
+
+        return HStack(spacing: 6) {
+            ForEach(visible) { chip in
+                MatchingFactorChip(label: chip.label, style: chip.style)
             }
-            ForEach(matchedVibes, id: \.self) { vibe in
-                MatchingFactorChip(
-                    label: OnboardingVibesView.displayName(for: vibe),
-                    style: .vibe
-                )
+            if overflow > 0 {
+                MatchingFactorChip(label: "+\(overflow)", style: .overflow)
             }
-            ForEach(matchedLoveLanguages, id: \.self) { language in
-                MatchingFactorChip(
-                    label: OnboardingLoveLanguagesView.displayName(for: language),
-                    style: .loveLanguage
-                )
-            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -380,10 +353,16 @@ struct RecommendationCard: View {
     }
 }
 
+// MARK: - Display Chip Model
+
+private struct DisplayChip: Identifiable {
+    let id = UUID()
+    let label: String
+    let style: MatchingFactorChip.ChipStyle
+}
+
 // MARK: - Matching Factor Chip
 
-/// A compact chip displaying a matched factor (interest, vibe, or love language)
-/// that contributed to the recommendation's score.
 private struct MatchingFactorChip: View {
     let label: String
     let style: ChipStyle
@@ -392,14 +371,18 @@ private struct MatchingFactorChip: View {
         case interest
         case vibe
         case loveLanguage
+        case overflow
     }
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: iconName)
-                .font(.system(size: 8, weight: .bold))
+            if let icon = iconName {
+                Image(systemName: icon)
+                    .font(.system(size: 8, weight: .bold))
+            }
             Text(label)
                 .font(.system(size: 10, weight: .medium))
+                .lineLimit(1)
         }
         .foregroundStyle(foregroundColor)
         .padding(.horizontal, 8)
@@ -412,11 +395,12 @@ private struct MatchingFactorChip: View {
         )
     }
 
-    private var iconName: String {
+    private var iconName: String? {
         switch style {
         case .interest: return "heart.fill"
         case .vibe: return "sparkles"
         case .loveLanguage: return "hand.raised.fill"
+        case .overflow: return nil
         }
     }
 
@@ -425,6 +409,7 @@ private struct MatchingFactorChip: View {
         case .interest: return Theme.accent
         case .vibe: return Color.purple
         case .loveLanguage: return Color.orange
+        case .overflow: return Theme.textTertiary
         }
     }
 
@@ -433,6 +418,7 @@ private struct MatchingFactorChip: View {
         case .interest: return Theme.accent.opacity(0.18)
         case .vibe: return Color.purple.opacity(0.18)
         case .loveLanguage: return Color.orange.opacity(0.18)
+        case .overflow: return Theme.surfaceElevated
         }
     }
 
@@ -441,6 +427,7 @@ private struct MatchingFactorChip: View {
         case .interest: return Theme.accent.opacity(0.3)
         case .vibe: return Color.purple.opacity(0.3)
         case .loveLanguage: return Color.orange.opacity(0.3)
+        case .overflow: return Theme.surfaceBorder
         }
     }
 }
@@ -448,24 +435,22 @@ private struct MatchingFactorChip: View {
 // MARK: - Preview
 
 #Preview("Gift Card") {
-    ScrollView {
+    VStack {
         RecommendationCard(
             title: "Ceramic Pottery Class for Two",
-            descriptionText: "A hands-on pottery experience where you and your partner create custom pieces together. Includes all materials and firing.",
+            descriptionText: "A hands-on pottery experience.",
             recommendationType: "gift",
             priceCents: 8500,
             currency: "USD",
             priceConfidence: "verified",
-            merchantName: "Clay Studio Brooklyn",
             imageURL: nil,
             isSaved: false,
             matchedInterests: ["Art", "Cooking"],
             matchedVibes: ["bohemian"],
             matchedLoveLanguages: ["quality_time"],
-            personalizationNote: "Perfect for you two — combines her love of art with quality time together.",
+            personalizationNote: "Perfect — combines her love of art with quality time.",
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
         .padding(20)
     }
@@ -473,32 +458,30 @@ private struct MatchingFactorChip: View {
 }
 
 #Preview("Experience Card — Saved") {
-    ScrollView {
+    VStack {
         RecommendationCard(
-            title: "Private Sunset Sailing Experience on the Bay",
-            descriptionText: "Enjoy a 2-hour private sailing trip with champagne and charcuterie as the sun sets over the bay.",
+            title: "Private Sunset Sailing on the Bay",
+            descriptionText: "2-hour private sailing trip with champagne.",
             recommendationType: "experience",
             priceCents: 24900,
             currency: "USD",
             priceConfidence: "verified",
-            merchantName: "Bay Sailing Co.",
             imageURL: "https://images.unsplash.com/photo-1500514966906-fe245eea9344?w=600",
             isSaved: true,
             matchedInterests: ["Travel"],
             matchedVibes: ["romantic", "quiet_luxury"],
             matchedLoveLanguages: ["quality_time"],
-            personalizationNote: "She mentioned wanting to do more outdoor activities — this matches her romantic vibe perfectly.",
+            personalizationNote: "Matches her romantic vibe and love of outdoor moments.",
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
         .padding(20)
     }
     .background(Theme.backgroundGradient.ignoresSafeArea())
 }
 
-#Preview("Date Card - No Price") {
-    ScrollView {
+#Preview("Date Card — No Price, Description Fallback") {
+    VStack {
         RecommendationCard(
             title: "Rooftop Dinner at Skyline",
             descriptionText: "An intimate rooftop dining experience with panoramic city views and a seasonal tasting menu.",
@@ -506,7 +489,6 @@ private struct MatchingFactorChip: View {
             priceCents: nil,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: "Skyline Restaurant",
             imageURL: nil,
             isSaved: false,
             matchedInterests: ["Food"],
@@ -514,8 +496,7 @@ private struct MatchingFactorChip: View {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
         .padding(20)
     }
@@ -523,7 +504,7 @@ private struct MatchingFactorChip: View {
 }
 
 #Preview("Minimal Data Card — No Factors") {
-    ScrollView {
+    VStack {
         RecommendationCard(
             title: "Vintage Leather Journal",
             descriptionText: nil,
@@ -531,7 +512,6 @@ private struct MatchingFactorChip: View {
             priceCents: 3200,
             currency: "USD",
             priceConfidence: "estimated",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -539,8 +519,30 @@ private struct MatchingFactorChip: View {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
+        )
+        .padding(20)
+    }
+    .background(Theme.backgroundGradient.ignoresSafeArea())
+}
+
+#Preview("Many Chips — Overflow") {
+    VStack {
+        RecommendationCard(
+            title: "Cooking Class & Wine Pairing",
+            descriptionText: nil,
+            recommendationType: "experience",
+            priceCents: 12500,
+            currency: "USD",
+            priceConfidence: "verified",
+            imageURL: nil,
+            isSaved: false,
+            matchedInterests: ["Food", "Wine", "Cooking"],
+            matchedVibes: ["romantic", "playful"],
+            matchedLoveLanguages: ["quality_time", "acts_of_service"],
+            personalizationNote: "She's mentioned wanting to learn together.",
+            onSelect: {},
+            onSave: {}
         )
         .padding(20)
     }

@@ -117,7 +117,6 @@ struct DeepLinkRecommendationView: View {
                     priceCents: rec.priceCents,
                     currency: "USD",
                     priceConfidence: "unknown",
-                    merchantName: rec.merchantName,
                     imageURL: rec.imageUrl,
                     isSaved: false,
                     matchedInterests: [],
@@ -127,8 +126,7 @@ struct DeepLinkRecommendationView: View {
                     onSelect: {
                         openExternalURL(rec.externalUrl)
                     },
-                    onSave: {},
-                    onShare: {}
+                    onSave: {}
                 )
                 .padding(.horizontal, 20)
 

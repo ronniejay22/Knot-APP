@@ -3,8 +3,6 @@
 //  KnotTests
 //
 //  Created on February 10, 2026.
-//  Step 6.1: Unit tests for the RecommendationCard component.
-//  Step 6.6: Tests for Save and Share button rendering and callbacks.
 //
 
 import XCTest
@@ -25,7 +23,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 8500,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: "Clay Studio Brooklyn",
             imageURL: "https://example.com/image.jpg",
             isSaved: false,
             matchedInterests: [],
@@ -33,11 +30,9 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
-        // Host the view — confirms it can be instantiated and body computed
         let hostingController = UIHostingController(rootView: card)
         XCTAssertNotNil(hostingController.view, "Card should render a valid view")
     }
@@ -51,7 +46,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: nil,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -59,8 +53,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
@@ -79,7 +72,6 @@ final class RecommendationCardTests: XCTestCase {
                 priceCents: 1000,
                 currency: "USD",
                 priceConfidence: "unknown",
-                merchantName: "Test Merchant",
                 imageURL: nil,
                 isSaved: false,
                 matchedInterests: [],
@@ -87,8 +79,7 @@ final class RecommendationCardTests: XCTestCase {
                 matchedLoveLanguages: [],
                 personalizationNote: nil,
                 onSelect: {},
-                onSave: {},
-                onShare: {}
+                onSave: {}
             )
 
             let hostingController = UIHostingController(rootView: card)
@@ -105,7 +96,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 5000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: "New Merchant",
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -113,8 +103,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
@@ -123,38 +112,28 @@ final class RecommendationCardTests: XCTestCase {
 
     // MARK: - Price Formatting Tests
 
-    /// Verify whole-dollar amounts omit cents (e.g., $50).
     func testFormattedPriceWholeDollar() throws {
-        let card = makeCard(priceCents: 5000)
         let formatted = RecommendationCard.formattedPrice(cents: 5000, currency: "USD")
         XCTAssertEqual(formatted, "$50", "5000 cents should format as $50")
     }
 
-    /// Verify amounts with cents display correctly (e.g., $49.99).
     func testFormattedPriceWithCents() throws {
-        let card = makeCard(priceCents: 4999)
         let formatted = RecommendationCard.formattedPrice(cents: 4999, currency: "USD")
         XCTAssertEqual(formatted, "$49.99", "4999 cents should format as $49.99")
     }
 
-    /// Verify non-USD currencies use the correct symbol.
     func testFormattedPriceGBP() throws {
-        let card = makeCard(priceCents: 3500)
         let formatted = RecommendationCard.formattedPrice(cents: 3500, currency: "GBP")
         XCTAssertTrue(formatted.contains("£") || formatted.contains("GBP"),
                        "GBP price should contain £ symbol, got: \(formatted)")
     }
 
-    /// Verify zero price displays correctly.
     func testFormattedPriceZero() throws {
-        let card = makeCard(priceCents: 0)
         let formatted = RecommendationCard.formattedPrice(cents: 0, currency: "USD")
         XCTAssertEqual(formatted, "$0", "0 cents should format as $0")
     }
 
-    /// Verify large prices format with grouping separator.
     func testFormattedPriceLargeAmount() throws {
-        let card = makeCard(priceCents: 100000)
         let formatted = RecommendationCard.formattedPrice(cents: 100000, currency: "USD")
         XCTAssertTrue(formatted.contains("1") && formatted.contains("000"),
                        "100000 cents should format as $1,000 (got: \(formatted))")
@@ -173,7 +152,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 2000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -181,11 +159,9 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: { selected = true },
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
-        // Directly invoke the closure to verify it's wired up
         card.onSelect()
         XCTAssertTrue(selected, "onSelect callback should fire")
     }
@@ -203,7 +179,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 1000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -211,15 +186,15 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
         XCTAssertNotNil(hostingController.view, "Card should handle long titles")
     }
 
-    /// Verify the card handles very long descriptions without crashing.
+    /// Verify the card handles very long descriptions without crashing
+    /// (description is shown as fallback when personalizationNote is nil).
     func testLongDescriptionTruncation() throws {
         let longDescription = String(repeating: "This is a very detailed description. ", count: 30)
 
@@ -230,7 +205,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 15000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: "Test Merchant",
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -238,15 +212,14 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
         XCTAssertNotNil(hostingController.view, "Card should handle long descriptions")
     }
 
-    // MARK: - Save/Share Button Tests (Step 6.6)
+    // MARK: - Save Button Tests
 
     /// Verify the save callback fires when invoked.
     func testSaveCallbackFires() throws {
@@ -259,7 +232,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 2000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -267,39 +239,11 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: { saved = true },
-            onShare: {}
+            onSave: { saved = true }
         )
 
         card.onSave()
         XCTAssertTrue(saved, "onSave callback should fire")
-    }
-
-    /// Verify the share callback fires when invoked.
-    func testShareCallbackFires() throws {
-        var shared = false
-
-        let card = RecommendationCard(
-            title: "Shareable Card",
-            descriptionText: nil,
-            recommendationType: "gift",
-            priceCents: 2000,
-            currency: "USD",
-            priceConfidence: "unknown",
-            merchantName: nil,
-            imageURL: nil,
-            isSaved: false,
-            matchedInterests: [],
-            matchedVibes: [],
-            matchedLoveLanguages: [],
-            personalizationNote: nil,
-            onSelect: {},
-            onSave: {},
-            onShare: { shared = true }
-        )
-
-        card.onShare()
-        XCTAssertTrue(shared, "onShare callback should fire")
     }
 
     /// Verify the card renders with isSaved = true (saved state).
@@ -311,7 +255,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 5000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: "Test Store",
             imageURL: nil,
             isSaved: true,
             matchedInterests: [],
@@ -319,8 +262,7 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
@@ -336,7 +278,6 @@ final class RecommendationCardTests: XCTestCase {
             priceCents: 8000,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
             matchedInterests: [],
@@ -344,35 +285,35 @@ final class RecommendationCardTests: XCTestCase {
             matchedLoveLanguages: [],
             personalizationNote: nil,
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
 
         let hostingController = UIHostingController(rootView: card)
         XCTAssertNotNil(hostingController.view, "Card should render in unsaved state")
     }
 
-    // MARK: - Helpers
+    // MARK: - Match Factor Overflow Tests
 
-    /// Creates a minimal card for testing helper methods.
-    private func makeCard(priceCents: Int) -> RecommendationCard {
-        RecommendationCard(
-            title: "Test",
+    /// Verify the card renders cleanly when many match factors would overflow the 3-chip cap.
+    func testCardRendersWithManyMatchFactors() throws {
+        let card = RecommendationCard(
+            title: "Many Matches Card",
             descriptionText: nil,
-            recommendationType: "gift",
-            priceCents: priceCents,
+            recommendationType: "experience",
+            priceCents: 12500,
             currency: "USD",
             priceConfidence: "unknown",
-            merchantName: nil,
             imageURL: nil,
             isSaved: false,
-            matchedInterests: [],
-            matchedVibes: [],
-            matchedLoveLanguages: [],
-            personalizationNote: nil,
+            matchedInterests: ["Food", "Wine", "Cooking"],
+            matchedVibes: ["romantic", "playful"],
+            matchedLoveLanguages: ["quality_time", "acts_of_service"],
+            personalizationNote: "She's mentioned wanting to learn together.",
             onSelect: {},
-            onSave: {},
-            onShare: {}
+            onSave: {}
         )
+
+        let hostingController = UIHostingController(rootView: card)
+        XCTAssertNotNil(hostingController.view, "Card should render with overflow chip")
     }
 }

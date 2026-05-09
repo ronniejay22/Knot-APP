@@ -398,7 +398,8 @@ struct RecommendationsView: View {
                 // Horizontal paging scroll (animated out/in during refresh)
                 TabView(selection: $viewModel.currentPage) {
                     ForEach(Array(viewModel.recommendations.enumerated()), id: \.element.id) { index, item in
-                        ScrollView {
+                        VStack {
+                            Spacer(minLength: 0)
                             RecommendationCard(
                                 title: item.title,
                                 descriptionText: item.description,
@@ -406,7 +407,6 @@ struct RecommendationsView: View {
                                 priceCents: item.isIdea == true ? nil : item.priceCents,
                                 currency: item.currency,
                                 priceConfidence: item.priceConfidence ?? "unknown",
-                                merchantName: item.isIdea == true ? nil : item.merchantName,
                                 imageURL: item.imageUrl,
                                 isSaved: viewModel.isSaved(item.id),
                                 matchedInterests: item.matchedInterests ?? [],
@@ -422,14 +422,11 @@ struct RecommendationsView: View {
                                 },
                                 onSave: {
                                     viewModel.saveRecommendation(item)
-                                },
-                                onShare: {
-                                    viewModel.shareRecommendation(item)
                                 }
                             )
                             .padding(.horizontal, 20)
+                            Spacer(minLength: 0)
                         }
-                        .scrollIndicators(.hidden)
                         .tag(index)
                     }
                 }

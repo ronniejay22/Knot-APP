@@ -5158,6 +5158,44 @@ The notification dot is **visual scaffolding only** in this PR — `MainTabView`
 
 ---
 
+### Step 18.4: Recommendation Card Redesign — Concise, No Inner Scrolling ✅
+**Date:** May 6, 2026
+**Status:** Complete (card fits one screen on iPhone SE+; horizontal pager no longer needs an inner `ScrollView`)
+
+**What was done:**
+
+Redesigned `RecommendationCard` to function as a *decision aid* for the Choice-of-Three pager rather than a full product page. The previous layout stacked eight content blocks (200pt hero, title, merchant row, 3-line description, boxed personalization callout, FlowLayout chip row of all matched factors, price + Select row, Save + Share row) totaling ~540–600pt of content, which exceeded the viewport on every iPhone size and forced a vertical `ScrollView` inside each horizontally-paged page. The new layout fits on one screen (~346pt budget: 160 hero + 50 title + 24 why-line + 28 chip row + 52 Select + padding) and the wrapping `ScrollView` was removed.
+
+The hero shrank from 200pt to 160pt and gained two top-right overlays alongside the existing top-left type badge: a frosted-capsule price chip (`$49` or `~$49` for estimated prices) and a circular icon-only Save button (Lucide `bookmark` ↔ `bookmarkCheck`). All three overlays use the same `.ultraThinMaterial` + dark-scheme background so they read consistently over any image. The bottom gradient overlay was repositioned to the top edge (`.black.opacity(0.35) → .clear`) to ensure the new chips remain readable on light or detailed images.
+
+The merchant row was dropped from the card surface entirely — it remains visible in `SelectionConfirmationSheet` after a user taps Select. The `merchantName` parameter was removed from the `RecommendationCard` initializer and from all three call sites (`RecommendationsView`, `DeepLinkRecommendationView`, `RecommendationCardTests`). The description and the boxed "Why Knot picked this" callout were collapsed into a single `whyLine` slot: when `personalizationNote` is present, a 1-line `✨ <note>` in italic accent color renders without any boxed background; when `personalizationNote` is nil/empty, up to 2 lines of `descriptionText` render as a fallback. The card never shows both — the personalization signal is higher-value for choosing between three options, and the description remains available in the confirm sheet.
+
+The matched chips row was capped at three with an overflow indicator. The previous `FlowLayout` allowed unbounded wrapping (5–7+ chips across 2–3 rows for users with many matched interests/vibes/love-languages); the redesign uses a single non-wrapping `HStack`. Chips render in priority order — vibes → love languages → interests, since vibes and love languages reflect personality more directly than interest tags — and any beyond the third are summarized by a neutral-styled `+N` chip (uses `Theme.surfaceElevated` background and `Theme.textTertiary` foreground to read as overflow rather than as another match category). A new `.overflow` case was added to the file-private `MatchingFactorChip.ChipStyle` enum, and the chip view was updated to skip its leading SF Symbol icon when style is `.overflow`. A new `DisplayChip` private struct centralizes the "label + style" tuple so the chip ordering logic lives in one computed property (`orderedChips`) and the view body just slices the first three.
+
+The Save + Share row at the bottom of the card was deleted entirely. The Save action moved to the hero overlay (icon-only); the Share action was removed from the card altogether — `viewModel.shareRecommendation` remains in the view model since it's still used elsewhere (saved view, confirm sheet), but the card no longer surfaces it. The price moved up from the bottom row to the hero overlay, leaving the Select / Read button alone as a full-width primary action at the bottom (relies on `KnotButton`'s built-in `.frame(maxWidth: .infinity)` rather than the previous `.fixedSize()` constraint).
+
+The `ScrollView` wrapper around each `RecommendationCard` page in `RecommendationsView` was replaced with a `VStack(Spacer, card, Spacer)` that vertically centers the card within the page area. With the redesigned card fitting on screen, the inner scroll cue no longer suggests "more below" that would yield no payoff. The `onShare` argument was removed from both the `RecommendationsView` call site and the `DeepLinkRecommendationView` call site to match the new initializer.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — full redesign per above; removed `merchantName` and `onShare` parameters; reduced `heroHeight` from 200 → 160; added `priceOverlay` and `saveOverlay`; added `whyLine` view builder with description fallback; added `orderedChips` / `matchingFactorsSection` capping logic; added `DisplayChip` struct and `.overflow` case to `MatchingFactorChip.ChipStyle`; rewrote five `#Preview` blocks (added a "Many Chips — Overflow" preview to exercise the cap)
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — replaced inner `ScrollView { RecommendationCard(...) }` with a centering `VStack` inside each `TabView` page; dropped `merchantName:` and `onShare:` arguments from the `RecommendationCard(...)` call
+- `iOS/Knot/Features/Recommendations/DeepLinkRecommendationView.swift` — dropped `merchantName:` and `onShare:` arguments from the `RecommendationCard(...)` call inside `contentState(_:)`
+- `iOS/KnotTests/RecommendationCardTests.swift` — removed all `merchantName:` and `onShare:` arguments from card initializers; deleted the obsolete `testShareCallbackFires` test (Share is no longer on the card); added `testCardRendersWithManyMatchFactors` exercising the new chip overflow path; collapsed the `makeCard(priceCents:)` helper since it was only ever used to construct a throwaway card for static-method calls and the calls don't depend on a card instance
+- `memory-bank/progress.md` — this entry
+- `memory-bank/architecture.md` — updated the `RecommendationCard.swift` and `RecommendationsView.swift` rows to describe the new layout, dropped props, and chip overflow logic
+
+**Test results:**
+- ✅ 230 unit tests pass on iPhone 17 simulator (same baseline as Step 18.3; existing `RecommendationCardTests` count stayed at 12 — `testShareCallbackFires` was removed and `testCardRendersWithManyMatchFactors` was added)
+- ✅ Clean `xcodebuild build` with zero errors and zero warnings on iPhone 17 simulator
+
+**Notes:**
+- The Share action is still reachable from the saved-recommendations view and from `SelectionConfirmationSheet` after a Select. Removing it from the decision-aid card surface is intentional — Share is a post-decision behavior, not a tool for choosing between three options.
+- `.safeAreaInset` propagation through `navigationDestination` pushes is still the same SwiftUI quirk called out in Step 18.3 — the existing `.padding(.bottom, 100)` on the action HStack in `RecommendationsView` continues to handle bottom clearance for the `KnotTabBar`. No change needed for this step.
+- If a future change needs to surface the merchant on the card surface, the cleanest spot is appending it inline to the personalization line ("...quality time · *Clay Studio Brooklyn*") rather than reintroducing a dedicated row.
+- The `+N` overflow chip is currently non-interactive. A future enhancement could make it tap-to-expand into a small popover listing all matched factors, but the confirm sheet already shows the full set so this is low-priority.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
