@@ -476,21 +476,6 @@ struct RecommendationsView: View {
         .opacity(viewModel.isRefreshing || !viewModel.cardsVisible ? 0.6 : 1.0)
     }
 
-    // MARK: - Page Indicator
-
-    private var pageIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<viewModel.recommendations.count, id: \.self) { index in
-                Circle()
-                    .fill(index == viewModel.currentPage ? Theme.accent : Theme.textTertiary)
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(index == viewModel.currentPage ? 1.2 : 1.0)
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.currentPage)
-            }
-        }
-        .padding(.top, 12)
-    }
-
     // MARK: - Refresh Button
 
     private var refreshButton: some View {
