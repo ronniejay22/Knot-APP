@@ -380,26 +380,21 @@ struct RecommendationsView: View {
     // MARK: - Recommendations Content
 
     private var recommendationsContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             // Milestone briefing card (shown when a contextual briefing was generated)
             if let briefing = viewModel.briefingText, !isBriefingDismissed {
                 briefingCard(briefing)
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
+                    .padding(.bottom, 16)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            // Page indicator (hidden during refresh animation)
-            pageIndicator
-                .opacity(viewModel.cardsVisible ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
-
             ZStack {
-                // Horizontal paging scroll (animated out/in during refresh)
-                TabView(selection: $viewModel.currentPage) {
-                    ForEach(Array(viewModel.recommendations.enumerated()), id: \.element.id) { index, item in
-                        VStack {
-                            Spacer(minLength: 0)
+                // Vertical scrolling feed (Rappi/DoorDash pattern)
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(viewModel.recommendations, id: \.id) { item in
                             RecommendationCard(
                                 title: item.title,
                                 descriptionText: item.description,
@@ -407,6 +402,9 @@ struct RecommendationsView: View {
                                 priceCents: item.isIdea == true ? nil : item.priceCents,
                                 currency: item.currency,
                                 priceConfidence: item.priceConfidence ?? "unknown",
+                                merchantName: item.isIdea == true ? nil : item.merchantName,
+                                locationCity: item.location?.city,
+                                locationState: item.location?.state,
                                 imageURL: item.imageUrl,
                                 isSaved: viewModel.isSaved(item.id),
                                 matchedInterests: item.matchedInterests ?? [],
@@ -424,15 +422,13 @@ struct RecommendationsView: View {
                                     viewModel.saveRecommendation(item)
                                 }
                             )
-                            .padding(.horizontal, 20)
-                            Spacer(minLength: 0)
                         }
-                        .tag(index)
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                .scrollIndicators(.hidden)
                 .opacity(viewModel.cardsVisible ? 1 : 0)
-                .scaleEffect(viewModel.cardsVisible ? 1 : 0.85)
                 .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
 
                 // Refresh loading overlay (Step 6.4)
