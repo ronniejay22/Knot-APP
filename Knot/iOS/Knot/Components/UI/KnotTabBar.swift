@@ -76,7 +76,7 @@ struct KnotTabBar<ID: Hashable>: View {
                     Image(systemName: item.systemImage)
                         .symbolVariant(isSelected ? .fill : .none)
                         .font(.system(size: 22, weight: .regular))
-                        .frame(width: 28, height: 28)
+                        .frame(width: 24, height: 24)
 
                     if item.hasNotification {
                         Circle()
@@ -93,7 +93,7 @@ struct KnotTabBar<ID: Hashable>: View {
             .foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .padding(.vertical, Theme.Spacing.xs)
+            .padding(.vertical, Theme.Spacing.xxs)
             .animation(Theme.Motion.quick, value: isSelected)
         }
         .buttonStyle(.plain)
