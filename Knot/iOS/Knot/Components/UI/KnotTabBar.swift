@@ -51,16 +51,17 @@ struct KnotTabBar<ID: Hashable>: View {
             Divider()
                 .overlay(Theme.surfaceBorder)
 
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 ForEach(items) { item in
                     tabButton(for: item)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.top, Theme.Spacing.sm)
+            .padding(.top, Theme.Spacing.lg)
             .padding(.horizontal, Theme.Spacing.xs)
         }
-        .background(Theme.backgroundBottom.ignoresSafeArea(edges: .bottom))
+        .frame(height: Theme.Spacing.xxxl)
+        .background(Theme.backgroundBottom)
         .sensoryFeedback(.selection, trigger: selection)
     }
 

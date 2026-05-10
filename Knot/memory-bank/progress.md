@@ -5346,6 +5346,30 @@ Migrated the immediate component consumers to validate the tokens: `KnotBadge.sw
 
 ---
 
+### Step 18.9: Tighten KnotTabBar Height ✅
+**Date:** May 10, 2026
+**Status:** Complete
+
+**What was done:**
+
+The bottom tab bar showed a noticeable strip of bar-colored empty space below the labels ("For You", "Saved", "Profile"). The previous structure leaned on `.ignoresSafeArea(edges: .bottom)` on the background to stretch the bar tint into the home-indicator zone, with the inset content's HStack pinned to `alignment: .top` — so the labels sat at the very top of a visible region that was content-height plus ~34pt of safe area, leaving the lower ~34pt as an empty bar-colored gap. Several earlier attempts to fix this by reshuffling `.ignoresSafeArea` between the background and the VStack, or by adding bottom padding inside the inset, all left the labels stuck at the top because the inset content's natural height was still governed by the safe area.
+
+The actual fix was to stop relying on safe-area math entirely and make the bar a fixed-height container. The VStack now has `.frame(height: Theme.Spacing.xxxl)` (32pt), the HStack switched to `alignment: .center` (so the icon+label buttons center vertically within the fixed frame), and the icons sit `.padding(.top, Theme.Spacing.lg)` (16pt) below the divider. The `.ignoresSafeArea(edges: .bottom)` modifier was removed from both the background and the VStack — the bar is now just a 32pt-tall content strip above the original home-indicator safe area, and the safe area itself shows the parent's background instead of an empty extension of the bar tint.
+
+**Files modified:**
+- `iOS/Knot/Components/UI/KnotTabBar.swift` — switched `HStack` alignment to `.center`, set top padding to `Theme.Spacing.lg`, constrained the VStack to `Theme.Spacing.xxxl` height, and removed `.ignoresSafeArea(edges: .bottom)` from the background
+
+**Test results:**
+- ✅ Layout-only change — no test additions needed; existing `KnotTabBar` SwiftUI preview still renders cleanly
+- ✅ Tap targets for For You / Saved / Profile remain unchanged (only the visible bar's lower empty strip was removed)
+
+**Notes:**
+- The destination tab content (`ForYouView`, `SavedView`, `SettingsView`) sees a shorter `.safeAreaInset` than before, so its scrollable content extends further down the screen. No callers needed updates — `.safeAreaInset(edge: .bottom, spacing: 0)` in `MainTabView` picks up the new height automatically.
+- The `RecommendationsView` workaround `.padding(.bottom, 100)` from Step 18.3 (covering the `safeAreaInset` not propagating across `navigationDestination` pushes) was left intact; that constant is still generous enough to absorb the new inset without visible regressions.
+- `32pt` and `16pt` are pulled from `Theme.Spacing.xxxl` / `Theme.Spacing.lg` rather than written as raw numbers, keeping the bar consistent with the rest of the `Components/UI` primitives' token usage.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
