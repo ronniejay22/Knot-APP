@@ -40,7 +40,7 @@ struct ForYouView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("For You")
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                 }
 
@@ -154,11 +154,11 @@ struct ForYouView: View {
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No milestones yet")
-                .font(.subheadline.weight(.semibold))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Add important dates like birthdays and anniversaries to get proactive reminders and personalized ideas.")
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)

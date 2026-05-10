@@ -70,7 +70,7 @@ struct EditVaultView: View {
                                     .tint(Theme.textPrimary)
                             } else {
                                 Text("Save")
-                                    .fontWeight(.semibold)
+                                    .knotFont(Theme.Typography.cta)
                             }
                         }
                         .tint(Theme.accent)
@@ -110,7 +110,7 @@ struct EditVaultView: View {
                 .controlSize(.regular)
                 .tint(Theme.accent)
             Text("Loading profile...")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -128,11 +128,11 @@ struct EditVaultView: View {
                 .foregroundStyle(.red)
 
             Text("Unable to Load Profile")
-                .font(.headline)
+                .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
 
             Text(message)
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
@@ -154,10 +154,10 @@ struct EditVaultView: View {
                 // Partner name header
                 VStack(spacing: 4) {
                     Text(vm.partnerName.isEmpty ? "Partner" : vm.partnerName)
-                        .font(.system(size: 24, weight: .bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
                     Text("Tap any section to edit")
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.top, 8)
@@ -262,7 +262,7 @@ struct EditVaultView: View {
                             activeSection = nil
                         }
                         .tint(Theme.accent)
-                        .fontWeight(.semibold)
+                        .knotFont(Theme.Typography.cta)
                     }
                 }
             }

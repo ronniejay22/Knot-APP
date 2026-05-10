@@ -59,11 +59,11 @@ struct SavedView: View {
 
             VStack(spacing: 6) {
                 Text("No saved items")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
                 Text("Save recommendations from For You to find them here later.")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
@@ -89,21 +89,21 @@ struct SavedView: View {
             // Details
             VStack(alignment: .leading, spacing: 2) {
                 Text(saved.title)
-                    .font(.caption.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
                     if let merchantName = saved.merchantName, !merchantName.isEmpty {
                         Text(merchantName)
-                            .font(.caption2)
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(Theme.textSecondary)
                             .lineLimit(1)
                     }
 
                     if let priceCents = saved.priceCents {
                         Text(RecommendationCard.formattedPrice(cents: priceCents, currency: saved.currency))
-                            .font(.caption2.weight(.semibold))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(Theme.textSecondary)
                     }
                 }

@@ -47,7 +47,7 @@ struct MilestonesManagementView: View {
 
                 ToolbarItem(placement: .principal) {
                     Text("Milestones")
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                 }
 
@@ -96,11 +96,11 @@ struct MilestonesManagementView: View {
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No Milestones")
-                .font(.title3.weight(.semibold))
+                .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Add important dates like birthdays, anniversaries, and holidays to get proactive recommendations.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -109,7 +109,7 @@ struct MilestonesManagementView: View {
                 viewModel.prepareAdd()
             } label: {
                 Text("Add Milestone")
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
@@ -154,18 +154,18 @@ struct MilestonesManagementView: View {
             // Name + details
             VStack(alignment: .leading, spacing: 3) {
                 Text(milestone.milestoneName)
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
                     Text(formattedDate(milestone.milestoneDate))
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
 
                     if milestone.recurrence == "yearly" {
                         Text("Yearly")
-                            .font(.caption2.weight(.medium))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(Theme.textTertiary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -182,11 +182,11 @@ struct MilestonesManagementView: View {
             if let days = milestone.daysUntil {
                 VStack(spacing: 2) {
                     Text("\(days)")
-                        .font(.headline.weight(.bold))
+                        .knotFont(Theme.Typography.numeric)
                         .foregroundStyle(daysColor(days))
 
                     Text(days == 1 ? "day" : "days")
-                        .font(.caption2)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textTertiary)
                 }
                 .frame(width: 44)
@@ -354,7 +354,7 @@ struct MilestoneFormSheet: View {
                             await viewModel.saveMilestone()
                         }
                     }
-                    .fontWeight(.semibold)
+                    .knotFont(Theme.Typography.cta)
                     .disabled(!viewModel.isFormValid)
                 }
             }

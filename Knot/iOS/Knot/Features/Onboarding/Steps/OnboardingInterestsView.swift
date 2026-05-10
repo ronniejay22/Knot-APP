@@ -55,7 +55,7 @@ struct OnboardingInterestsView: View {
             ScrollView {
                 if filteredInterests.isEmpty {
                     Text("No interests match \"\(searchText)\"")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.top, 40)
                 } else {
@@ -100,11 +100,11 @@ struct OnboardingInterestsView: View {
             let displayName = name.isEmpty ? "Them" : name
 
             Text("What does \(displayName) love?")
-                .font(.title.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Choose at least 5 things your partner enjoys.\nThis helps us personalize gift and date ideas.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
@@ -117,7 +117,7 @@ struct OnboardingInterestsView: View {
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textTertiary)
 
             TextField(
@@ -126,7 +126,7 @@ struct OnboardingInterestsView: View {
                 prompt: Text("Search interests...")
                     .foregroundStyle(Theme.textTertiary)
             )
-            .font(.subheadline)
+            .knotFont(Theme.Typography.body)
             .foregroundStyle(Theme.textPrimary)
             .tint(Theme.accent)
             .autocorrectionDisabled()
@@ -136,7 +136,7 @@ struct OnboardingInterestsView: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
@@ -159,16 +159,16 @@ struct OnboardingInterestsView: View {
 
         return HStack(spacing: 4) {
             Text("\(count) selected")
-                .fontWeight(.semibold)
+                .knotFont(Theme.Typography.cta)
 
             if remaining > 0 {
                 Text("(\(remaining) more needed)")
+                    .knotFont(Theme.Typography.body)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.subheadline)
             }
         }
-        .font(.subheadline)
         .foregroundStyle(Theme.accent)
         .animation(.easeInOut(duration: 0.2), value: count)
     }
@@ -338,7 +338,7 @@ private struct InterestImageCard: View {
                     Spacer()
                     HStack {
                         Text(title)
-                            .font(.caption.weight(.bold))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         Spacer()

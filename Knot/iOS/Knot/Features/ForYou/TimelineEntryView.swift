@@ -81,7 +81,7 @@ struct TimelineEntryView: View {
                     .foregroundStyle(milestoneTypeColor)
 
                 Text(milestone.milestoneName)
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
             }
@@ -89,7 +89,7 @@ struct TimelineEntryView: View {
             // Countdown
             if let days = milestone.daysUntil {
                 Text(MilestonesViewModel.daysUntilText(days))
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(dotColor)
             }
 
@@ -104,7 +104,7 @@ struct TimelineEntryView: View {
                             .frame(width: 14, height: 14)
 
                         Text("Get Recommendations")
-                            .font(.caption.weight(.semibold))
+                            .knotFont(Theme.Typography.label)
 
                         Spacer()
 

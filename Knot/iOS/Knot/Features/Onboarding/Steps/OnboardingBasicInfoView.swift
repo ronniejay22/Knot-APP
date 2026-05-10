@@ -89,10 +89,10 @@ struct OnboardingBasicInfoView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Tell us about your partner")
-                .font(.title3.weight(.semibold))
+                .knotFont(Theme.Typography.cardTitle)
 
             Text("We'll use this to personalize recommendations.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -104,10 +104,10 @@ struct OnboardingBasicInfoView: View {
     private func nameSection(name: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Partner's Name")
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
 
             TextField("Their first name", text: name)
-                .font(.body)
+                .knotFont(Theme.Typography.body)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(Theme.surface)
@@ -130,7 +130,7 @@ struct OnboardingBasicInfoView: View {
             if hasInteractedWithName && viewModel.partnerName
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("Name is required to continue")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(.red.opacity(0.8))
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -142,7 +142,7 @@ struct OnboardingBasicInfoView: View {
     private var tenureSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("How long have you been together?")
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
 
             HStack(spacing: 12) {
                 // Years picker
@@ -162,7 +162,7 @@ struct OnboardingBasicInfoView: View {
                     .tint(Theme.accent)
 
                     Text(viewModel.relationshipTenureMonths / 12 == 1 ? "year" : "years")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
@@ -187,7 +187,7 @@ struct OnboardingBasicInfoView: View {
                     .tint(Theme.accent)
 
                     Text(viewModel.relationshipTenureMonths % 12 == 1 ? "month" : "months")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
@@ -200,7 +200,7 @@ struct OnboardingBasicInfoView: View {
 
             // Summary text
             Text(tenureSummary)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(.tertiary)
         }
     }
@@ -219,7 +219,7 @@ struct OnboardingBasicInfoView: View {
     private func cohabitationSection(status: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Living Situation")
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
 
             Picker("Cohabitation", selection: status) {
                 Text("Living Together").tag("living_together")
@@ -230,7 +230,7 @@ struct OnboardingBasicInfoView: View {
 
             // Contextual description
             Text(cohabitationDescription)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(.tertiary)
         }
     }
@@ -262,15 +262,15 @@ struct OnboardingBasicInfoView: View {
                     .foregroundStyle(.secondary)
 
                 Text("Location")
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
             }
 
             Text("Helps us find local experiences and restaurants.")
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(.secondary)
 
             TextField("Search city, state, or zip code", text: $locationQuery)
-                .font(.body)
+                .knotFont(Theme.Typography.body)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(Theme.surface)
@@ -309,11 +309,11 @@ struct OnboardingBasicInfoView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(result.title)
-                                    .font(.subheadline)
+                                    .knotFont(Theme.Typography.body)
                                     .foregroundStyle(.primary)
                                 if !result.subtitle.isEmpty {
                                     Text(result.subtitle)
-                                        .font(.caption)
+                                        .knotFont(Theme.Typography.label)
                                         .foregroundStyle(.secondary)
                                 }
                             }

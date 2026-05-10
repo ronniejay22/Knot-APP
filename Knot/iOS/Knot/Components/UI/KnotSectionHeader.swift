@@ -64,8 +64,8 @@ struct KnotSectionHeader<Trailing: View>: View {
 
     private var font: Font {
         switch style {
-        case .caption: return .caption.weight(.semibold)
-        case .subhead: return .subheadline.weight(.semibold)
+        case .caption: return Theme.Typography.label
+        case .subhead: return Theme.Typography.cta
         }
     }
 
@@ -90,7 +90,7 @@ import LucideIcons
             KnotSectionHeader("Recent Hints", icon: Lucide.lightbulb)
             KnotSectionHeader("Upcoming") {
                 Text("View All")
-                    .font(.caption.weight(.semibold))
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.accent)
             }
         }

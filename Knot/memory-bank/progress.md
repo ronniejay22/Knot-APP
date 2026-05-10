@@ -5370,6 +5370,60 @@ The actual fix was to stop relying on safe-area math entirely and make the bar a
 
 ---
 
+### Step 18.10: Custom Font Migration — Fraunces + DM Sans ✅
+**Date:** May 10, 2026
+**Status:** Complete (pending font-file bundling step in Xcode)
+
+**What was done:**
+
+A typography audit of the iOS app turned up that all text was rendering in San Francisco (the default), with no custom fonts registered, and that `Theme.Typography` was almost entirely bypassed — only 2 of ~272 font call sites went through it. Every other surface used raw `.font(.body)` / `.font(.headline.weight(.semibold))` / `.font(.system(size: 28, weight: .bold))` etc., scattered across 38 view files. To establish a typographic identity that pairs with the existing pink/coral accent and aubergine dark theme, this step swapped the system font for a **Fraunces** (serif, display) + **DM Sans** (geometric sans, body) pairing and centralized every text style behind `Theme.Typography` + a new `.knotFont(_:)` view modifier.
+
+The `Theme.Typography` enum was rewritten as eight semantic tokens — `heroDisplay` (Fraunces-Light 42pt, sign-in wordmark), `sectionHeader` (Fraunces-Light 28pt, page titles), `cardTitle` (Fraunces-Regular 20pt, secondary headings), `italicQuote` (Fraunces-LightItalic 17pt, brand-moment italics), `body` (DMSans-Regular 17pt, default copy), `label` (DMSans-Medium 13pt, captions), `cta` (DMSans-SemiBold 17pt, buttons), and `numeric` (DMSans-Bold 17pt, counts/streaks). Each token is built via `Font.custom(_:size:relativeTo:)` so it continues to scale with iOS Dynamic Type relative to a matched system style. A `private enum FontFamily` holds the 7 PostScript-name string constants used by these tokens. The eight legacy token names (`xs` … `display`) are kept as `@available(*, deprecated)` typealiases mapping to the closest new token. `Theme.Weight` was marked deprecated end-to-end with a doc note explaining that custom fonts can't accept `.fontWeight(...)` reliably (SwiftUI may re-substitute the system font when the requested weight isn't in the active family), so callers should pick the matching `Theme.Typography.*` token instead.
+
+A `View.knotFont(_:)` extension at the bottom of `Theme.swift` became the single migration entry point — it intentionally does not chain `.fontWeight(...)`, so callers can't accidentally break weight selection. A `Text.knotFont(_:)` overload was added for `Text + Text` concatenation cases (the sign-in wordmark and the magic-link "we sent a link to {email}" line both required per-`Text` font modifiers since `.font(...)` doesn't propagate across concatenation).
+
+`Theme.registerFonts()` was added as a `#if DEBUG` smoke test that prints `UIFont.familyNames` and the per-family `fontNames` for `"Fraunces"` and `"DM Sans"` on app launch. `Font.custom` silently falls back to the system font if a face isn't bundled or its PostScript name doesn't match — this print is the only reliable signal that registration succeeded. `KnotApp.init()` now calls `Theme.registerFonts()`.
+
+The Info.plist gained a `UIAppFonts` array listing the 7 expected `.ttf` filenames (`Fraunces-Light.ttf`, `Fraunces-Regular.ttf`, `Fraunces-LightItalic.ttf`, `DMSans-Regular.ttf`, `DMSans-Medium.ttf`, `DMSans-SemiBold.ttf`, `DMSans-Bold.ttf`). The actual font files have NOT been added to the bundle yet — the user needs to download them from Google Fonts (both are SIL OFL 1.1 — commercial embedding allowed, no in-app attribution), drop them in `iOS/Knot/Resources/Fonts/`, and run `xcodegen generate` to wire them into the Xcode target's Copy Bundle Resources phase. Until that step, the app falls back to San Francisco silently. The `Theme.registerFonts()` debug print is the gating check.
+
+The view migration touched roughly 270 call sites across 35 view files in `Components/UI/`, `App/`, and every `Features/*` subfolder. Notable bespoke handling: the sign-in wordmark in `SignInView.swift` got per-`Text` `Theme.Typography.heroDisplay` modifiers; the sign-in tagline "Connect Deeply" became the signature italic Fraunces brand moment via `Theme.Typography.italicQuote`; the existing `.italic()` sites in `RecommendationCard.swift` (recommendation attribution) and `IdeaDetailView.swift` (conversation starters) switched to `italicQuote` and dropped the chained `.italic()` modifier (Fraunces-LightItalic is already italic — chaining `.italic()` requests synthesized italic on top of an italic face, which iOS handles inconsistently). All `.fontWeight(...)` chains were stripped because weight is baked into each Typography token. SF Symbol icon-sizing sites (e.g., `Image(systemName: "calendar.badge.plus").font(.system(size: 48))`) and micro-typography badges (`.font(.system(size: 9, weight: .heavy))`) were left untouched — they're glyph sizing, not text styling, and custom fonts don't apply to symbol images. The `Theme.Typography.legacy.weight(...)` chain in `KnotTabBar.swift` was replaced with `.knotFont(Theme.Typography.label)`. The Google "G" logo in `LoginView.swift` (`.font(.system(size: 18, weight: .bold, design: .rounded))`) was preserved because it's brand styling for the Google identity glyph.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — replaced `Typography` (8 new tokens via `Font.custom(_:size:relativeTo:)`), added `private enum FontFamily` with 7 PostScript-name constants, added 8 deprecated typealiases for legacy names, marked `Weight` deprecated, added `View.knotFont(_:)` and `Text.knotFont(_:)` extensions, added `Theme.registerFonts()` debug helper
+- `iOS/Knot/Info.plist` — added `UIAppFonts` array with 7 entries
+- `iOS/Knot/App/KnotApp.swift` — added `init()` that calls `Theme.registerFonts()` under `#if DEBUG`
+- `iOS/Knot/App/ContentView.swift` — migrated 1 call site
+- `iOS/Knot/Components/UI/KnotSectionHeader.swift`, `KnotProgressIndicator.swift`, `KnotListRow.swift`, `KnotButton.swift`, `KnotTabBar.swift`, `KnotInput.swift`, `KnotBadge.swift` — migrated all internal font calls; `KnotButton.Size.font` and `KnotBadge.Size.font` now return `Theme.Typography.cta` / `.label` (size differentiation is via padding only)
+- `iOS/Knot/Features/Auth/SignInView.swift` — wordmark uses per-`Text` `heroDisplay`, tagline uses `italicQuote` (signature brand moment), CTA uses `cta`
+- `iOS/Knot/Features/Auth/LoginView.swift`, `MagicLinkView.swift` — migrated; the `Text + Text` concatenation in MagicLinkView's "check your email" view uses per-`Text` `body` + `cta` modifiers
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` and all 9 step views (Welcome, BasicInfo, Interests, Dislikes, Vibes, LoveLanguages, Milestones, Budget, Completion) — migrated
+- `iOS/Knot/Features/Home/HomeView.swift` — partner-name countdown now uses `numeric`, milestone names use `cta`
+- `iOS/Knot/Features/ForYou/ForYouView.swift`, `JustBecauseCard.swift`, `TimelineEntryView.swift` — migrated
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — title uses `cardTitle`, attribution uses `italicQuote` (replaces `.italic()` site), type badge uses `label`
+- `iOS/Knot/Features/Recommendations/IdeaDetailView.swift` — conversation-starter quotes use `italicQuote` (replaces `.italic()` site)
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift`, `DeepLinkRecommendationView.swift`, `PurchasePromptSheet.swift`, `PurchaseRatingSheet.swift`, `AppReviewPromptSheet.swift` — migrated
+- `iOS/Knot/Features/Saved/SavedView.swift`, `Settings/SettingsView.swift`, `Settings/EditVaultView.swift`, `Settings/ReauthenticationSheet.swift`, `Notifications/NotificationsView.swift`, `Milestones/MilestonesManagementView.swift` — migrated
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds with zero errors and zero warnings
+- ✅ `xcodebuild test` — all 4 existing tests pass (2 unit tests in `KnotTests`, 2 launch tests in `KnotUITests`)
+- ⏳ Visual verification deferred until the user adds the font files in Xcode and runs the app — until then `Font.custom` silently falls back to San Francisco and the registration debug print will report `❌ Fraunces NOT loaded` / `❌ DM Sans NOT loaded`
+
+**User action required to finish bundling:**
+1. Download Fraunces (Light, Regular, LightItalic) and DM Sans (Regular, Medium, SemiBold, Bold) static `.ttf` files from Google Fonts.
+2. Place them at `iOS/Knot/Resources/Fonts/` with the exact filenames listed in the Info.plist `UIAppFonts` array.
+3. Run `xcodegen generate` from `iOS/`. XcodeGen's `sources: [path: Knot]` rule auto-includes everything under `iOS/Knot/`, so the `.ttf` files land in Copy Bundle Resources without further Xcode UI interaction.
+4. Build & run; the debug console must show `🔤 ✅ Fraunces loaded` and `🔤 ✅ DM Sans loaded` (with the expected PostScript names) for the typography to actually take effect.
+
+**Notes:**
+- `Theme.Weight` is deprecated, not deleted — the typealias stays so any future code that imports the symbol fails at compile time with a clear migration message rather than crashing at runtime.
+- The 8 legacy `Theme.Typography.{xs,sm,base,body,lg,xl,xxl,display}` tokens were preserved as deprecated typealiases mapping to the closest new token, so the 2 existing call sites that used them (`OnboardingWelcomeView.display`, `KnotTabBar.xs.weight(.medium)`) keep compiling. Both have been migrated to the new tokens, so the deprecated names exist purely as a safety net for any future code.
+- SF Symbol icon-sizing calls (`Image(systemName:).font(.subheadline)` etc.) and micro-typography badge sizes (`.font(.system(size: 9, weight: .heavy))`) were intentionally left as-is. Custom fonts don't apply to SF Symbol glyphs in any meaningful way, and the micro-typography sizes are tighter than what the custom faces handle elegantly.
+- The Google "G" logo in `LoginView.swift` keeps `.font(.system(size: 18, weight: .bold, design: .rounded))` because it's an SF Rounded glyph used as a brand mark — replacing it with DM Sans would lose the visual intent.
+- The italic Fraunces token is intentionally narrow in scope — it's applied only at three sites (sign-in tagline, recommendation attribution, idea conversation starters). Sprinkling italics dilutes the brand moment.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

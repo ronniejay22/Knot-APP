@@ -280,7 +280,7 @@ struct SettingsView: View {
     ) -> some View {
         HStack {
             Text(label)
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer()

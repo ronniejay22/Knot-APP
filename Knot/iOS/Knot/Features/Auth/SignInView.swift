@@ -144,14 +144,22 @@ private struct BrandingSection: View {
                     .padding(.bottom, 12)
 
                 // MARK: - Two-tone App Name
-                (Text("Kn").foregroundStyle(Theme.textPrimary) + Text("ot").foregroundStyle(Theme.accent))
-                    .font(.system(size: 42, weight: .bold))
+                // Per-`Text` font modifier — `.font(...)` doesn't propagate
+                // across `Text + Text` concatenation.
+                (
+                    Text("Kn")
+                        .foregroundStyle(Theme.textPrimary)
+                        .knotFont(Theme.Typography.heroDisplay)
+                    + Text("ot")
+                        .foregroundStyle(Theme.accent)
+                        .knotFont(Theme.Typography.heroDisplay)
+                )
                     .tracking(-1)
                     .padding(.bottom, 6)
 
-                // MARK: - Tagline
+                // MARK: - Tagline (signature italic Fraunces brand moment)
                 Text("Connect Deeply")
-                    .font(.title3)
+                    .knotFont(Theme.Typography.italicQuote)
                     .foregroundStyle(Theme.textSecondary)
 
                 Spacer()
@@ -159,7 +167,7 @@ private struct BrandingSection: View {
                 // MARK: - Get Started Button
                 NavigationLink(value: "getStarted") {
                     Text("Get Started")
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
@@ -174,7 +182,7 @@ private struct BrandingSection: View {
                     Text("•")
                     Text("Privacy Policy")
                 }
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.accent)
 
                 Spacer()

@@ -59,11 +59,11 @@ struct KnotListRow<Trailing: View>: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
@@ -175,7 +175,7 @@ struct _InfoValueAccessory: View {
 
     var body: some View {
         Text(value)
-            .font(.subheadline)
+            .knotFont(Theme.Typography.body)
             .foregroundStyle(Theme.textSecondary)
             .lineLimit(1)
     }

@@ -88,11 +88,11 @@ struct OnboardingMilestonesView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Important Dates")
-                .font(.title2.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
 
             let name = viewModel.partnerName.isEmpty ? "your partner" : viewModel.partnerName
             Text("When should we remind you about \(name)?")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
@@ -112,7 +112,7 @@ struct OnboardingMilestonesView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text("Birthday")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
 
                 KnotBadge("Required", variant: .accent, size: .sm)
             }
@@ -150,7 +150,7 @@ struct OnboardingMilestonesView: View {
             )
 
             Text(formattedDate(month: viewModel.partnerBirthdayMonth, day: viewModel.partnerBirthdayDay))
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.leading, 4)
         }
@@ -170,7 +170,7 @@ struct OnboardingMilestonesView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text("Anniversary")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
 
                 Spacer()
 
@@ -217,7 +217,7 @@ struct OnboardingMilestonesView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
 
                 Text(formattedDate(month: viewModel.anniversaryMonth, day: viewModel.anniversaryDay))
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
                     .padding(.leading, 4)
                     .transition(.opacity)
@@ -246,19 +246,19 @@ struct OnboardingMilestonesView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text("Holidays")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
 
                 Spacer()
 
                 if !viewModel.selectedHolidays.isEmpty {
                     Text("\(viewModel.selectedHolidays.count) selected")
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.accent)
                 }
             }
 
             Text("Tap to add reminders for these holidays.")
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
 
             // Holiday chips in a vertical list for clean alignment
@@ -293,11 +293,11 @@ struct OnboardingMilestonesView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text("Custom Milestones")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
             }
 
             Text("Add dates unique to your relationship.")
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
 
             // Existing custom milestones
@@ -322,7 +322,7 @@ struct OnboardingMilestonesView: View {
                         .frame(width: 20, height: 20)
 
                     Text("Add Custom Milestone")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
@@ -350,14 +350,14 @@ struct OnboardingMilestonesView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(milestone.name)
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
 
                 HStack(spacing: 4) {
                     Text(formattedDate(month: milestone.month, day: milestone.day))
                     Text("·")
                     Text(milestone.recurrence == "yearly" ? "Yearly" : "One-time")
                 }
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
             }
 
@@ -396,7 +396,7 @@ struct OnboardingMilestonesView: View {
                 // Name field
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Milestone Name")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
 
                     KnotInput(
@@ -409,7 +409,7 @@ struct OnboardingMilestonesView: View {
                 // Date pickers
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Date")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
 
                     HStack(spacing: 12) {
@@ -444,7 +444,7 @@ struct OnboardingMilestonesView: View {
                 // Recurrence picker
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recurrence")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
 
                     Picker("Recurrence", selection: $customRecurrence) {
@@ -484,7 +484,7 @@ struct OnboardingMilestonesView: View {
                         viewModel.validateCurrentStep()
                         showingCustomSheet = false
                     }
-                    .fontWeight(.semibold)
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.accent)
                     .disabled(customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -498,7 +498,7 @@ struct OnboardingMilestonesView: View {
     private func monthPicker(selection: Binding<Int>, label: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
 
             Picker(label, selection: selection) {
@@ -516,7 +516,7 @@ struct OnboardingMilestonesView: View {
     private func dayPicker(selection: Binding<Int>, daysInMonth: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
 
             Picker(label, selection: selection) {
@@ -568,11 +568,11 @@ private struct HolidayChip: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(holiday.displayName)
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
 
                     Text(formattedDate(month: holiday.month, day: holiday.day))
-                        .font(.caption2)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(isSelected ? Theme.textSecondary : Theme.textTertiary)
                 }
 

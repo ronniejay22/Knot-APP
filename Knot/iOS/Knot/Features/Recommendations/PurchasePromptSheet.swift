@@ -36,7 +36,7 @@ struct PurchasePromptSheet: View {
                         .foregroundStyle(Theme.accent)
 
                     Text("Did you complete your purchase?")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                 }
@@ -45,7 +45,7 @@ struct PurchasePromptSheet: View {
                 // Item summary
                 VStack(spacing: 4) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -58,7 +58,7 @@ struct PurchasePromptSheet: View {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 12, height: 12)
                             Text("from \(merchantName)")
-                                .font(.caption)
+                                .knotFont(Theme.Typography.label)
                         }
                         .foregroundStyle(Theme.textSecondary)
                     }
@@ -77,7 +77,7 @@ struct PurchasePromptSheet: View {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 16, height: 16)
                             Text("Yes, I bought it!")
-                                .font(.subheadline.weight(.semibold))
+                                .knotFont(Theme.Typography.cta)
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -97,7 +97,7 @@ struct PurchasePromptSheet: View {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 16, height: 16)
                             Text("No, save for later")
-                                .font(.subheadline.weight(.medium))
+                                .knotFont(Theme.Typography.cta)
                         }
                         .foregroundStyle(Theme.textSecondary)
                         .frame(maxWidth: .infinity)

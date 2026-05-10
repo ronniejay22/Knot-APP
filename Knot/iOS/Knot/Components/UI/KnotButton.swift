@@ -44,10 +44,11 @@ struct KnotButton<Label: View>: View {
         }
 
         var font: Font {
+            // All button sizes use the same DM Sans SemiBold face (`.cta`).
+            // Differentiation between sizes is via the button's frame height
+            // and horizontal padding, not font scale.
             switch self {
-            case .sm: return .caption.weight(.semibold)
-            case .md: return .subheadline.weight(.semibold)
-            case .lg: return .body.weight(.semibold)
+            case .sm, .md, .lg: return Theme.Typography.cta
             }
         }
 

@@ -48,7 +48,7 @@ struct OnboardingCompletionView: View {
 
                 // MARK: - Footer Hint
                 Text("Tap \"Get Started\" below to begin")
-                    .font(.footnote)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
                     .padding(.top, 4)
                     .padding(.bottom, 16)
@@ -71,14 +71,14 @@ struct OnboardingCompletionView: View {
             let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
 
             Text("You're All Set!")
-                .font(.system(size: 26, weight: .bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .tracking(-0.5)
                 .foregroundStyle(Theme.textPrimary)
 
             Text(name.isEmpty
                  ? "Your Partner Vault is ready.\nKnot will find personalized gifts, dates, and experiences."
                  : "\(name)'s vault is ready.\nKnot will find personalized gifts, dates, and experiences.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
@@ -118,7 +118,7 @@ struct OnboardingCompletionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
                             Text("\(viewModel.selectedInterests.count) Likes")
-                                .font(.caption.weight(.semibold))
+                                .knotFont(Theme.Typography.label)
                         } icon: {
                             Image(uiImage: Lucide.heart)
                                 .renderingMode(.template)
@@ -141,7 +141,7 @@ struct OnboardingCompletionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
                             Text("\(viewModel.selectedDislikes.count) Hard Avoids")
-                                .font(.caption.weight(.semibold))
+                                .knotFont(Theme.Typography.label)
                         } icon: {
                             Image(uiImage: Lucide.ban)
                                 .renderingMode(.template)
@@ -214,7 +214,7 @@ struct OnboardingCompletionView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 12, height: 12)
                         Text("Next up: \(upcoming.name) \(upcoming.daysAway)")
-                            .font(.caption)
+                            .knotFont(Theme.Typography.label)
                     }
                     .foregroundStyle(Theme.accent)
                     .padding(.top, 4)
@@ -229,7 +229,7 @@ struct OnboardingCompletionView: View {
         SummaryCard(icon: Lucide.palette, title: "Aesthetic Vibes") {
             if viewModel.selectedVibes.isEmpty {
                 Text("None selected")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textTertiary)
             } else {
                 FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
@@ -242,7 +242,7 @@ struct OnboardingCompletionView: View {
                                 .frame(width: 13, height: 13)
 
                             Text(OnboardingVibesView.displayName(for: vibe))
-                                .font(.caption.weight(.medium))
+                                .knotFont(Theme.Typography.label)
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
@@ -308,12 +308,12 @@ struct OnboardingCompletionView: View {
     private func summaryRow(label: String, value: String) -> some View {
         HStack(spacing: 0) {
             Text(label)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
                 .frame(width: 68, alignment: .leading)
 
             Text(value)
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
         }
     }
@@ -326,13 +326,13 @@ struct OnboardingCompletionView: View {
                 .frame(width: 18)
 
             Text(name)
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer()
 
             Text(date)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
 
             if let recurrence, recurrence == "one_time" {
@@ -357,13 +357,13 @@ struct OnboardingCompletionView: View {
                 .foregroundStyle(Theme.accent)
 
             Text(label)
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer()
 
             Text("\(formatDollars(min)) – \(formatDollars(max))")
-                .font(.caption.weight(.medium))
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
         }
     }
@@ -378,7 +378,7 @@ struct OnboardingCompletionView: View {
                 .foregroundStyle(rank == "Primary" ? Theme.accent : Theme.textSecondary)
 
             Text(OnboardingLoveLanguagesView.displayName(for: language))
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer()

@@ -68,11 +68,11 @@ struct MagicLinkView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Enter your email")
-                .font(.system(size: 24, weight: .bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("We'll send you a magic link to create your account.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
 
@@ -82,7 +82,7 @@ struct MagicLinkView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isEmailFocused)
-                .font(.body)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(16)
                 .background(Theme.surface)
@@ -102,7 +102,7 @@ struct MagicLinkView: View {
                 }
             } label: {
                 Text("Send Magic Link")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
@@ -125,26 +125,31 @@ struct MagicLinkView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Check your email")
-                .font(.system(size: 24, weight: .bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
-            (Text("We sent a sign-in link to\n")
-                .foregroundStyle(Theme.textSecondary) +
-             Text(email)
-                .foregroundStyle(Theme.textPrimary)
-                .bold())
-                .font(.subheadline)
+            // Per-`Text` font modifiers — `.font(...)` doesn't propagate
+            // across `Text + Text`. The email itself uses `.cta` (DM Sans
+            // SemiBold) for emphasis instead of the synthesized `.bold()`.
+            (
+                Text("We sent a sign-in link to\n")
+                    .foregroundStyle(Theme.textSecondary)
+                    .knotFont(Theme.Typography.body)
+                + Text(email)
+                    .foregroundStyle(Theme.textPrimary)
+                    .knotFont(Theme.Typography.cta)
+            )
                 .multilineTextAlignment(.center)
 
             Text("Tap the link in your email to sign in.")
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textTertiary)
 
             Button {
                 Task { await authViewModel.sendMagicLink(email: email) }
             } label: {
                 Text("Resend Email")
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.accent)
             }
             .disabled(authViewModel.isLoading)

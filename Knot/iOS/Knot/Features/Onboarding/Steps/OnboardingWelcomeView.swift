@@ -32,12 +32,12 @@ struct OnboardingWelcomeView: View {
             // MARK: - Title & Subtitle
             VStack(spacing: 12) {
                 Text("Build Your Partner Vault")
-                    .font(Theme.Typography.display)
+                    .knotFont(Theme.Typography.sectionHeader)
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
 
                 Text("Tell us about your partner so we can find\nperfect gifts, dates, and experiences.")
-                    .font(.body)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
@@ -58,7 +58,7 @@ struct OnboardingWelcomeView: View {
             Spacer()
 
             Text("Takes about 3 minutes")
-                .font(.footnote)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 24)
@@ -81,7 +81,7 @@ private struct WelcomeChecklistRow: View {
                 .foregroundStyle(Theme.accent.opacity(0.8))
 
             Text(text)
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(.primary)
 
             Spacer()

@@ -90,7 +90,7 @@ struct ContentView: View {
                 .controlSize(.regular)
                 .tint(Theme.accent)
             Text("Loading...")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

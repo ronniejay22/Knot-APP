@@ -83,11 +83,11 @@ struct OnboardingLoveLanguagesView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("How does \(displayName) feel loved?")
-                .font(.title.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text(headerSubtitle)
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
@@ -117,20 +117,20 @@ struct OnboardingLoveLanguagesView: View {
 
             if primarySet && secondarySet {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                 Text("Both selected")
-                    .fontWeight(.semibold)
+                    .knotFont(Theme.Typography.cta)
             } else if primarySet {
                 Image(systemName: "1.circle.fill")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                 Text("Primary set — pick secondary")
-                    .fontWeight(.semibold)
+                    .knotFont(Theme.Typography.cta)
             } else {
                 Text("Pick primary love language")
-                    .fontWeight(.semibold)
+                    .knotFont(Theme.Typography.cta)
             }
         }
-        .font(.subheadline)
+        .knotFont(Theme.Typography.body)
         .foregroundStyle(Theme.accent)
         .animation(.easeInOut(duration: 0.2), value: viewModel.primaryLoveLanguage)
         .animation(.easeInOut(duration: 0.2), value: viewModel.secondaryLoveLanguage)
@@ -327,11 +327,11 @@ private struct LoveLanguageCard: View {
                     // Name + description (stable layout, no badges here)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(displayName)
-                            .font(.headline.weight(.bold))
+                            .knotFont(Theme.Typography.cardTitle)
                             .foregroundStyle(.white)
 
                         Text(description)
-                            .font(.caption)
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(.white.opacity(0.65))
                             .lineLimit(2)
                     }

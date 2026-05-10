@@ -37,11 +37,11 @@ struct PurchaseRatingSheet: View {
                         .foregroundStyle(Theme.accent)
 
                     Text("How was this pick?")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
 
                     Text(itemTitle)
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -67,7 +67,7 @@ struct PurchaseRatingSheet: View {
                 // Optional feedback text
                 TextField("Any notes? (optional)", text: $feedbackText, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textPrimary)
                     .padding(12)
                     .lineLimit(3...6)
@@ -87,7 +87,7 @@ struct PurchaseRatingSheet: View {
                     onSubmit(rating, text.isEmpty ? nil : text)
                 } label: {
                     Text("Submit")
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -104,7 +104,7 @@ struct PurchaseRatingSheet: View {
                 // Skip button
                 Button(action: onSkip) {
                     Text("Skip")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .padding(.bottom, 20)

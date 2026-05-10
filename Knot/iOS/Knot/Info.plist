@@ -58,6 +58,16 @@
     <string>528827192667-b0tsanftdkjjn616b4bph5sv3un35859.apps.googleusercontent.com</string>
     <key>GIDServerClientID</key>
     <string>528827192667-nk58fts62eq99v1d96djqc7gg311iske.apps.googleusercontent.com</string>
+    <key>UIAppFonts</key>
+    <array>
+        <string>Fraunces-Light.ttf</string>
+        <string>Fraunces-Regular.ttf</string>
+        <string>Fraunces-LightItalic.ttf</string>
+        <string>DMSans-Regular.ttf</string>
+        <string>DMSans-Medium.ttf</string>
+        <string>DMSans-SemiBold.ttf</string>
+        <string>DMSans-Bold.ttf</string>
+    </array>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

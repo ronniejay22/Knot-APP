@@ -54,7 +54,7 @@ struct OnboardingContainerView: View {
             // MARK: - Validation Error Banner
             if showValidationError {
                 Text(validationErrorText)
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
@@ -113,14 +113,13 @@ struct OnboardingContainerView: View {
             // Step indicator text
             HStack {
                 Text(viewModel.currentStep.title)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary)
 
                 Spacer()
 
                 Text("Step \(viewModel.currentStep.rawValue + 1) of \(OnboardingStep.totalSteps)")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
             }
 

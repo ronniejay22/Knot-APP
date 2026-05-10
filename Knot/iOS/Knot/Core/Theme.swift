@@ -225,16 +225,92 @@ extension Theme {
         static let pill: CGFloat = 999
     }
 
-    /// Semantic typography tokens. Maps shadcn text scale onto SwiftUI's `Font` system.
+    /// PostScript names for the bundled custom font faces. These must exactly
+    /// match the PostScript names embedded in each `.ttf` file — `Font.custom`
+    /// silently falls back to the system font if the name is wrong, so verify
+    /// via `Theme.registerFonts()` after any font-bundle change.
+    private enum FontFamily {
+        enum Fraunces {
+            static let light = "Fraunces-Light"
+            static let regular = "Fraunces-Regular"
+            static let lightItalic = "Fraunces-LightItalic"
+        }
+        enum DMSans {
+            static let regular = "DMSans-Regular"
+            static let medium = "DMSans-Medium"
+            static let semibold = "DMSans-SemiBold"
+            static let bold = "DMSans-Bold"
+        }
+    }
+
+    /// Semantic typography tokens, backed by the bundled Fraunces (serif,
+    /// display) and DM Sans (sans, body) families. Each token is built via
+    /// `Font.custom(_:size:relativeTo:)` so it continues to scale with iOS
+    /// Dynamic Type relative to the chosen system style.
+    ///
+    /// Weight is baked into the chosen face — never chain `.fontWeight(...)`
+    /// after a `Theme.Typography.*` token: SwiftUI may re-substitute the
+    /// system font when the requested weight isn't in the active family.
+    ///
+    /// Apply via the `View.knotFont(_:)` extension at the bottom of this file.
     enum Typography {
-        static let xs: Font = .caption2
-        static let sm: Font = .caption
-        static let base: Font = .subheadline
-        static let body: Font = .body
-        static let lg: Font = .headline
-        static let xl: Font = .title3
-        static let xxl: Font = .title2
-        static let display: Font = .system(size: 28, weight: .bold)
+        /// Fraunces-Light @ 42pt. Reserved for the sign-in wordmark and other
+        /// hero-scale moments. Scales relative to `.largeTitle`.
+        static let heroDisplay: Font = .custom(FontFamily.Fraunces.light, size: 42, relativeTo: .largeTitle)
+
+        /// Fraunces-Light @ 28pt. Page titles and prominent section headers.
+        /// Scales relative to `.title`.
+        static let sectionHeader: Font = .custom(FontFamily.Fraunces.light, size: 28, relativeTo: .title)
+
+        /// Fraunces-Regular @ 20pt. Card titles and secondary headings.
+        /// Scales relative to `.title2`.
+        static let cardTitle: Font = .custom(FontFamily.Fraunces.regular, size: 20, relativeTo: .title2)
+
+        /// Fraunces-LightItalic @ 17pt. Brand-moment italics — sign-in
+        /// tagline, recommendation attributions, idea reasons. Use sparingly.
+        /// The face is already italic; do not chain `.italic()`.
+        static let italicQuote: Font = .custom(FontFamily.Fraunces.lightItalic, size: 17, relativeTo: .body)
+
+        /// DMSans-Regular @ 17pt. Default body / descriptive copy.
+        /// Scales relative to `.body`.
+        static let body: Font = .custom(FontFamily.DMSans.regular, size: 17, relativeTo: .body)
+
+        /// DMSans-Medium @ 13pt. Labels, captions, fine print.
+        /// Scales relative to `.caption`.
+        static let label: Font = .custom(FontFamily.DMSans.medium, size: 13, relativeTo: .caption)
+
+        /// DMSans-SemiBold @ 17pt. Primary CTA buttons.
+        /// Scales relative to `.body`.
+        static let cta: Font = .custom(FontFamily.DMSans.semibold, size: 17, relativeTo: .body)
+
+        /// DMSans-Bold @ 17pt. Numeric callouts (streak counts, totals).
+        /// Scales relative to `.body`.
+        static let numeric: Font = .custom(FontFamily.DMSans.bold, size: 17, relativeTo: .body)
+
+        // MARK: - Deprecated legacy tokens (kept for backwards compatibility).
+        // Map to the closest new token; new code should use the named tokens
+        // above directly.
+
+        @available(*, deprecated, renamed: "label", message: "Use Theme.Typography.label.")
+        static let xs: Font = label
+
+        @available(*, deprecated, renamed: "label", message: "Use Theme.Typography.label.")
+        static let sm: Font = label
+
+        @available(*, deprecated, renamed: "body", message: "Use Theme.Typography.body.")
+        static let base: Font = body
+
+        @available(*, deprecated, renamed: "cardTitle", message: "Use Theme.Typography.cardTitle.")
+        static let lg: Font = cardTitle
+
+        @available(*, deprecated, renamed: "cardTitle", message: "Use Theme.Typography.cardTitle.")
+        static let xl: Font = cardTitle
+
+        @available(*, deprecated, renamed: "cardTitle", message: "Use Theme.Typography.cardTitle.")
+        static let xxl: Font = cardTitle
+
+        @available(*, deprecated, renamed: "sectionHeader", message: "Use Theme.Typography.sectionHeader.")
+        static let display: Font = sectionHeader
     }
 
     /// Standardized animation curves for primitive interactions.
@@ -243,8 +319,14 @@ extension Theme {
         static let quick: SwiftUI.Animation = .easeInOut(duration: 0.15)
     }
 
-    /// Font-weight scale aliasing SwiftUI's `Font.Weight`. Excludes the unused
-    /// `.thin`, `.ultraLight`, and `.black` weights to keep the design surface tight.
+    /// Font-weight scale aliasing SwiftUI's `Font.Weight`.
+    ///
+    /// **Deprecated.** With custom fonts (Fraunces / DM Sans), weight is baked
+    /// into the chosen face — chaining `.fontWeight(...)` after a
+    /// `Theme.Typography.*` token can re-substitute the system font when the
+    /// requested weight isn't in the active family. Pick the right
+    /// `Theme.Typography.*` token instead.
+    @available(*, deprecated, message: "Weight is baked into Theme.Typography tokens. Pick the matching token instead of chaining .fontWeight().")
     enum Weight {
         static let regular: Font.Weight = .regular
         static let medium: Font.Weight = .medium
@@ -281,5 +363,45 @@ extension View {
     /// `.shadow(Theme.Shadow.md)`.
     func shadow(_ token: Theme.ShadowToken) -> some View {
         shadow(color: token.color, radius: token.radius, x: token.x, y: token.y)
+    }
+
+    /// Apply a `Theme.Typography` token. Single migration entry point — keeps
+    /// `Font.custom` calls out of view code and prevents callers from chaining
+    /// `.fontWeight(...)` (weight is already baked into each token).
+    func knotFont(_ token: Font) -> some View {
+        font(token)
+    }
+}
+
+extension Text {
+    /// `Text`-only overload of `knotFont(_:)` for `Text + Text` concatenation
+    /// cases (e.g., the two-tone "Knot" wordmark on the sign-in screen),
+    /// where the modifier must be applied per-`Text` rather than to the
+    /// resulting view.
+    func knotFont(_ token: Font) -> Text {
+        font(token)
+    }
+}
+
+extension Theme {
+    /// Debug helper that prints loaded font families and the per-family
+    /// PostScript names we depend on. `Font.custom` silently falls back to
+    /// the system font if a face isn't bundled or its PostScript name doesn't
+    /// match — this print is the only reliable signal that registration
+    /// succeeded. Call once from `KnotApp.init()` under `#if DEBUG`.
+    static func registerFonts() {
+        #if DEBUG
+        let expectedFamilies = ["Fraunces", "DM Sans"]
+        let allFamilies = Set(UIFont.familyNames)
+        print("🔤 [Theme.registerFonts] expecting:", expectedFamilies)
+        for family in expectedFamilies {
+            if allFamilies.contains(family) {
+                let names = UIFont.fontNames(forFamilyName: family)
+                print("🔤   ✅ \(family) loaded — faces: \(names)")
+            } else {
+                print("🔤   ❌ \(family) NOT loaded — check Info.plist UIAppFonts and Copy Bundle Resources")
+            }
+        }
+        #endif
     }
 }

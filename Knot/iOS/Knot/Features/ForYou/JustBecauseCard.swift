@@ -21,7 +21,7 @@ struct JustBecauseCard: View {
                 KnotSectionHeader("Surprise them today", icon: Lucide.sparkles)
 
                 Text("Get personalized gift, date, or experience ideas for \(partnerName) \u{2014} no occasion needed.")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 

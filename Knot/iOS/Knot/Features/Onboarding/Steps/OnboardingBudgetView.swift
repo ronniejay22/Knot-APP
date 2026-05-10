@@ -56,11 +56,11 @@ struct OnboardingBudgetView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("Budget for \(displayName)")
-                .font(.title.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Set comfortable spending ranges\nfor each type of occasion.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
@@ -272,11 +272,11 @@ private struct BudgetTierCard: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
-                            .font(.headline.weight(.bold))
+                            .knotFont(Theme.Typography.cardTitle)
                             .foregroundStyle(Theme.textPrimary)
 
                         Text(subtitle)
-                            .font(.caption)
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(Theme.textSecondary)
                     }
 
@@ -287,7 +287,7 @@ private struct BudgetTierCard: View {
                         onSelectAll()
                     } label: {
                         Text(allSelected ? "All selected" : "Select all")
-                            .font(.caption.weight(.medium))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(allSelected ? Theme.textTertiary : accentColor)
                     }
                     .buttonStyle(.plain)
@@ -306,7 +306,8 @@ private struct BudgetTierCard: View {
                             onToggle(option)
                         } label: {
                             Text(option.label)
-                                .font(.subheadline.weight(.medium).monospacedDigit())
+                                .knotFont(Theme.Typography.cta)
+                                .monospacedDigit()
                                 .foregroundStyle(isSelected ? .white : Theme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)

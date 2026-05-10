@@ -25,12 +25,12 @@ struct LoginView: View {
 
                 // MARK: - Title & Subtitle
                 Text("Create Account")
-                    .font(.system(size: 28, weight: .bold))
+                    .knotFont(Theme.Typography.sectionHeader)
                     .foregroundStyle(Theme.accent)
                     .padding(.bottom, 8)
 
                 Text("Sign up to start building your partner vault")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -110,7 +110,7 @@ private struct ProviderButtonLabel: View {
         HStack(spacing: 12) {
             icon
             Text(title)
-                .font(.headline.weight(.semibold))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(.black)
         }
         .frame(maxWidth: .infinity)

@@ -89,13 +89,13 @@ struct KnotInput: View {
         case .singleLine:
             TextField("", text: $text, prompt: placeholderView)
                 .focused($isFocused)
-                .font(.body)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textPrimary)
         case .multiLine:
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
-                        .font(.body)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textTertiary)
                         .padding(.top, 12)
                         .padding(.leading, 4)
@@ -103,7 +103,7 @@ struct KnotInput: View {
                 }
                 TextEditor(text: $text)
                     .focused($isFocused)
-                    .font(.body)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textPrimary)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: minHeight ?? 80, maxHeight: maxHeight ?? .infinity)

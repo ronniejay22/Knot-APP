@@ -66,15 +66,15 @@ struct RecommendationsView: View {
                     if let ctx = milestoneContext {
                         VStack(spacing: 1) {
                             Text(ctx.name)
-                                .font(.subheadline.weight(.semibold))
+                                .knotFont(Theme.Typography.cta)
                                 .foregroundStyle(Theme.textPrimary)
                             Text(MilestonesViewModel.daysUntilText(ctx.daysUntil))
-                                .font(.caption2)
+                                .knotFont(Theme.Typography.label)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     } else {
                         Text("Recommendations")
-                            .font(.headline.weight(.semibold))
+                            .knotFont(Theme.Typography.cardTitle)
                             .foregroundStyle(Theme.textPrimary)
                     }
                 }
@@ -320,7 +320,7 @@ struct RecommendationsView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text("Knot's Take")
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
 
                 Spacer()
@@ -346,7 +346,7 @@ struct RecommendationsView: View {
 
             // Body text — collapsed (2 lines) or expanded
             Text(text)
-                .font(.caption)
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
                 .lineSpacing(3)
                 .lineLimit(isBriefingExpanded ? nil : 2)
@@ -360,7 +360,7 @@ struct RecommendationsView: View {
                 }
             } label: {
                 Text(isBriefingExpanded ? "Show less" : "Read more")
-                    .font(.caption.weight(.medium))
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
@@ -473,7 +473,7 @@ struct RecommendationsView: View {
                     .frame(width: 16, height: 16)
 
                 Text("Adjust Vibe")
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
             }
             .foregroundStyle(viewModel.hasVibeOverride ? .white : Theme.textSecondary)
             .frame(maxWidth: .infinity)
@@ -514,7 +514,7 @@ struct RecommendationsView: View {
                 }
 
                 Text(viewModel.isRefreshing ? "Finding better options..." : "Refresh")
-                    .font(.subheadline.weight(.semibold))
+                    .knotFont(Theme.Typography.cta)
             }
             .foregroundStyle(Theme.textPrimary)
             .frame(maxWidth: .infinity)
@@ -550,7 +550,7 @@ struct RecommendationsView: View {
                 .foregroundStyle(Theme.textTertiary)
 
             Text(message)
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -568,7 +568,7 @@ struct RecommendationsView: View {
                         .frame(width: 14, height: 14)
 
                     Text("Try Again")
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 24)
@@ -594,11 +594,11 @@ struct RecommendationsView: View {
 
             VStack(spacing: 8) {
                 Text("Ready to find a gift?")
-                    .font(.headline.weight(.semibold))
+                    .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
                 Text("Tap below and we'll find personalized recommendations for your partner.")
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textTertiary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
@@ -614,7 +614,7 @@ struct RecommendationsView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 16, height: 16)
                     Text("Get Recommendations")
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
@@ -772,14 +772,14 @@ private struct ForYouLoadingView: View {
             // Cycling contextual message
             VStack(spacing: 8) {
                 Text(Self.messages[messageIndex])
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .id(messageIndex)
                     .transition(.opacity)
 
                 Text("This usually takes about 30 seconds")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary.opacity(0.6))
                     .opacity(showTimeHint ? 1 : 0)
             }
@@ -1051,11 +1051,11 @@ private struct ForYouClimaxView: View {
             // Success text
             VStack(spacing: 6) {
                 Text("Your matches are ready!")
-                    .font(.title3.weight(.bold))
+                    .knotFont(Theme.Typography.sectionHeader)
                     .foregroundStyle(Theme.textPrimary)
 
                 Text("Tap to view your picks")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
             }
             .opacity(textVisible ? 1 : 0)
@@ -1127,7 +1127,7 @@ private struct RefreshLoadingOverlay: View {
                 .scaleEffect(pulse ? 1.15 : 0.88)
 
             Text("Finding better options...")
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textSecondary)
         }
         .padding(.horizontal, 28)
@@ -1162,7 +1162,7 @@ struct SelectionConfirmationSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Header
                     Text("Confirm Selection")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -1170,23 +1170,23 @@ struct SelectionConfirmationSheet: View {
                     // Type badge
                     HStack(spacing: 5) {
                         Image(systemName: typeIconSystemName)
-                            .font(.caption2.weight(.bold))
+                            .knotFont(Theme.Typography.label)
 
                         Text(typeLabel)
-                            .font(.caption.weight(.bold))
+                            .knotFont(Theme.Typography.label)
                             .textCase(.uppercase)
                     }
                     .foregroundStyle(Theme.accent)
 
                     // Title
                     Text(item.title)
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
 
                     // Description
                     if let description = item.description, !description.isEmpty {
                         Text(description)
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                     }
 
@@ -1201,7 +1201,7 @@ struct SelectionConfirmationSheet: View {
                                     .frame(width: 14, height: 14)
 
                                 Text(merchantName)
-                                    .font(.subheadline.weight(.medium))
+                                    .knotFont(Theme.Typography.cta)
                             }
                             .foregroundStyle(Theme.textSecondary)
                         }
@@ -1211,7 +1211,7 @@ struct SelectionConfirmationSheet: View {
                         if let priceCents = item.priceCents {
                             let prefix = item.priceConfidence == "estimated" ? "~" : ""
                             Text(prefix + formattedPrice(cents: priceCents, currency: item.currency))
-                                .font(.subheadline.weight(.bold))
+                                .knotFont(Theme.Typography.cta)
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -1236,7 +1236,7 @@ struct SelectionConfirmationSheet: View {
                                     .frame(width: 14, height: 14)
 
                                 Text(parts.joined(separator: ", "))
-                                    .font(.caption)
+                                    .knotFont(Theme.Typography.label)
                             }
                             .foregroundStyle(Theme.textTertiary)
                         }
@@ -1257,7 +1257,7 @@ struct SelectionConfirmationSheet: View {
                                     .frame(width: 16, height: 16)
 
                                 Text(confirmButtonLabel)
-                                    .font(.subheadline.weight(.semibold))
+                                    .knotFont(Theme.Typography.cta)
                             }
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
@@ -1272,7 +1272,7 @@ struct SelectionConfirmationSheet: View {
                         // Cancel button
                         Button(action: onCancel) {
                             Text("Cancel")
-                                .font(.subheadline.weight(.medium))
+                                .knotFont(Theme.Typography.cta)
                                 .foregroundStyle(Theme.textSecondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
@@ -1347,7 +1347,7 @@ struct RefreshReasonSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     // Header
                     Text("Why are you refreshing?")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -1399,18 +1399,18 @@ struct RefreshReasonSheet: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.body.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 24, height: 24)
 
                 Text(label)
-                    .font(.subheadline.weight(.medium))
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.medium))
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
             }
             .padding(.vertical, 14)
@@ -1458,11 +1458,11 @@ struct VibeOverrideSheet: View {
                 // Header
                 VStack(spacing: 8) {
                     Text("Adjust Vibe")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
 
                     Text("Temporarily change vibes for this session.\nYour vault preferences won't be modified.")
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(2)
@@ -1495,16 +1495,16 @@ struct VibeOverrideSheet: View {
                     // Selection counter
                     HStack(spacing: 4) {
                         Text("\(selectedVibes.count) selected")
-                            .fontWeight(.semibold)
+                            .knotFont(Theme.Typography.cta)
 
                         if selectedVibes.isEmpty {
                             Text("(pick at least 1)")
                         } else {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.subheadline)
+                                .knotFont(Theme.Typography.body)
                         }
                     }
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.accent)
 
                     // Save button
@@ -1519,7 +1519,7 @@ struct VibeOverrideSheet: View {
                                 .frame(width: 16, height: 16)
 
                             Text("Apply & Refresh")
-                                .font(.subheadline.weight(.semibold))
+                                .knotFont(Theme.Typography.cta)
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -1538,7 +1538,7 @@ struct VibeOverrideSheet: View {
                         onClear()
                     } label: {
                         Text("Reset to Vault Defaults")
-                            .font(.subheadline.weight(.medium))
+                            .knotFont(Theme.Typography.cta)
                             .foregroundStyle(Theme.textSecondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -1612,12 +1612,12 @@ private struct VibeOverrideCard: View {
                         .foregroundStyle(.white.opacity(0.85))
 
                     Text(displayName)
-                        .font(.subheadline.weight(.bold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
                     Text(description)
-                        .font(.caption2)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(.white.opacity(0.70))
                         .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
                 }
@@ -1806,11 +1806,11 @@ struct SessionHintsSheet: View {
                 // Header
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Anything new she's mentioned?")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
 
                     Text("A quick note here will shape your next set of picks. Skip if nothing comes to mind.")
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                         .lineSpacing(2)
                 }
@@ -1831,7 +1831,7 @@ struct SessionHintsSheet: View {
                 HStack {
                     Spacer()
                     Text("\(text.count)/\(Constants.Validation.maxHintLength)")
-                        .font(.caption2)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(characterCountColor)
                 }
 
@@ -1843,7 +1843,7 @@ struct SessionHintsSheet: View {
                         onSkip()
                     } label: {
                         Text("Skip")
-                            .font(.subheadline.weight(.semibold))
+                            .knotFont(Theme.Typography.cta)
                             .foregroundStyle(Theme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -1862,7 +1862,7 @@ struct SessionHintsSheet: View {
                         onSubmit(text)
                     } label: {
                         Text("Submit & Refresh")
-                            .font(.subheadline.weight(.semibold))
+                            .knotFont(Theme.Typography.cta)
                             .foregroundStyle(canSubmit ? .white : Theme.textTertiary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)

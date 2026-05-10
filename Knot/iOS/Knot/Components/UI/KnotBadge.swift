@@ -39,9 +39,10 @@ struct KnotBadge<Label: View>: View {
         }
 
         var font: Font {
+            // Both badge sizes share the DM Sans Medium label face.
+            // Differentiation between `.sm` and `.md` is via padding only.
             switch self {
-            case .sm: return .caption2.weight(.semibold)
-            case .md: return .caption.weight(.semibold)
+            case .sm, .md: return Theme.Typography.label
             }
         }
 
@@ -171,7 +172,7 @@ struct KnotChip: View {
                         .foregroundStyle(foregroundColor)
                 }
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(foregroundColor)
             }
             .padding(.horizontal, 12)

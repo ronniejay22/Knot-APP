@@ -76,11 +76,11 @@ struct OnboardingVibesView: View {
             let displayName = name.isEmpty ? "their" : "\(name)'s"
 
             Text("What's \(displayName) aesthetic?")
-                .font(.title.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Choose vibes that match their style.\nThis shapes the look and feel of our suggestions.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
@@ -95,16 +95,16 @@ struct OnboardingVibesView: View {
 
         return HStack(spacing: 4) {
             Text("\(count) selected")
-                .fontWeight(.semibold)
+                .knotFont(Theme.Typography.cta)
 
             if count == 0 {
                 Text("(pick at least 1)")
+                    .knotFont(Theme.Typography.body)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.subheadline)
             }
         }
-        .font(.subheadline)
         .foregroundStyle(Theme.accent)
         .animation(.easeInOut(duration: 0.2), value: count)
     }
@@ -287,12 +287,12 @@ private struct VibeCard: View {
                         .foregroundStyle(.white.opacity(0.85))
 
                     Text(displayName)
-                        .font(.headline.weight(.bold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
                     Text(description)
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(.white.opacity(0.70))
                         .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
                 }

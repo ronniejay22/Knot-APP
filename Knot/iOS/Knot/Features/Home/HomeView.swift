@@ -73,7 +73,7 @@ struct HomeView: View {
                             .foregroundStyle(Theme.accent)
 
                         Text("Knot")
-                            .font(.headline.weight(.bold))
+                            .knotFont(Theme.Typography.cardTitle)
                             .foregroundStyle(Theme.textPrimary)
                     }
                 }
@@ -103,7 +103,7 @@ struct HomeView: View {
                 .foregroundStyle(.white)
 
             Text("No internet connection. Connect to use Knot.")
-                .font(.caption.weight(.medium))
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(.white)
 
             Spacer()
@@ -126,14 +126,14 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Greeting
                 Text(greetingText)
-                    .font(.title3.weight(.medium))
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
 
                 // Partner name + countdown
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(viewModel.partnerName)
-                            .font(.system(size: 32, weight: .bold))
+                            .knotFont(Theme.Typography.sectionHeader)
                             .foregroundStyle(Theme.textPrimary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -145,7 +145,7 @@ struct HomeView: View {
                                     .foregroundStyle(milestoneCountdownColor(milestone))
 
                                 Text("\(milestone.name) \(milestone.countdownText)")
-                                    .font(.subheadline.weight(.medium))
+                                    .knotFont(Theme.Typography.cta)
                                     .foregroundStyle(milestoneCountdownColor(milestone))
                             }
                         }
@@ -207,11 +207,11 @@ struct HomeView: View {
     private func countdownBadge(_ milestone: UpcomingMilestone) -> some View {
         VStack(spacing: 2) {
             Text("\(milestone.daysUntil)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .knotFont(Theme.Typography.numeric)
                 .foregroundStyle(milestoneCountdownColor(milestone))
 
             Text("days")
-                .font(.caption2.weight(.medium))
+                .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
         }
         .frame(width: 64, height: 64)
@@ -244,12 +244,12 @@ struct HomeView: View {
                 // Details
                 VStack(alignment: .leading, spacing: 3) {
                     Text(milestone.name)
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
 
                     Text(milestone.formattedDate)
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                 }
 
@@ -257,7 +257,7 @@ struct HomeView: View {
 
                 // Countdown — urgency-colored capsule, stays inline
                 Text(milestone.countdownText)
-                    .font(.caption.weight(.bold))
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(milestoneCountdownColor(milestone))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -283,7 +283,7 @@ struct HomeView: View {
                     .foregroundStyle(Theme.textTertiary)
 
                 Text("No upcoming milestones. Edit your profile to add dates.")
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textTertiary)
 
                 Spacer()

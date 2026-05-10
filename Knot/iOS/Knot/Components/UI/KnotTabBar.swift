@@ -88,7 +88,7 @@ struct KnotTabBar<ID: Hashable>: View {
                 }
 
                 Text(item.title)
-                    .font(Theme.Typography.xs.weight(.medium))
+                    .knotFont(Theme.Typography.label)
                     .lineLimit(1)
             }
             .foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)

@@ -66,7 +66,7 @@ struct DeepLinkRecommendationView: View {
 
                 ToolbarItem(placement: .principal) {
                     Text("Recommendation")
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                 }
             }
@@ -138,7 +138,7 @@ struct DeepLinkRecommendationView: View {
                     onDismiss()
                 } label: {
                     Text("Go Home")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -169,7 +169,7 @@ struct DeepLinkRecommendationView: View {
                 .scaleEffect(1.2)
 
             Text("Loading recommendation...")
-                .font(.subheadline.weight(.medium))
+                .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textSecondary)
         }
     }
@@ -186,7 +186,7 @@ struct DeepLinkRecommendationView: View {
                 .foregroundStyle(Theme.textTertiary)
 
             Text(message)
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -205,7 +205,7 @@ struct DeepLinkRecommendationView: View {
                             .frame(width: 14, height: 14)
 
                         Text("Try Again")
-                            .font(.subheadline.weight(.semibold))
+                            .knotFont(Theme.Typography.cta)
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 24)
@@ -220,7 +220,7 @@ struct DeepLinkRecommendationView: View {
                     onDismiss()
                 } label: {
                     Text("Go Home")
-                        .font(.subheadline.weight(.medium))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }

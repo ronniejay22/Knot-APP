@@ -46,11 +46,11 @@ struct ReauthenticationSheet: View {
                         .foregroundStyle(.red)
 
                     Text("Verify Your Identity")
-                        .font(.title2.weight(.bold))
+                        .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
 
                     Text("To delete your account, please sign in with Apple to confirm your identity.")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
@@ -69,7 +69,7 @@ struct ReauthenticationSheet: View {
 
                     if let errorMessage {
                         Text(errorMessage)
-                            .font(.caption)
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)

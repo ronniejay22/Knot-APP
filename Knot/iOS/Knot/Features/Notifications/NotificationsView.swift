@@ -110,11 +110,11 @@ struct NotificationsView: View {
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No notifications yet")
-                .font(.headline)
+                .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("You'll see past milestone reminders here once they've been sent.")
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -127,7 +127,7 @@ struct NotificationsView: View {
         HStack(spacing: 14) {
             // Milestone type icon
             Image(systemName: viewModel.milestoneTypeIcon(notification.milestoneType))
-                .font(.subheadline)
+                .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.accent)
                 .frame(width: 36, height: 36)
                 .background(
@@ -139,7 +139,7 @@ struct NotificationsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(notification.milestoneName)
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
 
@@ -153,15 +153,15 @@ struct NotificationsView: View {
 
                 HStack(spacing: 6) {
                     Text(viewModel.daysBeforeLabel(notification.daysBefore))
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
 
                     Text("·")
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textTertiary)
 
                     Text(viewModel.formattedDate(notification.sentAt))
-                        .font(.caption)
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
@@ -180,7 +180,7 @@ struct NotificationsView: View {
                                 .foregroundStyle(Theme.accent)
 
                             Text("\(notification.recommendationsCount) recommendations")
-                                .font(.caption2)
+                                .knotFont(Theme.Typography.label)
                                 .foregroundStyle(Theme.accent)
                         }
                     }
@@ -218,7 +218,7 @@ struct NotificationsView: View {
                 .font(.system(size: 9))
 
             Text(status == "sent" ? "Delivered" : "Failed")
-                .font(.caption2.weight(.medium))
+                .knotFont(Theme.Typography.label)
         }
         .foregroundStyle(status == "sent" ? .green : .red)
         .padding(.horizontal, 7)
@@ -246,7 +246,7 @@ struct NotificationsView: View {
                             .font(.title)
                             .foregroundStyle(.orange)
                         Text(error)
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
@@ -261,11 +261,11 @@ struct NotificationsView: View {
                             .foregroundStyle(Theme.textTertiary)
 
                         Text("No recommendations")
-                            .font(.headline)
+                            .knotFont(Theme.Typography.cardTitle)
                             .foregroundStyle(Theme.textPrimary)
 
                         Text("No recommendations were generated for this notification.")
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
@@ -309,7 +309,7 @@ struct NotificationsView: View {
             // Header: type icon + title
             HStack(spacing: 10) {
                 Image(systemName: recommendationTypeIcon(rec.recommendationType))
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 34, height: 34)
                     .background(
@@ -319,21 +319,21 @@ struct NotificationsView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(rec.title)
-                        .font(.subheadline.weight(.semibold))
+                        .knotFont(Theme.Typography.cta)
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(2)
 
                     HStack(spacing: 6) {
                         if let merchantName = rec.merchantName, !merchantName.isEmpty {
                             Text(merchantName)
-                                .font(.caption)
+                                .knotFont(Theme.Typography.label)
                                 .foregroundStyle(Theme.textSecondary)
                                 .lineLimit(1)
                         }
 
                         if let price = viewModel.formattedPrice(cents: rec.priceCents) {
                             Text(price)
-                                .font(.caption.weight(.semibold))
+                                .knotFont(Theme.Typography.label)
                                 .foregroundStyle(Theme.accent)
                         }
                     }
@@ -345,7 +345,7 @@ struct NotificationsView: View {
             // Description
             if let description = rec.description, !description.isEmpty {
                 Text(description)
-                    .font(.caption)
+                    .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(3)
             }
@@ -363,7 +363,7 @@ struct NotificationsView: View {
                             .frame(width: 12, height: 12)
 
                         Text("View Details")
-                            .font(.caption.weight(.medium))
+                            .knotFont(Theme.Typography.label)
                     }
                     .foregroundStyle(Theme.accent)
                     .padding(.horizontal, 12)

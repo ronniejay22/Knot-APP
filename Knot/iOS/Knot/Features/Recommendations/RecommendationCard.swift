@@ -198,7 +198,7 @@ struct RecommendationCard: View {
                 .frame(width: 12, height: 12)
 
             Text(typeLabel)
-                .font(.caption2.weight(.bold))
+                .knotFont(Theme.Typography.label)
                 .textCase(.uppercase)
         }
         .foregroundStyle(.white)
@@ -241,9 +241,8 @@ struct RecommendationCard: View {
                 .padding(.top, 2)
 
             Text(note)
-                .font(.caption.weight(.medium))
+                .knotFont(Theme.Typography.italicQuote)
                 .foregroundStyle(.white)
-                .italic()
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -263,7 +262,7 @@ struct RecommendationCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // Title — larger and bolder than v1 since vertical scroll gives us room
             Text(title)
-                .font(.title3.weight(.bold))
+                .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -280,7 +279,7 @@ struct RecommendationCard: View {
             // on the hero — i.e. when personalizationNote is nil/empty)
             if !hasPersonalization, let descriptionText, !descriptionText.isEmpty {
                 Text(descriptionText)
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -319,7 +318,7 @@ struct RecommendationCard: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 11, height: 11)
                         Text(part.text)
-                            .font(.caption.weight(.medium))
+                            .knotFont(Theme.Typography.label)
                             .lineLimit(1)
                     }
                     .foregroundStyle(Theme.textSecondary)

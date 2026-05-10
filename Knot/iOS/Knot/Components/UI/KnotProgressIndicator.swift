@@ -38,7 +38,7 @@ enum KnotProgressIndicator {
                     ProgressView().tint(.white)
                     if let message {
                         Text(message)
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(.white)
                     }
                 }

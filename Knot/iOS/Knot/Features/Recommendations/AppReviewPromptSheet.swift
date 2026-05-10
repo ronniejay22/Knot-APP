@@ -33,11 +33,11 @@ struct AppReviewPromptSheet: View {
                         .foregroundStyle(Theme.accent)
 
                     Text("Glad you loved it!")
-                        .font(.title3.weight(.bold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
 
                     Text("Would you like to share your experience with others?")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -57,7 +57,7 @@ struct AppReviewPromptSheet: View {
                                 .frame(width: 16, height: 16)
 
                             Text("Yes, let's do it!")
-                                .font(.subheadline.weight(.semibold))
+                                .knotFont(Theme.Typography.cta)
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -71,7 +71,7 @@ struct AppReviewPromptSheet: View {
 
                     Button(action: onDecline) {
                         Text("Not now")
-                            .font(.subheadline.weight(.medium))
+                            .knotFont(Theme.Typography.cta)
                             .foregroundStyle(Theme.textSecondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)

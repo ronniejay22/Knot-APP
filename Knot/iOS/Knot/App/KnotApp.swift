@@ -17,6 +17,10 @@ struct KnotApp: App {
     @State private var deepLinkHandler = DeepLinkHandler()
     @AppStorage("appThemeMode") private var themeMode: String = "light"
 
+    init() {
+        Theme.registerFonts()
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             PartnerVaultLocal.self,

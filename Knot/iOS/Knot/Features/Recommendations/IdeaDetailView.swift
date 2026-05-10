@@ -61,7 +61,7 @@ struct IdeaDetailView: View {
 
                 ToolbarItem(placement: .principal) {
                     Text("Idea")
-                        .font(.headline.weight(.semibold))
+                        .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                 }
             }
@@ -81,18 +81,18 @@ struct IdeaDetailView: View {
                     .frame(width: 14, height: 14)
 
                 Text("KNOT ORIGINAL")
-                    .font(.caption.weight(.bold))
+                    .knotFont(Theme.Typography.label)
                     .textCase(.uppercase)
             }
             .foregroundStyle(Theme.accent)
 
             Text(idea.title)
-                .font(.title2.weight(.bold))
+                .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             if let description = idea.description, !description.isEmpty {
                 Text(description)
-                    .font(.body)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
@@ -112,7 +112,7 @@ struct IdeaDetailView: View {
                 HStack(spacing: 8) {
                     ForEach(allChips, id: \.self) { chip in
                         Text(chip)
-                            .font(.caption.weight(.medium))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(Theme.accent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -171,7 +171,7 @@ struct IdeaDetailView: View {
                         .frame(width: 3)
 
                     Text(body)
-                        .font(.body)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.leading, 12)
                 }
@@ -190,13 +190,13 @@ struct IdeaDetailView: View {
                     HStack(alignment: .top, spacing: 12) {
                         // Step number circle
                         Text("\(index + 1)")
-                            .font(.caption.weight(.bold))
+                            .knotFont(Theme.Typography.label)
                             .foregroundStyle(.white)
                             .frame(width: 24, height: 24)
                             .background(Circle().fill(Theme.accent))
 
                         Text(step)
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -227,13 +227,13 @@ struct IdeaDetailView: View {
                         .foregroundStyle(.yellow)
 
                     Text("Pro Tips")
-                        .font(.caption.weight(.bold))
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(.yellow)
                 }
 
                 if let body = section.body {
                     Text(body)
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                 }
 
@@ -243,7 +243,7 @@ struct IdeaDetailView: View {
                             Text("\u{2022}")
                                 .foregroundStyle(.yellow)
                             Text(item)
-                                .font(.subheadline)
+                                .knotFont(Theme.Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -280,9 +280,8 @@ struct IdeaDetailView: View {
                             .padding(.top, 2)
 
                         Text("\"\(starter)\"")
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.italicQuote)
                             .foregroundStyle(Theme.textSecondary)
-                            .italic()
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -311,13 +310,13 @@ struct IdeaDetailView: View {
                         .foregroundStyle(.green)
 
                     Text("Budget Friendly")
-                        .font(.caption.weight(.bold))
+                        .knotFont(Theme.Typography.label)
                         .foregroundStyle(.green)
                 }
 
                 if let body = section.body {
                     Text(body)
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                 }
 
@@ -327,7 +326,7 @@ struct IdeaDetailView: View {
                             Text("\u{2022}")
                                 .foregroundStyle(.green)
                             Text(item)
-                                .font(.subheadline)
+                                .knotFont(Theme.Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -354,7 +353,7 @@ struct IdeaDetailView: View {
 
             if let body = section.body {
                 Text(body)
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
             }
 
@@ -371,7 +370,7 @@ struct IdeaDetailView: View {
                                 .padding(.top, 2)
 
                             Text(item)
-                                .font(.subheadline)
+                                .knotFont(Theme.Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -404,14 +403,14 @@ struct IdeaDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if let body = section.body {
                         Text(body)
-                            .font(.subheadline)
+                            .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                     }
 
                     if let items = section.items {
                         ForEach(items, id: \.self) { item in
                             Text(item)
-                                .font(.subheadline)
+                                .knotFont(Theme.Typography.body)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -438,14 +437,14 @@ struct IdeaDetailView: View {
 
             if let body = section.body {
                 Text(body)
-                    .font(.subheadline)
+                    .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
             }
 
             if let items = section.items {
                 ForEach(items, id: \.self) { item in
                     Text("- \(item)")
-                        .font(.subheadline)
+                        .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -456,7 +455,7 @@ struct IdeaDetailView: View {
 
     private func sectionHeading(_ text: String) -> some View {
         Text(text)
-            .font(.headline.weight(.semibold))
+            .knotFont(Theme.Typography.cardTitle)
             .foregroundStyle(Theme.textPrimary)
     }
 }
