@@ -98,8 +98,8 @@ struct KnotBadge<Label: View>: View {
         case .secondary: return Theme.surfaceElevated
         case .outline: return .clear
         case .accent: return Theme.accent.opacity(0.12)
-        case .destructive: return Color.red.opacity(0.12)
-        case .success: return Color.green.opacity(0.12)
+        case .destructive: return Theme.statusErrorTint
+        case .success: return Theme.statusSuccessTint
         }
     }
 
@@ -107,8 +107,8 @@ struct KnotBadge<Label: View>: View {
         switch variant {
         case .default, .secondary, .outline: return Theme.textSecondary
         case .accent: return Theme.accent
-        case .destructive: return .red
-        case .success: return .green
+        case .destructive: return Theme.statusError
+        case .success: return Theme.statusSuccess
         }
     }
 

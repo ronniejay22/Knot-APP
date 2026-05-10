@@ -126,8 +126,8 @@ struct KnotInput: View {
         switch resolvedState {
         case .neutral: return Theme.surfaceBorder
         case .focused: return Theme.accent
-        case .error: return .red
-        case .success: return .green
+        case .error: return Theme.statusError
+        case .success: return Theme.statusSuccess
         }
     }
 

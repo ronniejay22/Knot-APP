@@ -139,6 +139,64 @@ enum Theme {
             ? UIColor.white.withAlphaComponent(0.20)
             : UIColor.black.withAlphaComponent(0.12)
     })
+
+    // MARK: - Status
+
+    /// Error / destructive — danger CTAs, destructive badges, error borders.
+    static let statusError = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 1.00, green: 0.42, blue: 0.45, alpha: 1.0)
+            : UIColor(red: 0.86, green: 0.20, blue: 0.27, alpha: 1.0)
+    })
+
+    /// 12% tint of `statusError` for filled badge / banner backgrounds.
+    static let statusErrorTint = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 1.00, green: 0.42, blue: 0.45, alpha: 0.12)
+            : UIColor(red: 0.86, green: 0.20, blue: 0.27, alpha: 0.12)
+    })
+
+    /// Success — confirmation states, success borders.
+    static let statusSuccess = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.45, green: 0.85, blue: 0.55, alpha: 1.0)
+            : UIColor(red: 0.16, green: 0.62, blue: 0.32, alpha: 1.0)
+    })
+
+    /// 12% tint of `statusSuccess`.
+    static let statusSuccessTint = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.45, green: 0.85, blue: 0.55, alpha: 0.12)
+            : UIColor(red: 0.16, green: 0.62, blue: 0.32, alpha: 0.12)
+    })
+
+    /// Warning — caution states, "Pro Tips" surfaces.
+    static let statusWarning = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 1.00, green: 0.78, blue: 0.30, alpha: 1.0)
+            : UIColor(red: 0.85, green: 0.55, blue: 0.10, alpha: 1.0)
+    })
+
+    /// 12% tint of `statusWarning`.
+    static let statusWarningTint = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 1.00, green: 0.78, blue: 0.30, alpha: 0.12)
+            : UIColor(red: 0.85, green: 0.55, blue: 0.10, alpha: 0.12)
+    })
+
+    /// Info — neutral informational surfaces.
+    static let statusInfo = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.40, green: 0.70, blue: 1.00, alpha: 1.0)
+            : UIColor(red: 0.10, green: 0.45, blue: 0.85, alpha: 1.0)
+    })
+
+    /// 12% tint of `statusInfo`.
+    static let statusInfoTint = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.40, green: 0.70, blue: 1.00, alpha: 0.12)
+            : UIColor(red: 0.10, green: 0.45, blue: 0.85, alpha: 0.12)
+    })
 }
 
 // MARK: - Token Scales
@@ -183,5 +241,45 @@ extension Theme {
     enum Motion {
         static let standard: SwiftUI.Animation = .easeInOut(duration: 0.25)
         static let quick: SwiftUI.Animation = .easeInOut(duration: 0.15)
+    }
+
+    /// Font-weight scale aliasing SwiftUI's `Font.Weight`. Excludes the unused
+    /// `.thin`, `.ultraLight`, and `.black` weights to keep the design surface tight.
+    enum Weight {
+        static let regular: Font.Weight = .regular
+        static let medium: Font.Weight = .medium
+        static let semibold: Font.Weight = .semibold
+        static let bold: Font.Weight = .bold
+        static let heavy: Font.Weight = .heavy
+    }
+
+    /// Token used by `Theme.Shadow` and the `View.shadow(_:)` extension.
+    struct ShadowToken {
+        let color: Color
+        let radius: CGFloat
+        let x: CGFloat
+        let y: CGFloat
+    }
+
+    /// Three-tier elevation scale plus an accent-tinted glow, derived from
+    /// existing card and chip shadow patterns in the codebase.
+    enum Shadow {
+        /// Tight shadow for interactive small elements (chips, pills).
+        static let sm = ShadowToken(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+        /// Standard elevated card shadow.
+        static let md = ShadowToken(color: .black.opacity(0.25), radius: 12, x: 0, y: 4)
+        /// Prominent card shadow (hero, focused).
+        static let lg = ShadowToken(color: .black.opacity(0.3), radius: 16, x: 0, y: 6)
+        /// Accent-tinted glow that preserves the "pink halo" used on
+        /// featured recommendation cards.
+        static let accentGlow = ShadowToken(color: Color.pink.opacity(0.35), radius: 12, x: 0, y: 6)
+    }
+}
+
+extension View {
+    /// Apply a `Theme.ShadowToken` to a view in one call:
+    /// `.shadow(Theme.Shadow.md)`.
+    func shadow(_ token: Theme.ShadowToken) -> some View {
+        shadow(color: token.color, radius: token.radius, x: token.x, y: token.y)
     }
 }

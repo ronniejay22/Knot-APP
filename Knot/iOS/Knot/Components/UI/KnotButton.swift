@@ -177,7 +177,7 @@ struct KnotButton<Label: View>: View {
         case .primary: return Theme.accent
         case .secondary: return Theme.surfaceElevated
         case .outline, .ghost: return .clear
-        case .destructive: return .red
+        case .destructive: return Theme.statusError
         }
     }
 

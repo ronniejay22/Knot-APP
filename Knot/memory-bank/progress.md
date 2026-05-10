@@ -5313,6 +5313,39 @@ The biggest cluster (23 failures, all in `tests/test_selection_node.py`) was a s
 
 ---
 
+### Step 18.8: Design System Foundations — Status Colors, Shadows, Font Weights ✅
+**Date:** May 10, 2026
+**Status:** Complete
+
+**What was done:**
+
+An audit of `iOS/Knot/Core/Theme.swift` against actual component usage surfaced three foundation gaps. `KnotBadge`, `KnotButton`, and `KnotInput` reached for raw `Color.red` / `Color.green` whenever they needed status semantics, with no central control over hue or dark-mode tuning, and there was no `info` or `warning` token at all. Six `.shadow(...)` call sites in `RecommendationsView.swift` repeated magic-number tuples (`radius: 12, y: 6` etc.) so any new card had no canonical reference. And font weights were the only token family without a `Theme.*` namespace — components reached straight for `.fontWeight(.semibold)` ad-hoc.
+
+Added a new `// MARK: - Status` block to `Theme.swift` introducing `statusError` / `statusSuccess` / `statusWarning` / `statusInfo`, each with a matching `*Tint` variant pre-baked at 12% alpha so callers don't repeat `.opacity(0.12)`. All eight tokens are adaptive `Color(UIColor { tc in ... })` so they resolve correctly under both light and dark trait collections, even though the app currently forces dark mode at the root.
+
+Introduced a `Theme.ShadowToken` struct plus a `Theme.Shadow` enum (`sm`, `md`, `lg`, `accentGlow`) grounded in the audit — `sm` matches the existing chip-level shadows, `md` the standard card shadow, `lg` the prominent recommendation card, and `accentGlow` preserves the pink halo on featured cards. Paired this with a `View.shadow(_ token: Theme.ShadowToken)` extension so callers can write `.shadow(Theme.Shadow.md)` instead of four loose parameters.
+
+Added a `Theme.Weight` enum aliasing `Font.Weight` for `regular`, `medium`, `semibold`, `bold`, and `heavy` — deliberately excluding the unused `.thin` / `.ultraLight` / `.black` weights to keep the design surface tight and consistent with `Theme.Spacing` / `Theme.Radius` naming.
+
+Migrated the immediate component consumers to validate the tokens: `KnotBadge.swift` `.destructive` / `.success` variants now use `Theme.statusErrorTint` / `Theme.statusError` and `Theme.statusSuccessTint` / `Theme.statusSuccess`; `KnotButton.swift` `.destructive` background uses `Theme.statusError`; `KnotInput.swift` `.error` / `.success` borders use `Theme.statusError` / `Theme.statusSuccess`.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added Status colors (8 tokens), `ShadowToken` struct + `Shadow` enum (4 tokens) + `View.shadow(_:)` extension, `Weight` enum (5 weights)
+- `iOS/Knot/Components/UI/KnotBadge.swift` — swapped `.destructive` and `.success` colors to status tokens
+- `iOS/Knot/Components/UI/KnotButton.swift` — swapped `.destructive` background to `Theme.statusError`
+- `iOS/Knot/Components/UI/KnotInput.swift` — swapped `.error` and `.success` borders to status tokens
+
+**Test results:**
+- ✅ Project builds with zero errors
+- ✅ Existing component test suites pass (no behavior change, only color-value substitution)
+- ✅ SwiftUI previews for `KnotBadge`, `KnotButton`, `KnotInput` render the new adaptive reds and greens correctly in both light and dark scheme
+
+**Notes:**
+- Inline shadows in `RecommendationsView.swift` and direct `.yellow` / `.red` usage in `IdeaDetailView`, `NotificationsView`, and `HomeView` were left unchanged — opportunistic follow-up cleanup can migrate them to `Theme.Shadow.*` and `Theme.statusWarning*` / `Theme.statusError` later.
+- The `Theme.Weight` scale is intentionally a thin alias rather than a renamed namespace (`.semibold` is still `.semibold`) — the value is the locked-down surface area and the matching `Theme.*` syntax, not new weight values.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

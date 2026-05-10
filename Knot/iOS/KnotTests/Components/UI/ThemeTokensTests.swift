@@ -54,4 +54,55 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Motion.standard
         _ = Theme.Motion.quick
     }
+
+    func testStatusTokensExist() {
+        _ = Theme.statusError
+        _ = Theme.statusErrorTint
+        _ = Theme.statusSuccess
+        _ = Theme.statusSuccessTint
+        _ = Theme.statusWarning
+        _ = Theme.statusWarningTint
+        _ = Theme.statusInfo
+        _ = Theme.statusInfoTint
+    }
+
+    func testShadowScaleIsMonotonic() {
+        let radii: [CGFloat] = [
+            Theme.Shadow.sm.radius,
+            Theme.Shadow.md.radius,
+            Theme.Shadow.lg.radius
+        ]
+        for (a, b) in zip(radii, radii.dropFirst()) {
+            XCTAssertLessThan(a, b, "Shadow radius scale must be strictly increasing")
+        }
+        let yOffsets: [CGFloat] = [
+            Theme.Shadow.sm.y,
+            Theme.Shadow.md.y,
+            Theme.Shadow.lg.y
+        ]
+        for (a, b) in zip(yOffsets, yOffsets.dropFirst()) {
+            XCTAssertLessThanOrEqual(a, b, "Shadow y-offset scale must be non-decreasing")
+        }
+    }
+
+    func testShadowTokensExist() {
+        _ = Theme.Shadow.sm
+        _ = Theme.Shadow.md
+        _ = Theme.Shadow.lg
+        _ = Theme.Shadow.accentGlow
+    }
+
+    func testShadowViewExtensionApplies() {
+        let view = Color.clear.shadow(Theme.Shadow.md)
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view)
+    }
+
+    func testWeightTokensExist() {
+        _ = Theme.Weight.regular
+        _ = Theme.Weight.medium
+        _ = Theme.Weight.semibold
+        _ = Theme.Weight.bold
+        _ = Theme.Weight.heavy
+    }
 }
