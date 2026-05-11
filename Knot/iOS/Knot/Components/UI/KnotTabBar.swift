@@ -60,7 +60,6 @@ struct KnotTabBar<ID: Hashable>: View {
             .padding(.top, Theme.Spacing.lg)
             .padding(.horizontal, Theme.Spacing.xs)
         }
-        .frame(height: Theme.Spacing.xxxl)
         .background(Theme.backgroundBottom)
         .sensoryFeedback(.selection, trigger: selection)
     }

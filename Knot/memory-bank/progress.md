@@ -5424,6 +5424,34 @@ The view migration touched roughly 270 call sites across 35 view files in `Compo
 
 ---
 
+### Step 18.11: Fix Profile/About Content Clipped Behind KnotTabBar ✅
+**Date:** May 10, 2026
+**Status:** Complete
+
+**What was done:**
+
+In the Profile tab, the final row of the About section ("Version 1.0 (1)") was being visually sliced in half by the bottom tab bar — the value sat behind the bar's frosted background and was unreadable.
+
+The root cause traced back to Step 18.9. That step constrained the `KnotTabBar`'s VStack with `.frame(height: Theme.Spacing.xxxl)` (32pt) to eliminate an empty strip below the labels. But the bar's intrinsic content (1pt divider + 16pt `.lg` top padding + 24pt icon + 2pt VStack spacing + ~16pt label + 2pt `.xxs` button padding) needs roughly 61pt. SwiftUI does not clip children that overflow a `.frame(height:)`, so the bar **painted** ~61pt of pixels while the parent `.safeAreaInset(edge: .bottom)` in `MainTabView` only **reserved** 32pt. The ~30pt difference was exactly the strip eating the Version row, and the same defect was latent in every tab — `ForYouView` hid it with a hardcoded `.padding(.bottom, 80)` and `SavedView` only avoided it because its content rarely extends to the bottom edge.
+
+The fix was to delete the `.frame(height: Theme.Spacing.xxxl)` line from `KnotTabBar.swift` so the VStack sizes to its actual content. `.safeAreaInset` now reserves the correct amount automatically, and the Version row (and any future bottom-of-scroll content in any tab) sits cleanly above the bar with the `Spacer(minLength: 40)` already in `SettingsView` providing breathing room. No magic numbers introduced; if a future Step changes icon or label size, the inset reservation tracks it without further edits.
+
+Step 18.9's other visual intents (centered icon-and-label buttons, 16pt top padding above icons, no `.ignoresSafeArea` on the bar, home-indicator zone showing the parent's background) all remain — only the under-sized fixed-height frame went.
+
+**Files modified:**
+- `iOS/Knot/Components/UI/KnotTabBar.swift` — removed `.frame(height: Theme.Spacing.xxxl)` from the VStack so the bar's reserved height tracks its rendered height
+
+**Test results:**
+- ✅ Layout-only change — existing `KnotTabBarTests` (5 cases) still pass; they assert on view construction and item state, not the (incorrect) declared frame height
+- ✅ SwiftUI preview still renders the bar correctly (icons centered, top divider, hairline above home-indicator zone)
+- ✅ Manual verification in Profile tab: the full "Version" row including `1.0 (1)` is now visible above the tab bar with ~40pt of breathing room
+
+**Notes:**
+- The `RecommendationsView` workaround `.padding(.bottom, 100)` from Step 18.3 was left intact; that constant remains generous enough to absorb the (now correct, slightly larger) inset without visible regressions and the `safeAreaInset`-doesn't-propagate-across-`navigationDestination`-pushes constraint that motivated it is unchanged.
+- `SettingsView`, `ForYouView`, and `SavedView` each handle their own bottom spacing differently today (40pt spacer, 80pt padding, 40pt spacer respectively). Standardizing those onto a single helper would be a clean follow-up, but isn't load-bearing now that the bar reserves correctly.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
