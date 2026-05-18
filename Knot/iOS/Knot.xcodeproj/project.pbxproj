@@ -66,6 +66,7 @@
 		743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2218310C657F62A45F2B93C6 /* MilestonesManagementView.swift */; };
 		764D00845275A66B57ED1168 /* OnboardingDislikesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */; };
 		7945CB75D93045A1AF23CFB1 /* MilestoneService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6882D8537794629538474FA1 /* MilestoneService.swift */; };
+		79E843E0017B21A9C7E2769E /* DMSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 499C780CDB2EA93A0BB3DF18 /* DMSans-Regular.ttf */; };
 		7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */; };
 		7E4C63ABF76F175D5FDB8E9F /* KnotCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */; };
 		80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83BE2463CD2906C42BAABEC /* ContentView.swift */; };
@@ -94,6 +95,7 @@
 		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
 		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
+		C680BA7B1788FC22A44FC074 /* DMSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
@@ -106,7 +108,10 @@
 		E4833E28863AD353409A7973 /* VaultService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693B88ED4559E3D46BAC3E5D /* VaultService.swift */; };
 		E4B8F84B58C6F37D93EC6CB6 /* KnotIconButtonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E9D910606429BBE05C784F /* KnotIconButtonTests.swift */; };
 		E4DEFE337A63BC9EA2018E58 /* TimelineEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6853E890A8AD339952EF4383 /* TimelineEntryView.swift */; };
+		E739FB2285574EC6307BA4B7 /* DMSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FE4C79FC327A17CD5D429407 /* DMSans-Bold.ttf */; };
+		E8AD8F6413360C04430935AC /* DMSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 01948645BA6BCF981FECF152 /* DMSans-SemiBold.ttf */; };
 		E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */; };
+		EF1F074229403C82A648D759 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */; };
 		F1A549CA1023AB67C298B798 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7582B8EB702201D602F5AE93 /* MainTabView.swift */; };
 		F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65623696E83EBB3DD785BD2D /* FlowLayout.swift */; };
 		FB7C927B11F02D1F7FE9ACD9 /* MilestonesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214E964FDAC13011AA79278A /* MilestonesViewModel.swift */; };
@@ -132,6 +137,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		01948645BA6BCF981FECF152 /* DMSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-SemiBold.ttf"; sourceTree = "<group>"; };
 		01EEFEFA72F5F2B66B814742 /* RecommendationLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationLocal.swift; sourceTree = "<group>"; };
 		02978CA31C43A88F5065E75D /* Knot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Knot.entitlements; sourceTree = "<group>"; };
 		05A7815F2B2C9C27BB332CCA /* JustBecauseCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JustBecauseCard.swift; sourceTree = "<group>"; };
@@ -165,6 +171,7 @@
 		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4726769364F3363201EE0535 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		48B33AEA969A81935AC17974 /* PartnerVaultLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerVaultLocal.swift; sourceTree = "<group>"; };
+		499C780CDB2EA93A0BB3DF18 /* DMSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Regular.ttf"; sourceTree = "<group>"; };
 		4A3004AEB082C62DE4C273BD /* KnotTabBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBarTests.swift; sourceTree = "<group>"; };
 		4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		4E66C0B47ACDE0BD4A7E6BA5 /* KnotBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotBadge.swift; sourceTree = "<group>"; };
@@ -230,14 +237,17 @@
 		E2C8EF2118B994A6892D3A66 /* ThemeTokensTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTokensTests.swift; sourceTree = "<group>"; };
 		E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkRecommendationView.swift; sourceTree = "<group>"; };
 		E529A365072848BDDB2D5608 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Medium.ttf"; sourceTree = "<group>"; };
 		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCardTests.swift; sourceTree = "<group>"; };
 		EDA1C8294A683DC8D8ACF90B /* LocationSearchCompleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSearchCompleter.swift; sourceTree = "<group>"; };
+		F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf"; sourceTree = "<group>"; };
 		FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
 		FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsViewModel.swift; sourceTree = "<group>"; };
+		FE4C79FC327A17CD5D429407 /* DMSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Bold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -324,6 +334,18 @@
 				E2C8EF2118B994A6892D3A66 /* ThemeTokensTests.swift */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		4A14A8EA9AB446F9E53CA985 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				FE4C79FC327A17CD5D429407 /* DMSans-Bold.ttf */,
+				E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */,
+				499C780CDB2EA93A0BB3DF18 /* DMSans-Regular.ttf */,
+				01948645BA6BCF981FECF152 /* DMSans-SemiBold.ttf */,
+				F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		58F103BBDDD26E8222C5D92F /* KnotUITests */ = {
@@ -463,6 +485,7 @@
 		C291BA99A02F9C03EE06EBAA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				4A14A8EA9AB446F9E53CA985 /* Fonts */,
 				DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */,
 			);
 			path = Resources;
@@ -679,6 +702,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */,
+				E739FB2285574EC6307BA4B7 /* DMSans-Bold.ttf in Resources */,
+				C680BA7B1788FC22A44FC074 /* DMSans-Medium.ttf in Resources */,
+				79E843E0017B21A9C7E2769E /* DMSans-Regular.ttf in Resources */,
+				E8AD8F6413360C04430935AC /* DMSans-SemiBold.ttf in Resources */,
+				EF1F074229403C82A648D759 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

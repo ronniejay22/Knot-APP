@@ -225,16 +225,18 @@ extension Theme {
         static let pill: CGFloat = 999
     }
 
-    /// PostScript names for the bundled custom font faces. These must exactly
-    /// match the PostScript names embedded in each `.ttf` file — `Font.custom`
-    /// silently falls back to the system font if the name is wrong, so verify
-    /// via `Theme.registerFonts()` after any font-bundle change.
+    /// Font family / PostScript names for the bundled custom font faces.
+    /// Fraunces is bundled as a single variable font — pick the weight axis
+    /// at the token level via `.weight(...)`. DM Sans uses static per-weight
+    /// cuts whose PostScript names match their filenames.
+    /// Verify any change via `Theme.registerFonts()`'s debug print.
     private enum FontFamily {
-        enum Fraunces {
-            static let light = "Fraunces-Light"
-            static let regular = "Fraunces-Regular"
-            static let lightItalic = "Fraunces-LightItalic"
-        }
+        /// Fraunces variable font: family name resolved by SwiftUI's
+        /// `Font.custom(...)`. Weight axis is selected per-token via
+        /// `.weight(...)`. The italic axis lives in a separate variable font
+        /// file we don't currently bundle, so italic-style tokens use the
+        /// upright family with `.italic()` synthesis.
+        static let fraunces = "Fraunces"
         enum DMSans {
             static let regular = "DMSans-Regular"
             static let medium = "DMSans-Medium"
@@ -248,28 +250,32 @@ extension Theme {
     /// `Font.custom(_:size:relativeTo:)` so it continues to scale with iOS
     /// Dynamic Type relative to the chosen system style.
     ///
-    /// Weight is baked into the chosen face — never chain `.fontWeight(...)`
-    /// after a `Theme.Typography.*` token: SwiftUI may re-substitute the
-    /// system font when the requested weight isn't in the active family.
+    /// For Fraunces (variable font), weight is selected here via `.weight(...)`
+    /// against the variable font's weight axis. For DM Sans (static cuts),
+    /// weight is baked into the chosen face. Either way, callers get a single
+    /// `Font` value and should apply it via `.knotFont(_:)` without further
+    /// chaining.
     ///
     /// Apply via the `View.knotFont(_:)` extension at the bottom of this file.
     enum Typography {
-        /// Fraunces-Light @ 42pt. Reserved for the sign-in wordmark and other
-        /// hero-scale moments. Scales relative to `.largeTitle`.
-        static let heroDisplay: Font = .custom(FontFamily.Fraunces.light, size: 42, relativeTo: .largeTitle)
+        /// Fraunces (Light, 300) @ 42pt. Reserved for the sign-in wordmark
+        /// and other hero-scale moments. Scales relative to `.largeTitle`.
+        static let heroDisplay: Font = .custom(FontFamily.fraunces, size: 42, relativeTo: .largeTitle).weight(.light)
 
-        /// Fraunces-Light @ 28pt. Page titles and prominent section headers.
-        /// Scales relative to `.title`.
-        static let sectionHeader: Font = .custom(FontFamily.Fraunces.light, size: 28, relativeTo: .title)
+        /// Fraunces (Light, 300) @ 28pt. Page titles and prominent section
+        /// headers. Scales relative to `.title`.
+        static let sectionHeader: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.light)
 
-        /// Fraunces-Regular @ 20pt. Card titles and secondary headings.
+        /// Fraunces (Regular, 400) @ 20pt. Card titles and secondary headings.
         /// Scales relative to `.title2`.
-        static let cardTitle: Font = .custom(FontFamily.Fraunces.regular, size: 20, relativeTo: .title2)
+        static let cardTitle: Font = .custom(FontFamily.fraunces, size: 20, relativeTo: .title2)
 
-        /// Fraunces-LightItalic @ 17pt. Brand-moment italics — sign-in
-        /// tagline, recommendation attributions, idea reasons. Use sparingly.
-        /// The face is already italic; do not chain `.italic()`.
-        static let italicQuote: Font = .custom(FontFamily.Fraunces.lightItalic, size: 17, relativeTo: .body)
+        /// Fraunces (Light, 300) @ 17pt with synthesized italic — brand-moment
+        /// quotes, sign-in tagline, recommendation attributions. Synthesized
+        /// because the italic Fraunces variable font isn't currently bundled;
+        /// to upgrade to a true italic cut, add the italic VF and switch the
+        /// `.italic()` modifier for a dedicated PostScript name.
+        static let italicQuote: Font = .custom(FontFamily.fraunces, size: 17, relativeTo: .body).weight(.light).italic()
 
         /// DMSans-Regular @ 17pt. Default body / descriptive copy.
         /// Scales relative to `.body`.
