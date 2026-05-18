@@ -398,7 +398,7 @@ struct RecommendationCard: View {
             DisplayChip(label: OnboardingVibesView.displayName(for: $0), style: .vibe)
         })
         chips.append(contentsOf: matchedLoveLanguages.map {
-            DisplayChip(label: OnboardingLoveLanguagesView.displayName(for: $0), style: .loveLanguage)
+            DisplayChip(label: LoveLanguageDisplay.name(for: $0), style: .loveLanguage)
         })
         chips.append(contentsOf: matchedInterests.map {
             DisplayChip(label: $0, style: .interest)

@@ -152,20 +152,38 @@ struct OnboardingContainerView: View {
         switch viewModel.currentStep {
         case .welcome:
             OnboardingWelcomeView()
-        case .basicInfo:
-            OnboardingBasicInfoView()
+        case .partnerName:
+            OnboardingPartnerNameView()
+        case .tenure:
+            OnboardingTenureView()
+        case .cohabitation:
+            OnboardingCohabitationView()
+        case .location:
+            OnboardingLocationView()
         case .interests:
             OnboardingInterestsView()
         case .dislikes:
             OnboardingDislikesView()
-        case .milestones:
-            OnboardingMilestonesView()
+        case .birthday:
+            OnboardingBirthdayView()
+        case .anniversary:
+            OnboardingAnniversaryView()
+        case .holidays:
+            OnboardingHolidaysView()
+        case .customMilestones:
+            OnboardingCustomMilestonesView()
         case .vibes:
             OnboardingVibesView()
-        case .budget:
-            OnboardingBudgetView()
-        case .loveLanguages:
-            OnboardingLoveLanguagesView()
+        case .budgetJustBecause:
+            OnboardingJustBecauseBudgetView()
+        case .budgetMinorOccasion:
+            OnboardingMinorOccasionBudgetView()
+        case .budgetMajorMilestone:
+            OnboardingMajorMilestoneBudgetView()
+        case .primaryLoveLanguage:
+            OnboardingPrimaryLoveLanguageView()
+        case .secondaryLoveLanguage:
+            OnboardingSecondaryLoveLanguageView()
         case .completion:
             OnboardingCompletionView()
         }

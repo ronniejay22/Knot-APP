@@ -1,5 +1,5 @@
 //
-//  OnboardingBasicInfoView.swift
+//  EditBasicInfoSheet.swift
 //  Knot
 //
 //  Created on February 7, 2026.
@@ -19,7 +19,7 @@ import LucideIcons
 /// The "Next" button in the container is disabled until the partner's name is non-empty.
 /// Validation is driven by `.onAppear` and `.onChange(of:)` modifiers that update
 /// `viewModel.canProceed` — following the pattern described in architecture note #24.
-struct OnboardingBasicInfoView: View {
+struct EditBasicInfoSheet: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     /// Whether the user has interacted with the name field.
@@ -357,7 +357,7 @@ struct OnboardingBasicInfoView: View {
 // MARK: - Preview
 
 #Preview("Empty") {
-    OnboardingBasicInfoView()
+    EditBasicInfoSheet()
         .environment(OnboardingViewModel())
 }
 
@@ -368,6 +368,6 @@ struct OnboardingBasicInfoView: View {
     vm.cohabitationStatus = "living_together"
     vm.locationCity = "San Francisco"
     vm.locationState = "California"
-    return OnboardingBasicInfoView()
+    return EditBasicInfoSheet()
         .environment(vm)
 }

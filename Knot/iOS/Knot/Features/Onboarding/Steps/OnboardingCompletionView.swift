@@ -370,14 +370,14 @@ struct OnboardingCompletionView: View {
 
     private func loveLanguageRow(language: String, rank: String) -> some View {
         HStack(spacing: 10) {
-            Image(uiImage: OnboardingLoveLanguagesView.languageIcon(for: language))
+            Image(uiImage: LoveLanguageDisplay.icon(for: language))
                 .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 16, height: 16)
                 .foregroundStyle(rank == "Primary" ? Theme.accent : Theme.textSecondary)
 
-            Text(OnboardingLoveLanguagesView.displayName(for: language))
+            Text(LoveLanguageDisplay.name(for: language))
                 .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.textPrimary)
 

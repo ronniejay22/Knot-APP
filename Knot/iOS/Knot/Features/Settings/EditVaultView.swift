@@ -237,19 +237,19 @@ struct EditVaultView: View {
                 Group {
                     switch section {
                     case .basicInfo:
-                        OnboardingBasicInfoView()
+                        EditBasicInfoSheet()
                     case .interests:
                         OnboardingInterestsView()
                     case .dislikes:
                         OnboardingDislikesView()
                     case .milestones:
-                        OnboardingMilestonesView()
+                        EditMilestonesSheet()
                     case .vibes:
                         OnboardingVibesView()
                     case .budget:
-                        OnboardingBudgetView()
+                        EditBudgetSheet()
                     case .loveLanguages:
-                        OnboardingLoveLanguagesView()
+                        EditLoveLanguagesSheet()
                     }
                 }
                 .environment(vm)
@@ -298,8 +298,8 @@ struct EditVaultView: View {
     }
 
     private func loveLanguagesSubtitle(vm: OnboardingViewModel) -> String {
-        let primary = OnboardingLoveLanguagesView.displayName(for: vm.primaryLoveLanguage)
-        let secondary = OnboardingLoveLanguagesView.displayName(for: vm.secondaryLoveLanguage)
+        let primary = LoveLanguageDisplay.name(for: vm.primaryLoveLanguage)
+        let secondary = LoveLanguageDisplay.name(for: vm.secondaryLoveLanguage)
         return "\(primary) · \(secondary)"
     }
 

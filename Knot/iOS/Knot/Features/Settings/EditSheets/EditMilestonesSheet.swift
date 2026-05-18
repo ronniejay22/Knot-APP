@@ -1,5 +1,5 @@
 //
-//  OnboardingMilestonesView.swift
+//  EditMilestonesSheet.swift
 //  Knot
 //
 //  Created on February 7, 2026.
@@ -21,7 +21,7 @@ import LucideIcons
 ///
 /// Validation: Always passes (birthday has defaults; custom milestones must have
 /// non-empty names if present). See `OnboardingViewModel.validateCurrentStep()`.
-struct OnboardingMilestonesView: View {
+struct EditMilestonesSheet: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     /// Controls the presentation of the "Add Custom Milestone" sheet.
@@ -609,14 +609,14 @@ private struct HolidayChip: View {
 // MARK: - Previews
 
 #Preview("Empty State") {
-    OnboardingMilestonesView()
+    EditMilestonesSheet()
         .environment(OnboardingViewModel())
 }
 
 #Preview("With Partner Name") {
     let vm = OnboardingViewModel()
     vm.partnerName = "Sarah"
-    return OnboardingMilestonesView()
+    return EditMilestonesSheet()
         .environment(vm)
 }
 
@@ -633,6 +633,6 @@ private struct HolidayChip: View {
         CustomMilestone(name: "First Date", month: 9, day: 15, recurrence: "yearly"),
         CustomMilestone(name: "Trip to Paris", month: 6, day: 1, recurrence: "one_time"),
     ]
-    return OnboardingMilestonesView()
+    return EditMilestonesSheet()
         .environment(vm)
 }

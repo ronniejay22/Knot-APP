@@ -5490,6 +5490,67 @@ The original Step 18.10 plan called for "weight is baked into each token, never 
 
 ---
 
+### Step 18.13: Split Onboarding Into One-Question-Per-Screen ✅
+
+**Date:** 2026-05-17  
+**Status:** Complete
+
+The onboarding flow previously had 9 steps, four of which crammed several inputs onto a single screen (Partner Info: name + tenure + cohabitation + location; Milestones: birthday + anniversary + holidays + custom; Budget: three tiers; Love Languages: primary + secondary picked from one card grid). Per a typeform-style mockup from the user, each input now lives on its own screen, expanding the flow from 9 to 18 steps. No data is collected that wasn't before, and the vault payload sent to the backend is byte-identical to what the old flow produced.
+
+`OnboardingStep` (in `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift`) was rewritten from 9 cases to 18: `welcome`, `partnerName`, `tenure`, `cohabitation`, `location`, `interests`, `dislikes`, `birthday`, `anniversary`, `holidays`, `customMilestones`, `vibes`, `budgetJustBecause`, `budgetMinorOccasion`, `budgetMajorMilestone`, `primaryLoveLanguage`, `secondaryLoveLanguage`, `completion`. Sibling sub-steps share a category title (e.g., all four partner-info screens show "Partner Info" in the progress bar), so the header reads cleanly while each screen owns its specific question. The progress bar fill calculation was already `rawValue / (totalSteps - 1)` so it adapted automatically.
+
+`validateCurrentStep()` and `validationMessage` were rewritten so each step only validates its own input — `partnerName` checks the name, `location` checks city + state, the three budget-tier screens each check max ≥ min, `secondaryLoveLanguage` rejects matching the primary, and the remaining defaulted screens (tenure, cohabitation, birthday, anniversary, holidays) pass freely. `OnboardingContainerView.stepContent` routes each of the 18 enum cases to its new view.
+
+Created 13 new screen files in `iOS/Knot/Features/Onboarding/Steps/` (PartnerName, Tenure, Cohabitation, Location, Birthday, Anniversary, Holidays, CustomMilestones, JustBecauseBudget, MinorOccasionBudget, MajorMilestoneBudget, PrimaryLoveLanguage, SecondaryLoveLanguage) and three shared helper files in a new `Steps/Shared/` subdirectory: `MilestonePickers.swift` (month/day pickers + date formatter), `BudgetTierCard.swift` (the tier card, range options, preset catalogues, and toggle/sync helpers), and `LoveLanguageCard.swift` (the gradient card view, selection-state enum, and display-name/icon/description/gradient mapping).
+
+The four previously-monolithic step views were not deleted — `EditVaultView` (Settings → Edit Profile) reuses them as single-page edit composites, which would be awkward to express as a 4-screen flow. They were renamed and moved to `iOS/Knot/Features/Settings/EditSheets/` as `EditBasicInfoSheet`, `EditMilestonesSheet`, `EditBudgetSheet`, and `EditLoveLanguagesSheet`. Their internal helpers were swapped to reference the new Shared/ types so there are no duplicate declarations. Call sites in `RecommendationCard.swift` and `OnboardingCompletionView.swift` that previously hit `OnboardingLoveLanguagesView.displayName(...)` / `.languageIcon(...)` were migrated to `LoveLanguageDisplay.name(...)` / `LoveLanguageDisplay.icon(...)`.
+
+Tests were expanded in `iOS/KnotTests/OnboardingContainerViewTests.swift`: `testOnboardingStepHasEighteenSteps` pins the new step count; `testStepNavigationAdvancesAndReverses` walks all 18 forward then all the way back; `testPerStepValidationRules` spot-checks every step's validation rule; and `testBuildVaultPayloadShapeUnchanged` is a canary that asserts the backend payload still has the same shape (5 interests, 5 dislikes, 5 milestones, 3 budgets, both love languages, etc.) as it did before the split. All six container tests pass. The full `xcodebuild test` run succeeds with zero failures.
+
+**Files created:**
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPartnerNameView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingTenureView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCohabitationView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingLocationView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingBirthdayView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingAnniversaryView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingHolidaysView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCustomMilestonesView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingJustBecauseBudgetView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMinorOccasionBudgetView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingMajorMilestoneBudgetView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPrimaryLoveLanguageView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingSecondaryLoveLanguageView.swift`
+- `iOS/Knot/Features/Onboarding/Steps/Shared/MilestonePickers.swift`
+- `iOS/Knot/Features/Onboarding/Steps/Shared/BudgetTierCard.swift`
+- `iOS/Knot/Features/Onboarding/Steps/Shared/LoveLanguageCard.swift`
+
+**Files moved + renamed (Onboarding → Settings/EditSheets):**
+- `OnboardingBasicInfoView.swift` → `iOS/Knot/Features/Settings/EditSheets/EditBasicInfoSheet.swift`
+- `OnboardingMilestonesView.swift` → `iOS/Knot/Features/Settings/EditSheets/EditMilestonesSheet.swift`
+- `OnboardingBudgetView.swift` → `iOS/Knot/Features/Settings/EditSheets/EditBudgetSheet.swift` (helpers swapped for Shared/ types)
+- `OnboardingLoveLanguagesView.swift` → `iOS/Knot/Features/Settings/EditSheets/EditLoveLanguagesSheet.swift` (helpers swapped for Shared/ types)
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift` — enum expanded 9 → 18, validation per-step
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — `stepContent` switch routes to new views
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — uses `LoveLanguageDisplay.*`
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — uses `LoveLanguageDisplay.name(...)`
+- `iOS/Knot/Features/Settings/EditVaultView.swift` — sheets route to `Edit*Sheet` types; subtitle helper uses `LoveLanguageDisplay`
+- `iOS/KnotTests/OnboardingContainerViewTests.swift` — four new test methods
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds with zero errors and zero warnings
+- ✅ `xcodebuild test` passes all KnotTests and KnotUITests; six `OnboardingContainerViewTests` all green
+
+**Notes:**
+- The 18-step count is intentional but a noticeable change; if the long progress bar feels heavy in real device testing, an easy follow-up is to count category groups instead of individual screens in the progress fill (e.g., 8 categories rather than 18 screens).
+- Each step's icon was chosen from the safe Lucide subset already used elsewhere in the codebase. Switching to per-question custom illustrations (the Paired mockups had a couple of them) is a polish item that needs new asset work and was not in scope.
+- No backend changes. `buildVaultPayload()` is untouched and the API contract is byte-identical.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

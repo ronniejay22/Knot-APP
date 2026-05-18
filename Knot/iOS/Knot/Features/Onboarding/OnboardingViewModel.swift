@@ -52,29 +52,42 @@ struct HolidayOption: Identifiable, Sendable {
 /// Defines the ordered steps in the onboarding flow.
 ///
 /// The raw value provides the zero-based index of each step, used
-/// for progress bar calculation and array indexing.
+/// for progress bar calculation and array indexing. The flow is split
+/// into one question per screen — the four BasicInfo/Milestones/Budget/
+/// LoveLanguages sections each expand into multiple consecutive steps.
 enum OnboardingStep: Int, CaseIterable, Sendable {
     case welcome = 0
-    case basicInfo = 1
-    case interests = 2
-    case dislikes = 3
-    case milestones = 4
-    case vibes = 5
-    case budget = 6
-    case loveLanguages = 7
-    case completion = 8
+    case partnerName = 1
+    case tenure = 2
+    case cohabitation = 3
+    case location = 4
+    case interests = 5
+    case dislikes = 6
+    case birthday = 7
+    case anniversary = 8
+    case holidays = 9
+    case customMilestones = 10
+    case vibes = 11
+    case budgetJustBecause = 12
+    case budgetMinorOccasion = 13
+    case budgetMajorMilestone = 14
+    case primaryLoveLanguage = 15
+    case secondaryLoveLanguage = 16
+    case completion = 17
 
-    /// Human-readable title for the navigation bar.
+    /// Human-readable title for the progress bar. Sibling questions
+    /// share the same category title (e.g., all four partner-info
+    /// screens show "Partner Info").
     var title: String {
         switch self {
         case .welcome: return "Welcome"
-        case .basicInfo: return "Partner Info"
+        case .partnerName, .tenure, .cohabitation, .location: return "Partner Info"
         case .interests: return "Interests"
         case .dislikes: return "Dislikes"
-        case .milestones: return "Milestones"
+        case .birthday, .anniversary, .holidays, .customMilestones: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
-        case .budget: return "Budget"
-        case .loveLanguages: return "Love Languages"
+        case .budgetJustBecause, .budgetMinorOccasion, .budgetMajorMilestone: return "Budget"
+        case .primaryLoveLanguage, .secondaryLoveLanguage: return "Love Languages"
         case .completion: return "All Set!"
         }
     }
@@ -124,10 +137,9 @@ final class OnboardingViewModel {
     var validationMessage: String? {
         guard !canProceed else { return nil }
         switch currentStep {
-        case .basicInfo:
-            if partnerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Please enter your partner's name."
-            }
+        case .partnerName:
+            return "Please enter your partner's name."
+        case .location:
             return "Please enter your city and state."
         case .interests:
             let remaining = Constants.Validation.requiredInterests - selectedInterests.count
@@ -140,15 +152,14 @@ final class OnboardingViewModel {
             return "Select \(remaining) more dislike\(remaining == 1 ? "" : "s") to continue."
         case .vibes:
             return "Pick at least 1 vibe to continue."
-        case .milestones:
+        case .customMilestones:
             return "Custom milestone names can't be empty."
-        case .budget:
-            return "Maximum budget must be at least the minimum for each tier."
-        case .loveLanguages:
-            if primaryLoveLanguage.isEmpty {
-                return "Choose your partner's primary love language."
-            }
-            return "Now choose a secondary love language."
+        case .budgetJustBecause, .budgetMinorOccasion, .budgetMajorMilestone:
+            return "Maximum budget must be at least the minimum."
+        case .primaryLoveLanguage:
+            return "Choose your partner's primary love language."
+        case .secondaryLoveLanguage:
+            return "Choose a secondary love language (different from primary)."
         default:
             return nil
         }
@@ -431,19 +442,20 @@ final class OnboardingViewModel {
 
     /// Validates whether the user can proceed from the current step.
     ///
-    /// Steps without validation (welcome, completion, and unimplemented placeholders)
-    /// default to `canProceed = true`. Steps with validation rules update `canProceed`
-    /// based on their specific requirements.
+    /// Each one-question step validates only its own input. Steps without
+    /// validation (welcome, completion, picker-defaulted screens, optional
+    /// screens) default to `canProceed = true`.
     ///
     /// This method is called after every step transition. Individual step views may also
     /// call it via `.onChange` modifiers when the user modifies form data (see architecture
     /// note #24 for the view-based validation pattern).
     func validateCurrentStep() {
         switch currentStep {
-        case .basicInfo:
+        case .partnerName:
             canProceed = !partnerName
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                && !locationCity
+        case .location:
+            canProceed = !locationCity
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !locationState
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -452,25 +464,26 @@ final class OnboardingViewModel {
         case .dislikes:
             canProceed = selectedDislikes.count == Constants.Validation.requiredDislikes
                 && selectedDislikes.isDisjoint(with: selectedInterests)
-        case .milestones:
-            // Birthday is always valid (month+day have defaults).
-            // Custom milestones must have non-empty names if they exist.
-            let customsValid = customMilestones.allSatisfy {
+        case .customMilestones:
+            canProceed = customMilestones.allSatisfy {
                 !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
-            canProceed = customsValid
         case .vibes:
             canProceed = selectedVibes.count >= Constants.Validation.minVibes
-        case .budget:
-            // Auto-correction in the budget view's Binding setters ensures max >= min,
-            // so this should always pass. Included as a safety net for programmatic changes.
+        case .budgetJustBecause:
             canProceed = justBecauseMax >= justBecauseMin
-                && minorOccasionMax >= minorOccasionMin
-                && majorMilestoneMax >= majorMilestoneMin
-        case .loveLanguages:
-            canProceed = !primaryLoveLanguage.isEmpty && !secondaryLoveLanguage.isEmpty
+        case .budgetMinorOccasion:
+            canProceed = minorOccasionMax >= minorOccasionMin
+        case .budgetMajorMilestone:
+            canProceed = majorMilestoneMax >= majorMilestoneMin
+        case .primaryLoveLanguage:
+            canProceed = !primaryLoveLanguage.isEmpty
+        case .secondaryLoveLanguage:
+            canProceed = !secondaryLoveLanguage.isEmpty
+                && secondaryLoveLanguage != primaryLoveLanguage
         default:
-            // Placeholder steps and steps without validation allow proceeding.
+            // welcome, tenure, cohabitation, birthday, anniversary, holidays, completion
+            // all proceed freely (defaults or no validation needed).
             canProceed = true
         }
     }
