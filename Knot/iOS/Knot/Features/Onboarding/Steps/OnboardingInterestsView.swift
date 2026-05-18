@@ -3,31 +3,30 @@
 //  Knot
 //
 //  Created on February 7, 2026.
-//  Step 3.1: Placeholder for onboarding Step 3 — Interests (5 likes).
+//  Step 3.1: Placeholder for onboarding Step 3 — Interests.
 //  Step 3.3: Full implementation — dark-themed 3-column image card grid
-//            with search bar, selection counter, and exactly-5 validation.
+//            with search bar and selection counter.
+//  Step 18.15 (2026-05-17): Removed the 5-item upper cap (now at-least-5).
 //
 
 import SwiftUI
 import LucideIcons
 
-/// Step 3: Select exactly 5 interests the partner likes.
+/// Step 3: Select at least 5 interests the partner likes.
 ///
 /// Dark-themed screen with a 3-column grid of visual interest cards. Each card
 /// displays a themed gradient background, an SF Symbol icon, and the interest name.
-/// The user must select exactly 5 as "likes."
+/// The user must select at least 5 as "likes"; there is no upper bound.
 ///
 /// Features:
 /// - Personalized title using the partner's name from Step 3.2
 /// - Search bar to filter the 40 interest categories
-/// - Selection counter showing "X selected (Y more needed)"
-/// - Shake animation when attempting to select a 6th interest
+/// - Selection counter showing "X selected (Y more needed)" until the minimum is met
 /// - `.preferredColorScheme(.dark)` for full dark theme including container chrome
 struct OnboardingInterestsView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     @State private var searchText = ""
-    @State private var shakingCard: String? = nil
 
     /// Interests filtered by the search text (case-insensitive).
     private var filteredInterests: [String] {
@@ -66,8 +65,7 @@ struct OnboardingInterestsView: View {
                                 isSelected: viewModel.selectedInterests.contains(interest),
                                 iconName: Self.iconName(for: interest),
                                 gradient: Self.cardGradient(for: interest),
-                                imageName: Self.imageName(for: interest),
-                                isShaking: shakingCard == interest
+                                imageName: Self.imageName(for: interest)
                             ) {
                                 toggleInterest(interest)
                             }
@@ -155,7 +153,7 @@ struct OnboardingInterestsView: View {
 
     private var counterSection: some View {
         let count = viewModel.selectedInterests.count
-        let remaining = Constants.Validation.requiredInterests - count
+        let remaining = Constants.Validation.minInterests - count
 
         return HStack(spacing: 4) {
             Text("\(count) selected")
@@ -178,20 +176,8 @@ struct OnboardingInterestsView: View {
     private func toggleInterest(_ interest: String) {
         if viewModel.selectedInterests.contains(interest) {
             viewModel.selectedInterests.remove(interest)
-        } else if viewModel.selectedInterests.count < Constants.Validation.requiredInterests {
-            viewModel.selectedInterests.insert(interest)
         } else {
-            // Reject — already at 5 selected
-            triggerShake(for: interest)
-        }
-    }
-
-    private func triggerShake(for interest: String) {
-        shakingCard = interest
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if shakingCard == interest {
-                shakingCard = nil
-            }
+            viewModel.selectedInterests.insert(interest)
         }
     }
 
@@ -294,7 +280,6 @@ struct OnboardingInterestsView: View {
 /// Visual states:
 /// - **Unselected:** Photo (or gradient) background, white text
 /// - **Selected:** Pink border, checkmark badge in top-right corner
-/// - **Shaking:** Horizontal shake animation when the 6th selection is rejected
 private struct InterestImageCard: View {
     let title: String
     let isSelected: Bool
@@ -302,10 +287,7 @@ private struct InterestImageCard: View {
     let gradient: LinearGradient
     /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
     let imageName: String?
-    let isShaking: Bool
     let action: () -> Void
-
-    @State private var shakeOffset: CGFloat = 0
 
     var body: some View {
         Button(action: action) {
@@ -378,29 +360,7 @@ private struct InterestImageCard: View {
             )
         }
         .buttonStyle(.plain)
-        .offset(x: shakeOffset)
         .animation(.easeInOut(duration: 0.25), value: isSelected)
-        .onChange(of: isShaking) { _, newValue in
-            if newValue { performShake() }
-        }
-    }
-
-    /// Quick horizontal shake animation to signal a rejected selection.
-    private func performShake() {
-        let step = 0.06
-        withAnimation(.easeInOut(duration: step)) { shakeOffset = -8 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 8 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 2) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = -5 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 3) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 3 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 4) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 0 }
-        }
     }
 }
 

@@ -46,7 +46,7 @@ We are witnessing the emergence of the \*\*"Intentionality Economy."\*\* After t
 \---
 
 \#\# Known Constraints  
-\* \*\*Strict Interest Filtering:\*\* Suggestions are strictly limited to the 5 interests provided during onboarding. The AI is prohibited from "improvised" recommendations outside these bounds.  
+\* \*\*Strict Interest Filtering:\*\* Suggestions are strictly limited to the interests provided during onboarding (minimum 5, no upper bound). The AI is prohibited from "improvised" recommendations outside these bounds.  
 \* \*\*Multi-Source API Integrity:\*\* The experience relies on the availability and uptime of 3rd party commerce and booking APIs.   
 \* \*\*System DND:\*\* The app must respect system-level "Do Not Disturb" settings, queuing notifications until the user is in an active window.
 
@@ -105,7 +105,7 @@ The engine is built on a tiered data ingestion strategy:
 \#\# Known Product Requirements Definition
 
 \#\#\# Functional Requirements  
-\* \*\*F1 (Strict Interest Filter):\*\* Recommendations must be 100% grounded in the 5 interests \+ captured hints.  
+\* \*\*F1 (Strict Interest Filter):\*\* Recommendations must be 100% grounded in the partner's interests (minimum 5, no upper bound) \+ captured hints.  
 \* \*\*F2 (Choice Logic):\*\* Every trigger must generate exactly three distinct cards.  
 \* \*\*F3 (Deep-linking):\*\* The app must support universal deep-links to external commerce/booking platforms.  
 \* \*\*F4 (DND Integration):\*\* System "Do Not Disturb" must always trump app notifications.

@@ -142,13 +142,13 @@ final class OnboardingViewModel {
         case .location:
             return "Please enter your city and state."
         case .interests:
-            let remaining = Constants.Validation.requiredInterests - selectedInterests.count
+            let remaining = Constants.Validation.minInterests - selectedInterests.count
             return "Select \(remaining) more interest\(remaining == 1 ? "" : "s") to continue."
         case .dislikes:
             if !selectedDislikes.isDisjoint(with: selectedInterests) {
                 return "A dislike can't also be a like. Please fix the overlap."
             }
-            let remaining = Constants.Validation.requiredDislikes - selectedDislikes.count
+            let remaining = Constants.Validation.minDislikes - selectedDislikes.count
             return "Select \(remaining) more dislike\(remaining == 1 ? "" : "s") to continue."
         case .vibes:
             return "Pick at least 1 vibe to continue."
@@ -460,9 +460,9 @@ final class OnboardingViewModel {
                 && !locationState
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .interests:
-            canProceed = selectedInterests.count == Constants.Validation.requiredInterests
+            canProceed = selectedInterests.count >= Constants.Validation.minInterests
         case .dislikes:
-            canProceed = selectedDislikes.count == Constants.Validation.requiredDislikes
+            canProceed = selectedDislikes.count >= Constants.Validation.minDislikes
                 && selectedDislikes.isDisjoint(with: selectedInterests)
         case .customMilestones:
             canProceed = customMilestones.allSatisfy {

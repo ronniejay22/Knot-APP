@@ -33,11 +33,11 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.partnerName = "Sample"
         vm.locationCity = "San Francisco"
         vm.locationState = "California"
-        vm.selectedInterests = Set(Constants.interestCategories.prefix(Constants.Validation.requiredInterests))
+        vm.selectedInterests = Set(Constants.interestCategories.prefix(Constants.Validation.minInterests))
         vm.selectedDislikes = Set(
             Constants.interestCategories
-                .dropFirst(Constants.Validation.requiredInterests)
-                .prefix(Constants.Validation.requiredDislikes)
+                .dropFirst(Constants.Validation.minInterests)
+                .prefix(Constants.Validation.minDislikes)
         )
         vm.selectedVibes = Set(Constants.vibeOptions.prefix(1))
         vm.primaryLoveLanguage = Constants.loveLanguages[0]

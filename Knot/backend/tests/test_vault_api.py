@@ -426,7 +426,7 @@ class TestDataIntegrity:
         print(f"  partner_vaults: verified")
 
     def test_interests_table_populated(self, client, test_auth_user_with_token):
-        """partner_interests should have 5 likes and 5 dislikes."""
+        """partner_interests should round-trip at least the minimum 5 likes and 5 dislikes."""
         resp = client.post(
             "/api/v1/vault",
             json=_valid_vault_payload(),
@@ -436,19 +436,19 @@ class TestDataIntegrity:
         vault_id = resp.json()["vault_id"]
 
         rows = _query_table("partner_interests", vault_id)
-        assert len(rows) == 10, f"Expected 10 interests, got {len(rows)}"
+        assert len(rows) >= 10, f"Expected at least 10 interests, got {len(rows)}"
 
         likes = [r for r in rows if r["interest_type"] == "like"]
         dislikes = [r for r in rows if r["interest_type"] == "dislike"]
-        assert len(likes) == 5, f"Expected 5 likes, got {len(likes)}"
-        assert len(dislikes) == 5, f"Expected 5 dislikes, got {len(dislikes)}"
+        assert len(likes) >= 5, f"Expected at least 5 likes, got {len(likes)}"
+        assert len(dislikes) >= 5, f"Expected at least 5 dislikes, got {len(dislikes)}"
 
         like_categories = {r["interest_category"] for r in likes}
         assert like_categories == {"Travel", "Cooking", "Movies", "Music", "Reading"}
 
         dislike_categories = {r["interest_category"] for r in dislikes}
         assert dislike_categories == {"Sports", "Gaming", "Cars", "Skiing", "Karaoke"}
-        print(f"  partner_interests: 5 likes + 5 dislikes verified")
+        print(f"  partner_interests: {len(likes)} likes + {len(dislikes)} dislikes verified")
 
     def test_milestones_table_populated(self, client, test_auth_user_with_token):
         """partner_milestones should have all milestones with correct budget tiers."""
@@ -564,7 +564,7 @@ class TestInterestValidation:
     """Verify interest-related validation errors return 422."""
 
     def test_4_interests_rejected(self, client, test_auth_user_with_token):
-        """Sending 4 interests instead of 5 should be rejected."""
+        """Fewer than 5 interests should be rejected with an "At least 5" error."""
         payload = _valid_vault_payload()
         payload["interests"] = ["Travel", "Cooking", "Movies", "Music"]
         resp = client.post(
@@ -576,10 +576,13 @@ class TestInterestValidation:
             f"Expected 422 for 4 interests, got {resp.status_code}. "
             f"Response: {resp.text}"
         )
-        print(f"  4 interests → HTTP 422")
+        assert "At least 5" in resp.text, (
+            f"Error message should mention 'At least 5'. Got: {resp.text}"
+        )
+        print(f"  4 interests → HTTP 422 (At least 5)")
 
-    def test_6_interests_rejected(self, client, test_auth_user_with_token):
-        """Sending 6 interests should be rejected."""
+    def test_6_interests_accepted(self, client, test_auth_user_with_token):
+        """Sending 6 interests should be accepted (no upper cap)."""
         payload = _valid_vault_payload()
         payload["interests"] = [
             "Travel", "Cooking", "Movies", "Music", "Reading", "Art",
@@ -589,8 +592,39 @@ class TestInterestValidation:
             json=payload,
             headers=_auth_headers(test_auth_user_with_token["access_token"]),
         )
-        assert resp.status_code == 422
-        print(f"  6 interests → HTTP 422")
+        assert resp.status_code == 201, (
+            f"Expected 201 for 6 interests, got {resp.status_code}. "
+            f"Response: {resp.text}"
+        )
+        print(f"  6 interests → HTTP 201")
+
+    def test_more_than_five_interests_and_dislikes_round_trip(
+        self, client, test_auth_user_with_token
+    ):
+        """7 interests + 7 dislikes should be accepted and round-trip to the DB."""
+        payload = _valid_vault_payload()
+        payload["interests"] = [
+            "Travel", "Cooking", "Movies", "Music", "Reading", "Art", "Photography",
+        ]
+        payload["dislikes"] = [
+            "Sports", "Gaming", "Cars", "Skiing", "Karaoke", "Wine", "Theater",
+        ]
+        resp = client.post(
+            "/api/v1/vault",
+            json=payload,
+            headers=_auth_headers(test_auth_user_with_token["access_token"]),
+        )
+        assert resp.status_code == 201, (
+            f"Expected 201, got {resp.status_code}. Response: {resp.text}"
+        )
+        vault_id = resp.json()["vault_id"]
+
+        rows = _query_table("partner_interests", vault_id)
+        likes = [r for r in rows if r["interest_type"] == "like"]
+        dislikes = [r for r in rows if r["interest_type"] == "dislike"]
+        assert len(likes) == 7, f"Expected 7 likes round-tripped, got {len(likes)}"
+        assert len(dislikes) == 7, f"Expected 7 dislikes round-tripped, got {len(dislikes)}"
+        print(f"  7 interests + 7 dislikes round-tripped")
 
     def test_invalid_interest_category_rejected(self, client, test_auth_user_with_token):
         """An interest not in the predefined list should be rejected."""
@@ -620,7 +654,7 @@ class TestInterestValidation:
         print(f"  Duplicate interests → HTTP 422")
 
     def test_4_dislikes_rejected(self, client, test_auth_user_with_token):
-        """Sending 4 dislikes instead of 5 should be rejected."""
+        """Fewer than 5 dislikes should be rejected with an "At least 5" error."""
         payload = _valid_vault_payload()
         payload["dislikes"] = ["Sports", "Gaming", "Cars", "Skiing"]
         resp = client.post(
@@ -629,7 +663,10 @@ class TestInterestValidation:
             headers=_auth_headers(test_auth_user_with_token["access_token"]),
         )
         assert resp.status_code == 422
-        print(f"  4 dislikes → HTTP 422")
+        assert "At least 5" in resp.text, (
+            f"Error message should mention 'At least 5'. Got: {resp.text}"
+        )
+        print(f"  4 dislikes → HTTP 422 (At least 5)")
 
     def test_interest_dislike_overlap_rejected(self, client, test_auth_user_with_token):
         """An interest that appears in both likes and dislikes should be rejected."""

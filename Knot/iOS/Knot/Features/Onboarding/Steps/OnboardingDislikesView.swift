@@ -3,40 +3,40 @@
 //  Knot
 //
 //  Created on February 7, 2026.
-//  Step 3.1: Placeholder for onboarding Step 4 — Dislikes (5 hard avoids).
-//  Step 3.4: Full implementation — dark-themed 3-column image card grid
-//            with disabled "liked" interests and exactly-5 validation.
+//  Step 3.1: Placeholder for onboarding Step 4 — Dislikes.
+//  Step 3.4: Full implementation — dark-themed 3-column image card grid.
+//  Step 18.14 (2026-05-17): Liked interests excluded from the catalog (was: shown disabled).
+//  Step 18.15 (2026-05-17): Removed the 5-item upper cap (now at-least-5).
 //
 
 import SwiftUI
 import LucideIcons
 
-/// Step 4: Select exactly 5 things the partner dislikes ("Hard Avoids").
+/// Step 4: Select at least 5 things the partner dislikes ("Hard Avoids").
 ///
 /// Dark-themed screen matching the Interests screen (Step 3.3) visual style.
 /// Uses the same 3-column image card grid with themed gradients and SF Symbol icons.
 ///
-/// Key difference from InterestsView: interests already selected as "likes" in
-/// Step 3.3 are grayed out and disabled, preventing conflicts.
+/// Interests already selected as "likes" in Step 3.3 are excluded from the
+/// catalog entirely (not rendered), so a category can never appear on both
+/// screens.
 ///
 /// Features:
 /// - Personalized title using the partner's name from Step 3.2
-/// - Search bar to filter the 40 interest categories
-/// - Liked interests grayed out with "Already liked" badge — not tappable
-/// - Selection counter showing "X selected (Y more needed)"
-/// - Shake animation when attempting to select a 6th dislike
+/// - Search bar to filter the remaining interest categories
+/// - Selection counter showing "X selected (Y more needed)" until the minimum is met
 struct OnboardingDislikesView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     @State private var searchText = ""
-    @State private var shakingCard: String? = nil
 
-    /// Interests filtered by the search text (case-insensitive).
+    /// Interest catalog minus any already chosen as likes, then filtered by search.
     private var filteredInterests: [String] {
-        if searchText.isEmpty { return Constants.interestCategories }
-        return Constants.interestCategories.filter {
-            $0.localizedCaseInsensitiveContains(searchText)
+        let available = Constants.interestCategories.filter {
+            !viewModel.selectedInterests.contains($0)
         }
+        if searchText.isEmpty { return available }
+        return available.filter { $0.localizedCaseInsensitiveContains(searchText) }
     }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
@@ -63,21 +63,14 @@ struct OnboardingDislikesView: View {
                 } else {
                     LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(filteredInterests, id: \.self) { interest in
-                            let isLiked = viewModel.selectedInterests.contains(interest)
-                            let isDisliked = viewModel.selectedDislikes.contains(interest)
-
                             DislikeImageCard(
                                 title: interest,
-                                isSelected: isDisliked,
-                                isDisabled: isLiked,
+                                isSelected: viewModel.selectedDislikes.contains(interest),
                                 iconName: OnboardingInterestsView.iconName(for: interest),
                                 gradient: OnboardingInterestsView.cardGradient(for: interest),
-                                imageName: OnboardingInterestsView.imageName(for: interest),
-                                isShaking: shakingCard == interest
+                                imageName: OnboardingInterestsView.imageName(for: interest)
                             ) {
-                                if !isLiked {
-                                    toggleDislike(interest)
-                                }
+                                toggleDislike(interest)
                             }
                         }
                     }
@@ -111,7 +104,7 @@ struct OnboardingDislikesView: View {
                 .knotFont(Theme.Typography.sectionHeader)
                 .foregroundStyle(Theme.textPrimary)
 
-            Text("Choose 5 things your partner avoids.\nWe'll make sure to steer clear of these.")
+            Text("Choose at least 5 things your partner avoids.\nWe'll make sure to steer clear of these.")
                 .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -163,7 +156,7 @@ struct OnboardingDislikesView: View {
 
     private var counterSection: some View {
         let count = viewModel.selectedDislikes.count
-        let remaining = Constants.Validation.requiredDislikes - count
+        let remaining = Constants.Validation.minDislikes - count
 
         return HStack(spacing: 4) {
             Text("\(count) selected")
@@ -186,20 +179,8 @@ struct OnboardingDislikesView: View {
     private func toggleDislike(_ interest: String) {
         if viewModel.selectedDislikes.contains(interest) {
             viewModel.selectedDislikes.remove(interest)
-        } else if viewModel.selectedDislikes.count < Constants.Validation.requiredDislikes {
-            viewModel.selectedDislikes.insert(interest)
         } else {
-            // Reject — already at 5 selected
-            triggerShake(for: interest)
-        }
-    }
-
-    private func triggerShake(for interest: String) {
-        shakingCard = interest
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if shakingCard == interest {
-                shakingCard = nil
-            }
+            viewModel.selectedDislikes.insert(interest)
         }
     }
 }
@@ -208,40 +189,27 @@ struct OnboardingDislikesView: View {
 
 /// A visual card representing a single interest category for the dislikes screen.
 ///
-/// Matches the `InterestImageCard` style from Step 3.3 but adds a disabled state
-/// for interests already selected as "likes." Disabled cards appear desaturated
-/// with reduced opacity and an "Already liked" badge, and are not tappable.
-///
-/// When an image is available in the asset catalog, the card displays it as a
-/// full-bleed photo. When no image is available, it falls back to the themed
-/// gradient background with a centered SF Symbol icon.
+/// Matches the `InterestImageCard` style from Step 3.3. When an image is available
+/// in the asset catalog, the card displays it as a full-bleed photo; otherwise it
+/// falls back to the themed gradient background with a centered SF Symbol icon.
 ///
 /// Visual states:
 /// - **Unselected:** Photo (or gradient) background, white text
 /// - **Selected (disliked):** Pink border, checkmark badge in top-right corner
-/// - **Disabled (liked):** Desaturated, reduced opacity, heart badge, not tappable
-/// - **Shaking:** Horizontal shake animation when the 6th selection is rejected
 private struct DislikeImageCard: View {
     let title: String
     let isSelected: Bool
-    let isDisabled: Bool
     let iconName: String
     let gradient: LinearGradient
     /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
     let imageName: String?
-    let isShaking: Bool
     let action: () -> Void
-
-    @State private var shakeOffset: CGFloat = 0
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 // Background: prefer asset image, fall back to gradient + icon
-                if isDisabled {
-                    // Disabled state — always flat gray regardless of image availability
-                    Color(white: 0.18)
-                } else if let imageName {
+                if let imageName {
                     Image(imageName)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -257,7 +225,7 @@ private struct DislikeImageCard: View {
 
                 // Bottom gradient overlay for text readability
                 LinearGradient(
-                    colors: [.clear, .clear, .black.opacity(isDisabled ? 0.30 : 0.55)],
+                    colors: [.clear, .clear, .black.opacity(0.55)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -268,34 +236,15 @@ private struct DislikeImageCard: View {
                     HStack {
                         Text(title)
                             .knotFont(Theme.Typography.label)
-                            .foregroundStyle(.white.opacity(isDisabled ? 0.35 : 1.0))
+                            .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         Spacer()
                     }
                 }
                 .padding(10)
 
-                // Disabled badge — "Liked" indicator with heart icon
-                if isDisabled {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(width: 22, height: 22)
-                                .overlay {
-                                    Image(systemName: "heart.fill")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(.white.opacity(0.40))
-                                }
-                        }
-                        Spacer()
-                    }
-                    .padding(7)
-                }
-
                 // Selection checkmark badge — top-right (only when selected as dislike)
-                if isSelected && !isDisabled {
+                if isSelected {
                     VStack {
                         HStack {
                             Spacer()
@@ -320,39 +269,13 @@ private struct DislikeImageCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(
-                        isSelected && !isDisabled
-                            ? Color.pink
-                            : Color.white.opacity(isDisabled ? 0.03 : 0.06),
-                        lineWidth: isSelected && !isDisabled ? 2.5 : 0.5
+                        isSelected ? Color.pink : Color.white.opacity(0.06),
+                        lineWidth: isSelected ? 2.5 : 0.5
                     )
             )
-            .opacity(isDisabled ? 0.50 : 1.0)
         }
         .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .offset(x: shakeOffset)
         .animation(.easeInOut(duration: 0.25), value: isSelected)
-        .onChange(of: isShaking) { _, newValue in
-            if newValue { performShake() }
-        }
-    }
-
-    /// Quick horizontal shake animation to signal a rejected selection.
-    private func performShake() {
-        let step = 0.06
-        withAnimation(.easeInOut(duration: step)) { shakeOffset = -8 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 8 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 2) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = -5 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 3) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 3 }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + step * 4) {
-            withAnimation(.easeInOut(duration: step)) { shakeOffset = 0 }
-        }
     }
 }
 

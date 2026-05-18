@@ -136,8 +136,8 @@ class VaultCreateRequest(BaseModel):
 
     Validated rules:
     - partner_name: required, non-empty
-    - interests: exactly 5, from predefined list, no duplicates
-    - dislikes: exactly 5, from predefined list, no duplicates, no overlap with interests
+    - interests: at least 5, from predefined list, no duplicates
+    - dislikes: at least 5, from predefined list, no duplicates, no overlap with interests
     - milestones: at least 1 (birthday required)
     - vibes: 1–8, from predefined list, no duplicates
     - budgets: exactly 3 (one per occasion type)
@@ -155,8 +155,8 @@ class VaultCreateRequest(BaseModel):
     location_country: Optional[str] = "US"
 
     # --- Interests and dislikes ---
-    interests: list[str]  # exactly 5 likes
-    dislikes: list[str]   # exactly 5 hard avoids
+    interests: list[str]  # at least 5 likes (no upper bound)
+    dislikes: list[str]   # at least 5 hard avoids (no upper bound)
 
     # --- Milestones ---
     milestones: list[MilestoneCreate]
@@ -185,9 +185,9 @@ class VaultCreateRequest(BaseModel):
     @field_validator("interests")
     @classmethod
     def validate_interests(cls, v: list[str]) -> list[str]:
-        if len(v) != 5:
-            raise ValueError(f"Exactly 5 interests are required, got {len(v)}")
-        if len(set(v)) != 5:
+        if len(v) < 5:
+            raise ValueError(f"At least 5 interests are required, got {len(v)}")
+        if len(set(v)) != len(v):
             raise ValueError("Interests must be unique — no duplicates allowed")
         invalid = set(v) - VALID_INTEREST_CATEGORIES
         if invalid:
@@ -197,9 +197,9 @@ class VaultCreateRequest(BaseModel):
     @field_validator("dislikes")
     @classmethod
     def validate_dislikes(cls, v: list[str]) -> list[str]:
-        if len(v) != 5:
-            raise ValueError(f"Exactly 5 dislikes are required, got {len(v)}")
-        if len(set(v)) != 5:
+        if len(v) < 5:
+            raise ValueError(f"At least 5 dislikes are required, got {len(v)}")
+        if len(set(v)) != len(v):
             raise ValueError("Dislikes must be unique — no duplicates allowed")
         invalid = set(v) - VALID_INTEREST_CATEGORIES
         if invalid:

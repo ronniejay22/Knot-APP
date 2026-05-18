@@ -5551,6 +5551,66 @@ Tests were expanded in `iOS/KnotTests/OnboardingContainerViewTests.swift`: `test
 
 ---
 
+### Step 18.14 ✅ Exclude liked interests from the Dislikes picker — 2026-05-17
+
+**Status:** Complete
+
+**Context:** On the Dislikes onboarding step ("What doesn't [partner] like?"), interests the user had already chosen on the prior Likes step were rendered as flat-gray, half-opacity, non-tappable tiles with a small heart badge — meant to communicate "already liked, can't pick again." In practice the gray placeholders read as broken/missing-image tiles and crowded the grid. The intent of marking conflicts was clear, but the visual cost was higher than the benefit.
+
+**Change:** Liked interests are now filtered out of the catalog entirely rather than rendered in a disabled state.
+
+- [iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift](iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift):
+  - `filteredInterests` now subtracts `viewModel.selectedInterests` from `Constants.interestCategories` before applying the search filter. Liked categories simply do not appear in the grid (or in search results).
+  - The `isLiked` lookup and the `if !isLiked` guard inside the `ForEach` were removed — they can never be true now.
+  - The `DislikeImageCard` `isDisabled` stored property and every rendering branch that depended on it were deleted: the flat-gray background, the bottom-gradient opacity ternary, the text-opacity ternary, the "Liked" heart-badge VStack, the border-opacity ternary, the card-level `.opacity(0.5)`, and the `.disabled(isDisabled)` modifier. The card now has just two visual states (Unselected / Selected) plus the shake animation, matching `InterestImageCard` from the Likes screen.
+  - File-level and `DislikeImageCard` doc comments were trimmed to reflect the new behavior.
+
+**Verification:**
+- ✅ `xcodebuild -project iOS/Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17' build` — **BUILD SUCCEEDED** with no new warnings.
+- The four `#Preview` blocks at the bottom of the file continue to compile; the "With Liked Interests" and "5 Dislikes Selected — Complete" previews now correctly render the catalog minus the 5 seeded likes (no gray tiles).
+
+**Notes:**
+- No backend or API changes.
+- No model/state changes — `OnboardingViewModel.selectedInterests` / `selectedDislikes` semantics are unchanged.
+- Architecture entry for `OnboardingDislikesView.swift` updated in [memory-bank/architecture.md](architecture.md).
+
+---
+
+### Step 18.15 ✅ Remove upper cap on Interests/Dislikes — 2026-05-17
+
+**Status:** Complete
+
+**Context:** The partner onboarding's Interests and Dislikes pickers forced **exactly 5** selections — selecting a 6th item was rejected with a horizontal shake animation. We want users to be able to provide as many interests/dislikes as they want, with 5 as the *minimum* (so the recommendation system always has enough signal). The cap was enforced redundantly in the iOS UI, the iOS view model, and the FastAPI Pydantic validators, so the change had to touch all three layers.
+
+**Changes:**
+
+- [iOS/Knot/Core/Constants.swift](iOS/Knot/Core/Constants.swift): Renamed `Validation.requiredInterests` → `minInterests` and `requiredDislikes` → `minDislikes` (values still `5`). The new names match the adjacent `minVibes` / `maxVibes` pattern and correctly communicate that 5 is a floor, not an exact count.
+- [iOS/Knot/Features/Onboarding/Steps/OnboardingInterestsView.swift](iOS/Knot/Features/Onboarding/Steps/OnboardingInterestsView.swift) and [OnboardingDislikesView.swift](iOS/Knot/Features/Onboarding/Steps/OnboardingDislikesView.swift):
+  - `toggleInterest` / `toggleDislike` now unconditionally insert when the item isn't already selected — no cap branch.
+  - Deleted the `shakingCard` `@State`, the `triggerShake(for:)` method, the `isShaking` parameter on `InterestImageCard` / `DislikeImageCard`, the cards' `@State shakeOffset`, the `.offset(x: shakeOffset)` modifier, the `.onChange(of: isShaking)` modifier, and the `performShake()` implementation. With no cap there's nothing to reject, so the entire shake codepath was unreachable.
+  - The counter UI (`"X selected (Y more needed)"` ↔ checkmark) was untouched — the existing `if remaining > 0` branch already flips to the checkmark at and above the minimum.
+  - Updated the Dislikes header subtitle copy from `"Choose 5 things…"` to `"Choose at least 5 things…"` to match the Interests screen wording.
+- [iOS/Knot/Features/Onboarding/OnboardingViewModel.swift](iOS/Knot/Features/Onboarding/OnboardingViewModel.swift): Flipped both step gates from `selected*.count == requiredX` to `selected*.count >= minX`. Validation-message references updated for the rename.
+- [backend/app/models/vault.py](backend/app/models/vault.py): `validate_interests` and `validate_dislikes` now reject `len(v) < 5` (was `len(v) != 5`) and the uniqueness check compares `len(set(v)) != len(v)` instead of comparing to `5` so it generalizes to any list length. Docstring + field comments updated from "exactly 5" → "at least 5".
+- [iOS/KnotTests/OnboardingContainerViewTests.swift](iOS/KnotTests/OnboardingContainerViewTests.swift): Constant references updated for the rename. No behavioral change — the wizard test still seeds the minimum 5 of each, which is the boundary case.
+- [backend/tests/test_vault_api.py](backend/tests/test_vault_api.py):
+  - Updated `test_4_interests_rejected` and `test_4_dislikes_rejected` to also assert the error mentions `"At least 5"`.
+  - Replaced the old `test_6_interests_rejected` with `test_6_interests_accepted` (asserts 201 instead of 422).
+  - Added `test_more_than_five_interests_and_dislikes_round_trip` that posts a vault with 7 interests + 7 dislikes and verifies both arrays round-trip to the `partner_interests` table.
+  - Loosened the existing `test_interests_table_populated` row-count assertions from `== 5` to `>= 5` so the test now documents the lower bound rather than the (removed) upper bound.
+
+**Verification:**
+- ✅ `xcodebuild -project iOS/Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:KnotTests test` — **TEST SUCCEEDED**, 243 tests, 0 failures (~9.6s).
+- ✅ `xcodebuild -project iOS/Knot.xcodeproj -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17' test` (full suite including UI tests) — **TEST SUCCEEDED**.
+- ✅ `cd backend && venv/bin/python -m pytest tests/test_vault_api.py -v` — **41 passed** in ~75s, including the two new "accepts >5" cases and the tightened "At least 5" error-message assertions.
+
+**Notes:**
+- No database schema change. The `UNIQUE(vault_id, interest_category)` constraint on `partner_interests` already permits any number of rows per vault — the cap was purely application-level.
+- The renamed constants (`minInterests`/`minDislikes`) reuse the existing `minVibes`/`maxVibes` naming convention so future readers don't have to guess at the semantics.
+- Memory-bank wording updated in [memory-bank/architecture.md](architecture.md) and [memory-bank/PRD.md](PRD.md) so references to "exactly 5 interests / 5 likes" now read "at least 5".
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

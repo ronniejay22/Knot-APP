@@ -43,8 +43,8 @@ enum Constants {
     /// Validation Rules
     enum Validation {
         static let maxHintLength = 500
-        static let requiredInterests = 5
-        static let requiredDislikes = 5
+        static let minInterests = 5
+        static let minDislikes = 5
         static let maxVibes = 4
         static let minVibes = 1
     }
