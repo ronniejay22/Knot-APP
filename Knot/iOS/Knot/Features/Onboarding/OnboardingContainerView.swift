@@ -192,30 +192,13 @@ struct OnboardingContainerView: View {
     // MARK: - Navigation Buttons
 
     private var navigationButtons: some View {
-        HStack(spacing: 12) {
-            // Back button (hidden on first step)
-            if !viewModel.currentStep.isFirst {
-                KnotButton(
-                    "Back",
-                    variant: .ghost,
-                    size: .md,
-                    leadingIcon: Lucide.chevronLeft,
-                    action: { viewModel.goToPreviousStep() }
-                )
-                .fixedSize()
-                .disabled(viewModel.isSubmitting)
-            }
-
-            Spacer()
-
-            // Next / Get Started button
+        VStack(spacing: 8) {
+            // Next / Get Started button — full-width, centered
             if viewModel.currentStep.isLast {
-                // Completion step — "Get Started" button
-                // Submits vault to backend, then navigates to Home on success (Step 3.11)
                 KnotButton(
                     "Get Started",
                     variant: .primary,
-                    size: .md,
+                    size: .lg,
                     trailingIcon: Lucide.arrowRight,
                     action: {
                         Task {
@@ -226,15 +209,13 @@ struct OnboardingContainerView: View {
                         }
                     }
                 )
-                .fixedSize()
+                .frame(maxWidth: .infinity)
                 .disabled(viewModel.isSubmitting)
             } else {
-                // Normal step — "Next" button
-                // Always tappable; shows validation error banner if step isn't valid.
                 KnotButton(
                     "Next",
                     variant: .primary,
-                    size: .md,
+                    size: .lg,
                     trailingIcon: Lucide.chevronRight,
                     action: {
                         if viewModel.canProceed {
@@ -252,8 +233,21 @@ struct OnboardingContainerView: View {
                         }
                     }
                 )
-                .fixedSize()
+                .frame(maxWidth: .infinity)
                 .opacity(viewModel.canProceed ? 1.0 : 0.4)
+            }
+
+            // Back button — stacked below, hidden on first step
+            if !viewModel.currentStep.isFirst {
+                KnotButton(
+                    "Back",
+                    variant: .outline,
+                    size: .lg,
+                    leadingIcon: Lucide.chevronLeft,
+                    action: { viewModel.goToPreviousStep() }
+                )
+                .frame(maxWidth: .infinity)
+                .disabled(viewModel.isSubmitting)
             }
         }
     }

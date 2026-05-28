@@ -5691,6 +5691,24 @@ Added a DEBUG/CI-only escape hatch so the team can re-test the onboarding wizard
 
 ---
 
+### Step 18.16: Onboarding Button Layout Redesign ✅
+**Date:** 2026-05-27
+**Status:** Complete
+
+**What was done:**
+- Replaced the `HStack` + `Spacer` + `.fixedSize()` navigation button layout with a `VStack` so buttons stack vertically.
+- Next/Get Started: full-width (`.frame(maxWidth: .infinity)`), bumped from `size: .md` to `size: .lg` (54pt).
+- Back: stacked below the primary CTA, full-width, `variant: .outline`, `size: .lg`. Hidden on the first step.
+- Fixed `KnotButton` hit-testing bug: added `.contentShape(clipShape)` inside the label so the entire button area is tappable on all variants, including `.outline` (which has a transparent fill).
+- Removed "Takes about 3 minutes" copy from `OnboardingWelcomeView`.
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — `navigationButtons` computed property
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingWelcomeView.swift` — removed duration copy
+- `iOS/Knot/Components/UI/KnotButton.swift` — `.contentShape(clipShape)` hit-testing fix
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

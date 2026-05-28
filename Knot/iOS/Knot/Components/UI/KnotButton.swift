@@ -104,6 +104,7 @@ struct KnotButton<Label: View>: View {
                 .background(background)
                 .overlay(borderOverlay)
                 .clipShape(clipShape)
+                .contentShape(clipShape)
         }
         .buttonStyle(.plain)
         .disabled(isLoading)

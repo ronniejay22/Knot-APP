@@ -56,10 +56,6 @@ struct OnboardingWelcomeView: View {
             .padding(.horizontal, 32)
 
             Spacer()
-
-            Text("Takes about 3 minutes")
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 24)
     }
