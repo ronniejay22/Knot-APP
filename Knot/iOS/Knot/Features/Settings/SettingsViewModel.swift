@@ -318,6 +318,44 @@ final class SettingsViewModel {
         }
     }
 
+    // MARK: - Dev Reset (Step 15.6 — DEBUG only)
+
+#if DEBUG
+    /// Whether the dev-reset confirmation alert is visible.
+    var showDevResetConfirmation = false
+
+    /// Whether the dev-reset network request is in progress.
+    var isDevResetting = false
+
+    /// Error message from the dev-reset operation.
+    var devResetError: String?
+
+    /// DEV-ONLY: wipes the partner vault on the backend, clears local
+    /// SwiftData, and resets the `AuthViewModel` gate so `ContentView`
+    /// routes back to the onboarding wizard without signing the user out.
+    ///
+    /// Backend is gated by `KNOT_DEV_RESET_ENABLED=true`; if it returns
+    /// 403, the error surfaces as `devResetError` and the auth state is
+    /// left alone.
+    func devResetForOnboarding(
+        authViewModel: AuthViewModel,
+        modelContext: ModelContext
+    ) async {
+        isDevResetting = true
+        devResetError = nil
+        defer { isDevResetting = false }
+
+        do {
+            try await AccountService().devResetForOnboarding()
+            clearLocalData(modelContext: modelContext)
+            authViewModel.pendingDeletionScheduledAt = nil
+            authViewModel.hasCompletedOnboarding = false
+        } catch {
+            devResetError = error.localizedDescription
+        }
+    }
+#endif
+
     /// Removes all SwiftData entities from the local store.
     private func clearLocalData(modelContext: ModelContext) {
         do {

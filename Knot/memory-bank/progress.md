@@ -5653,6 +5653,44 @@ Replaced the Apple-only Sign-in-with-Apple re-authentication gate on the Delete 
 
 ---
 
+### Step 15.6: Dev-Only Reset-Onboarding Path ✅
+**Date:** May 27, 2026
+**Status:** Complete
+
+Added a DEBUG/CI-only escape hatch so the team can re-test the onboarding wizard without waiting 60 days for the soft-delete purge or hand-editing rows in the Supabase dashboard. Previously, tapping Delete Account stamped `users.scheduled_deletion_at` but left `partner_vaults` in place — so signing back in either landed on `PendingDeletionView` (with `scheduled_deletion_at` set) or, after Restore, on `MainTabView` (vault still present). Onboarding was unreachable.
+
+**Backend changes:**
+- `backend/app/core/config.py` — Added `DEV_RESET_ENABLED: bool` flag, sourced from `KNOT_DEV_RESET_ENABLED` env var (default `false`). The flag has to be set explicitly so production deploys can never wipe data by accident.
+- `backend/app/api/users.py` — Added `POST /api/v1/users/me/dev-reset`. Returns 403 unless the flag is true. When enabled, clears `users.scheduled_deletion_at` then deletes the `partner_vaults` row for the caller. CASCADE removes interests, milestones, vibes, budgets, love languages, hints, and recommendations. The `users` row stays (device token, quiet hours, notifications_enabled all preserved). Uses `Depends(get_current_user_id)` not `get_active_user_id`, so the route also works when the account is currently pending deletion — otherwise a user mid-grace would be 410'd and stuck.
+
+**iOS changes:**
+- `iOS/Knot/Services/AccountService.swift` — Added `devResetForOnboarding()`, mirroring `restoreAccount()` (same error mapping, same `parseErrorMessage`). The method itself is always compiled to keep the service file simple; every call site is `#if DEBUG`-fenced.
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` — Added `#if DEBUG`-gated state (`showDevResetConfirmation`, `isDevResetting`, `devResetError`) and the `devResetForOnboarding(authViewModel:modelContext:)` action. On success the action calls the existing private `clearLocalData(modelContext:)` helper (reused from Step 11.2) then writes `authViewModel.pendingDeletionScheduledAt = nil` and `authViewModel.hasCompletedOnboarding = false` directly — both are already `var` on `AuthViewModel` and observed by `ContentView`, so the router flips to `OnboardingContainerView` immediately, no sign-out required.
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Added a new `#if DEBUG` "Developer" section after About with a single destructive `KnotListRow.action` ("Reset Onboarding (DEV)"). Tap shows a confirmation alert via the new `DeveloperAlerts` view modifier (kept separate from `AccountDeletionAlerts` / `SettingsAlerts` to avoid stressing the Swift type checker, following the precedent in Step 11.2). A `KnotProgressIndicator.Overlay` shows while the request is in flight.
+
+**Files created:**
+- `backend/tests/test_dev_reset_api.py` — 12 tests across 5 classes: `TestProductionGate` (403 when flag is false), `TestHappyPath` (200 response shape, vault deletion, CASCADE child cleanup, scheduled_deletion_at cleared, idempotent second call), `TestAuthRequired` (401 missing/invalid token), `TestPendingDeletionUserCanReset` (works for grace-window users), `TestModuleImports` (config flag importable, route registered, sibling /me routes not shadowed). Tests use a `monkeypatch.setattr("app.api.users.DEV_RESET_ENABLED", True/False)` fixture so the gate can be flipped per test without touching the env.
+
+**Test results:**
+- ✅ All 12 dev-reset tests pass
+- ✅ All 19 sibling account tests (deletion / restore / pending-deletion gate) still pass
+- ✅ iOS Debug build succeeds for iPhone 17 Pro Simulator (iOS 26.2)
+
+**Verification commands:**
+- Backend: `cd backend && KNOT_DEV_RESET_ENABLED=true python -m pytest tests/test_dev_reset_api.py -v` (the monkeypatch fixtures don't depend on the env, but having it set is a good habit for the smoke-test step below)
+- Smoke test: `KNOT_DEV_RESET_ENABLED=true uvicorn app.main:app --reload`, then `curl -X POST http://127.0.0.1:8000/api/v1/users/me/dev-reset -H "Authorization: Bearer $TOKEN"` — expect `{"status": "reset", "user_id": "..."}`
+- iOS: build a Debug variant, sign in with an account that has a vault, Settings → Developer → "Reset Onboarding (DEV)" → confirm. Without signing out, the app should route immediately to `OnboardingContainerView`.
+
+**Action required before this is fully live:**
+- Add `KNOT_DEV_RESET_ENABLED=true` to your local `backend/.env`. The deployed Vercel backend must NOT have this set; verify in the project dashboard before shipping.
+
+**Notes:**
+- The gate has two layers: iOS `#if DEBUG` keeps the UI out of release builds, and backend `DEV_RESET_ENABLED` keeps the endpoint inert in production. Either one alone would be insufficient — the iOS DEBUG build still talks to the real backend, and a stray release-build caller (or curl) would otherwise be able to wipe a production vault.
+- Why "vault + pending deletion" and not also `users` row data? Because the device token, quiet hours, and notifications_enabled live on `users` and aren't blocking onboarding. Wiping them would force re-registration of push notifications for no testing benefit.
+- The route is registered unconditionally; only the handler body returns 403 when the flag is off. Registering conditionally would mean route-table mismatches between environments, which makes diffing the OpenAPI schema harder.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

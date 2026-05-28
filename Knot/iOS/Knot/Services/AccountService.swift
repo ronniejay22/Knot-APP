@@ -160,6 +160,54 @@ final class AccountService: Sendable {
         }
     }
 
+    // MARK: - Dev Reset (Step 15.6 — DEBUG only on iOS, gated by env on backend)
+
+    /// DEV-ONLY: calls POST /api/v1/users/me/dev-reset to wipe the partner
+    /// vault and clear `scheduled_deletion_at` so the iOS app routes back
+    /// to onboarding without signing out.
+    ///
+    /// Backend returns 403 unless `KNOT_DEV_RESET_ENABLED=true`. The method
+    /// itself is always compiled (so the file stays simple), but every
+    /// call site is fenced in `#if DEBUG`.
+    func devResetForOnboarding() async throws {
+        let accessToken = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/users/me/dev-reset") else {
+            throw AccountServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw AccountServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw AccountServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AccountServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            return
+        case 401:
+            throw AccountServiceError.noAuthSession
+        default:
+            throw AccountServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: parseErrorMessage(from: data)
+            )
+        }
+    }
+
     // MARK: - Fetch Account Status (Step 15.5)
 
     /// Calls GET /api/v1/users/me to detect whether the account is pending deletion.

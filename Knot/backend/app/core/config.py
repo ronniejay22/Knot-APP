@@ -73,6 +73,11 @@ BRAVE_SEARCH_API_KEY: str = os.getenv("BRAVE_SEARCH_API_KEY", "")
 # --- Universal Links (Apple App Site Association) ---
 APP_DOMAIN: str = os.getenv("APP_DOMAIN", "api.knot-app.com")
 
+# --- Dev-only flags ---
+# Gates POST /api/v1/users/me/dev-reset. Must be explicitly enabled per env
+# (default off) so production deploys can never wipe a vault by accident.
+DEV_RESET_ENABLED: bool = os.getenv("KNOT_DEV_RESET_ENABLED", "").lower() == "true"
+
 
 def validate_yelp_config() -> bool:
     """

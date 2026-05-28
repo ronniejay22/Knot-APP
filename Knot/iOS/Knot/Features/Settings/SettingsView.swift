@@ -52,6 +52,9 @@ struct SettingsView: View {
                         notificationsSection
                         privacySection
                         aboutSection
+                        #if DEBUG
+                        developerSection
+                        #endif
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 20)
@@ -65,6 +68,11 @@ struct SettingsView: View {
                 if viewModel.isExportingData {
                     exportLoadingOverlay
                 }
+                #if DEBUG
+                if viewModel.isDevResetting {
+                    KnotProgressIndicator.Overlay(message: "Resetting onboarding...")
+                }
+                #endif
             }
             .navigationTitle(isTabEmbedded ? "Profile" : "Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -83,6 +91,14 @@ struct SettingsView: View {
             ))
             // Group 2: Settings alerts (hints, export, quiet hours)
             .modifier(SettingsAlerts(viewModel: $viewModel))
+            #if DEBUG
+            // Group 3: DEBUG-only dev-reset confirmation + error alert
+            .modifier(DeveloperAlerts(
+                viewModel: $viewModel,
+                modelContext: modelContext,
+                authViewModel: authViewModel
+            ))
+            #endif
             // MARK: - Sheets
             .fullScreenCover(isPresented: $showEditProfile) {
                 EditVaultView()
@@ -327,6 +343,23 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Developer Section (Step 15.6 — DEBUG only)
+
+    #if DEBUG
+    private var developerSection: some View {
+        VStack(spacing: 10) {
+            KnotSectionHeader<EmptyView>("Developer", style: .caption)
+
+            KnotListRow.action(
+                icon: Lucide.refreshCw,
+                title: "Reset Onboarding (DEV)",
+                subtitle: "Wipe vault + pending deletion, return to onboarding",
+                action: { viewModel.showDevResetConfirmation = true }
+            )
+        }
+    }
+    #endif
+
     // MARK: - About Section
 
     private var aboutSection: some View {
@@ -437,6 +470,44 @@ private struct SettingsAlerts: ViewModifier {
             }
     }
 }
+
+// MARK: - Developer Alerts (Step 15.6 — DEBUG only)
+
+#if DEBUG
+/// Owns the dev-reset confirmation + error alerts. Lives in its own modifier
+/// so the existing `AccountDeletionAlerts` / `SettingsAlerts` chain stays the
+/// same length and doesn't push the Swift type checker further.
+private struct DeveloperAlerts: ViewModifier {
+    @Binding var viewModel: SettingsViewModel
+    let modelContext: ModelContext
+    let authViewModel: AuthViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Reset Onboarding?", isPresented: $viewModel.showDevResetConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Reset", role: .destructive) {
+                    Task {
+                        await viewModel.devResetForOnboarding(
+                            authViewModel: authViewModel,
+                            modelContext: modelContext
+                        )
+                    }
+                }
+            } message: {
+                Text("This deletes your partner vault on the server and clears any pending deletion so the app returns to the onboarding wizard. You stay signed in. DEBUG builds only.")
+            }
+            .alert("Reset Failed", isPresented: Binding(
+                get: { viewModel.devResetError != nil },
+                set: { if !$0 { viewModel.devResetError = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.devResetError ?? "An unexpected error occurred.")
+            }
+    }
+}
+#endif
 
 // MARK: - Share Sheet (Step 11.3)
 

@@ -21,6 +21,7 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.core.config import (
+    DEV_RESET_ENABLED,
     SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_URL,
     WEBHOOK_BASE_URL,
@@ -359,6 +360,65 @@ async def restore_account(
 
     logger.info("Account restored: user=%s", user_id[:8])
     return AccountRestoreResponse()
+
+
+@router.post(
+    "/me/dev-reset",
+    status_code=status.HTTP_200_OK,
+)
+async def dev_reset_account(
+    user_id: str = Depends(get_current_user_id),
+) -> dict:
+    """
+    DEV-ONLY: wipe partner_vaults + scheduled_deletion_at for the caller so
+    the iOS app routes the user back to onboarding on the next vault-exists
+    check. CASCADE removes interests, milestones, vibes, budgets, love
+    languages, hints, and recommendations. The auth user stays signed in,
+    and the users row (device token, quiet hours, etc.) is left intact.
+
+    Gated by KNOT_DEV_RESET_ENABLED=true. Returns 403 when unset so this
+    can never wipe data in production by accident.
+
+    Uses get_current_user_id (not get_active_user_id) so the route also
+    works when the account is currently pending deletion.
+    """
+    if not DEV_RESET_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="dev-reset is disabled in this environment.",
+        )
+
+    client = get_service_client()
+
+    try:
+        client.table("users").update(
+            {"scheduled_deletion_at": None}
+        ).eq("id", user_id).execute()
+    except Exception as exc:
+        logger.error(
+            "dev-reset: failed to clear scheduled_deletion_at for %s: %s",
+            user_id[:8], exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to clear pending deletion.",
+        )
+
+    try:
+        client.table("partner_vaults").delete().eq("user_id", user_id).execute()
+    except Exception as exc:
+        logger.error(
+            "dev-reset: failed to delete vault for %s: %s", user_id[:8], exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete vault.",
+        )
+
+    logger.info(
+        "dev-reset: cleared pending deletion + vault for user=%s", user_id[:8],
+    )
+    return {"status": "reset", "user_id": user_id}
 
 
 @router.post(
