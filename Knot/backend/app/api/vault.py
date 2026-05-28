@@ -13,7 +13,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.vault import (
     BudgetResponse,
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/api/v1/vault", tags=["vault"])
 )
 async def create_vault(
     payload: VaultCreateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> VaultCreateResponse:
     """
     Create a complete Partner Vault with all related data.
@@ -260,7 +260,7 @@ def _cleanup_vault(client, vault_id: str | None) -> None:
     response_model=VaultGetResponse,
 )
 async def get_vault(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> VaultGetResponse:
     """
     Retrieve the authenticated user's Partner Vault with all related data.
@@ -404,7 +404,7 @@ async def get_vault(
 )
 async def update_vault(
     payload: VaultCreateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> VaultUpdateResponse:
     """
     Update the authenticated user's Partner Vault with new data.

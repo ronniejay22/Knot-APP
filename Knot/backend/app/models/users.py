@@ -80,17 +80,61 @@ class AccountDeleteResponse(BaseModel):
     """
     Response from DELETE /api/v1/users/me.
 
-    Returned after the user's account and all associated data
-    have been permanently deleted via Supabase Admin API cascade.
+    Returned after the user's account is scheduled for deletion. The auth
+    user and all rows remain intact for 60 days; the QStash purge worker
+    runs the hard-delete once now() passes scheduled_deletion_at.
     """
 
     status: str = Field(
-        default="deleted",
-        description="Always 'deleted' on success.",
+        default="scheduled",
+        description="Always 'scheduled' on success.",
+    )
+    scheduled_deletion_at: str = Field(
+        ...,
+        description="ISO 8601 timestamp when the hard-delete will run (UTC).",
     )
     message: str = Field(
-        default="Account and all associated data have been permanently deleted.",
+        default=(
+            "Your account is scheduled for deletion. You can sign in within "
+            "60 days to restore it, after which all data is permanently erased."
+        ),
         description="Human-readable confirmation message.",
+    )
+
+
+class AccountRestoreResponse(BaseModel):
+    """
+    Response from POST /api/v1/users/me/restore.
+
+    Idempotent: returns the same shape whether the user was actually pending
+    or already active.
+    """
+
+    status: str = Field(
+        default="restored",
+        description="Always 'restored' on success.",
+    )
+    message: str = Field(
+        default="Your account has been restored.",
+        description="Human-readable confirmation message.",
+    )
+
+
+class AccountStatusResponse(BaseModel):
+    """
+    Response from GET /api/v1/users/me.
+
+    Lightweight account-status probe used by iOS after sign-in to decide
+    whether to show the PendingDeletionView. A non-null scheduled_deletion_at
+    will normally be surfaced via a 410 from get_active_user_id instead, but
+    this endpoint stays on get_current_user_id so the client can read the
+    scheduled date.
+    """
+
+    user_id: str = Field(..., description="The authenticated user's UUID.")
+    scheduled_deletion_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp if the account is pending deletion, else null.",
     )
 
 

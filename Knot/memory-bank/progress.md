@@ -5611,6 +5611,48 @@ Tests were expanded in `iOS/KnotTests/OnboardingContainerViewTests.swift`: `test
 
 ---
 
+### Step 15.5: 60-Day Soft Delete + Restore Flow ✅
+**Date:** 2026-05-27
+**Status:** Code complete; awaiting migration 00024 to be applied in Supabase before backend integration tests pass.
+
+Replaced the Apple-only Sign-in-with-Apple re-authentication gate on the Delete Account screen with a typed-confirmation sheet that works for every auth provider. Switched the backend deletion endpoint from immediate hard-delete to a 60-day soft delete with a QStash purge worker and a restore endpoint. Added a full-screen `PendingDeletionView` gate that the iOS app shows after sign-in when the account is in the grace window.
+
+**Backend changes:**
+- New migration `backend/supabase/migrations/00024_add_scheduled_deletion_at_to_users.sql` — adds nullable `scheduled_deletion_at TIMESTAMPTZ` to `public.users` plus a partial index on the pending set.
+- New dependency `app.core.security.get_active_user_id` — wraps `get_current_user_id` and returns HTTP 410 with body `{"detail": {"code": "account_pending_deletion", "scheduled_deletion_at": "..."}}` when the user is pending. All authenticated `app/api/*.py` routes were switched over, except `DELETE /users/me` (so calling delete twice re-schedules instead of 410-ing), `POST /users/me/restore` (so pending users can recover), and `GET /users/me` (so the iOS client can read the scheduled date).
+- `DELETE /api/v1/users/me` now sets `scheduled_deletion_at = now() + 60 days`, enqueues a QStash purge job using `publish_to_qstash(not_before=...)`, and returns `AccountDeleteResponse(scheduled_deletion_at=...)`. The hard-delete logic moved into the new worker.
+- New `POST /api/v1/users/process-deletion` (QStash webhook) — verifies the Upstash-Signature JWT, re-reads `scheduled_deletion_at`, and hard-deletes via the Supabase Admin API only if the column is still set and in the past. Idempotent for restored / re-scheduled / already-gone users.
+- New `POST /api/v1/users/me/restore` — clears `scheduled_deletion_at`. Idempotent.
+- New `GET /api/v1/users/me` — lightweight account-status probe returning `{user_id, scheduled_deletion_at}`. Stays on `get_current_user_id` so pending users can read the scheduled date.
+
+**iOS changes:**
+- `iOS/Knot/Features/Settings/ReauthenticationSheet.swift` was rewritten in place as a typed-confirmation sheet — the user must type `DELETE ACCOUNT` (case-sensitive) to enable the destructive button. The filename and struct name were kept for Xcode project-file compatibility; a header comment notes the semantic shift. The previous 3-stage flow (warning alert → Apple Sign-In sheet → final-confirmation alert) collapses to a single sheet.
+- `iOS/Knot/Features/Settings/SettingsViewModel.swift` lost `showReauthentication`, `isReauthenticated`, `showFinalDeleteConfirmation`, `confirmDeleteAndReauthenticate()`, `onReauthenticationSuccess()`, and `onReauthenticationFailure()`. Replaced with a single `showDeleteConfirmationSheet` flag.
+- `iOS/Knot/Features/Settings/SettingsView.swift` collapsed the two account-deletion alerts into one and updated the sheet to present the typed-confirmation flow directly.
+- New `iOS/Knot/Features/Auth/PendingDeletionView.swift` — full-screen gate with "Restore Account" and "Sign Out" buttons.
+- `iOS/Knot/Services/AccountService.swift` got `restoreAccount()`, `fetchAccountStatus() -> AccountStatus`, and a tolerant ISO-8601 parser. New `AccountStatus` enum (`.active` / `.pendingDeletion(scheduledAt: Date)`).
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` added `pendingDeletionScheduledAt: Date?`. The `authStateChanges` listener now calls `refreshPendingDeletionStatus()` after both `.initialSession` and `.signedIn`, before the vault check, so a pending user never sees a flash of Home/Onboarding.
+- `iOS/Knot/App/ContentView.swift` routes to `PendingDeletionView` when `pendingDeletionScheduledAt != nil`.
+
+**Tests:**
+- Backend — updated `tests/test_account_deletion_api.py` for the new soft-delete shape; added `tests/test_account_deletion_purge_api.py`, `tests/test_account_restore_api.py`, and `tests/test_pending_deletion_gate.py`. Module-import + signature-verification + payload-validation tests pass locally. Integration tests will pass once migration 00024 is applied.
+- iOS — `KnotTests/SettingsViewTests.swift` updated; the 27-test `SettingsViewModelTests` suite passes (`xcodebuild test … -only-testing:KnotTests/SettingsViewModelTests`).
+
+**Verification commands:**
+- Backend: `cd backend && python -m pytest tests/test_account_deletion_api.py tests/test_account_restore_api.py tests/test_account_deletion_purge_api.py tests/test_pending_deletion_gate.py -v`
+- iOS: `cd iOS && xcodebuild test -project Knot.xcodeproj -scheme Knot -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/KnotDerivedData -only-testing:KnotTests/SettingsViewModelTests`
+- Manual: sign in, Settings → Delete Account, type `DELETE ACCOUNT`, submit. In the Supabase SQL editor confirm `select scheduled_deletion_at from public.users where id = '<user>'` is ~60 days out. Sign in again — `PendingDeletionView` appears. Tap "Restore Account" — the column is cleared and the app returns to normal.
+
+**Action required before this is fully live:**
+- Apply migration 00024 to Supabase (SQL editor or `supabase db push`). Until then the backend's `DELETE /users/me` will 500 because PostgREST can't find the column in its schema cache. After applying, run `NOTIFY pgrst, 'reload schema';` in the SQL Editor per the project's standing migration runbook.
+
+**Notes:**
+- Building for the simulator must use `-derivedDataPath /tmp/KnotDerivedData` (or any path outside `~/Documents`) because the user's `~/Documents` is iCloud-synced and macOS auto-tags SwiftPM resource bundles with `com.apple.FinderInfo`, which makes `codesign --sign -` reject the assembled app bundle.
+- 60 days exceeds the 7-day cap on QStash's `Upstash-Delay` header. The purge job uses `not_before` with the Unix timestamp instead — confirmed supported in `app/services/qstash.py:publish_to_qstash`.
+- The worker is intentionally idempotent against three races: (1) user restored → column null → noop; (2) user re-scheduled and an older QStash message arrives first → column in the future → noop; (3) admin API returns 404 (user already gone) → treated as success.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

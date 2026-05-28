@@ -16,7 +16,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.recommendations import (
     IdeaContentSection,
@@ -120,7 +120,7 @@ def _row_to_idea_response(row: dict) -> IdeaItemResponse:
 )
 async def generate_knot_ideas(
     payload: IdeaGenerateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> IdeaGenerateResponse:
     """
     Generate personalized Knot Original ideas.
@@ -239,7 +239,7 @@ async def generate_knot_ideas(
 async def list_ideas(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> IdeaListResponse:
     """
     List the user's Knot Original ideas, most recent first.
@@ -314,7 +314,7 @@ async def list_ideas(
 )
 async def get_idea(
     idea_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> IdeaItemResponse:
     """
     Fetch a single Knot Original idea by its database ID.

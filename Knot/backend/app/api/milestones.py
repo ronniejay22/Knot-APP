@@ -15,7 +15,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.milestones import (
     MilestoneCreateRequest,
@@ -97,7 +97,7 @@ def _build_milestone_response(milestone: dict) -> MilestoneItemResponse:
     response_model=MilestoneListResponse,
 )
 async def list_milestones(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> MilestoneListResponse:
     """
     List all milestones for the authenticated user's vault.
@@ -142,7 +142,7 @@ async def list_milestones(
 )
 async def create_milestone(
     payload: MilestoneCreateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> MilestoneItemResponse:
     """
     Add a new milestone to the authenticated user's vault.
@@ -217,7 +217,7 @@ async def create_milestone(
 async def update_milestone(
     milestone_id: str,
     payload: MilestoneUpdateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> MilestoneItemResponse:
     """
     Update an existing milestone.
@@ -319,7 +319,7 @@ async def update_milestone(
 )
 async def delete_milestone(
     milestone_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> None:
     """
     Delete a milestone and its pending notifications.

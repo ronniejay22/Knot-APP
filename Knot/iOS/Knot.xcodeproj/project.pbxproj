@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */; };
+		015B9791BD05434B8F8AB54C /* PendingDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E0F769ECF393ABCBB145B0 /* PendingDeletionView.swift */; };
 		02989CEE7ADA343855BC038E /* NotificationHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */; };
 		029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0DFE789B202C84A0F6646 /* HintLocal.swift */; };
 		0368A6F5F789682DEE58F0C1 /* OnboardingCohabitationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3695BA9DDC287A5A57B020 /* OnboardingCohabitationView.swift */; };
@@ -251,6 +252,7 @@
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		BF842D5AE22164C7C51BADC0 /* KnotListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotListRow.swift; sourceTree = "<group>"; };
+		C7E0F769ECF393ABCBB145B0 /* PendingDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingDeletionView.swift; sourceTree = "<group>"; };
 		C8E024DDF822D8F0F3C33EA2 /* ForYouViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForYouViewModel.swift; sourceTree = "<group>"; };
 		CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompletionView.swift; sourceTree = "<group>"; };
 		CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAnniversaryView.swift; sourceTree = "<group>"; };
@@ -468,6 +470,7 @@
 				4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */,
 				4726769364F3363201EE0535 /* LoginView.swift */,
 				082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */,
+				C7E0F769ECF393ABCBB145B0 /* PendingDeletionView.swift */,
 				2DB2C0E473B2693C71D80BC2 /* SignInView.swift */,
 			);
 			path = Auth;
@@ -891,6 +894,7 @@
 				13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */,
 				BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */,
 				868B2F83C136C7392D9DEF5B /* PartnerVaultLocal.swift in Sources */,
+				015B9791BD05434B8F8AB54C /* PendingDeletionView.swift in Sources */,
 				A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */,
 				03B65E3B26EFA2D4644F34F9 /* PurchaseRatingSheet.swift in Sources */,
 				E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */,

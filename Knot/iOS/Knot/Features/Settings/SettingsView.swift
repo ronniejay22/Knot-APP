@@ -90,10 +90,17 @@ struct SettingsView: View {
             .fullScreenCover(isPresented: $showMilestones) {
                 MilestonesManagementView()
             }
-            .sheet(isPresented: $viewModel.showReauthentication) {
+            .sheet(isPresented: $viewModel.showDeleteConfirmationSheet) {
                 ReauthenticationSheet(
-                    onSuccess: { viewModel.onReauthenticationSuccess() },
-                    onCancel: { viewModel.onReauthenticationFailure() }
+                    onConfirm: {
+                        let success = await viewModel.executeAccountDeletion(modelContext: modelContext)
+                        if success {
+                            await authViewModel.signOutAfterDeletion()
+                            dismiss()
+                        }
+                        return success
+                    },
+                    onCancel: { }
                 )
             }
             .sheet(isPresented: $viewModel.showExportShareSheet) {
@@ -367,33 +374,10 @@ private struct AccountDeletionAlerts: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // Stage 1: Initial warning
-            .alert("Delete Account?", isPresented: $viewModel.showDeleteAccountAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Continue", role: .destructive) {
-                    viewModel.confirmDeleteAndReauthenticate()
-                }
-            } message: {
-                Text("This will permanently delete your account and all associated data including your partner profile, hints, recommendations, and notification history. This action cannot be undone.")
-            }
-            // Stage 3: Final confirmation (after re-auth)
-            .alert("Final Confirmation", isPresented: $viewModel.showFinalDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    viewModel.isReauthenticated = false
-                }
-                Button("Delete My Account", role: .destructive) {
-                    Task {
-                        let success = await viewModel.executeAccountDeletion(modelContext: modelContext)
-                        if success {
-                            await authViewModel.signOutAfterDeletion()
-                            dismiss()
-                        }
-                    }
-                }
-            } message: {
-                Text("You have been re-authenticated. Tap \"Delete My Account\" to permanently delete all your data. You will not be able to recover your account.")
-            }
-            // Deletion error
+            // The typed-confirmation sheet (presented by SettingsView)
+            // is now the only confirmation step. The previous warning +
+            // final-confirmation alerts are gone; this modifier only owns
+            // the error alert.
             .alert("Deletion Failed", isPresented: Binding(
                 get: { viewModel.deleteAccountError != nil },
                 set: { if !$0 { viewModel.deleteAccountError = nil } }

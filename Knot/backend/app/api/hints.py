@@ -15,7 +15,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.hints import (
     HintCreateRequest,
@@ -41,7 +41,7 @@ router = APIRouter(prefix="/api/v1/hints", tags=["hints"])
 )
 async def create_hint(
     payload: HintCreateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> HintCreateResponse:
     """
     Create a new hint for the authenticated user's partner vault.
@@ -179,7 +179,7 @@ async def create_hint(
     response_model=HintListResponse,
 )
 async def list_hints(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> HintListResponse:
@@ -257,7 +257,7 @@ async def list_hints(
 )
 async def delete_hint(
     hint_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> None:
     """
     Delete a hint belonging to the authenticated user.

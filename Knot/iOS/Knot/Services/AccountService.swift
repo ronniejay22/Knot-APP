@@ -29,6 +29,16 @@ enum AccountServiceError: LocalizedError, Sendable {
     }
 }
 
+// MARK: - Account Status
+
+/// Result of `AccountService.fetchAccountStatus()`. Surfaced by the
+/// `AuthViewModel` after sign-in so the root navigator can present
+/// `PendingDeletionView` when the account is in the 60-day grace window.
+enum AccountStatus: Sendable, Equatable {
+    case active
+    case pendingDeletion(scheduledAt: Date)
+}
+
 // MARK: - Account Service
 
 /// Service for account management API operations.
@@ -103,6 +113,119 @@ final class AccountService: Sendable {
                 message: message
             )
         }
+    }
+
+    // MARK: - Restore Account (Step 15.5)
+
+    /// Calls POST /api/v1/users/me/restore to cancel a pending deletion.
+    ///
+    /// Backend is idempotent: succeeds whether the account is currently
+    /// pending or already active.
+    func restoreAccount() async throws {
+        let accessToken = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/users/me/restore") else {
+            throw AccountServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw AccountServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw AccountServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AccountServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            return
+        case 401:
+            throw AccountServiceError.noAuthSession
+        default:
+            throw AccountServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: parseErrorMessage(from: data)
+            )
+        }
+    }
+
+    // MARK: - Fetch Account Status (Step 15.5)
+
+    /// Calls GET /api/v1/users/me to detect whether the account is pending deletion.
+    ///
+    /// Used by `AuthViewModel` right after sign-in. The endpoint stays on
+    /// `get_current_user_id` so a pending user gets a 200 with the scheduled
+    /// timestamp — every other authenticated endpoint returns 410 for them.
+    func fetchAccountStatus() async throws -> AccountStatus {
+        let accessToken = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/users/me") else {
+            throw AccountServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw AccountServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw AccountServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AccountServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            struct StatusDTO: Decodable {
+                let user_id: String
+                let scheduled_deletion_at: String?
+            }
+            let dto = try decoder.decode(StatusDTO.self, from: data)
+            if let iso = dto.scheduled_deletion_at,
+               let date = Self.parseISODate(iso) {
+                return .pendingDeletion(scheduledAt: date)
+            }
+            return .active
+
+        case 401:
+            throw AccountServiceError.noAuthSession
+
+        default:
+            throw AccountServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: parseErrorMessage(from: data)
+            )
+        }
+    }
+
+    /// Parses an ISO 8601 timestamp produced by Python's `datetime.isoformat()`,
+    /// which may or may not include fractional seconds (microseconds).
+    static func parseISODate(_ s: String) -> Date? {
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = withFractional.date(from: s) { return d }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: s)
     }
 
     // MARK: - Private Helpers

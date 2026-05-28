@@ -42,23 +42,16 @@ final class SettingsViewModel {
     /// Whether to show the "clear hints success" alert.
     var showClearHintsSuccess = false
 
-    /// Whether to show the initial account deletion warning alert.
-    var showDeleteAccountAlert = false
-
-    /// Whether the re-authentication (Apple Sign-In) sheet is showing.
-    var showReauthentication = false
-
-    /// Whether the final "are you sure?" confirmation is showing after re-auth.
-    var showFinalDeleteConfirmation = false
+    /// Whether the typed-confirmation sheet is showing.
+    /// The sheet itself carries the warning + confirmation, so the
+    /// previous warning alert + final-confirmation alert are gone.
+    var showDeleteConfirmationSheet = false
 
     /// Whether the account deletion network request is in progress.
     var isDeletingAccount = false
 
     /// Error message from the account deletion operation.
     var deleteAccountError: String?
-
-    /// Whether the re-authentication succeeded (ready to proceed with deletion).
-    var isReauthenticated = false
 
     /// Whether to show the export data confirmation alert (Step 11.3).
     var showExportDataAlert = false
@@ -290,39 +283,22 @@ final class SettingsViewModel {
         }
     }
 
-    // MARK: - Account Deletion (Step 11.2)
+    // MARK: - Account Deletion (Step 15.5 — 60-day soft delete)
 
-    /// Called when user taps "Delete Account" button. Shows the initial warning.
+    /// Called when user taps "Delete Account" button. Presents the typed
+    /// confirmation sheet directly; the sheet is itself the warning.
     func requestAccountDeletion() {
-        showDeleteAccountAlert = true
+        showDeleteConfirmationSheet = true
     }
 
-    /// Called when user confirms the initial warning. Presents Apple Sign-In for re-auth.
-    func confirmDeleteAndReauthenticate() {
-        showReauthentication = true
-    }
-
-    /// Called after Apple Sign-In re-authentication succeeds.
-    /// Shows the final confirmation before proceeding.
-    func onReauthenticationSuccess() {
-        isReauthenticated = true
-        showReauthentication = false
-        showFinalDeleteConfirmation = true
-    }
-
-    /// Called when Apple Sign-In re-authentication fails or is cancelled.
-    func onReauthenticationFailure() {
-        isReauthenticated = false
-        showReauthentication = false
-    }
-
-    /// Executes the actual account deletion after all confirmations and re-auth.
+    /// Schedules the account for deletion (60-day grace).
     ///
-    /// Calls the backend to delete the account, then clears all local SwiftData
-    /// models. The caller is responsible for signing out after this returns `true`.
+    /// Calls the backend to schedule the deletion, then clears all local
+    /// SwiftData. The caller is responsible for signing out after this
+    /// returns `true`.
     ///
     /// - Parameter modelContext: The SwiftData model context for clearing local data.
-    /// - Returns: `true` if deletion succeeded and sign-out should proceed.
+    /// - Returns: `true` if scheduling succeeded and sign-out should proceed.
     func executeAccountDeletion(modelContext: ModelContext) async -> Bool {
         isDeletingAccount = true
         deleteAccountError = nil

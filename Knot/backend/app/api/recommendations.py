@@ -20,7 +20,7 @@ from app.agents.state import (
     CandidateRecommendation,
     RecommendationState,
 )
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.notifications import (
     MilestoneRecommendationItem,
@@ -59,7 +59,7 @@ router = APIRouter(prefix="/api/v1/recommendations", tags=["recommendations"])
 )
 async def generate_recommendations(
     payload: RecommendationGenerateRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> RecommendationGenerateResponse:
     """
     Generate Choice-of-Three recommendations for the authenticated user.
@@ -247,7 +247,7 @@ async def generate_recommendations(
 )
 async def refresh_recommendations(
     payload: RecommendationRefreshRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> RecommendationRefreshResponse:
     """
     Refresh (re-roll) recommendations with exclusion filters.
@@ -449,7 +449,7 @@ async def refresh_recommendations(
 )
 async def record_feedback(
     payload: RecommendationFeedbackRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> RecommendationFeedbackResponse:
     """
     Record user feedback on a recommendation.
@@ -541,7 +541,7 @@ async def record_feedback(
 )
 async def get_recommendations_by_milestone(
     milestone_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> MilestoneRecommendationsResponse:
     """
     Fetch existing (pre-generated) recommendations for a specific milestone.
@@ -789,7 +789,7 @@ def _apply_exclusion_filters(
 )
 async def get_recommendation_by_id(
     recommendation_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> MilestoneRecommendationItem:
     """
     Fetch a single recommendation by its database ID.

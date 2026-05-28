@@ -101,6 +101,59 @@ async def get_current_user_id(
     return user_id
 
 
+async def get_active_user_id(
+    user_id: str = Depends(get_current_user_id),
+) -> str:
+    """
+    Stricter variant of get_current_user_id that also rejects users whose
+    account is pending deletion.
+
+    Returns HTTP 410 Gone with body
+        {"detail": "account_pending_deletion", "scheduled_deletion_at": "<iso>"}
+    so the iOS client can surface the restore screen before any other UI.
+
+    Used by every authenticated route except:
+      - POST /api/v1/users/me/restore (must allow pending users)
+      - DELETE /api/v1/users/me (calling delete twice re-schedules, not 410)
+      - QStash webhook routes (no JWT)
+    """
+    from app.db.supabase_client import get_service_client
+
+    client = get_service_client()
+
+    try:
+        result = (
+            client.table("users")
+            .select("scheduled_deletion_at")
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception:
+        # If we can't read the column we fail closed for the gate: 410 would
+        # be wrong (we don't know it's pending). Re-raise as 500.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify account status.",
+        )
+
+    if not result.data:
+        # User passed JWT validation but has no public.users row. Treat as
+        # not pending — downstream handlers will 404 if they need the row.
+        return user_id
+
+    scheduled_at = result.data[0].get("scheduled_deletion_at")
+    if scheduled_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "account_pending_deletion",
+                "scheduled_deletion_at": scheduled_at,
+            },
+        )
+
+    return user_id
+
+
 def _get_apikey() -> str:
     """
     Returns the Supabase anon key for API requests.

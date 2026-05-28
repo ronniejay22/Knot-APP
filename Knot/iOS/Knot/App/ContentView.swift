@@ -34,7 +34,18 @@ struct ContentView: View {
                 // MARK: - Loading (checking Keychain for session)
                 sessionCheckView
             } else if authViewModel.isAuthenticated {
-                if authViewModel.hasCompletedOnboarding {
+                if let scheduledAt = authViewModel.pendingDeletionScheduledAt {
+                    // MARK: - Authenticated + Pending deletion → Restore gate (Step 15.5)
+                    PendingDeletionView(
+                        scheduledAt: scheduledAt,
+                        onRestored: {
+                            Task { await authViewModel.didRestoreAccount() }
+                        },
+                        onSignOut: {
+                            await authViewModel.signOut()
+                        }
+                    )
+                } else if authViewModel.hasCompletedOnboarding {
                     // MARK: - Authenticated + Vault exists → Tab Bar
                     MainTabView()
                 } else {

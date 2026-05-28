@@ -2,33 +2,41 @@
 //  ReauthenticationSheet.swift
 //  Knot
 //
-//  Created on February 16, 2026.
-//  Step 11.2: Re-authentication via Apple Sign-In before account deletion.
+//  Step 15.5 (May 2026): Replaced the Apple Sign-In re-authentication gate
+//  with a typed-confirmation sheet. The user now types "DELETE ACCOUNT" to
+//  enable the destructive button. Works for Apple and Google users alike.
+//
+//  Filename is kept for Xcode project-file compatibility; the type is named
+//  to reflect its new purpose.
 //
 
 import SwiftUI
-import AuthenticationServices
 import LucideIcons
 
-/// Sheet presented during account deletion to re-authenticate the user
-/// via Apple Sign-In before proceeding with the destructive action.
-///
-/// This view does NOT create a new Supabase session. It only verifies
-/// that the user can successfully complete Apple Sign-In, proving they
-/// are the account owner (biometric/passcode confirmation). The existing
-/// Supabase session (with a valid JWT) is used for the actual deletion
-/// API call.
+/// Sheet presented during account deletion that requires the user to type
+/// `DELETE ACCOUNT` (case-sensitive, exact match) to enable the submit
+/// button. On submit the backend schedules the deletion for 60 days out
+/// and the user is signed out locally.
 struct ReauthenticationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    /// Called when Apple Sign-In completes successfully.
-    let onSuccess: () -> Void
+    /// Called when the user submits a valid confirmation.
+    /// The closure runs the backend call (`executeAccountDeletion`) and
+    /// returns whether it succeeded — the sheet stays open while it runs
+    /// and dismisses itself on success.
+    let onConfirm: () async -> Bool
 
-    /// Called when the user cancels or the sign-in fails.
+    /// Called when the user cancels.
     let onCancel: () -> Void
 
-    /// Error to display if re-authentication fails.
-    @State private var errorMessage: String?
+    @State private var typedConfirmation: String = ""
+    @State private var isSubmitting: Bool = false
+
+    private static let requiredPhrase = "DELETE ACCOUNT"
+
+    private var isPhraseValid: Bool {
+        typedConfirmation == Self.requiredPhrase
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,7 +44,7 @@ struct ReauthenticationSheet: View {
                 Theme.backgroundGradient.ignoresSafeArea()
 
                 VStack(spacing: 24) {
-                    Spacer()
+                    Spacer().frame(height: 24)
 
                     Image(uiImage: Lucide.shieldAlert)
                         .renderingMode(.template)
@@ -45,44 +53,74 @@ struct ReauthenticationSheet: View {
                         .frame(width: 48, height: 48)
                         .foregroundStyle(.red)
 
-                    Text("Verify Your Identity")
+                    Text("Delete Account")
                         .knotFont(Theme.Typography.sectionHeader)
                         .foregroundStyle(Theme.textPrimary)
 
-                    Text("To delete your account, please sign in with Apple to confirm your identity.")
+                    Text("Your account will be locked and your data held for 60 days, then permanently erased. Sign in within 60 days to restore it.")
                         .knotFont(Theme.Typography.body)
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
 
-                    Spacer()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Type ")
+                            .foregroundStyle(Theme.textSecondary)
+                        + Text("DELETE ACCOUNT")
+                            .foregroundStyle(Theme.textPrimary)
+                            .fontWeight(.semibold)
+                        + Text(" to confirm.")
+                            .foregroundStyle(Theme.textSecondary)
 
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.email]
-                    } onCompletion: { result in
-                        handleResult(result)
+                        TextField("DELETE ACCOUNT", text: $typedConfirmation)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled(true)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(
+                                        isPhraseValid ? Color.red : Color.black.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .disabled(isSubmitting)
                     }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .knotFont(Theme.Typography.label)
                     .padding(.horizontal, 24)
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                    }
+                    Spacer()
 
-                    Spacer().frame(height: 40)
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isSubmitting {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                            Text(isSubmitting ? "Scheduling deletion..." : "Delete My Account")
+                                .knotFont(Theme.Typography.cta)
+                                .foregroundStyle(.white)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .background(isPhraseValid ? Color.red : Color.red.opacity(0.4))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .disabled(!isPhraseValid || isSubmitting)
+                    .padding(.horizontal, 24)
+
+                    Spacer().frame(height: 24)
                 }
             }
-            .navigationTitle("Re-authenticate")
+            .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        guard !isSubmitting else { return }
                         onCancel()
                         dismiss()
                     } label: {
@@ -93,39 +131,29 @@ struct ReauthenticationSheet: View {
                             .frame(width: 20, height: 20)
                     }
                     .tint(Theme.textPrimary)
+                    .disabled(isSubmitting)
                 }
             }
+            .interactiveDismissDisabled(isSubmitting)
         }
     }
 
-    /// Processes the Apple Sign-In result for re-authentication.
-    ///
-    /// On success, calls `onSuccess` and dismisses. We do NOT send the
-    /// token to Supabase — only verifying the user completed Apple Sign-In.
-    private func handleResult(_ result: Result<ASAuthorization, any Error>) {
-        switch result {
-        case .success:
-            onSuccess()
+    private func submit() async {
+        guard isPhraseValid, !isSubmitting else { return }
+        isSubmitting = true
+        let ok = await onConfirm()
+        isSubmitting = false
+        if ok {
             dismiss()
-
-        case .failure(let error):
-            let nsError = error as NSError
-            // User dismissed the Apple Sign-In sheet — not an error
-            if nsError.domain == ASAuthorizationError.errorDomain,
-               nsError.code == ASAuthorizationError.canceled.rawValue {
-                return
-            }
-            errorMessage = "Authentication failed. Please try again."
-            print("[Knot] Re-authentication failed: \(error.localizedDescription)")
         }
     }
 }
 
 // MARK: - Previews
 
-#Preview("Re-authenticate") {
+#Preview("Delete Account Confirmation") {
     ReauthenticationSheet(
-        onSuccess: { print("Success") },
+        onConfirm: { true },
         onCancel: { print("Cancel") }
     )
 }

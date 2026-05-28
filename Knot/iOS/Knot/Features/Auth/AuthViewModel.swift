@@ -61,6 +61,12 @@ final class AuthViewModel {
     /// Controls the visibility of the error alert.
     var showError = false
 
+    /// Non-nil when the signed-in user's account is in the 60-day deletion
+    /// grace window. Drives the root navigator to present `PendingDeletionView`
+    /// instead of the normal app shell. Cleared by a successful restore or
+    /// when the user signs out.
+    var pendingDeletionScheduledAt: Date?
+
     // MARK: - Private State
 
     /// Raw nonce generated before the Apple Sign-In request.
@@ -100,21 +106,28 @@ final class AuthViewModel {
                     print("[Knot] User ID: \(session.user.id)")
                     print("[Knot] Email: \(session.user.email ?? "hidden")")
 
-                    // Check if user already has a vault → skip onboarding (Step 3.11)
-                    let vaultService = VaultService()
-                    let vaultFound = await vaultService.vaultExists()
-                    // Re-check after await: onComplete() may have set this to true
-                    // while vaultExists() was in flight (race across suspension points).
-                    if !hasCompletedOnboarding {
-                        hasCompletedOnboarding = vaultFound
-                    }
-                    print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
+                    // Pending-deletion check (Step 15.5) — runs before vault check
+                    // so a pending user never sees a flash of Home/Onboarding.
+                    let isPending = await refreshPendingDeletionStatus()
 
-                    // Request push notification permission (Step 7.4)
-                    requestPushNotificationPermission()
+                    if !isPending {
+                        // Check if user already has a vault → skip onboarding (Step 3.11)
+                        let vaultService = VaultService()
+                        let vaultFound = await vaultService.vaultExists()
+                        // Re-check after await: onComplete() may have set this to true
+                        // while vaultExists() was in flight (race across suspension points).
+                        if !hasCompletedOnboarding {
+                            hasCompletedOnboarding = vaultFound
+                        }
+                        print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
+
+                        // Request push notification permission (Step 7.4)
+                        requestPushNotificationPermission()
+                    }
                 } else {
                     isAuthenticated = false
                     hasCompletedOnboarding = false  // Defensive reset for nil session
+                    pendingDeletionScheduledAt = nil
                     print("[Knot] No existing session — showing Sign-In")
                 }
                 isCheckingSession = false
@@ -123,30 +136,35 @@ final class AuthViewModel {
                 isAuthenticated = true
                 print("[Knot] Auth state: signed in")
 
-                // Check if returning user already has a vault → skip onboarding (Step 3.11)
-                // Guard: don't overwrite if already true (e.g., user just finished onboarding
-                // and the SDK re-emits signedIn, or vaultExists() fails transiently).
-                if !hasCompletedOnboarding {
-                    let vaultService = VaultService()
-                    let vaultFound = await vaultService.vaultExists()
-                    // Re-check after await: onComplete() may have set this to true
-                    // while vaultExists() was in flight (race across suspension points).
+                let isPending = await refreshPendingDeletionStatus()
+
+                if !isPending {
+                    // Check if returning user already has a vault → skip onboarding (Step 3.11)
+                    // Guard: don't overwrite if already true (e.g., user just finished onboarding
+                    // and the SDK re-emits signedIn, or vaultExists() fails transiently).
                     if !hasCompletedOnboarding {
-                        hasCompletedOnboarding = vaultFound
+                        let vaultService = VaultService()
+                        let vaultFound = await vaultService.vaultExists()
+                        // Re-check after await: onComplete() may have set this to true
+                        // while vaultExists() was in flight (race across suspension points).
+                        if !hasCompletedOnboarding {
+                            hasCompletedOnboarding = vaultFound
+                        }
+                        print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
+                    } else {
+                        print("[Knot] Onboarding already completed — skipping vault check")
                     }
-                    print("[Knot] Vault exists: \(vaultFound) → \(hasCompletedOnboarding ? "Home" : "Onboarding")")
-                } else {
-                    print("[Knot] Onboarding already completed — skipping vault check")
+
+                    // Request push notification permission (Step 7.4)
+                    requestPushNotificationPermission()
                 }
 
-                // Request push notification permission (Step 7.4)
-                requestPushNotificationPermission()
-
-                isCheckingSession = false  // After vault check — prevents onboarding flash
+                isCheckingSession = false  // After all checks — prevents flash
 
             case .signedOut:
                 isAuthenticated = false
                 hasCompletedOnboarding = false  // Reset for next sign-in (Step 3.11)
+                pendingDeletionScheduledAt = nil
                 print("[Knot] Auth state: signed out")
 
             case .tokenRefreshed:
@@ -385,6 +403,50 @@ final class AuthViewModel {
             hasCompletedOnboarding = false
             print("[Knot] Sign-out after deletion error: \(error)")
         }
+    }
+
+    // MARK: - Pending-Deletion Status (Step 15.5)
+
+    /// Probes `GET /api/v1/users/me` after sign-in to detect whether the
+    /// account is in the 60-day deletion grace window. Sets
+    /// `pendingDeletionScheduledAt` if so. Returns `true` when pending,
+    /// `false` for active accounts or when the check fails.
+    ///
+    /// On failure we fall back to treating the account as active — the
+    /// user gets the normal app shell. If they are actually pending,
+    /// every subsequent authenticated API call will return 410 from
+    /// `get_active_user_id` and the iOS service layer can surface the
+    /// error normally. The post-sign-in check is best-effort UX, not
+    /// a security boundary.
+    @discardableResult
+    func refreshPendingDeletionStatus() async -> Bool {
+        do {
+            let service = AccountService()
+            let status = try await service.fetchAccountStatus()
+            switch status {
+            case .active:
+                pendingDeletionScheduledAt = nil
+                return false
+            case .pendingDeletion(let scheduledAt):
+                pendingDeletionScheduledAt = scheduledAt
+                print("[Knot] Account is pending deletion at \(scheduledAt)")
+                return true
+            }
+        } catch {
+            print("[Knot] Pending-deletion status check failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Called by `PendingDeletionView` after a successful restore.
+    /// Clears the gate flag and re-runs the normal vault check so the
+    /// user lands on Home (or Onboarding) without resigning in.
+    func didRestoreAccount() async {
+        pendingDeletionScheduledAt = nil
+        let vaultService = VaultService()
+        let vaultFound = await vaultService.vaultExists()
+        hasCompletedOnboarding = vaultFound
+        requestPushNotificationPermission()
     }
 
     // MARK: - Push Notification Registration (Step 7.4)

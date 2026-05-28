@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, s
 from app.agents.pipeline import run_recommendation_pipeline
 from app.agents.state import RecommendationState
 from app.core.config import is_apns_configured, is_qstash_configured, WEBHOOK_BASE_URL
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.notifications import (
     NotificationHistoryItem,
@@ -435,7 +435,7 @@ async def process_notification(
     response_model=NotificationHistoryResponse,
 )
 async def get_notification_history(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> NotificationHistoryResponse:
@@ -572,7 +572,7 @@ async def get_notification_history(
 )
 async def mark_notification_viewed(
     notification_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> dict:
     """
     Mark a notification as viewed (sets viewed_at timestamp).

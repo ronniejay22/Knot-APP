@@ -5,28 +5,42 @@ Handles device token registration, account deletion, data export,
 and notification preferences.
 
 Step 7.4: POST /api/v1/users/device-token — Register APNs device token.
-Step 11.2: DELETE /api/v1/users/me — Permanently delete account and all data.
+Step 11.2: DELETE /api/v1/users/me — Schedule account for deletion (60-day grace).
 Step 11.3: GET /api/v1/users/me/export — Export all user data as JSON.
 Step 11.4: GET/PUT /api/v1/users/me/notification-preferences — Notification preferences.
+Step 15.5: GET  /api/v1/users/me — Lightweight account-status probe.
+           POST /api/v1/users/me/restore — Cancel a pending deletion.
+           POST /api/v1/users/process-deletion — QStash purge worker.
 """
 
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
-from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-from app.core.security import get_current_user_id
+from app.core.config import (
+    SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_URL,
+    WEBHOOK_BASE_URL,
+    is_qstash_configured,
+)
+from app.core.security import get_active_user_id, get_current_user_id
 from app.db.supabase_client import get_service_client
 from app.models.users import (
     AccountDeleteResponse,
+    AccountRestoreResponse,
+    AccountStatusResponse,
     DataExportResponse,
     DeviceTokenRequest,
     DeviceTokenResponse,
     NotificationPreferencesRequest,
     NotificationPreferencesResponse,
 )
+from app.services.qstash import publish_to_qstash, verify_qstash_signature
+
+DELETION_GRACE_DAYS = 60
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +54,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
 )
 async def register_device_token(
     payload: DeviceTokenRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> DeviceTokenResponse:
     """
     Register or update the device token for push notifications.
@@ -117,6 +131,88 @@ async def register_device_token(
     )
 
 
+async def _hard_delete_auth_user(user_id: str) -> None:
+    """
+    Permanently delete the auth.users row for `user_id` via the Supabase
+    Admin API. CASCADE removes public.users and every downstream table.
+
+    Raises HTTPException(500) on network or admin-API failure. The caller
+    should treat that as "leave scheduled_deletion_at in place and rely on
+    the next QStash retry" — QStash retries failed webhooks automatically.
+    """
+    try:
+        async with httpx.AsyncClient() as http_client:
+            resp = await http_client.delete(
+                f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
+                headers={
+                    "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                },
+                timeout=30.0,
+            )
+    except httpx.RequestError as exc:
+        logger.error(
+            "Network error deleting auth user %s: %s", user_id[:8], exc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to connect to authentication service.",
+        )
+
+    # 404 from the admin API means the user is already gone — treat as success
+    # so QStash retries don't loop forever.
+    if resp.status_code not in (200, 204, 404):
+        logger.error(
+            "Supabase Admin API returned %d for user %s deletion: %s",
+            resp.status_code,
+            user_id[:8],
+            resp.text,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete authentication record (status {resp.status_code}).",
+        )
+
+
+@router.get(
+    "/me",
+    status_code=status.HTTP_200_OK,
+    response_model=AccountStatusResponse,
+)
+async def get_account_status(
+    user_id: str = Depends(get_current_user_id),
+) -> AccountStatusResponse:
+    """
+    Lightweight account-status probe for the iOS client to call after sign-in.
+
+    Uses get_current_user_id (not get_active_user_id) so it can also return a
+    200 with scheduled_deletion_at populated when the account is pending. The
+    iOS app then chooses between PendingDeletionView and the normal app shell.
+    """
+    client = get_service_client()
+    try:
+        result = (
+            client.table("users")
+            .select("scheduled_deletion_at")
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Failed to read account status for %s: %s", user_id[:8], exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to read account status.",
+        )
+
+    if not result.data:
+        return AccountStatusResponse(user_id=user_id, scheduled_deletion_at=None)
+
+    return AccountStatusResponse(
+        user_id=user_id,
+        scheduled_deletion_at=result.data[0].get("scheduled_deletion_at"),
+    )
+
+
 @router.delete(
     "/me",
     status_code=status.HTTP_200_OK,
@@ -126,21 +222,24 @@ async def delete_account(
     user_id: str = Depends(get_current_user_id),
 ) -> AccountDeleteResponse:
     """
-    Permanently delete the authenticated user's account and all associated data.
+    Schedule the authenticated user's account for deletion in 60 days.
 
-    Deletes the auth.users record via Supabase Admin API, which triggers
-    CASCADE deletion through all public tables (users, partner_vaults,
-    hints, recommendations, notification_queue, user_preferences_weights,
-    and all child tables).
+    Sets public.users.scheduled_deletion_at and enqueues a QStash purge
+    job that calls POST /api/v1/users/process-deletion at the scheduled
+    time. The auth user and all CASCADE-linked rows remain intact during
+    the grace window so the user can sign back in and restore.
 
-    The iOS client enforces re-authentication (Apple Sign-In) before
-    calling this endpoint. The backend requires a valid JWT.
+    Idempotent: if the user is already pending deletion, the column is
+    refreshed to now() + 60 days and a fresh QStash job is enqueued. The
+    purge worker is itself idempotent so a stale (earlier) QStash message
+    that fires after a re-schedule will simply re-read the column and act
+    on whichever value is current.
 
     Returns:
-        200: Account deleted successfully.
+        200: Deletion scheduled. Body includes scheduled_deletion_at.
         401: Missing or invalid authentication token.
         404: User not found.
-        500: Deletion failed (database or Admin API error).
+        500: Database or QStash error.
     """
     client = get_service_client()
 
@@ -166,45 +265,212 @@ async def delete_account(
             detail="User not found.",
         )
 
-    # 2. Delete the auth user via Supabase Admin API.
-    #    CASCADE delete removes public.users and all child tables.
+    scheduled_at = datetime.now(timezone.utc) + timedelta(days=DELETION_GRACE_DAYS)
+    scheduled_iso = scheduled_at.isoformat()
+
+    # 2. Mark the user as pending deletion.
     try:
-        async with httpx.AsyncClient() as http_client:
-            resp = await http_client.delete(
-                f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
-                headers={
-                    "apikey": SUPABASE_SERVICE_ROLE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-                },
-                timeout=30.0,
-            )
-    except httpx.RequestError as exc:
+        client.table("users").update(
+            {"scheduled_deletion_at": scheduled_iso}
+        ).eq("id", user_id).execute()
+    except Exception as exc:
         logger.error(
-            "Network error deleting auth user %s: %s", user_id[:8], exc
+            "Failed to set scheduled_deletion_at for user %s: %s",
+            user_id[:8], exc,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to connect to authentication service.",
+            detail="Failed to schedule account deletion.",
         )
 
-    if resp.status_code != 200:
-        logger.error(
-            "Supabase Admin API returned %d for user %s deletion: %s",
-            resp.status_code,
+    # 3. Enqueue the QStash purge job. 60 days exceeds the 7-day delay_seconds
+    #    cap, so we use not_before with the Unix timestamp.
+    if is_qstash_configured():
+        webhook_url = f"{WEBHOOK_BASE_URL}/api/v1/users/process-deletion"
+        try:
+            await publish_to_qstash(
+                destination_url=webhook_url,
+                body={"user_id": user_id},
+                not_before=int(scheduled_at.timestamp()),
+                deduplication_id=f"account-deletion-{user_id}-{int(scheduled_at.timestamp())}",
+            )
+        except Exception as exc:
+            # We deliberately don't roll back the column update — the worker
+            # is also reachable via a manual/admin trigger and the user still
+            # benefits from the gate. But we surface the error so the iOS
+            # client can retry the call (which is idempotent).
+            logger.error(
+                "Failed to publish QStash deletion job for user %s: %s",
+                user_id[:8], exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to schedule the deletion job. Please try again.",
+            )
+    else:
+        # In dev/CI without QStash configured, log loudly. The column is
+        # still set so the gate works; tests bypass the worker directly.
+        logger.warning(
+            "QStash not configured — account deletion for user %s is "
+            "scheduled in DB only and will not auto-purge.",
             user_id[:8],
-            resp.text,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete authentication record (status {resp.status_code}).",
         )
 
     logger.info(
-        "Account deleted for user %s — all data removed via CASCADE",
-        user_id[:8],
+        "Account scheduled for deletion: user=%s scheduled_at=%s",
+        user_id[:8], scheduled_iso,
     )
 
-    return AccountDeleteResponse()
+    return AccountDeleteResponse(scheduled_deletion_at=scheduled_iso)
+
+
+@router.post(
+    "/me/restore",
+    status_code=status.HTTP_200_OK,
+    response_model=AccountRestoreResponse,
+)
+async def restore_account(
+    user_id: str = Depends(get_current_user_id),
+) -> AccountRestoreResponse:
+    """
+    Cancel a pending account deletion.
+
+    Idempotent — clears public.users.scheduled_deletion_at unconditionally.
+    Any stale QStash purge message that fires later will read the now-null
+    column and noop.
+
+    Uses get_current_user_id (not get_active_user_id) so a pending user
+    can call it.
+    """
+    client = get_service_client()
+    try:
+        client.table("users").update(
+            {"scheduled_deletion_at": None}
+        ).eq("id", user_id).execute()
+    except Exception as exc:
+        logger.error(
+            "Failed to clear scheduled_deletion_at for user %s: %s",
+            user_id[:8], exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to restore account.",
+        )
+
+    logger.info("Account restored: user=%s", user_id[:8])
+    return AccountRestoreResponse()
+
+
+@router.post(
+    "/process-deletion",
+    status_code=status.HTTP_200_OK,
+)
+async def process_account_deletion(
+    request: Request,
+    upstash_signature: str | None = Header(None, alias="Upstash-Signature"),
+) -> dict:
+    """
+    QStash webhook that runs the actual hard-delete after the 60-day grace
+    window has elapsed.
+
+    Idempotent and race-safe:
+      - Verifies the Upstash-Signature JWT before doing anything.
+      - Re-reads public.users.scheduled_deletion_at. If NULL (user restored)
+        or in the future (concurrent re-schedule), returns 200 noop and
+        leaves the user intact.
+      - Otherwise calls the Supabase Admin API to delete auth.users, which
+        cascades to every public table.
+    """
+    body = await request.body()
+    request_url = str(request.url)
+
+    try:
+        verify_qstash_signature(
+            signature=upstash_signature or "",
+            body=body,
+            url=request_url,
+        )
+    except ValueError as exc:
+        logger.warning("QStash signature verification failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid QStash signature: {exc}",
+        )
+
+    try:
+        payload = json.loads(body)
+        user_id = payload["user_id"]
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.error("Bad process-deletion payload: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid payload: user_id is required.",
+        )
+
+    client = get_service_client()
+    try:
+        result = (
+            client.table("users")
+            .select("scheduled_deletion_at")
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(
+            "process-deletion: failed to look up user %s: %s",
+            user_id[:8], exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to look up user.",
+        )
+
+    if not result.data:
+        # Auth.users may still exist but public.users is gone — try the
+        # admin delete anyway so we don't leave orphaned auth rows.
+        logger.info(
+            "process-deletion: public.users row already absent for %s — "
+            "still attempting auth deletion to be safe.",
+            user_id[:8],
+        )
+        await _hard_delete_auth_user(user_id)
+        return {"status": "deleted", "user_id": user_id}
+
+    scheduled = result.data[0].get("scheduled_deletion_at")
+    if scheduled is None:
+        logger.info(
+            "process-deletion: user %s has been restored — skipping purge.",
+            user_id[:8],
+        )
+        return {"status": "skipped", "reason": "restored", "user_id": user_id}
+
+    try:
+        scheduled_dt = datetime.fromisoformat(scheduled.replace("Z", "+00:00"))
+    except ValueError:
+        logger.error(
+            "process-deletion: unparseable scheduled_deletion_at=%r for user %s",
+            scheduled, user_id[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid scheduled_deletion_at value.",
+        )
+
+    if scheduled_dt > datetime.now(timezone.utc):
+        # A re-schedule pushed the date out. Leave the user; the newer
+        # QStash message will fire at the right time.
+        logger.info(
+            "process-deletion: user %s scheduled for %s — not yet due, skipping.",
+            user_id[:8], scheduled,
+        )
+        return {"status": "skipped", "reason": "rescheduled", "user_id": user_id}
+
+    await _hard_delete_auth_user(user_id)
+    logger.info(
+        "process-deletion: hard-deleted user=%s scheduled_at=%s",
+        user_id[:8], scheduled,
+    )
+    return {"status": "deleted", "user_id": user_id}
 
 
 # ===================================================================
@@ -218,7 +484,7 @@ async def delete_account(
     response_model=DataExportResponse,
 )
 async def export_user_data(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> DataExportResponse:
     """
     Export all user data as a JSON response.
@@ -421,7 +687,7 @@ async def export_user_data(
     response_model=NotificationPreferencesResponse,
 )
 async def get_notification_preferences(
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> NotificationPreferencesResponse:
     """
     Retrieve the authenticated user's notification preferences.
@@ -481,7 +747,7 @@ async def get_notification_preferences(
 )
 async def update_notification_preferences(
     payload: NotificationPreferencesRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_active_user_id),
 ) -> NotificationPreferencesResponse:
     """
     Update the authenticated user's notification preferences.

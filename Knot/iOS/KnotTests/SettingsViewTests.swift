@@ -27,7 +27,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(vm.clearHintsError)
         XCTAssertFalse(vm.showClearHintsConfirmation)
         XCTAssertFalse(vm.showClearHintsSuccess)
-        XCTAssertFalse(vm.showDeleteAccountAlert)
+        XCTAssertFalse(vm.showDeleteConfirmationSheet)
         XCTAssertFalse(vm.showExportDataAlert)
         XCTAssertFalse(vm.notificationsEnabled)
         XCTAssertFalse(vm.isUpdatingNotifications)
@@ -49,15 +49,15 @@ final class SettingsViewModelTests: XCTestCase {
                         "App version '\(version)' should match format 'X.Y.Z (N)'")
     }
 
-    /// Verify showDeleteAccountAlert can be toggled.
-    func testDeleteAccountAlertToggle() {
+    /// Verify showDeleteConfirmationSheet can be toggled.
+    func testDeleteConfirmationSheetToggle() {
         let vm = SettingsViewModel()
 
-        vm.showDeleteAccountAlert = true
-        XCTAssertTrue(vm.showDeleteAccountAlert)
+        vm.showDeleteConfirmationSheet = true
+        XCTAssertTrue(vm.showDeleteConfirmationSheet)
 
-        vm.showDeleteAccountAlert = false
-        XCTAssertFalse(vm.showDeleteAccountAlert)
+        vm.showDeleteConfirmationSheet = false
+        XCTAssertFalse(vm.showDeleteConfirmationSheet)
     }
 
     /// Verify showClearHintsConfirmation can be toggled.
@@ -143,53 +143,23 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(vm.clearHintsError)
     }
 
-    // MARK: - Account Deletion State Tests (Step 11.2)
+    // MARK: - Account Deletion State Tests (Step 15.5)
 
     /// Verify new deletion state properties have correct defaults.
     func testDeletionInitialState() {
         let vm = SettingsViewModel()
 
-        XCTAssertFalse(vm.showReauthentication)
-        XCTAssertFalse(vm.showFinalDeleteConfirmation)
+        XCTAssertFalse(vm.showDeleteConfirmationSheet)
         XCTAssertFalse(vm.isDeletingAccount)
         XCTAssertNil(vm.deleteAccountError)
-        XCTAssertFalse(vm.isReauthenticated)
     }
 
-    /// Verify requestAccountDeletion shows the warning alert.
-    func testRequestAccountDeletionShowsAlert() {
+    /// Verify requestAccountDeletion presents the typed-confirmation sheet directly.
+    func testRequestAccountDeletionShowsConfirmationSheet() {
         let vm = SettingsViewModel()
 
         vm.requestAccountDeletion()
-        XCTAssertTrue(vm.showDeleteAccountAlert)
-    }
-
-    /// Verify confirmDeleteAndReauthenticate shows re-auth sheet.
-    func testConfirmDeleteShowsReauthentication() {
-        let vm = SettingsViewModel()
-
-        vm.confirmDeleteAndReauthenticate()
-        XCTAssertTrue(vm.showReauthentication)
-    }
-
-    /// Verify onReauthenticationSuccess sets correct state.
-    func testReauthenticationSuccessState() {
-        let vm = SettingsViewModel()
-
-        vm.onReauthenticationSuccess()
-        XCTAssertTrue(vm.isReauthenticated)
-        XCTAssertFalse(vm.showReauthentication)
-        XCTAssertTrue(vm.showFinalDeleteConfirmation)
-    }
-
-    /// Verify onReauthenticationFailure resets state.
-    func testReauthenticationFailureState() {
-        let vm = SettingsViewModel()
-
-        vm.showReauthentication = true
-        vm.onReauthenticationFailure()
-        XCTAssertFalse(vm.isReauthenticated)
-        XCTAssertFalse(vm.showReauthentication)
+        XCTAssertTrue(vm.showDeleteConfirmationSheet)
     }
 
     /// Verify deleteAccountError can be set and cleared.
@@ -383,10 +353,10 @@ final class SettingsViewRenderingTests: XCTestCase {
         XCTAssertNotNil(hostingController.view, "SettingsView should render in dark mode")
     }
 
-    /// Verify the ReauthenticationSheet renders without crashing (Step 11.2).
+    /// Verify the typed-confirmation sheet renders without crashing.
     func testReauthenticationSheetRenders() {
         let view = ReauthenticationSheet(
-            onSuccess: {},
+            onConfirm: { true },
             onCancel: {}
         )
         let hostingController = UIHostingController(rootView: view)
