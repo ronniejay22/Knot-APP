@@ -91,7 +91,20 @@ struct MagicLinkView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(isEmailFocused ? Theme.accent : Theme.surfaceBorder, lineWidth: 1)
                 )
-                .onAppear { isEmailFocused = true }
+                // Make the entire styled card hit-testable — see KnotInput
+                // for the same fix. SwiftUI's TextField only registers taps
+                // on its text-content area by default, so taps on the
+                // padded edges of the rounded card otherwise miss the field.
+                .contentShape(Rectangle())
+                .onTapGesture { isEmailFocused = true }
+                // Defer auto-focus past the screen's present animation. On
+                // real devices, setting `isEmailFocused = true` in `.onAppear`
+                // races with the view being attached to the responder chain
+                // and the keyboard request is dropped.
+                .task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    isEmailFocused = true
+                }
 
             Button {
                 Task {

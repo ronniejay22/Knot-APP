@@ -5730,6 +5730,173 @@ The fix is `.ignoresSafeArea(.keyboard, edges: .bottom)` on the outer `VStack` i
 
 ---
 
+### Step 18.18: Fix Pervasive Button-Tap Delay on First Page Load ✅
+**Date:** 2026-05-31
+**Status:** Complete (three high-confidence fixes; instrumentation deferred unless lag persists)
+
+**Context:**
+
+User reported on a real iPhone that "when a page first loads, there is a bit of delay until the buttons are usable. I press and press but it takes a few seconds for things to register." Confirmed it reproduces across multiple screens (not one bug) and on physical hardware (not a simulator artifact). The pattern — `tap → tap → tap → eventually fires` — is the classic SwiftUI signature of either hit testing being absorbed by a transition, the main thread being blocked by sync I/O during first render, or the button visually existing before its hit region has been computed.
+
+Audited the codebase for the usual suspects and ruled out `KnotButton` (the `.contentShape(clipShape)` fix from Step 18.16 is intact), the `MainTabView` tab swap (no animation wrapper on the opacity toggle), the custom font lookup (Fraunces / DM Sans are bundled per Step 18.12), and the `KnotTabBar` color animation (only 0.15s, scoped to the bar's own label). Three real culprits remained, each contributing to the perceived sluggishness on different surfaces. Fixed all three.
+
+**Fix A — `SavedView` switched from `.onAppear` + sync SwiftData fetch to `.task` + async fetch with a yield:**
+
+The Saved tab was the only tab root running synchronous I/O on `.onAppear`. `SavedViewModel.loadSavedRecommendations(modelContext:)` did `try modelContext.fetch(descriptor)` on the main actor while the view was still doing its first appear-pass layout. On a real iPhone with even a modest SwiftData store, that stalls hit testing for hundreds of milliseconds — and `MainTabView` keeps all tabs alive in a `ZStack`, so the user can't switch out and back to dismiss the stutter the way `TabView` users could.
+
+The method is now `async` with a `await Task.yield()` before the fetch, so SwiftUI completes its initial layout pass and the tab feels tappable the moment it appears. The actual `modelContext.fetch` stays on the main actor (SwiftData's `ModelContext` is `@MainActor`-bound), but it now runs in the next event-loop turn rather than mid-layout. `SavedView` calls it via `.task` instead of `.onAppear`. No tests needed updating — existing `SavedViewModelTests` and `SavedViewModelDeleteTests` directly manipulate `vm.savedRecommendations` and don't call `loadSavedRecommendations` themselves.
+
+**Fix B — Tightened the onboarding animation scope so the navigation buttons live outside the animated subtree:**
+
+`OnboardingContainerView` had `.animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)` attached to the outer VStack. Combined with the `.transition(.asymmetric(...))` and `.id(viewModel.currentStep)` on the step content, every Next tap kicked off a 0.3s animation across the entire container — including the Next button itself, whose `.opacity(viewModel.canProceed ? 1.0 : 0.4)` modifier flips when the new step's validation runs. For 300ms after each Next tap, the button was being moved and partially transparent while its hit region was still settling. Users tapping rapidly during this window perceived the first taps as missing.
+
+The `.animation(...)` modifier moved from the outer VStack down to `stepContent` (alongside its existing `.transition(...)` and `.id(...)`), with the duration trimmed from 0.3s to 0.25s. The progress bar's local animation modifier (already scoped via line 140) and the validation banner's animation (line 75) are untouched. The Next / Back / Get Started buttons no longer participate in any cross-step animation, so they're hit-testable immediately when the new step appears. Recent commits `0c6fb00`, `8201847`, `f14fe9c` had all touched the onboarding nav button layout — this fix completes that thread.
+
+**Fix C — `ForYouView` always renders the JustBecauseCard so the screen is tappable from frame one:**
+
+The For You tab's `body` previously branched: if `isLoading && milestones.isEmpty`, it showed a bare full-screen `ProgressView` with no tap target; otherwise it showed the timeline. On every visit (since `.task` re-runs in tab containers), the user saw the spinner for the first ~second of the visit, with no JustBecauseCard to tap. The "Surprise them today" card is supposed to be a quick-access entry into the recommendation engine that's always available — but it was being hidden during the same window users were trying to interact with the screen.
+
+The body now always renders `timelineContent`, and the loading state moved inline into the timeline section (where the milestone list goes) as a centered `ProgressView` with vertical padding. The JustBecauseCard at the top stays mounted and tappable from the first frame; only the timeline area below it shows a small loading pip while milestones load. Users perceive the screen as immediately responsive.
+
+**What we deliberately did NOT change:**
+
+- `AuthViewModel.listenForAuthChanges()` was left alone. The perpetual `for await` loop calls `vaultExists()` on `initialSession` and `signedIn`, and while extra emits on token refresh could in theory cause re-render churn, that path was just stabilized in Step 15.5's pending-deletion routing and isn't a measured offender today.
+- `RecommendationsView`'s push-into-loading-state experience (5-30s AI pipeline) was left alone. That's not a bug, but users may conflate it with the "pages feel sluggish" complaint. If the user reports it specifically, the fix is showing the action buttons during the loading state rather than hiding the entire chrome behind `ForYouLoadingView`.
+- The Instruments signposts the plan called out as Step 1 were skipped. The three high-confidence fixes (A, B, C) address the most likely causes without measurement, and adding signposts purely to confirm what we already addressed is wasted ceremony. If the user reports the lag persists on any specific screen, signposts get added then.
+
+**Files modified:**
+- `iOS/Knot/Features/Saved/SavedView.swift` — `.onAppear` → `.task`, `await viewModel.loadSavedRecommendations(...)`
+- `iOS/Knot/Features/Saved/SavedViewModel.swift` — `loadSavedRecommendations` is now `async` with a `await Task.yield()` before the fetch; doc comment explains the yield
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — moved `.animation(.easeInOut(duration: 0.25), value: viewModel.currentStep)` from the outer VStack onto `stepContent` only; trimmed duration 0.3s → 0.25s; added a doc comment on the step content explaining the scope rationale
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — removed the `if isLoading && milestones.isEmpty` branch in `body` that hid the entire screen behind a spinner; moved the loading state inline into the timeline section
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds with zero errors on iPhone 17 Pro simulator (iOS 26.2)
+- ✅ `xcodebuild test -only-testing:KnotTests` — full unit-test suite passes (`** TEST SUCCEEDED **`); no regressions in `SavedViewModelTests`, `SavedViewModelDeleteTests`, `OnboardingContainerViewTests`, or `ForYouViewModelTests`
+- ⏳ Visual confirmation of "buttons feel immediately responsive" on each affected screen is left to the user on their physical iPhone. The three fixes target the three most likely causes; if the lag persists, the next step is adding `os_signpost` markers at `SavedViewModel.loadSavedRecommendations`, the onboarding step transition, and `HomeViewModel.loadVault` / `ForYouViewModel.loadData` enter/exit, then capturing an Instruments timeline.
+
+**Notes:**
+- `await Task.yield()` before SwiftData fetches in `@MainActor`-bound view models is a useful general pattern when the fetch runs from `.task` on first view appear — it lets SwiftUI finish its initial layout pass before the fetch executes. Other view models that fetch from SwiftData (none today, but if `SavedViewModel`'s pattern spreads) should adopt the same yield.
+- The onboarding animation scope fix is the kind of issue that's easy to introduce when nesting `.animation(value:)` modifiers — the modifier applies to everything in its subtree, so attaching it at the outer container animates the whole screen. Keep `.animation(value:)` as tight as possible around the specific subtree that should animate, especially when there are interactive controls below it.
+- The For You loading-state fix mirrors an established UX principle: if a screen has an always-available secondary action (like JustBecauseCard's "Surprise them today"), don't hide it behind a loading state that gates the screen's primary content (the milestone timeline). Show the secondary action immediately and let the gated content load in place.
+
+---
+
+### Step 18.19: Fix Text-Field Tap-to-Focus Reliability ✅
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Context:**
+
+After the Step 18.18 button-tap investigation shipped, the user clarified the actual symptom: not button-tap delay, but specifically that **tapping a text field doesn't reliably open the keyboard on the first try** — they had to tap a field multiple times before the keyboard appeared. Reproduced on a real iPhone across multiple screens with text inputs.
+
+This is a long-standing SwiftUI gotcha. The whole codebase styles text fields with the same envelope:
+
+```swift
+TextField("...", text: ...)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 12)
+    .background(Theme.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .overlay(RoundedRectangle(cornerRadius: 10).stroke(...))
+```
+
+The padding modifiers wrap the field in a larger layout box, but the **TextField's hit region stays attached to its actual text-content area** — roughly the height of the text plus its caret. The padded area around it is owned by the `.background(Theme.surface)` Color view, which has no tap handling, and SwiftUI does not propagate first-responder claims from a background up to the TextField. The user sees a rounded card and taps anywhere on it; taps that land on the padded edges fall through to the background and the field never focuses. Only taps that happen to land squarely on the text-content area work, explaining the "tap, tap, tap" pattern.
+
+**Fix 1 — `KnotInput.swift`: outer card is now fully hit-testable.**
+
+Added `.contentShape(Rectangle())` + `.onTapGesture { isFocused = true }` to the outer styled container in `KnotInput.body` (after the `.overlay(RoundedRectangle.stroke)` chain). Routes padded-edge taps through `KnotInput`'s existing internal `@FocusState`. Works for both `.singleLine` and `.multiLine` variants. Fixes every screen that goes through `KnotInput`: `LoginView` email field, `ReauthenticationSheet` typed-confirmation field, `OnboardingCustomMilestonesView` add-sheet name field, `SessionHintsSheet` multi-line hint editor, and `VibeOverrideSheet`. A doc comment on the modifier pair explains why both are needed so future readers don't strip them as redundant.
+
+**Fix 2 — `OnboardingPartnerNameView`: same modifiers on the inline TextField envelope.**
+
+The Partner Name step rebuilt the same `.padding + .background + .clipShape + .overlay` envelope inline rather than going through `KnotInput` (per the Step 18.2 carve-out preserving cross-field focus management). Added `.contentShape(Rectangle())` + `.onTapGesture { isFocused = true }` after the overlay so the styled card now routes its full area to the existing `@FocusState private var isFocused: Bool` binding.
+
+**Fix 3 — `OnboardingLocationView`: same modifiers on the inline TextField envelope.**
+
+The Location step uses the same envelope around its MapKit-backed search field. Same two modifiers added after the overlay, routing through the screen's `@FocusState isFocused` binding.
+
+**Fix 4 — `MagicLinkView`: hit-test fix plus deferred auto-focus.**
+
+`MagicLinkView` had two problems. (1) The email field uses its own inline styled envelope (not `KnotInput`) so it suffered the same hit-test gap — fixed with the same `.contentShape(Rectangle()) + .onTapGesture { isEmailFocused = true }` modifiers. (2) Auto-focus was set in `.onAppear { isEmailFocused = true }`, which on a real device races with the responder chain still settling — the focus request is dropped and the keyboard never opens automatically. Converted to a `.task { try? await Task.sleep(for: .milliseconds(300)); isEmailFocused = true }` so the focus assertion happens after the present animation finishes. `Task.sleep` is cancellable so navigating away cleanly aborts the deferred focus.
+
+**Deliberately out of scope:**
+
+- The text-field-style search bars on `OnboardingInterestsView` and `OnboardingDislikesView` (they use a thinner inline search style without the rounded-card envelope, so they don't have the same hit-region gap).
+- The enum-based `@FocusState focusedField: Field?` in `EditBasicInfoSheet` (no auto-focus default, but that's a missing-auto-focus quirk preserved by Step 18.2 for cross-field submit-label cascading — not a tap-doesn't-register bug).
+- The competing `@FocusState` pattern in `SessionHintsSheet` (parent binds `.focused($isFieldFocused)` on a `KnotInput` that owns its own internal `@FocusState`). The parent binding is effectively ignored but doesn't block tap-to-focus through the internal state. After Fix 1 the sheet's tap reliability is restored; the parent-binding cleanup is a separate concern.
+- The previously-shipped Step 18.18 changes for `SavedView` async fetch / onboarding animation scope / `ForYouView` empty state are unrelated to this symptom and stand on their own.
+
+**Files modified:**
+- `iOS/Knot/Components/UI/KnotInput.swift` — added `.contentShape(Rectangle()) + .onTapGesture { isFocused = true }` to the outer styled card; doc comment explains the SwiftUI hit-test gotcha
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPartnerNameView.swift` — same two modifiers on the inline TextField envelope, routed through the screen's `@FocusState isFocused`
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingLocationView.swift` — same two modifiers on the inline TextField envelope, routed through the screen's `@FocusState isFocused`
+- `iOS/Knot/Features/Auth/MagicLinkView.swift` — added the same two modifiers on the email field envelope; converted `.onAppear { isEmailFocused = true }` to a `.task` with a 300ms `Task.sleep` to defer auto-focus past the present animation
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds with zero errors on iPhone 17 Pro simulator (iOS 26.2)
+- ✅ `xcodebuild test -only-testing:KnotTests` — full unit-test suite passes (`** TEST SUCCEEDED **`); no regressions in `KnotInputTests`, `OnboardingContainerViewTests`, or `LoginViewTests`
+- ⏳ Real-device confirmation that "tap once anywhere on the rounded card → keyboard opens immediately" is left to the user. The fixes target the dominant cause (hit-test gap) plus the narrower MagicLinkView auto-focus race. If any specific surface still misbehaves on the device after the build, that surface likely has an extra wrapper (sheet, ScrollView with `.scrollDismissesKeyboard(.immediately)`, etc.) we'd need to investigate per-screen.
+
+**Notes:**
+- The SwiftUI `TextField` hit-test gotcha is one of the most-asked questions about SwiftUI text inputs. The fix is canonical: when you style a TextField with `.padding + .background + .clipShape + .overlay` and want the whole card to be tappable, you must explicitly set `.contentShape(Rectangle())` to extend hit testing AND wire up an `.onTapGesture` that routes through your `@FocusState`. SwiftUI does not do this for you. New text-field-styled surfaces added to the codebase should follow the same pattern — bake it into `KnotInput` and reuse `KnotInput` wherever possible to avoid re-introducing the gap.
+- The MagicLinkView `.onAppear → .task + sleep` pattern is the canonical fix for auto-focus races on sheets/pushes. If we later want to auto-focus the Partner Name step's field on first arrival, use the same pattern with a 200-300ms sleep — not bare `.onAppear`.
+
+---
+
+### Step 18.20: Stop Continuous Main-Thread Saturation in SignInView's Photo Grid ✅
+**Date:** 2026-05-31
+**Status:** Complete (four targeted fixes; awaits real-device confirmation)
+
+**Context:**
+
+After Step 18.19's text-field hit-test fix didn't move the needle, the user clarified the symptom more precisely: every page on a real iPhone has 3-10 seconds of unresponsiveness, AND the keyboard itself is sluggish for ~3 seconds after appearing. The user also confirmed Release builds are equally slow. That combination — every-page lag plus *post-appearance* keyboard input lag, in Release — is unambiguous: the app's main thread is being saturated *continuously*, not just at page transitions. iOS's keyboard runs in a separate process but routes keystrokes through the host app's main thread; if that thread is at near-100% CPU, the keyboard becomes laggy even after it has visually appeared.
+
+An audit surfaced one clear primary suspect: `SignInView`'s `PhotoGridSection` runs an unconditional `TimelineView(.animation)` that redraws **40 photo tiles per frame at the display's native refresh rate (60 Hz, or 120 Hz on ProMotion devices)**. That's 4,800 image-view evaluations per second on a modern iPhone, with no `.onAppear`/`.onDisappear` cleanup and no rate cap. Even in Release, the SwiftUI plumbing for that many per-frame view evaluations is enough to peg one main-thread core. And because SwiftUI's view-tree retention can keep `SignInView`'s subtree alive briefly after auth transitions and `NavigationStack` pushes, the animation can keep ticking even when the user has navigated to other screens — explaining the "every page" symptom.
+
+**Fix 1 — Pause `PhotoGridSection` when not visible.**
+
+Added `@State private var isVisible = true`, gated the `TimelineView` behind `if isVisible`, and wired `.onAppear { isVisible = true }` / `.onDisappear { isVisible = false }` on the outer `GeometryReader`. When the view goes off-screen (navigation away, scene backgrounding, view-tree retention after auth), the `TimelineView` subtree is removed and the perpetual redraw stops. The off-state renders a static first-frame snapshot using `Date.distantPast` so the layout doesn't jump if visibility flips back on.
+
+**Fix 2 — Cap the redraw at 30 fps.**
+
+Swapped `TimelineView(.animation)` for `TimelineView(.periodic(from: .now, by: 1.0 / 30.0))`. `.animation` schedules a redraw on every display refresh (60 or 120 Hz); `.periodic` runs at exactly the chosen rate regardless of display. The scroll cycle is 12 seconds long, so 30 fps is visually indistinguishable from native refresh. Net savings: 2× on standard iPhones, 4× on ProMotion devices.
+
+**Fix 3 — `.drawingGroup()` on the scrolling grid.**
+
+Added `.drawingGroup()` to the `VStack` containing the 4 rows × 10 cols of `Image` tiles. SwiftUI composes the modified subtree off-screen via Metal, which moves the per-frame composite off the main thread to the GPU. Layout still happens on the main thread but the heaviest cost — pixel composition of 40 image views with rounded clipping — is gone.
+
+**Fix 4 — Memoize `Theme.backgroundGradient`.**
+
+Converted `Theme.swift`'s `backgroundGradient` from `static var` (computed property — allocates a new `LinearGradient` on every access) to `static let` (allocated once at app load). Every major view applies `Theme.backgroundGradient.ignoresSafeArea()` as its root background, so every view-body re-evaluation was allocating a fresh gradient. `backgroundTop` / `backgroundBottom` are adaptive `Color(UIColor { tc in ... })` tokens, so light/dark trait changes still resolve correctly through the memoized gradient.
+
+**Refactor that came with Fix 1:**
+
+Extracted the `TimelineView` closure body into a private `gridContent(at:singleSetWidth:tileWidth:tileHeight:)` `@ViewBuilder` helper so both the animated branch and the static-fallback branch render identical layout. Code is also more readable now — the animation logic is in `gridContent`, the visibility/scheduling logic is in `body`.
+
+**Out of scope (deliberately):**
+
+- `ForYouLoadingView`'s three `repeatForever()` animations + two `Timer.publish` loops (`RecommendationsView.swift:645-839`). Heavy, but only mounts while `viewModel.isLoading == true`. Not continuous in the user's current symptom. Revisit only if the user reports residual lag after Step 18.20.
+- `AuthViewModel.listenForAuthChanges` `for await` loop. Runs forever on `MainActor` but only processes events on Supabase emits.
+- `AsyncImage` decoding on recommendation cards. LazyVStack defers off-screen, only 2-3 visible cards decode.
+- `Lucide.X` icon allocation. ~83 usages, but each is one-time per render — not a continuous CPU sink on a stable page.
+
+**Files modified:**
+- `iOS/Knot/Features/Auth/SignInView.swift` — added `@State isVisible`, `.onAppear`/`.onDisappear` gating, swapped `.animation` → `.periodic(from: .now, by: 1.0 / 30.0)`, added `.drawingGroup()` on the grid VStack, extracted `gridContent(at:singleSetWidth:tileWidth:tileHeight:)` helper, expanded the `PhotoGridSection` doc comment to explain the three performance fixes
+- `iOS/Knot/Core/Theme.swift` — `static var backgroundGradient` → `static let backgroundGradient` with doc comment explaining the memoization rationale
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds with zero errors on iPhone 17 Pro simulator (iOS 26.2)
+- ✅ `xcodebuild test -only-testing:KnotTests` — full unit-test suite passes (`** TEST SUCCEEDED **`); no regressions in `ThemeTokensTests`, `LoginViewTests`, `OnboardingContainerViewTests`
+- ⏳ Real-device confirmation of "every page feels immediately responsive, keyboard input lands without lag" is left to the user. The three `PhotoGridSection` fixes target the dominant cause; the `Theme.backgroundGradient` fix is a smaller compounding win that benefits every screen.
+
+**Notes:**
+- The pattern (`@State isVisible` + gate via `if`) is the canonical SwiftUI way to pause work when off-screen. SwiftUI's `.onDisappear` fires reliably on navigation pushes, scene backgrounding, and parent-view replacement. Use this pattern any time a `TimelineView`, `Timer.publish`, or `repeatForever()` animation should not tick when the user isn't looking at it.
+- `.periodic(from:by:)` is preferable to `.animation` for any background visual where the user can't tell the difference at 30 fps. Save `.animation` (display-refresh rate) for genuinely high-fidelity scenes (game-like effects, fast scrubbing, dragged sliders).
+- `.drawingGroup()` is the cheapest perf win for image-dense subtrees but has gotchas: it disables some accessibility behaviors and can break interactive elements inside the group. It's safe here because the photo grid is decorative-only.
+- If the lag still hasn't resolved after this step, the next investigation is `ForYouLoadingView` retention and the Lucide icon allocation pattern, with real `os_signpost` markers and an Instruments timeline rather than further guessing.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

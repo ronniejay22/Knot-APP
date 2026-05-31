@@ -29,12 +29,14 @@ struct ForYouView: View {
             ZStack {
                 Theme.backgroundGradient.ignoresSafeArea()
 
-                if viewModel.isLoading && viewModel.milestones.isEmpty {
-                    ProgressView()
-                        .tint(Theme.accent)
-                } else {
-                    timelineContent
-                }
+                // Always render timelineContent so the "Surprise them today"
+                // JustBecauseCard is tappable from the moment the screen
+                // appears. The timeline section itself handles the loading
+                // state inline. Previously this screen showed a bare
+                // ProgressView for the first ~second of every visit, leaving
+                // no tap target — the user experienced this as "buttons not
+                // responding" until milestones finished loading.
+                timelineContent
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -94,7 +96,17 @@ struct ForYouView: View {
                 )
 
                 // Timeline section
-                if viewModel.milestones.isEmpty {
+                if viewModel.isLoading && viewModel.milestones.isEmpty {
+                    // Inline loading state — keeps the JustBecauseCard above
+                    // tappable while milestones load.
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .tint(Theme.accent)
+                        Spacer()
+                    }
+                    .padding(.vertical, 40)
+                } else if viewModel.milestones.isEmpty {
                     emptyTimeline
                 } else {
                     milestoneTimeline

@@ -76,6 +76,8 @@ struct OnboardingLocationView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Theme.surfaceBorder, lineWidth: 0.5)
                 )
+                .contentShape(Rectangle())
+                .onTapGesture { isFocused = true }
                 .autocorrectionDisabled()
                 .submitLabel(.done)
                 .focused($isFocused)

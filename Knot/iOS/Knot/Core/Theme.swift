@@ -38,13 +38,19 @@ enum Theme {
 
     /// The standard full-screen background gradient. Apply to major container
     /// views with `.ignoresSafeArea()`.
-    static var backgroundGradient: LinearGradient {
-        LinearGradient(
-            colors: [backgroundTop, backgroundBottom],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
+    ///
+    /// `static let` (not `static var`) so we allocate the `LinearGradient`
+    /// once at app load instead of on every view-body evaluation. Every
+    /// major view applies this as its root background, so the savings
+    /// compound across re-renders. `backgroundTop` / `backgroundBottom`
+    /// are themselves adaptive `Color(UIColor { tc in ... })` tokens, so
+    /// light/dark trait changes still resolve correctly through the
+    /// gradient — the memoization is safe.
+    static let backgroundGradient = LinearGradient(
+        colors: [backgroundTop, backgroundBottom],
+        startPoint: .top,
+        endPoint: .bottom
+    )
 
     // MARK: - Surfaces
 

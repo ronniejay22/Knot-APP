@@ -35,6 +35,8 @@ struct OnboardingPartnerNameView: View {
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(Theme.surfaceBorder, lineWidth: 0.5)
                         )
+                        .contentShape(Rectangle())
+                        .onTapGesture { isFocused = true }
                         .textContentType(.givenName)
                         .autocorrectionDisabled()
                         .submitLabel(.done)

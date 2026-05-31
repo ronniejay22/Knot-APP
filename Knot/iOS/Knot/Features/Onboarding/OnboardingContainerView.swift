@@ -42,6 +42,13 @@ struct OnboardingContainerView: View {
                 .padding(.bottom, 8)
 
             // MARK: - Step Content
+            //
+            // Animation is scoped to the step content here (not the outer
+            // VStack) so the slide+fade transition between steps does not
+            // bleed into the navigation buttons below. Wrapping the Next
+            // button in an animated subtree noticeably delayed first taps on
+            // the new step on real devices — keeping the buttons outside the
+            // animated region restores immediate hit testing.
             stepContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.asymmetric(
@@ -49,6 +56,7 @@ struct OnboardingContainerView: View {
                     removal: .move(edge: .leading).combined(with: .opacity)
                 ))
                 .id(viewModel.currentStep)
+                .animation(.easeInOut(duration: 0.25), value: viewModel.currentStep)
 
             // MARK: - Validation Error Banner
             if showValidationError {
@@ -71,7 +79,6 @@ struct OnboardingContainerView: View {
         .background(Theme.backgroundGradient.ignoresSafeArea())
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .environment(viewModel)
-        .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
         .animation(.easeInOut(duration: 0.25), value: showValidationError)
         .onChange(of: viewModel.currentStep) { _, _ in
             // Dismiss any lingering error and cancel pending dismiss when switching steps

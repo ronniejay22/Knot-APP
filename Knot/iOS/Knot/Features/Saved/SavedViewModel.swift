@@ -22,7 +22,15 @@ final class SavedViewModel {
     var savedRecommendations: [SavedRecommendation] = []
 
     /// Loads all saved recommendations from SwiftData.
-    func loadSavedRecommendations(modelContext: ModelContext) {
+    ///
+    /// `ModelContext.fetch` is bound to the main actor, but yielding once before
+    /// the fetch lets SwiftUI complete its initial layout pass so the tab feels
+    /// responsive to taps the moment it appears. Without the yield, the fetch
+    /// runs in the same render tick as the view's first appear and can stall
+    /// hit testing for hundreds of milliseconds on a real device.
+    func loadSavedRecommendations(modelContext: ModelContext) async {
+        await Task.yield()
+
         let descriptor = FetchDescriptor<SavedRecommendation>(
             sortBy: [SortDescriptor(\.savedAt, order: .reverse)]
         )

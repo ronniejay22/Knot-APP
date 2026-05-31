@@ -40,8 +40,8 @@ struct SavedView: View {
             }
             .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                viewModel.loadSavedRecommendations(modelContext: modelContext)
+            .task {
+                await viewModel.loadSavedRecommendations(modelContext: modelContext)
             }
         }
     }

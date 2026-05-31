@@ -70,6 +70,23 @@ struct SignInView: View {
 
 /// Displays a decorative grid of placeholder photo tiles on a cream background.
 /// Tiles are arranged in staggered rows that bleed off-screen for visual interest.
+///
+/// Performance: this used to run an unconditional `TimelineView(.animation)` at
+/// the display's native refresh rate (60-120 Hz), re-evaluating 40 `Image`
+/// nodes per frame. On real devices that was enough to peg one main-thread
+/// core, which made every other interaction in the app feel sluggish — taps
+/// would queue up behind layout work and the keyboard's input recognition
+/// would back up. Three changes mitigate this:
+///   1. `@State isVisible` + `.onAppear`/`.onDisappear` removes the
+///      `TimelineView` subtree the instant the view goes off-screen, so any
+///      SwiftUI view-tree retention after navigation no longer keeps the
+///      animation running.
+///   2. `.periodic(from: .now, by: 1.0 / 30.0)` caps the redraw at 30 fps
+///      regardless of display refresh rate (≥2× saving on 60 Hz devices,
+///      4× on 120 Hz ProMotion). The scroll cycle is 12 seconds long, so
+///      30 fps is visually indistinguishable from native refresh.
+///   3. `.drawingGroup()` composes the tile subtree off-screen via Metal,
+///      moving the per-frame composite off the main thread to the GPU.
 private struct PhotoGridSection: View {
     private let tileImages: [[String]] = [
         ["SignIn/signin-0", "SignIn/signin-1", "SignIn/signin-2", "SignIn/signin-3", "SignIn/signin-4"],
@@ -82,43 +99,78 @@ private struct PhotoGridSection: View {
     private let tileCornerRadius: CGFloat = 18
     private let cycleDuration: Double = 12
 
+    @State private var isVisible = true
+
     var body: some View {
         GeometryReader { geometry in
             let tileWidth = max(0, (geometry.size.width - tileSpacing * 3) / 3.5)
             let tileHeight = tileWidth
             let singleSetWidth = 5 * (tileWidth + tileSpacing)
 
-            TimelineView(.animation) { timeline in
-                let elapsed = timeline.date.timeIntervalSinceReferenceDate
-                let progress = CGFloat(elapsed.truncatingRemainder(dividingBy: cycleDuration)) / CGFloat(cycleDuration)
-                let scrollAmount = progress * singleSetWidth
-
-                ZStack {
-                    Theme.signInCream
-
-                    VStack(spacing: tileSpacing) {
-                        ForEach(0..<4, id: \.self) { row in
-                            let scrollsRight = row.isMultiple(of: 2)
-
-                            HStack(spacing: tileSpacing) {
-                                ForEach(0..<10, id: \.self) { col in
-                                    Image(tileImages[row][col % 5])
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: tileWidth, height: tileHeight)
-                                        .clipShape(RoundedRectangle(cornerRadius: tileCornerRadius))
-                                }
-                            }
-                            .offset(x: scrollsRight
-                                ? scrollAmount - singleSetWidth
-                                : -scrollAmount
-                            )
-                        }
+            Group {
+                if isVisible {
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
+                        gridContent(
+                            at: timeline.date,
+                            singleSetWidth: singleSetWidth,
+                            tileWidth: tileWidth,
+                            tileHeight: tileHeight
+                        )
                     }
+                } else {
+                    // Static first-frame snapshot — same layout, no animation.
+                    // Prevents the SwiftUI view tree from keeping the
+                    // `TimelineView` subscription alive after the user
+                    // navigates away or backgrounds the app.
+                    gridContent(
+                        at: .distantPast,
+                        singleSetWidth: singleSetWidth,
+                        tileWidth: tileWidth,
+                        tileHeight: tileHeight
+                    )
                 }
-                .clipped()
             }
         }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+    }
+
+    @ViewBuilder
+    private func gridContent(
+        at date: Date,
+        singleSetWidth: CGFloat,
+        tileWidth: CGFloat,
+        tileHeight: CGFloat
+    ) -> some View {
+        let elapsed = date.timeIntervalSinceReferenceDate
+        let progress = CGFloat(elapsed.truncatingRemainder(dividingBy: cycleDuration)) / CGFloat(cycleDuration)
+        let scrollAmount = progress * singleSetWidth
+
+        ZStack {
+            Theme.signInCream
+
+            VStack(spacing: tileSpacing) {
+                ForEach(0..<4, id: \.self) { row in
+                    let scrollsRight = row.isMultiple(of: 2)
+
+                    HStack(spacing: tileSpacing) {
+                        ForEach(0..<10, id: \.self) { col in
+                            Image(tileImages[row][col % 5])
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: tileWidth, height: tileHeight)
+                                .clipShape(RoundedRectangle(cornerRadius: tileCornerRadius))
+                        }
+                    }
+                    .offset(x: scrollsRight
+                        ? scrollAmount - singleSetWidth
+                        : -scrollAmount
+                    )
+                }
+            }
+            .drawingGroup()
+        }
+        .clipped()
     }
 }
 

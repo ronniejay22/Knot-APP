@@ -81,6 +81,14 @@ struct KnotInput: View {
             RoundedRectangle(cornerRadius: Theme.Radius.md)
                 .stroke(borderColor, lineWidth: borderWidth)
         )
+        // Make the entire visual card hit-testable. By default `TextField`
+        // only registers taps on its actual text-content area, so taps that
+        // land on the surrounding padding fall through to the background
+        // `Color` and the field never becomes first responder. Routing
+        // padded-area taps through `isFocused = true` makes the rounded
+        // card behave the way users visually expect it to.
+        .contentShape(Rectangle())
+        .onTapGesture { isFocused = true }
     }
 
     @ViewBuilder
