@@ -95,7 +95,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     /// The total number of onboarding steps.
     static var totalSteps: Int { allCases.count }
 
-    /// Whether this is the very first step (no "Back" button).
+    /// Whether this is the very first step (the welcome screen).
     var isFirst: Bool { self == .welcome }
 
     /// Whether this is the very last step (no "Next" button — shows "Get Started" instead).
@@ -271,14 +271,6 @@ final class OnboardingViewModel {
     func goToNextStep() {
         guard let nextIndex = OnboardingStep(rawValue: currentStep.rawValue + 1) else { return }
         currentStep = nextIndex
-        validateCurrentStep()
-    }
-
-    /// Returns to the previous onboarding step.
-    /// Does nothing if already on the first step.
-    func goToPreviousStep() {
-        guard let prevIndex = OnboardingStep(rawValue: currentStep.rawValue - 1) else { return }
-        currentStep = prevIndex
         validateCurrentStep()
     }
 

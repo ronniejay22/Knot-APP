@@ -26,8 +26,8 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertTrue(OnboardingStep.completion.isLast)
     }
 
-    /// Walk forward through all 18 steps and back again, asserting rawValue advances by 1 each time.
-    func testStepNavigationAdvancesAndReverses() {
+    /// Walk forward through all 18 steps, asserting rawValue advances by 1 each time.
+    func testStepNavigationAdvancesForward() {
         let vm = OnboardingViewModel()
         // Required-input steps need to be satisfied so canProceed lets us advance past them.
         vm.partnerName = "Sample"
@@ -53,14 +53,6 @@ final class OnboardingContainerViewTests: XCTestCase {
                            "Forward navigation should land on step \(expectedRaw)")
         }
         XCTAssertEqual(vm.currentStep, .completion)
-
-        while expectedRaw > 0 {
-            vm.goToPreviousStep()
-            expectedRaw -= 1
-            XCTAssertEqual(vm.currentStep.rawValue, expectedRaw,
-                           "Backward navigation should land on step \(expectedRaw)")
-        }
-        XCTAssertEqual(vm.currentStep, .welcome)
     }
 
     /// Spot-check that each per-screen validation rule actually gates `canProceed`.

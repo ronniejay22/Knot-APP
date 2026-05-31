@@ -12,16 +12,15 @@ import SwiftUI
 import LucideIcons
 
 /// The root container for the onboarding flow. Manages step transitions,
-/// a progress bar, and Back/Next navigation buttons.
+/// a progress bar, and the forward navigation button.
 ///
 /// Creates and owns the `OnboardingViewModel`, injecting it into the SwiftUI
-/// environment so all child step views share the same state. Data entered
-/// in any step persists when navigating back and forth.
+/// environment so all child step views share the same state.
 ///
 /// The container displays:
 /// - A progress bar at the top (animated)
 /// - The current step's view in the center
-/// - Back (chevron) and Next/Get Started buttons at the bottom
+/// - A full-width Next / Get Started button at the bottom
 ///
 /// The `onComplete` closure is called when the user taps "Get Started" on the
 /// completion step, signaling `ContentView` to transition to the Home screen.
@@ -68,7 +67,6 @@ struct OnboardingContainerView: View {
             // MARK: - Navigation Buttons
             navigationButtons
                 .padding(.horizontal, 24)
-                .padding(.bottom, 40)
         }
         .background(Theme.backgroundGradient.ignoresSafeArea())
         .environment(viewModel)
@@ -191,64 +189,49 @@ struct OnboardingContainerView: View {
 
     // MARK: - Navigation Buttons
 
+    @ViewBuilder
     private var navigationButtons: some View {
-        VStack(spacing: 8) {
-            // Next / Get Started button — full-width, centered
-            if viewModel.currentStep.isLast {
-                KnotButton(
-                    "Get Started",
-                    variant: .primary,
-                    size: .lg,
-                    trailingIcon: Lucide.arrowRight,
-                    action: {
-                        Task {
-                            let success = await viewModel.submitVault()
-                            if success {
-                                onComplete()
-                            }
+        if viewModel.currentStep.isLast {
+            KnotButton(
+                "Get Started",
+                variant: .primary,
+                size: .lg,
+                trailingIcon: Lucide.arrowRight,
+                action: {
+                    Task {
+                        let success = await viewModel.submitVault()
+                        if success {
+                            onComplete()
                         }
                     }
-                )
-                .frame(maxWidth: .infinity)
-                .disabled(viewModel.isSubmitting)
-            } else {
-                KnotButton(
-                    "Next",
-                    variant: .primary,
-                    size: .lg,
-                    trailingIcon: Lucide.chevronRight,
-                    action: {
-                        if viewModel.canProceed {
+                }
+            )
+            .frame(maxWidth: .infinity)
+            .disabled(viewModel.isSubmitting)
+        } else {
+            KnotButton(
+                "Next",
+                variant: .primary,
+                size: .lg,
+                trailingIcon: Lucide.chevronRight,
+                action: {
+                    if viewModel.canProceed {
+                        showValidationError = false
+                        viewModel.goToNextStep()
+                    } else if let message = viewModel.validationMessage {
+                        validationErrorText = message
+                        showValidationError = true
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            try? await Task.sleep(for: .seconds(3))
+                            guard !Task.isCancelled else { return }
                             showValidationError = false
-                            viewModel.goToNextStep()
-                        } else if let message = viewModel.validationMessage {
-                            validationErrorText = message
-                            showValidationError = true
-                            dismissTask?.cancel()
-                            dismissTask = Task {
-                                try? await Task.sleep(for: .seconds(3))
-                                guard !Task.isCancelled else { return }
-                                showValidationError = false
-                            }
                         }
                     }
-                )
-                .frame(maxWidth: .infinity)
-                .opacity(viewModel.canProceed ? 1.0 : 0.4)
-            }
-
-            // Back button — stacked below, hidden on first step
-            if !viewModel.currentStep.isFirst {
-                KnotButton(
-                    "Back",
-                    variant: .outline,
-                    size: .lg,
-                    leadingIcon: Lucide.chevronLeft,
-                    action: { viewModel.goToPreviousStep() }
-                )
-                .frame(maxWidth: .infinity)
-                .disabled(viewModel.isSubmitting)
-            }
+                }
+            )
+            .frame(maxWidth: .infinity)
+            .opacity(viewModel.canProceed ? 1.0 : 0.4)
         }
     }
 }
