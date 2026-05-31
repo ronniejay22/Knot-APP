@@ -5709,6 +5709,27 @@ Added a DEBUG/CI-only escape hatch so the team can re-test the onboarding wizard
 
 ---
 
+### Step 18.17: Anchor Onboarding Next Button Below the Keyboard ✅
+**Date:** 2026-05-30
+**Status:** Complete
+
+**What was done:**
+Pinned the full-width Next / Get Started button (plus the progress bar, step content, and validation banner) so that opening the keyboard on any text-field step (Partner Name, Location, Custom Milestones) no longer drags the entire onboarding chrome up against the top of the keyboard. The keyboard now slides up over the bottom of the screen and the navigation button stays in its original lower position; users dismiss the keyboard via the existing `.scrollDismissesKeyboard(.interactively)` swipe-down or the field's Done submit label, then tap Next.
+
+This was a one-modifier change at the container level. The codebase had already evaluated the exact same SwiftUI primitive during the `KnotTabBar` work and chose to let the tab bar ride the keyboard (see Note in `progress.md` Step 18.3 / line ~5155) because the hint-capture input sits next to the bar and the bar feels naturally associated with the input. The onboarding case is the opposite — the focused field is mid-screen and the primary CTA is far below — so the deliberate call here is to opt the container *out* of keyboard avoidance instead.
+
+The fix is `.ignoresSafeArea(.keyboard, edges: .bottom)` on the outer `VStack` in `OnboardingContainerView.body`, applied alongside the existing `.background(Theme.backgroundGradient.ignoresSafeArea())`. Because the modifier lives on the container, every text-field-bearing step inherits the behavior automatically — no per-step changes were needed. Each step view's inner `ScrollView` still handles its own scrolling so users can scroll a focused field into view if it would otherwise be covered.
+
+**Files modified:**
+- `iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` — added `.ignoresSafeArea(.keyboard, edges: .bottom)` on the outer `VStack` just below the existing `.background(...)` chain
+
+**Test results:**
+- ✅ `xcodebuild build` succeeds on iPhone 17 Pro simulator (iOS 26.2) with zero errors and zero new warnings
+- ✅ `xcodebuild test` — full KnotTests suite green, including the 6 `OnboardingContainerViewTests` (step count, navigation, validation, payload shape). The modifier is layout-only and does not affect state or routing.
+- ⏳ Visual confirmation of the keyboard behavior on the Partner Name / Location / Custom Milestones steps is left to the user — Claude does not have an interactive simulator session in this environment, so the on-screen positioning of the Next button while the keyboard is up is not directly observable from the build. The change is the canonical SwiftUI primitive for this exact UX (`.ignoresSafeArea(.keyboard, edges: .bottom)`), so behavior should match the plan; if it doesn't, the rollback is removing the one new line.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

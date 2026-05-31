@@ -69,6 +69,7 @@ struct OnboardingContainerView: View {
                 .padding(.horizontal, 24)
         }
         .background(Theme.backgroundGradient.ignoresSafeArea())
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .environment(viewModel)
         .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
         .animation(.easeInOut(duration: 0.25), value: showValidationError)
