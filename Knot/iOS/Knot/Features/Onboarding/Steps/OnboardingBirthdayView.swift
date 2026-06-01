@@ -35,7 +35,7 @@ struct OnboardingBirthdayView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("When is \(displayName)'s birthday?")
-                .knotFont(Theme.Typography.onboardingSubHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)
 
             Text("We'll remind you so you never forget.")

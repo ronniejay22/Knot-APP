@@ -50,7 +50,7 @@ struct OnboardingHolidaysView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Which holidays should we remind you about?")
-                .knotFont(Theme.Typography.onboardingSubHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)
 
             Text("Tap to add reminders. You can change these later.")

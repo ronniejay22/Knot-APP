@@ -6048,6 +6048,29 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.25 ✅ Welcome Screen — Couple Illustration Redesign
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Goal:** Replace the placeholder welcome step (small Lucide heart + 5-row text checklist) with the Figma-approved layout: title, subtitle, and the `onboarding-0` couple illustration.
+
+**What changed:**
+- **`OnboardingWelcomeView.swift`:** Body is a `VStack(spacing: 0)` shaped like the Figma frame's `justify-between` rhythm — title + subtitle block at the top (24pt horizontal padding + `padding(.top, 64)`, which combined with the container's 8pt bottom padding on the progress bar gives a 72pt gap from the progress track to the title), then a fixed `Spacer().frame(height: 40)`, then a **full-bleed** `Image("Onboarding/onboarding-0")` with `aspectRatio(contentMode: .fill)`, `frame(maxWidth: .infinity)`, `frame(height: 340)`, and `.clipped()` (mirrors the Figma frame's 127.63%-width / overflow-hidden crop so the figures read at the intended scale instead of fitting the full 1232×928 canvas), then a trailing `Spacer(minLength: 24)` that holds the image up and leaves a tight gap to the Next button. The private `WelcomeChecklistRow` struct and the `import LucideIcons` line are removed (no remaining call sites). Title uses `Theme.Typography.onboardingHeader` (Fraunces SemiBold, 32pt after the bump described below); subtitle uses `Theme.Typography.body` with `Theme.textSecondary`.
+- **Asset wiring:** This is the first call site for `onboarding-0.imageset` (added in commit `66c246f`). The PNG inside the imageset was replaced with the current Figma MCP-served illustration (`https://www.figma.com/api/mcp/asset/d4b1585d-...`) so the iOS render matches the latest design — same 1232×928 dimensions, now RGBA with a transparent background instead of solid RGB. `Image("Onboarding/onboarding-0")` is the only reference (the `Onboarding/` asset folder sets `provides-namespace: true`, so the namespaced lookup is required).
+- **`Theme.Typography.onboardingHeader` bumped from 28pt to 32pt** (`Theme.swift:309`). The user validated the larger size on the welcome screen (initially applied as a local inline override) and then asked for it across all onboarding headers — bumping the shared token is the single edit that flows the change through all 10 informational consumers (`OnboardingWelcomeView`, `OnboardingVibesView`, `OnboardingDislikesView`, `OnboardingInterestsView`, `OnboardingPrimaryLoveLanguageView`, `OnboardingSecondaryLoveLanguageView`, `OnboardingMinorOccasionBudgetView`, `OnboardingJustBecauseBudgetView`, `OnboardingMajorMilestoneBudgetView`, `OnboardingCompletionView`). The inline override on the welcome screen was reverted back to `Theme.Typography.onboardingHeader` so it stays in lockstep with the others.
+- **Migrated the 8 form-style step views from `onboardingSubHeader` (20pt) to `onboardingHeader` (32pt)** — `OnboardingBirthdayView`, `OnboardingAnniversaryView`, `OnboardingPartnerNameView`, `OnboardingTenureView`, `OnboardingCohabitationView`, `OnboardingLocationView`, `OnboardingHolidaysView`, `OnboardingCustomMilestonesView` — so every one of the 18 onboarding pages now uses the same 32pt header. The `Theme.Typography.onboardingSubHeader` token (Step 18.23) is no longer referenced by any view, but is left in `Theme.swift` and `testOnboardingSubHeaderTokenExists` is left passing so the token survives for future use; a follow-up cleanup pass can delete it if it stays unused. Inline field labels on Birthday/Anniversary that use `cardTitle` (20pt) are untouched — they are field labels, not page headers, and visually contrast with the bigger 32pt page title above them.
+- `ThemeTokensTests.testOnboardingHeaderTokenExists` is an existence-only check so no test edit was needed.
+- **No container/view-model changes:** `OnboardingContainerView` already supplies the `Welcome` / `Step 1 of 18` progress label, the `Theme.backgroundGradient` background, and the rounded coral Next button — all of which match the Figma frame as-is. `OnboardingStep.welcome` remains `canProceed = true`.
+
+**Tests:**
+- iOS: no behavioral change to test (informational view, no new state). Existing 255 KnotTests still pass.
+
+**Notes:**
+- Source: Figma file `pSH5gTc4J24uMA7GI3Wcyl` node `2:2` (generated and approved in the same session as this step).
+- The 5-item checklist is gone, not relocated — the illustration carries the "what this is" message visually now, and the surrounding 17 steps make each vault section explicit anyway.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

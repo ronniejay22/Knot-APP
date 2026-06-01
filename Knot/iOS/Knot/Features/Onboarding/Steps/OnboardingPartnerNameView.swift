@@ -76,7 +76,7 @@ struct OnboardingPartnerNameView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("What's your partner's name?")
-                .knotFont(Theme.Typography.onboardingSubHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)
 
             Text("We'll use this to personalize your experience.")

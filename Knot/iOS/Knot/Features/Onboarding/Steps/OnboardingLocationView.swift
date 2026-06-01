@@ -50,7 +50,7 @@ struct OnboardingLocationView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Where do you live?")
-                .knotFont(Theme.Typography.onboardingSubHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)
 
             Text("Helps us find local experiences and restaurants.")
