@@ -45,7 +45,7 @@ struct OnboardingPrimaryLoveLanguageView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("How does \(displayName) feel most loved?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
 

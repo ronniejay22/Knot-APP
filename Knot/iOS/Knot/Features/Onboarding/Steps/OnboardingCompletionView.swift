@@ -71,7 +71,7 @@ struct OnboardingCompletionView: View {
             let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
 
             Text("You're All Set!")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .tracking(-0.5)
                 .foregroundStyle(Theme.textPrimary)
 

@@ -98,7 +98,7 @@ struct OnboardingInterestsView: View {
             let displayName = name.isEmpty ? "Them" : name
 
             Text("What does \(displayName) love?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Choose at least 5 things your partner enjoys.\nThis helps us personalize gift and date ideas.")

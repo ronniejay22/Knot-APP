@@ -80,6 +80,36 @@ enum Theme {
     /// Primary accent color used for buttons, selected states, progress indicators.
     static let accent = Color.pink
 
+    // MARK: - Brand Palette
+
+    /// Brand primary — the coral-pink that signals action and identity.
+    /// Light values match `signInButtonPrimary`; dark keeps the same hue since
+    /// it already reads as a brand mark on the deep-purple background.
+    static let colorPrimary = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.96, green: 0.26, blue: 0.40, alpha: 1.0)
+            : UIColor(red: 0.96, green: 0.26, blue: 0.40, alpha: 1.0)
+    })
+
+    /// Brand secondary — the warm cream supporting surface.
+    /// Light values match `signInCream`; dark resolves to a warm-tinted dark
+    /// so the "soft supporting surface" semantics survive the inversion
+    /// instead of forcing a cream fill onto the deep-purple background.
+    static let colorSecondary = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.18, green: 0.13, blue: 0.12, alpha: 1.0)
+            : UIColor(red: 1.0, green: 0.94, blue: 0.88, alpha: 1.0)
+    })
+
+    /// Brand tertiary — the high-contrast ink color.
+    /// Light values match the deep-plum used by `textPrimary`; dark flips to
+    /// an off-white so the contrast role is preserved.
+    static let colorTertiary = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.95, green: 0.93, blue: 0.95, alpha: 1.0)
+            : UIColor(red: 0.12, green: 0.10, blue: 0.16, alpha: 1.0)
+    })
+
     // MARK: - Text
 
     /// Primary text color — adapts to light/dark mode.
@@ -271,6 +301,20 @@ extension Theme {
         /// Fraunces (Light, 300) @ 28pt. Page titles and prominent section
         /// headers. Scales relative to `.title`.
         static let sectionHeader: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.light)
+
+        /// Fraunces (SemiBold, 600) @ 28pt. Onboarding page titles — same
+        /// 28pt scale as `sectionHeader` but a heavier weight so the
+        /// onboarding flow reads as a more deliberate brand moment.
+        /// Scales relative to `.title`.
+        static let onboardingHeader: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.semibold)
+
+        /// Fraunces (SemiBold, 600) @ 20pt. Onboarding sub-headers — the
+        /// page title on form-style onboarding screens (Birthday, Anniversary,
+        /// PartnerName, Location, etc.) where a 20pt header reads better than
+        /// the 28pt `onboardingHeader`. Sister to `cardTitle`: same family,
+        /// size, and Dynamic Type relation, only the weight axis differs.
+        /// Scales relative to `.title2`.
+        static let onboardingSubHeader: Font = .custom(FontFamily.fraunces, size: 20, relativeTo: .title2).weight(.semibold)
 
         /// Fraunces (Regular, 400) @ 20pt. Card titles and secondary headings.
         /// Scales relative to `.title2`.

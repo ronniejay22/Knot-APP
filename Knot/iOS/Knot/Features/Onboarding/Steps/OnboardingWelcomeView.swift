@@ -32,7 +32,7 @@ struct OnboardingWelcomeView: View {
             // MARK: - Title & Subtitle
             VStack(spacing: 12) {
                 Text("Build Your Partner Vault")
-                    .knotFont(Theme.Typography.sectionHeader)
+                    .knotFont(Theme.Typography.onboardingHeader)
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
 

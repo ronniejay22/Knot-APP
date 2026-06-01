@@ -5897,6 +5897,130 @@ Extracted the `TimelineView` closure body into a private `gridContent(at:singleS
 
 ---
 
+### Step 18.21: Brand Palette Tokens — colorPrimary / colorSecondary / colorTertiary ✅
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Context:**
+
+Until now the design system had a single `accent` (`Color.pink`) plus a handful of role-specific tokens (`signInButtonPrimary`, `signInCream`, `textPrimary`), but no semantic brand palette. The user asked for a three-color brand palette — primary / secondary / tertiary — that codifies the colors already on screen so future surfaces can reference them by intent instead of by sign-in-specific names.
+
+**Decision:**
+
+Added three new top-level tokens to `Theme` rather than renaming existing ones. The existing `signInButtonPrimary` / `signInCream` keep their role-specific semantic (they're specifically the sign-in CTA fill and the sign-in photo-grid backdrop), so collapsing them into the brand palette would have lost meaning at the call sites. Brand palette and role-specific tokens coexist; future surfaces should prefer the brand palette.
+
+Light-mode values reuse the existing palette exactly:
+- `colorPrimary` = coral-pink `rgb(0.96, 0.26, 0.40)` (matches `signInButtonPrimary`)
+- `colorSecondary` = warm cream `rgb(1.0, 0.94, 0.88)` (matches `signInCream`)
+- `colorTertiary` = deep plum `rgb(0.12, 0.10, 0.16)` (matches `textPrimary` light)
+
+Dark-mode values were chosen to preserve the *semantic role* rather than the literal hue, matching how every other adaptive `Theme` token resolves:
+- `colorPrimary` dark = same coral-pink (already reads as a brand mark on the deep-purple background)
+- `colorSecondary` dark = warm-tinted dark `rgb(0.18, 0.13, 0.12)` (cream-as-fill would not read on the dark gradient; warm dark preserves the "soft supporting surface" semantic)
+- `colorTertiary` dark = off-white `rgb(0.95, 0.93, 0.95)` (flips the high-contrast ink role, mirroring how `textPrimary` itself inverts)
+
+Each token is implemented as `Color(UIColor { tc in ... })` so light/dark trait changes resolve automatically — no `@Environment(\.colorScheme)` plumbing is needed at call sites.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added a new `MARK: - Brand Palette` section between `Accent` and `Text` with `colorPrimary` / `colorSecondary` / `colorTertiary` as adaptive `Color(UIColor { tc in ... })` tokens
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — added `testBrandPaletteTokensExist`, `testBrandPaletteLightModeRGB`, `testBrandPaletteDarkModeRGB`, and a private `assertRGB(_:in:equals:name:)` helper that resolves each `Color` through `UIColor.resolvedColor(with:)` and asserts the per-channel float values within `0.005` accuracy
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests/ThemeTokensTests` — all 12 tests pass (3 new + 9 existing) on iPhone 17 Pro simulator (iOS 26.2)
+- ✅ No regressions in the existing spacing/radius/typography/motion/status/shadow/weight token tests
+
+**Notes:**
+- The `assertRGB` helper is the canonical way to lock an adaptive `Color`'s per-trait value: `UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))` returns the resolved variant, and `getRed(_:green:blue:alpha:)` extracts the float channels. Reuse this pattern for any future token whose RGB matters.
+- Existing call sites (`SignInView.swift` referencing `Theme.signInCream` and `Theme.signInButtonPrimary`, `MagicLinkView.swift` referencing `Theme.signInButtonPrimary`) were intentionally **not** migrated. Those tokens carry sign-in-specific semantics; collapsing them into the brand palette would mean the next "what is this color for?" reader has to trace back to `Theme.swift` to learn it's the sign-in CTA. New surfaces should reach for `colorPrimary` / `colorSecondary` / `colorTertiary` by default.
+- The `accent` token (`Color.pink`) is still in place. It and `colorPrimary` are semantically close but not identical — `accent` is currently a SwiftUI system color while `colorPrimary` is the brand's specific coral-pink. A future cleanup could collapse them, but doing so means auditing every `Theme.accent` call site for visual drift; deferred until there's a reason to touch it.
+
+---
+
+### Step 18.22: Onboarding Page Headers — SemiBold ✅
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Context:**
+
+Every onboarding screen with a 28pt page title (Welcome, Vibes, Dislikes, Interests, both Love-Language steps, the three Budget steps, Completion) rendered its title with `Theme.Typography.sectionHeader`, which is Fraunces **Light (300)** @ 28pt. The user asked for those titles to be **weight 600 / semibold** so the onboarding flow reads as a heavier, more deliberate brand moment.
+
+**Decision:**
+
+Added a new dedicated `Theme.Typography.onboardingHeader` token rather than changing `sectionHeader` globally. `sectionHeader` is used in ~15 non-onboarding call sites (Auth, Settings, Home, Recommendations) — bumping its weight app-wide would have restyled the rest of the product uninvited. A new token keeps the change scoped to onboarding while leaving room for further onboarding-only typography tuning later.
+
+The token mirrors `sectionHeader` exactly except for weight: same family (Fraunces variable font), same 28pt size, same `.title` Dynamic Type relation. Only the `.weight(...)` axis differs (`.semibold` vs `.light`). Since Fraunces is bundled as a single variable font and weight is selected via the variable axis, no new font file was needed.
+
+Weight is baked into the token itself rather than chained at the call site as `.fontWeight(.semibold)` — per the existing rule in `Theme.swift`, chaining `.fontWeight(...)` after `.knotFont(...)` can cause iOS to silently substitute the system font.
+
+The `cardTitle`-based headers on Birthday / PartnerName / Anniversary / Holidays / Location / Cohabitation / Tenure / CustomMilestones were intentionally left untouched. Those screens use `cardTitle` (20pt) as their de-facto page header, but `cardTitle` carries a different semantic ("secondary heading / card title") and is used widely elsewhere in the app; migrating them is a separate decision.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added `Theme.Typography.onboardingHeader` (Fraunces 28pt, `.weight(.semibold)`, `relativeTo: .title`) between `sectionHeader` and `cardTitle`
+- 10 onboarding screen files — migrated the `headerSection`/title `.knotFont(Theme.Typography.sectionHeader)` call to `.knotFont(Theme.Typography.onboardingHeader)`:
+  - `OnboardingWelcomeView.swift:35`
+  - `OnboardingVibesView.swift:79`
+  - `OnboardingDislikesView.swift:104`
+  - `OnboardingInterestsView.swift:101`
+  - `OnboardingPrimaryLoveLanguageView.swift:48`
+  - `OnboardingSecondaryLoveLanguageView.swift:51`
+  - `OnboardingMinorOccasionBudgetView.swift:61`
+  - `OnboardingJustBecauseBudgetView.swift:64`
+  - `OnboardingMajorMilestoneBudgetView.swift:59`
+  - `OnboardingCompletionView.swift:74`
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — added `testOnboardingHeaderTokenExists` (existence-only, same pattern as `testBrandPaletteTokensExist` — Fraunces' variable-axis weight selection is exercised by SwiftUI rendering, not via an inspectable property)
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests/ThemeTokensTests` — all existing typography/spacing/radius/motion/status/shadow/weight/brand-palette tests pass alongside the new `testOnboardingHeaderTokenExists`
+
+**Notes:**
+- All 10 migrated call sites previously read `.knotFont(Theme.Typography.sectionHeader)`; none chained `.fontWeight(...)` after the modifier, so no defensive cleanup of stacking modifiers was needed.
+- Non-onboarding `sectionHeader` call sites are intentionally unchanged. The audit established ~15 such sites across Auth (`LoginView`, `MagicLinkView`, `PendingDeletionView`), Settings (`EditBudgetSheet`, `EditLoveLanguagesSheet`, `EditMilestonesSheet`, `EditVaultView`, `ReauthenticationSheet`), Home (`HomeView`), and Recommendations (`RecommendationsView`, `IdeaDetailView`) — all keep Fraunces Light.
+- The natural next step if onboarding visual parity becomes desirable: migrate the `cardTitle`-based onboarding headers (Birthday, PartnerName, Anniversary, Holidays, Location, Cohabitation, Tenure, CustomMilestones) to `onboardingHeader` too. Deferred per the current scope decision; revisit if those screens look visually inconsistent against the now-heavier `sectionHeader` ones in the device walk-through.
+
+---
+
+### Step 18.23: Onboarding Sub-Headers — SemiBold ✅
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Context:**
+
+Step 18.22 introduced `Theme.Typography.onboardingHeader` (Fraunces SemiBold @ 28pt) and bolded the 10 `sectionHeader`-based onboarding page titles. Eight other onboarding screens — Birthday, Anniversary, PartnerName, CustomMilestones, Holidays, Location, Cohabitation, Tenure — use `Theme.Typography.cardTitle` (Fraunces Regular @ 20pt) as their *de-facto* page header (a 20pt heading sits above a date picker, toggle, or input field). The user asked to bold those too so the entire onboarding flow reads at semibold.
+
+**Decision:**
+
+Mirror the Step 18.22 fix: add a dedicated onboarding-scoped token rather than changing `cardTitle` globally. `cardTitle` is used in ~20 non-onboarding call sites (Home, Settings, Recommendations, Notifications, Saved, ForYou, Milestones) plus three shared onboarding card components (`BudgetTierCard`, `LoveLanguageCard`, `VibeCard`) — re-styling all of them was not what the user asked for.
+
+The new `Theme.Typography.onboardingSubHeader` mirrors `cardTitle` exactly except for weight: same family (Fraunces variable font), same 20pt size, same `.title2` Dynamic Type relation. Only the variable-axis weight differs (`.semibold` vs `.regular`). Naming-wise, the `onboardingHeader` / `onboardingSubHeader` pair makes the scale relationship obvious — primary 28pt header for informational screens, smaller 20pt sub-header for form screens.
+
+Critical scoping detail: Birthday and Anniversary use `cardTitle` *twice* — once for the page header (top `headerSection`) and once for an inline form-field label next to the input ("Birthday" / "Anniversary"). Only the page header was migrated. The visible weight contrast between the now-semibold page header and the still-regular field label is the proof point that the migration was correctly scoped, not over-broad.
+
+Like Step 18.22, the weight is baked into the token at definition time — never chained as `.fontWeight(.semibold)` after `.knotFont(...)`, which can cause iOS to silently substitute the system font.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added `Theme.Typography.onboardingSubHeader` (Fraunces 20pt, `.weight(.semibold)`, `relativeTo: .title2`) directly below `onboardingHeader`
+- 8 onboarding screen files — migrated the top `headerSection` page-header `.knotFont(Theme.Typography.cardTitle)` to `.knotFont(Theme.Typography.onboardingSubHeader)`:
+  - `OnboardingPartnerNameView.swift:79`
+  - `OnboardingBirthdayView.swift:38`
+  - `OnboardingAnniversaryView.swift:40`
+  - `OnboardingCustomMilestonesView.swift:50`
+  - `OnboardingHolidaysView.swift:53`
+  - `OnboardingLocationView.swift:53`
+  - `OnboardingCohabitationView.swift:59`
+  - `OnboardingTenureView.swift:53`
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — added `testOnboardingSubHeaderTokenExists` (existence-only, same pattern as the other token-exists tests)
+
+**Test results:**
+- ✅ `xcodebuild test -only-testing:KnotTests/ThemeTokensTests` — 14 tests pass (12 from before + `testOnboardingHeaderTokenExists` from Step 18.22 + new `testOnboardingSubHeaderTokenExists`)
+- ✅ Post-migration grep on Birthday and Anniversary confirms each still has exactly one `Theme.Typography.cardTitle` usage remaining — the inline form-field labels (`OnboardingBirthdayView.swift:53`, `OnboardingAnniversaryView.swift:57`) — proving the migration didn't accidentally collapse them along with the page headers.
+
+**Notes:**
+- Together with Step 18.22, every onboarding page header in the flow is now Fraunces SemiBold. The two-token model (`onboardingHeader` @ 28pt for informational screens, `onboardingSubHeader` @ 20pt for form screens) preserves the prior visual hierarchy — the form screens stay smaller because they share screen real estate with a date picker or input field.
+- The shared onboarding card components (`BudgetTierCard`, `LoveLanguageCard`, `VibeCard`) and their internal `cardTitle` usages were not migrated. Those are card-internal titles, not page headers — they belong to the existing `cardTitle` "secondary heading" semantic.
+- If a future iteration wants the form-screen headers visually unified at 28pt with the informational ones, the path is: migrate those 8 call sites from `onboardingSubHeader` to `onboardingHeader`, then delete `onboardingSubHeader`. Doing that now would change the visual hierarchy on every form screen — deferred unless explicitly requested.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

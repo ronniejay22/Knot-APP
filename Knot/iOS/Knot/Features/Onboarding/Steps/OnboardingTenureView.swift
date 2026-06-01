@@ -50,7 +50,7 @@ struct OnboardingTenureView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("How long have you and \(displayName) been together?")
-                .knotFont(Theme.Typography.cardTitle)
+                .knotFont(Theme.Typography.onboardingSubHeader)
                 .multilineTextAlignment(.center)
 
             Text("We'll use this to track your relationship milestones.")

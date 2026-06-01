@@ -61,7 +61,7 @@ struct OnboardingJustBecauseBudgetView: View {
             let displayName = name.isEmpty ? "your partner" : name
 
             Text("Just because, what feels right?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
 

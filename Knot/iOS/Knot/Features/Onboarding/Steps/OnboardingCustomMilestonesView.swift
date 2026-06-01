@@ -47,7 +47,7 @@ struct OnboardingCustomMilestonesView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Any custom milestones?")
-                .knotFont(Theme.Typography.cardTitle)
+                .knotFont(Theme.Typography.onboardingSubHeader)
                 .multilineTextAlignment(.center)
 
             Text("Add dates unique to your relationship — first date, gotcha day, anything you want to remember.")

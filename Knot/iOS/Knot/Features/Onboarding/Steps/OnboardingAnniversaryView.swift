@@ -37,7 +37,7 @@ struct OnboardingAnniversaryView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Do you celebrate an anniversary?")
-                .knotFont(Theme.Typography.cardTitle)
+                .knotFont(Theme.Typography.onboardingSubHeader)
                 .multilineTextAlignment(.center)
 
             Text("Optional — flip the toggle if you want a reminder.")

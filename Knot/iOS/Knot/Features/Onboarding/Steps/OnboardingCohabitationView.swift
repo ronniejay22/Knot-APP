@@ -56,7 +56,7 @@ struct OnboardingCohabitationView: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Do you live together?")
-                .knotFont(Theme.Typography.cardTitle)
+                .knotFont(Theme.Typography.onboardingSubHeader)
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 8)

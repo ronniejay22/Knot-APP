@@ -56,7 +56,7 @@ struct OnboardingMajorMilestoneBudgetView: View {
     private var headerSection: some View {
         VStack(spacing: 8) {
             Text("And for major milestones?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
 

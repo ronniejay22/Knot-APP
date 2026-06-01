@@ -76,7 +76,7 @@ struct OnboardingVibesView: View {
             let displayName = name.isEmpty ? "their" : "\(name)'s"
 
             Text("What's \(displayName) aesthetic?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Choose vibes that match their style.\nThis shapes the look and feel of our suggestions.")

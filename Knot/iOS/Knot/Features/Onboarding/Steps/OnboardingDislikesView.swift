@@ -101,7 +101,7 @@ struct OnboardingDislikesView: View {
             let displayName = name.isEmpty ? "them" : name
 
             Text("What doesn't \(displayName) like?")
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.onboardingHeader)
                 .foregroundStyle(Theme.textPrimary)
 
             Text("Choose at least 5 things your partner avoids.\nWe'll make sure to steer clear of these.")
