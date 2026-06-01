@@ -10,7 +10,7 @@ Tests cover:
 1. Valid payload → 201 with data in all tables
 2. Missing required fields → 422
 3. Interest count validation (4 instead of 5, 6 instead of 5) → 422
-4. Invalid interest categories → 422
+4. Custom interest names → 201; empty/too-long/case-insensitive duplicate → 422
 5. Interest-dislike overlap → 422
 6. Vibe validation (invalid, 0 vibes) → 422
 7. Budget validation (wrong count, max < min) → 422
@@ -626,8 +626,8 @@ class TestInterestValidation:
         assert len(dislikes) == 7, f"Expected 7 dislikes round-tripped, got {len(dislikes)}"
         print(f"  7 interests + 7 dislikes round-tripped")
 
-    def test_invalid_interest_category_rejected(self, client, test_auth_user_with_token):
-        """An interest not in the predefined list should be rejected."""
+    def test_custom_interest_accepted(self, client, test_auth_user_with_token):
+        """A custom interest outside the predefined list should be accepted (migration 00025)."""
         payload = _valid_vault_payload()
         payload["interests"] = ["Travel", "Cooking", "Movies", "Music", "Golf"]
         resp = client.post(
@@ -635,11 +635,63 @@ class TestInterestValidation:
             json=payload,
             headers=_auth_headers(test_auth_user_with_token["access_token"]),
         )
-        assert resp.status_code == 422
-        assert "Golf" in resp.text, (
-            f"Error message should mention 'Golf'. Got: {resp.text}"
+        assert resp.status_code == 201, (
+            f"Expected 201, got {resp.status_code}. Response: {resp.text}"
         )
-        print(f"  Invalid interest 'Golf' → HTTP 422")
+        vault_id = resp.json()["vault_id"]
+        rows = _query_table("partner_interests", vault_id)
+        likes = {r["interest_category"] for r in rows if r["interest_type"] == "like"}
+        assert "Golf" in likes, f"'Golf' should be persisted as a like. Got: {likes}"
+        print(f"  Custom interest 'Golf' accepted and round-tripped")
+
+    def test_empty_interest_rejected(self, client, test_auth_user_with_token):
+        """A whitespace-only interest should be rejected."""
+        payload = _valid_vault_payload()
+        payload["interests"] = ["Travel", "Cooking", "Movies", "Music", "   "]
+        resp = client.post(
+            "/api/v1/vault",
+            json=payload,
+            headers=_auth_headers(test_auth_user_with_token["access_token"]),
+        )
+        assert resp.status_code == 422
+        assert "empty" in resp.text.lower(), (
+            f"Error should mention 'empty'. Got: {resp.text}"
+        )
+        print(f"  Whitespace-only interest → HTTP 422")
+
+    def test_overly_long_interest_rejected(self, client, test_auth_user_with_token):
+        """An interest longer than 50 characters should be rejected."""
+        payload = _valid_vault_payload()
+        payload["interests"] = [
+            "Travel", "Cooking", "Movies", "Music", "X" * 51,
+        ]
+        resp = client.post(
+            "/api/v1/vault",
+            json=payload,
+            headers=_auth_headers(test_auth_user_with_token["access_token"]),
+        )
+        assert resp.status_code == 422
+        assert "50" in resp.text, (
+            f"Error should mention the 50-char limit. Got: {resp.text}"
+        )
+        print(f"  Overly long interest → HTTP 422")
+
+    def test_case_insensitive_duplicate_interest_rejected(
+        self, client, test_auth_user_with_token
+    ):
+        """Custom interests must be unique case-insensitively."""
+        payload = _valid_vault_payload()
+        payload["interests"] = ["Travel", "Cooking", "Movies", "Music", "travel"]
+        resp = client.post(
+            "/api/v1/vault",
+            json=payload,
+            headers=_auth_headers(test_auth_user_with_token["access_token"]),
+        )
+        assert resp.status_code == 422
+        assert "unique" in resp.text.lower(), (
+            f"Error should mention uniqueness. Got: {resp.text}"
+        )
+        print(f"  Case-insensitive duplicate interest → HTTP 422")
 
     def test_duplicate_interests_rejected(self, client, test_auth_user_with_token):
         """Duplicate interests should be rejected."""

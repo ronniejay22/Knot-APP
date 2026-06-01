@@ -29,14 +29,24 @@ struct OnboardingDislikesView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     @State private var searchText = ""
+    @State private var addCustomError: String?
 
-    /// Interest catalog minus any already chosen as likes, then filtered by search.
+    /// Predefined + user-added custom dislikes, minus anything already chosen as a like.
+    /// Custom items sort to the end so the predefined order is preserved.
+    private var catalog: [String] {
+        let combined = Constants.interestCategories + viewModel.customDislikes.sorted()
+        return combined.filter { !viewModel.selectedInterests.contains($0) }
+    }
+
+    /// Catalog filtered by the search text (case-insensitive).
     private var filteredInterests: [String] {
-        let available = Constants.interestCategories.filter {
-            !viewModel.selectedInterests.contains($0)
-        }
-        if searchText.isEmpty { return available }
-        return available.filter { $0.localizedCaseInsensitiveContains(searchText) }
+        if searchText.isEmpty { return catalog }
+        return catalog.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    /// The trimmed search term, when non-empty — used by the "add custom" affordance.
+    private var trimmedSearchTerm: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
@@ -56,9 +66,8 @@ struct OnboardingDislikesView: View {
             // MARK: - Card Grid
             ScrollView {
                 if filteredInterests.isEmpty {
-                    Text("No interests match \"\(searchText)\"")
-                        .knotFont(Theme.Typography.body)
-                        .foregroundStyle(Theme.textSecondary)
+                    noResultsView
+                        .padding(.horizontal, 24)
                         .padding(.top, 40)
                 } else {
                     LazyVGrid(columns: columns, spacing: 10) {
@@ -90,6 +99,9 @@ struct OnboardingDislikesView: View {
         }
         .onChange(of: viewModel.selectedDislikes) { _, _ in
             viewModel.validateCurrentStep()
+        }
+        .onChange(of: searchText) { _, _ in
+            addCustomError = nil
         }
     }
 
@@ -181,6 +193,74 @@ struct OnboardingDislikesView: View {
             viewModel.selectedDislikes.remove(interest)
         } else {
             viewModel.selectedDislikes.insert(interest)
+        }
+    }
+
+    // MARK: - No-Results / Add Custom
+
+    /// View shown inside the ScrollView when no catalog items match the search.
+    /// Offers an "Add" button to create a custom dislike from the current search text.
+    @ViewBuilder
+    private var noResultsView: some View {
+        let term = trimmedSearchTerm
+        VStack(spacing: 16) {
+            if term.isEmpty {
+                Text("No dislikes to show.")
+                    .knotFont(Theme.Typography.body)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                VStack(spacing: 6) {
+                    Text("No matches for \"\(term)\"")
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(Theme.textSecondary)
+
+                    Text("Don't see what you're looking for? Add it as a custom dislike.")
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(Theme.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
+
+                Button(action: addCustomFromSearch) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add \"\(term)\"")
+                            .knotFont(Theme.Typography.cta)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                if let addCustomError {
+                    Text(addCustomError)
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(.pink)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Adds the current search text as a custom dislike and clears the field.
+    private func addCustomFromSearch() {
+        let result = viewModel.addCustomDislike(searchText)
+        switch result {
+        case .added:
+            searchText = ""
+            addCustomError = nil
+        case .empty:
+            addCustomError = "Type a name to add a custom dislike."
+        case .tooLong:
+            addCustomError = "Keep it under \(OnboardingViewModel.maxCustomInterestLength) characters."
+        case .duplicate:
+            addCustomError = "That dislike is already in the list."
+        case .overlapsLikes:
+            addCustomError = "You already picked that as a like."
         }
     }
 }

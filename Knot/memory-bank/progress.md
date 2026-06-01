@@ -6021,6 +6021,33 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.24 ✅ Custom Interests & Dislikes During Onboarding
+**Date:** 2026-05-31
+**Status:** Complete
+
+**Goal:** Let users add their own interest/dislike from the onboarding search bar when no catalog item matches what they typed.
+
+**What changed:**
+- **DB:** Migration `00025_allow_custom_interest_categories.sql` drops the CHECK constraint on `partner_interests.interest_category`. The UNIQUE(vault_id, interest_category) constraint is retained so a vault still can't list the same item twice or have it appear in both likes and dislikes.
+- **Backend (`backend/app/models/vault.py`):** `validate_interests` / `validate_dislikes` no longer reject anything outside `VALID_INTEREST_CATEGORIES`. A new shared helper `_validate_interest_list` trims each entry, rejects empty / whitespace-only names, enforces a 50-character cap (`MAX_INTEREST_NAME_LENGTH`), de-duplicates case-insensitively, and keeps the at-least-5 minimum. The overlap check between likes and dislikes is now case-insensitive too.
+- **Backend tests (`backend/tests/test_vault_api.py`):** Replaced `test_invalid_interest_category_rejected` with `test_custom_interest_accepted` (round-trips "Golf"). Added `test_empty_interest_rejected`, `test_overly_long_interest_rejected`, and `test_case_insensitive_duplicate_interest_rejected`.
+- **iOS view model (`OnboardingViewModel`):** New `customInterests` / `customDislikes` `Set<String>` properties, plus `addCustomInterest(_:)` / `addCustomDislike(_:)` methods. Both return a `CustomInterestAddResult` enum (`.added/.empty/.tooLong/.duplicate/.overlapsLikes`) so the view can show targeted error messages. On success the new name is added to both the custom set and the corresponding `selectedX` set (auto-selected), and validation runs immediately. `OnboardingViewModel.maxCustomInterestLength = 50` mirrors the backend cap.
+- **iOS interests screen (`OnboardingInterestsView`):** Catalog now combines `Constants.interestCategories` with `viewModel.customInterests` (predefined first, then customs sorted alphabetically). When the search is non-empty and yields zero matches, the screen renders an "Add \"{search}\"" capsule button instead of the old "No interests match" line. The `cardGradient(for:)` helper now derives a stable hue from the name for non-predefined items so each custom card gets a distinct color instead of all collapsing onto Travel's hue.
+- **iOS dislikes screen (`OnboardingDislikesView`):** Same catalog + add-custom treatment as the interests screen. The catalog still excludes anything already chosen as a like (now applies to customs as well). Add-custom rejects names that overlap with a selected like (`.overlapsLikes`) with the message "You already picked that as a like."
+- **iOS edit flow (`EditVaultView.loadVaultData`):** When pulling a vault from the backend, any interest/dislike not in `Constants.interestCategories` is classified as a custom item and seeded into `customInterests` / `customDislikes` so the cards render in the catalog during edit.
+- **iOS tests (`KnotTests/CustomInterestFlowTests.swift`):** 10 new tests cover happy path, trim, length cap, predefined dup, custom dup, validation passthrough, dislike-overlap-with-like, and `buildVaultPayload` serialization. Added to the Xcode test target via `project.pbxproj`.
+
+**Tests:**
+- `backend`: New validator helper round-trips "Golf", rejects whitespace, 51-char names, case-insensitive duplicates, and lists shorter than 5 (verified via local CLI; integration tests require Supabase).
+- `iOS`: All 255 KnotTests pass, including the 10 new `CustomInterestFlowTests`.
+
+**Notes:**
+- Custom interests are first-class — the recommendation engine treats them like any other entry in `partner_interests`. F1 ("recommendations grounded in partner's interests") is satisfied because the user added them as interests; the AI's "Strict Interest Filtering" constraint operates on the vault contents, not on a fixed allowlist.
+- The 41-item `VALID_INTEREST_CATEGORIES` set still exists in `vault.py` and `Constants.interestCategories` still seeds the iOS catalog, but they are no longer authoritative — they're seed data + a suggestion list. The PRD's reference to "predefined list" is now historical.
+- Asset catalog images (`Interests/interest-{slug}`) won't exist for custom items, so they fall back to the hue-derived gradient + the `"star.fill"` SF Symbol. That's acceptable — the user knows they typed a one-off.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

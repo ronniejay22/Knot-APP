@@ -322,9 +322,14 @@ struct EditVaultView: View {
             vm.locationState = vault.locationState ?? ""
             vm.locationCountry = vault.locationCountry ?? "US"
 
-            // Populate interests and dislikes
+            // Populate interests and dislikes.
+            // Any item outside the predefined catalog is treated as a custom
+            // interest the user added during onboarding (migration 00025).
             vm.selectedInterests = Set(vault.interests)
             vm.selectedDislikes = Set(vault.dislikes)
+            let predefined = Set(Constants.interestCategories)
+            vm.customInterests = Set(vault.interests).subtracting(predefined)
+            vm.customDislikes = Set(vault.dislikes).subtracting(predefined)
 
             // Populate milestones
             for milestone in vault.milestones {

@@ -179,6 +179,74 @@ final class OnboardingViewModel {
     var selectedInterests: Set<String> = []
     var selectedDislikes: Set<String> = []
 
+    /// User-created interests that don't appear in `Constants.interestCategories`.
+    /// Surfaced as additional cards on the interests onboarding screen so the
+    /// user can deselect and re-select them. Persisted to the backend like any
+    /// other interest (migration 00025 dropped the DB allowlist constraint).
+    var customInterests: Set<String> = []
+
+    /// User-created dislikes. Same treatment as `customInterests`.
+    var customDislikes: Set<String> = []
+
+    /// Maximum length of a custom interest/dislike name. Must match
+    /// `MAX_INTEREST_NAME_LENGTH` in backend/app/models/vault.py.
+    static let maxCustomInterestLength = 50
+
+    /// Result of attempting to add a custom interest or dislike.
+    enum CustomInterestAddResult: Equatable, Sendable {
+        case added(String)
+        case empty
+        case tooLong
+        case duplicate
+        case overlapsLikes
+    }
+
+    /// Adds a user-typed name to the interests catalog and auto-selects it.
+    /// Trims whitespace, enforces the length cap, and rejects case-insensitive
+    /// duplicates against the predefined catalog, already-selected interests,
+    /// and previously-added custom interests.
+    @discardableResult
+    func addCustomInterest(_ rawName: String) -> CustomInterestAddResult {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return .empty }
+        guard name.count <= Self.maxCustomInterestLength else { return .tooLong }
+        let lower = name.lowercased()
+        let takenLikes = Constants.interestCategories.map { $0.lowercased() }
+            + customInterests.map { $0.lowercased() }
+            + selectedInterests.map { $0.lowercased() }
+        if takenLikes.contains(lower) { return .duplicate }
+        customInterests.insert(name)
+        selectedInterests.insert(name)
+        validateCurrentStep()
+        return .added(name)
+    }
+
+    /// Adds a user-typed name to the dislikes catalog and auto-selects it.
+    /// Same rules as `addCustomInterest`, plus: cannot match an interest the
+    /// user has already chosen as a like (the two lists must stay disjoint).
+    @discardableResult
+    func addCustomDislike(_ rawName: String) -> CustomInterestAddResult {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return .empty }
+        guard name.count <= Self.maxCustomInterestLength else { return .tooLong }
+        let lower = name.lowercased()
+        if selectedInterests.map({ $0.lowercased() }).contains(lower) {
+            return .overlapsLikes
+        }
+        let takenDislikes = Constants.interestCategories.map { $0.lowercased() }
+            + customDislikes.map { $0.lowercased() }
+            + selectedDislikes.map { $0.lowercased() }
+        // Predefined names that the user already chose as likes are excluded
+        // from the dislikes catalog elsewhere, but a fresh custom name still
+        // needs to be checked against the predefined list to prevent typing
+        // e.g. "travel" as a new dislike when "Travel" is in the catalog.
+        if takenDislikes.contains(lower) { return .duplicate }
+        customDislikes.insert(name)
+        selectedDislikes.insert(name)
+        validateCurrentStep()
+        return .added(name)
+    }
+
     // MARK: - Milestones (Step 3.5)
 
     /// Birthday month (1–12). Required milestone.

@@ -35,6 +35,45 @@ VALID_INTEREST_CATEGORIES: set[str] = {
     "Skiing", "Surfing", "Painting", "Board Games", "Karaoke",
 }
 
+# Migration 00025 removed the DB CHECK on interest_category, so users can
+# add custom interests/dislikes during onboarding. The list above is kept
+# only for documentation and as the iOS catalog seed; new submissions are
+# only validated for length, emptiness, and uniqueness.
+MAX_INTEREST_NAME_LENGTH = 50
+
+
+def _validate_interest_list(v: list[str], *, label: str) -> list[str]:
+    """Shared validation for the interests/dislikes lists.
+
+    Trims each entry, rejects empty or overly long names, enforces the
+    minimum count, and de-duplicates case-insensitively while preserving
+    the user's original casing.
+    """
+    cleaned: list[str] = []
+    seen_lower: set[str] = set()
+    for raw in v:
+        if not isinstance(raw, str):
+            raise ValueError(f"{label} entries must be strings")
+        name = raw.strip()
+        if not name:
+            raise ValueError(f"{label} entries cannot be empty or whitespace")
+        if len(name) > MAX_INTEREST_NAME_LENGTH:
+            raise ValueError(
+                f"{label} entry '{name[:20]}…' exceeds the "
+                f"{MAX_INTEREST_NAME_LENGTH}-character limit"
+            )
+        lower = name.lower()
+        if lower in seen_lower:
+            raise ValueError(
+                f"{label} must be unique (case-insensitive) — duplicate: '{name}'"
+            )
+        seen_lower.add(lower)
+        cleaned.append(name)
+
+    if len(cleaned) < 5:
+        raise ValueError(f"At least 5 {label} are required, got {len(cleaned)}")
+    return cleaned
+
 VALID_VIBE_TAGS: set[str] = {
     "quiet_luxury", "street_urban", "outdoorsy", "vintage",
     "minimalist", "bohemian", "romantic", "adventurous",
@@ -136,8 +175,8 @@ class VaultCreateRequest(BaseModel):
 
     Validated rules:
     - partner_name: required, non-empty
-    - interests: at least 5, from predefined list, no duplicates
-    - dislikes: at least 5, from predefined list, no duplicates, no overlap with interests
+    - interests: at least 5, trimmed non-empty strings, length <= 50, no duplicates (case-insensitive)
+    - dislikes: at least 5, trimmed non-empty strings, length <= 50, no duplicates (case-insensitive), no overlap with interests
     - milestones: at least 1 (birthday required)
     - vibes: 1–8, from predefined list, no duplicates
     - budgets: exactly 3 (one per occasion type)
@@ -185,26 +224,12 @@ class VaultCreateRequest(BaseModel):
     @field_validator("interests")
     @classmethod
     def validate_interests(cls, v: list[str]) -> list[str]:
-        if len(v) < 5:
-            raise ValueError(f"At least 5 interests are required, got {len(v)}")
-        if len(set(v)) != len(v):
-            raise ValueError("Interests must be unique — no duplicates allowed")
-        invalid = set(v) - VALID_INTEREST_CATEGORIES
-        if invalid:
-            raise ValueError(f"Invalid interest categories: {sorted(invalid)}")
-        return v
+        return _validate_interest_list(v, label="interests")
 
     @field_validator("dislikes")
     @classmethod
     def validate_dislikes(cls, v: list[str]) -> list[str]:
-        if len(v) < 5:
-            raise ValueError(f"At least 5 dislikes are required, got {len(v)}")
-        if len(set(v)) != len(v):
-            raise ValueError("Dislikes must be unique — no duplicates allowed")
-        invalid = set(v) - VALID_INTEREST_CATEGORIES
-        if invalid:
-            raise ValueError(f"Invalid dislike categories: {sorted(invalid)}")
-        return v
+        return _validate_interest_list(v, label="dislikes")
 
     @field_validator("milestones")
     @classmethod
@@ -254,12 +279,15 @@ class VaultCreateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_no_interest_overlap(self) -> VaultCreateRequest:
-        """Ensure no interest appears in both likes and dislikes."""
-        overlap = set(self.interests) & set(self.dislikes)
+        """Ensure no interest appears in both likes and dislikes (case-insensitive)."""
+        likes_lower = {i.lower() for i in self.interests}
+        overlap = sorted(
+            {d for d in self.dislikes if d.lower() in likes_lower}
+        )
         if overlap:
             raise ValueError(
                 f"Interests and dislikes must not overlap. "
-                f"These appear in both: {sorted(overlap)}"
+                f"These appear in both: {overlap}"
             )
         return self
 

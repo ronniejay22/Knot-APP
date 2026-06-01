@@ -27,13 +27,23 @@ struct OnboardingInterestsView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     @State private var searchText = ""
+    @State private var addCustomError: String?
 
-    /// Interests filtered by the search text (case-insensitive).
+    /// Full catalog (predefined + user-added customs). Custom items sort to the
+    /// end so the predefined order is preserved.
+    private var catalog: [String] {
+        Constants.interestCategories + viewModel.customInterests.sorted()
+    }
+
+    /// Catalog filtered by the search text (case-insensitive).
     private var filteredInterests: [String] {
-        if searchText.isEmpty { return Constants.interestCategories }
-        return Constants.interestCategories.filter {
-            $0.localizedCaseInsensitiveContains(searchText)
-        }
+        if searchText.isEmpty { return catalog }
+        return catalog.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    /// The trimmed search term, when non-empty — used by the "add custom" affordance.
+    private var trimmedSearchTerm: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
@@ -53,9 +63,8 @@ struct OnboardingInterestsView: View {
             // MARK: - Card Grid
             ScrollView {
                 if filteredInterests.isEmpty {
-                    Text("No interests match \"\(searchText)\"")
-                        .knotFont(Theme.Typography.body)
-                        .foregroundStyle(Theme.textSecondary)
+                    noResultsView
+                        .padding(.horizontal, 24)
                         .padding(.top, 40)
                 } else {
                     LazyVGrid(columns: columns, spacing: 10) {
@@ -87,6 +96,9 @@ struct OnboardingInterestsView: View {
         }
         .onChange(of: viewModel.selectedInterests) { _, _ in
             viewModel.validateCurrentStep()
+        }
+        .onChange(of: searchText) { _, _ in
+            addCustomError = nil
         }
     }
 
@@ -181,13 +193,91 @@ struct OnboardingInterestsView: View {
         }
     }
 
+    // MARK: - No-Results / Add Custom
+
+    /// View shown inside the ScrollView when no catalog items match the search.
+    /// If the user has typed something, offers an "Add" button to create a custom
+    /// interest. With an empty search, this state is unreachable, so we fall back
+    /// to a simple message.
+    @ViewBuilder
+    private var noResultsView: some View {
+        let term = trimmedSearchTerm
+        VStack(spacing: 16) {
+            if term.isEmpty {
+                Text("No interests to show.")
+                    .knotFont(Theme.Typography.body)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                VStack(spacing: 6) {
+                    Text("No matches for \"\(term)\"")
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(Theme.textSecondary)
+
+                    Text("Don't see what you're looking for? Add it as a custom interest.")
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(Theme.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
+
+                Button(action: addCustomFromSearch) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add \"\(term)\"")
+                            .knotFont(Theme.Typography.cta)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                if let addCustomError {
+                    Text(addCustomError)
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(.pink)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Adds the current search text as a custom interest and clears the field.
+    private func addCustomFromSearch() {
+        let result = viewModel.addCustomInterest(searchText)
+        switch result {
+        case .added:
+            searchText = ""
+            addCustomError = nil
+        case .empty:
+            addCustomError = "Type a name to add a custom interest."
+        case .tooLong:
+            addCustomError = "Keep it under \(OnboardingViewModel.maxCustomInterestLength) characters."
+        case .duplicate:
+            addCustomError = "That interest is already in the list."
+        case .overlapsLikes:
+            // Not reachable from the interests screen.
+            addCustomError = "That name is already in use."
+        }
+    }
+
     // MARK: - Card Gradient Colors
 
     /// Generates a themed gradient for each interest based on its position.
     /// Spreads colors across the full hue spectrum so each card is visually distinct.
+    /// Custom (non-predefined) interests get a stable hue derived from their name
+    /// so they don't all collide on Travel's gradient.
     static func cardGradient(for interest: String) -> LinearGradient {
-        let index = Constants.interestCategories.firstIndex(of: interest) ?? 0
-        let hue = Double(index) / Double(max(Constants.interestCategories.count, 1))
+        let hue: Double
+        if let index = Constants.interestCategories.firstIndex(of: interest) {
+            hue = Double(index) / Double(max(Constants.interestCategories.count, 1))
+        } else {
+            let total = interest.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+            hue = Double(total % 360) / 360.0
+        }
 
         return LinearGradient(
             colors: [
