@@ -48,13 +48,6 @@ struct OnboardingCohabitationView: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.heart)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
-                .foregroundStyle(Theme.accent)
-
             Text("Do you live together?")
                 .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)

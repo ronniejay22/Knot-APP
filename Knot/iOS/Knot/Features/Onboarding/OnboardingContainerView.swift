@@ -204,7 +204,6 @@ struct OnboardingContainerView: View {
                 "Get Started",
                 variant: .primary,
                 size: .lg,
-                trailingIcon: Lucide.arrowRight,
                 action: {
                     Task {
                         let success = await viewModel.submitVault()
@@ -218,10 +217,9 @@ struct OnboardingContainerView: View {
             .disabled(viewModel.isSubmitting)
         } else {
             KnotButton(
-                "Next",
+                viewModel.currentStep == .welcome ? "Get Started" : "Next",
                 variant: .primary,
                 size: .lg,
-                trailingIcon: Lucide.chevronRight,
                 action: {
                     if viewModel.canProceed {
                         showValidationError = false

@@ -39,13 +39,6 @@ struct OnboardingCustomMilestonesView: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.star)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
-                .foregroundStyle(Theme.accent)
-
             Text("Any custom milestones?")
                 .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)
@@ -72,25 +65,17 @@ struct OnboardingCustomMilestonesView: View {
                 resetCustomSheetState()
                 showingCustomSheet = true
             } label: {
-                HStack(spacing: 8) {
-                    Image(uiImage: Lucide.circlePlus)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-
-                    Text("Add Custom Milestone")
-                        .knotFont(Theme.Typography.cta)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .foregroundStyle(Theme.accent)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.accent.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                )
+                Text("Add Custom Milestone")
+                    .knotFont(Theme.Typography.cta)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .foregroundStyle(Theme.accent)
+                    .background(Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Theme.accent.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                    )
             }
         }
     }

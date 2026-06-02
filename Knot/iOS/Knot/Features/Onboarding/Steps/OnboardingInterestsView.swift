@@ -221,16 +221,13 @@ struct OnboardingInterestsView: View {
                 }
 
                 Button(action: addCustomFromSearch) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add \"\(term)\"")
-                            .knotFont(Theme.Typography.cta)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .background(Theme.accent)
-                    .clipShape(Capsule())
+                    Text("Add \"\(term)\"")
+                        .knotFont(Theme.Typography.cta)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(Theme.accent)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
 

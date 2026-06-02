@@ -42,13 +42,6 @@ struct OnboardingLocationView: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.mapPin)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
-                .foregroundStyle(Theme.accent)
-
             Text("Where do you live?")
                 .knotFont(Theme.Typography.onboardingHeader)
                 .multilineTextAlignment(.center)

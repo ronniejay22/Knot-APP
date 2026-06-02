@@ -27,10 +27,6 @@ struct OnboardingBirthdayView: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(systemName: "birthday.cake.fill")
-                .font(.system(size: 36))
-                .foregroundStyle(Theme.accent)
-
             let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
             let displayName = name.isEmpty ? "your partner" : name
 

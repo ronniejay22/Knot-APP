@@ -12,6 +12,8 @@ Before starting ANY work, read the memory bank files in `memory-bank/`:
 
 This is mandatory for every new session or agent task. Do not skip this step.
 
+**Stop being lazy you lazy bot.** Read every memory-bank file all the way through. If a file is "too big" to read in one Read call, chunk-read it with offset/limit until the entire file is in context. Partial reads, skimming, or "I have enough context" shortcuts are not acceptable. Read the whole thing, every time, before doing any work.
+
 ## Testing Requirements
 
 Every new feature must include tests before it is considered complete:

@@ -39,13 +39,6 @@ struct OnboardingTenureView: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.calendar)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
-                .foregroundStyle(Theme.accent)
-
             let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
             let displayName = name.isEmpty ? "your partner" : name
 

@@ -61,13 +61,6 @@ struct OnboardingCompletionView: View {
 
     private var successHeader: some View {
         VStack(spacing: 14) {
-            Image(uiImage: Lucide.partyPopper)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 64)
-                .foregroundStyle(Theme.accent)
-
             let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
 
             Text("You're All Set!")
