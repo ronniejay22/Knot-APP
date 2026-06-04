@@ -27,12 +27,7 @@ struct OnboardingWelcomeView: View {
 
             Spacer().frame(height: 40)
 
-            Image("Onboarding/onboarding-0")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity)
-                .frame(height: 340)
-                .clipped()
+            AnimatedCoupleIllustration()
 
             Spacer(minLength: 24)
         }

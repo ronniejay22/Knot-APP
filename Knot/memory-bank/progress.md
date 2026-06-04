@@ -6071,6 +6071,50 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.26 ✅ Welcome Screen — Idle Couple Animation
+**Date:** 2026-06-03
+**Status:** Complete
+
+**Goal:** Bring the `onboarding-0` couple illustration to life with the idle animation prototyped in Figma Make (a React/Vite + Framer Motion mock). The user wanted *only* the animation — the app already has the surrounding chrome (title, progress bar, Next button). The prototype's couple PNG was confirmed **byte-identical** (`cmp`) to the existing `onboarding-0.png`, so no asset import was needed; this was a pure Framer Motion → native SwiftUI port.
+
+**What changed:**
+- **New `AnimatedCoupleIllustration.swift`** (`Features/Onboarding/Steps/Shared/`): a `ZStack` layering three concurrent, infinitely-looping ambient effects over the existing illustration, faithful to the prototype's `A.tsx`:
+  1. **Couple float + breathe** — `offset(y:)` 0↔−10 and `scaleEffect` 1.0↔1.018 via `.easeInOut(duration: 2).repeatForever(autoreverses: true)` (4s full cycle).
+  2. **Warm glow pulse** — a blurred `Ellipse` filled with a `RadialGradient` from `Theme.colorPrimary.opacity(0.18)` → `.clear`, pulsing opacity 0.25↔0.45 and scale 0.97↔1.03 over a 5s cycle, positioned beneath the couple.
+  3. **Floating hearts** — six `FloatingHeart` views, each driven by `keyframeAnimator(initialValue:repeating:)` to reproduce the prototype's non-symmetric multi-stop path (`opacity [0,0,1,1,0]`, `y [0,−10,−50,−90,−130]`, `x` drift, `scale [0.2,0.7,1,0.9,0.6]` at `times [0,0.1,0.35,0.7,1]`). Per-heart `delay` is applied once via an `.onAppear` start gate (matching Framer Motion's "delay on first iteration only, then loop seamlessly"). The heart glyph is a transcribed `Shape` from the prototype's SVG `viewBox 0 0 24 24` path. The six rose shades are kept as local constants derived from the brand coral. Heart configs are exposed as `static let heartConfigs` for testability.
+- **Design-system alignment:** glow anchored to the `Theme.colorPrimary` brand token; long ambient durations (4–5s) intentionally bypass `Theme.Motion.standard/quick` (0.15–0.25s micro-interaction tokens), noted in comments. **Reduce Motion** is honored — when `accessibilityReduceMotion` is set, the view falls back to the original static `Image` render (no float/pulse/hearts).
+- **`OnboardingWelcomeView.swift`:** the static `Image("Onboarding/onboarding-0") … .clipped()` block (Step 18.25) is replaced by `AnimatedCoupleIllustration()`. Surrounding `VStack`, header copy, and spacers are unchanged, so layout is identical.
+- **Project wiring:** the project uses individually-listed sources (no filesystem-synchronized groups), so `AnimatedCoupleIllustration.swift` and its test were registered in `Knot.xcodeproj/project.pbxproj` (build file, file reference, group child, sources phase) under the `Shared` and `KnotTests` groups respectively.
+
+**Tests:**
+- New `AnimatedCoupleIllustrationTests.swift` (`KnotTests`): hosts the view in a `UIHostingController` (renders without crashing), asserts exactly six heart configs, and validates every heart has a positive duration and non-negative delay.
+- Full suite green: **258 KnotTests pass** (was 255 + 3 new), 0 failures.
+
+**Notes:**
+- Source prototype: `~/Documents/Figma Make Code/Add idle animation to SVG/src/imports/A/A.tsx` (`motion/react`).
+- No new dependencies — native SwiftUI animation only, consistent with the app's no-Lottie/Rive convention.
+
+---
+
+### Step 18.27 ✅ Welcome Screen — Hide Progress Tracker
+**Date:** 2026-06-03
+**Status:** Complete
+
+**Goal:** Remove the top progress tracker (the "Welcome" category label, "Step 1 of 18" counter, and animated progress bar) from the onboarding Welcome screen so it matches the approved Figma design (file `pSH5gTc4J24uMA7GI3Wcyl`, node `87:2`, confirmed via Figma MCP `get_design_context`), which shows only the title, subtitle, couple illustration, and Next button — no tracker. The tracker stays on every other step.
+
+**What changed:**
+- **`OnboardingContainerView.swift`:** The `progressBar` block (with its `.padding(.horizontal, 24)` / `.padding(.top, 12)` / `.padding(.bottom, 8)`) is now wrapped in `if !viewModel.currentStep.isFirst { … }`, reusing the existing `OnboardingStep.isFirst` helper (already the precedent for per-step branching in this file — the Next-button label logic). On the Welcome step (`OnboardingStep.welcome`, rawValue 0) the tracker is omitted entirely; on steps 2–18 it renders unchanged. When the user advances Welcome → Partner Name, the tracker appears via the container's existing step transition — no extra animation wiring needed.
+- **No other changes:** the `progressBar` computed property, `OnboardingViewModel.progress`, and the `OnboardingStep` enum are untouched. `OnboardingWelcomeView` keeps its `.padding(.top, 64)`, which now spaces the title from the safe-area top instead of from the (removed) progress track.
+
+**Tests:**
+- No test asserts on the tracker text (`OnboardingContainerViewTests` covers step count + navigation only), so nothing needed updating. `testContainerRendersAtWelcome` still exercises the Welcome render path.
+- Full suite green: **258 KnotTests pass**, 0 failures.
+
+**Notes:**
+- Surgical one-conditional change in a single file; the tracker behavior on all non-Welcome steps is byte-for-byte identical to before.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

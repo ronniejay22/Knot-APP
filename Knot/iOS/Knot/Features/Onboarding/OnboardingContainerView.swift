@@ -35,11 +35,13 @@ struct OnboardingContainerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Progress Bar
-            progressBar
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+            // MARK: - Progress Bar (hidden on the Welcome step per the Figma design)
+            if !viewModel.currentStep.isFirst {
+                progressBar
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+            }
 
             // MARK: - Step Content
             //

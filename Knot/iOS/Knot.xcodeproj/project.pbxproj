@@ -73,6 +73,7 @@
 		6D20B3CD59EA87BB169D4B15 /* KnotButtonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D7E2ADBC6B399AED76886E2 /* KnotButtonTests.swift */; };
 		70E8556AAF899368A188BFDC /* OnboardingCompletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */; };
 		7257121EBD1EF81159B119CE /* LoveLanguageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */; };
+		A11CE0000000000000000001 /* AnimatedCoupleIllustration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0000000000000000002 /* AnimatedCoupleIllustration.swift */; };
 		72EC0668AF413912D66810A4 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D8B67046D026EDEC88D850 /* Theme.swift */; };
 		743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2218310C657F62A45F2B93C6 /* MilestonesManagementView.swift */; };
 		760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */; };
@@ -121,6 +122,7 @@
 		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
 		DA3F459CB98EBDA8B0FBCB2C /* ForYouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0CC323FB5ADE12F70A632E /* ForYouView.swift */; };
 		DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */; };
+		A11CE0000000000000000003 /* AnimatedCoupleIllustrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0000000000000000004 /* AnimatedCoupleIllustrationTests.swift */; };
 		DDF62F31AA5CDFB0A50567A9 /* SavedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A9210BC3C12D656CB34484 /* SavedView.swift */; };
 		DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554263B4D803E9B67716AEEF /* NetworkMonitor.swift */; };
 		E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */; };
@@ -214,6 +216,7 @@
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
 		71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCustomMilestonesView.swift; sourceTree = "<group>"; };
 		72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoveLanguageCard.swift; sourceTree = "<group>"; };
+		A11CE0000000000000000002 /* AnimatedCoupleIllustration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedCoupleIllustration.swift; sourceTree = "<group>"; };
 		7582B8EB702201D602F5AE93 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
@@ -258,6 +261,7 @@
 		CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompletionView.swift; sourceTree = "<group>"; };
 		CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAnniversaryView.swift; sourceTree = "<group>"; };
 		CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerViewTests.swift; sourceTree = "<group>"; };
+		A11CE0000000000000000004 /* AnimatedCoupleIllustrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedCoupleIllustrationTests.swift; sourceTree = "<group>"; };
 		C18171BB00000000000001A2 /* CustomInterestFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomInterestFlowTests.swift; sourceTree = "<group>"; };
 		D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCard.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -386,6 +390,7 @@
 		4604556E24420117821D4B6F /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				A11CE0000000000000000002 /* AnimatedCoupleIllustration.swift */,
 				998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */,
 				72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */,
 				F05B936676B8BE236E4B5665 /* MilestonePickers.swift */,
@@ -634,6 +639,7 @@
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
 				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
+				A11CE0000000000000000004 /* AnimatedCoupleIllustrationTests.swift */,
 				CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */,
 				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
@@ -803,6 +809,7 @@
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
 				C18170AA00000000000001A1 /* CustomInterestFlowTests.swift in Sources */,
 				DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */,
+				A11CE0000000000000000003 /* AnimatedCoupleIllustrationTests.swift in Sources */,
 				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,
 				68730C13AE335778310BF282 /* SettingsViewTests.swift in Sources */,
@@ -863,6 +870,7 @@
 				28398616A2FA06CA898657DB /* LocationSearchCompleter.swift in Sources */,
 				40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */,
 				7257121EBD1EF81159B119CE /* LoveLanguageCard.swift in Sources */,
+				A11CE0000000000000000001 /* AnimatedCoupleIllustration.swift in Sources */,
 				342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */,
 				F1A549CA1023AB67C298B798 /* MainTabView.swift in Sources */,
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,
