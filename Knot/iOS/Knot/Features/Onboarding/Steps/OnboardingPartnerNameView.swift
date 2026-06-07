@@ -67,16 +67,10 @@ struct OnboardingPartnerNameView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("What's your partner's name?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("We'll use this to personalize your experience.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        OnboardingHeader(
+            title: "What's your partner's name?",
+            subtitle: "We'll use this to personalize your experience."
+        )
         .padding(.top, 8)
     }
 }

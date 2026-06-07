@@ -46,18 +46,10 @@ struct OnboardingSecondaryLoveLanguageView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("And what's their secondary?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Pick a different language from their primary.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        OnboardingHeader(
+            title: "And what's their secondary?",
+            subtitle: "Pick a different language from their primary."
+        )
         .padding(.top, 4)
     }
 
