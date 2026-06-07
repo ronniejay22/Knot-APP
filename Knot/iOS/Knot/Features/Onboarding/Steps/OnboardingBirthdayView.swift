@@ -23,6 +23,9 @@ struct OnboardingBirthdayView: View {
         .onAppear {
             viewModel.validateCurrentStep()
         }
+        .onChange(of: viewModel.hasSetBirthday) {
+            viewModel.validateCurrentStep()
+        }
     }
 
     private var headerSection: some View {
@@ -45,39 +48,21 @@ struct OnboardingBirthdayView: View {
                 KnotBadge("Required", variant: .accent, size: .sm)
             }
 
-            HStack(spacing: 12) {
-                milestoneMonthPicker(
-                    selection: Binding(
-                        get: { viewModel.partnerBirthdayMonth },
-                        set: { newMonth in
-                            viewModel.partnerBirthdayMonth = newMonth
-                            viewModel.partnerBirthdayDay = OnboardingViewModel.clampDay(
-                                viewModel.partnerBirthdayDay, toMonth: newMonth
-                            )
-                        }
-                    )
-                )
-
-                milestoneDayPicker(
-                    selection: Binding(
-                        get: { viewModel.partnerBirthdayDay },
-                        set: { viewModel.partnerBirthdayDay = $0 }
-                    ),
-                    daysInMonth: OnboardingViewModel.daysInMonth(viewModel.partnerBirthdayMonth)
-                )
-            }
-            .padding(16)
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Theme.surfaceBorder, lineWidth: 1)
+            MilestoneDateField(
+                month: Binding(
+                    get: { viewModel.partnerBirthdayMonth },
+                    set: { viewModel.partnerBirthdayMonth = $0 }
+                ),
+                day: Binding(
+                    get: { viewModel.partnerBirthdayDay },
+                    set: { viewModel.partnerBirthdayDay = $0 }
+                ),
+                hasSelection: Binding(
+                    get: { viewModel.hasSetBirthday },
+                    set: { viewModel.hasSetBirthday = $0 }
+                ),
+                title: "Set Birthday"
             )
-
-            Text(formattedMilestoneDate(month: viewModel.partnerBirthdayMonth, day: viewModel.partnerBirthdayDay))
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(Theme.textTertiary)
-                .padding(.leading, 4)
         }
     }
 }
@@ -87,5 +72,6 @@ struct OnboardingBirthdayView: View {
     vm.partnerName = "Sarah"
     vm.partnerBirthdayMonth = 7
     vm.partnerBirthdayDay = 22
+    vm.hasSetBirthday = true
     return OnboardingBirthdayView().environment(vm)
 }

@@ -6202,6 +6202,30 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.32 ✅ Birthday/Anniversary — Tap-to-Open Date Modal + Required Selection
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** On the onboarding Milestones birthday step, stop auto-defaulting the partner's birthday to January 1 (which let the user tap Next without ever touching the field, silently saving a wrong date), and consolidate the two inline Month/Day dropdowns into one cohesive control. Tapping the birthday field now opens a modal with two side-by-side wheel pickers; Next stays disabled until a date is explicitly chosen. The same tap-to-open treatment was applied to the (optional, toggle-gated) anniversary step for consistency.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/MilestoneDateModal.swift`:** a reusable `MilestoneDateField` + `MilestoneDateModal` pair, mirroring the `RelationshipLengthField`/`RelationshipLengthModal` pattern. `MilestoneDateField` is a tappable select-style field (surface bg, border, chevron) bound to `month`/`day`/`hasSelection` + a modal `title` and `placeholder`. It shows `formattedMilestoneDate(...)` once `hasSelection` is true, otherwise the placeholder ("Select a date") in `textTertiary`. It opens `MilestoneDateModal` via `fullScreenCover` + `.presentationBackground(.clear)`, using the same transaction-disabling `present()`/`dismiss()` helpers. `MilestoneDateModal` is a centered `KnotCard` dialog with the independent backdrop/card fade+scale animation, an `HStack` of two `.pickerStyle(.wheel)` pickers (Month from `MilestoneMonthNames.all`, Day `1...daysInMonth(month)` with `clampDay` on month change), and Cancel/Save. Save commits month/day and flips `hasSelection` true; nothing is written until Save.
+- **`OnboardingViewModel.swift`:** added `hasSetBirthday` and `hasSetAnniversary` flags. `validateCurrentStep()` now gates `.birthday` on `hasSetBirthday` and `.anniversary` on `!hasAnniversary || hasSetAnniversary` (both moved out of the freely-proceed `default` group). Added matching `validationMessage` cases ("Please set your partner's birthday." / "Set the anniversary date or turn off the toggle.").
+- **`OnboardingBirthdayView.swift`:** replaced the inline Month/Day pickers with a single `MilestoneDateField` (title "Set Birthday") bound to the birthday fields + `hasSetBirthday`; added `.onChange(of: hasSetBirthday)` to re-validate so Next enables immediately after Save.
+- **`OnboardingAnniversaryView.swift`:** kept the toggle; when on, the inline pickers were replaced with a `MilestoneDateField` (title "Set Anniversary"); added `.onChange` on both `hasAnniversary` and `hasSetAnniversary` to re-validate when the toggle flips or a date is saved.
+- **`Settings/EditVaultView.swift`:** `loadVaultData()` now sets `hasSetBirthday`/`hasSetAnniversary` true when seeding an existing vault's birthday/anniversary, so the edit flow shows the saved date (not the placeholder) and the new validation never blocks an edit. `EditMilestonesSheet` is unchanged (its own dropdowns; an existing vault always has a date).
+- The menu-style `milestoneMonthPicker`/`milestoneDayPicker` in `MilestonePickers.swift` remain (still used by the custom-milestones step); `formattedMilestoneDate`/`MilestoneMonthNames` are reused by the new modal.
+
+**Tests:**
+- `KnotTests/OnboardingContainerViewTests.swift` `testPerStepValidationRules`: removed `.birthday`/`.anniversary` from the "defaults to canProceed" loop and added explicit cases — birthday requires `hasSetBirthday`; anniversary passes when toggled off, fails when on with no date, passes once a date is set.
+- Full `KnotTests` suite green: **283 tests pass**, 0 failures.
+
+**Notes:**
+- Follows the same `Steps/Shared/` DRY pattern as `RelationshipLengthModal` / `OnboardingStepHeader` / `InterestListRow`.
+- The new file required `xcodegen generate` to be added to the build target (project sources are folder-based via `project.yml`).
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

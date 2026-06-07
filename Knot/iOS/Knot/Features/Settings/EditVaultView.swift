@@ -338,11 +338,13 @@ struct EditVaultView: View {
                 case "birthday":
                     vm.partnerBirthdayMonth = month
                     vm.partnerBirthdayDay = day
+                    vm.hasSetBirthday = true
                     vm.birthdayMilestoneName = milestone.milestoneName
                 case "anniversary":
                     vm.hasAnniversary = true
                     vm.anniversaryMonth = month
                     vm.anniversaryDay = day
+                    vm.hasSetAnniversary = true
                     vm.anniversaryMilestoneName = milestone.milestoneName
                 case "holiday":
                     // Match to known holiday IDs

@@ -25,6 +25,12 @@ struct OnboardingAnniversaryView: View {
         .onAppear {
             viewModel.validateCurrentStep()
         }
+        .onChange(of: viewModel.hasAnniversary) {
+            viewModel.validateCurrentStep()
+        }
+        .onChange(of: viewModel.hasSetAnniversary) {
+            viewModel.validateCurrentStep()
+        }
     }
 
     private var headerSection: some View {
@@ -51,41 +57,22 @@ struct OnboardingAnniversaryView: View {
             }
 
             if viewModel.hasAnniversary {
-                HStack(spacing: 12) {
-                    milestoneMonthPicker(
-                        selection: Binding(
-                            get: { viewModel.anniversaryMonth },
-                            set: { newMonth in
-                                viewModel.anniversaryMonth = newMonth
-                                viewModel.anniversaryDay = OnboardingViewModel.clampDay(
-                                    viewModel.anniversaryDay, toMonth: newMonth
-                                )
-                            }
-                        )
-                    )
-
-                    milestoneDayPicker(
-                        selection: Binding(
-                            get: { viewModel.anniversaryDay },
-                            set: { viewModel.anniversaryDay = $0 }
-                        ),
-                        daysInMonth: OnboardingViewModel.daysInMonth(viewModel.anniversaryMonth)
-                    )
-                }
-                .padding(16)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
+                MilestoneDateField(
+                    month: Binding(
+                        get: { viewModel.anniversaryMonth },
+                        set: { viewModel.anniversaryMonth = $0 }
+                    ),
+                    day: Binding(
+                        get: { viewModel.anniversaryDay },
+                        set: { viewModel.anniversaryDay = $0 }
+                    ),
+                    hasSelection: Binding(
+                        get: { viewModel.hasSetAnniversary },
+                        set: { viewModel.hasSetAnniversary = $0 }
+                    ),
+                    title: "Set Anniversary"
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
-
-                Text(formattedMilestoneDate(month: viewModel.anniversaryMonth, day: viewModel.anniversaryDay))
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.leading, 4)
-                    .transition(.opacity)
             }
         }
         .padding(16)

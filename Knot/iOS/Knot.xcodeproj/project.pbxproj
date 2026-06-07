@@ -140,6 +140,7 @@
 		EF1F074229403C82A648D759 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */; };
 		F1A549CA1023AB67C298B798 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7582B8EB702201D602F5AE93 /* MainTabView.swift */; };
 		F1F38A55A587BF2FA03F6858 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65623696E83EBB3DD785BD2D /* FlowLayout.swift */; };
+		F223B5BB78F2F177EC4EBDA1 /* MilestoneDateModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F33C4BA9B9774419EE06AF2 /* MilestoneDateModal.swift */; };
 		F2796C120E1368BCDDE4F0BE /* OnboardingStepHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6BE81407629DBE13B2EEDB /* OnboardingStepHeader.swift */; };
 		FB7C927B11F02D1F7FE9ACD9 /* MilestonesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214E964FDAC13011AA79278A /* MilestonesViewModel.swift */; };
 		FDA27469D1DB3FC4B522E9F7 /* KnotSectionHeaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2940CBA454AF71451B7CFA /* KnotSectionHeaderTests.swift */; };
@@ -214,6 +215,7 @@
 		554263B4D803E9B67716AEEF /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryService.swift; sourceTree = "<group>"; };
 		5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
+		5F33C4BA9B9774419EE06AF2 /* MilestoneDateModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneDateModal.swift; sourceTree = "<group>"; };
 		60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTenureView.swift; sourceTree = "<group>"; };
 		62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDislikesView.swift; sourceTree = "<group>"; };
 		63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -406,6 +408,7 @@
 				998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */,
 				A932CC2FBD754E6625A3E2BC /* InterestListRow.swift */,
 				72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */,
+				5F33C4BA9B9774419EE06AF2 /* MilestoneDateModal.swift */,
 				F05B936676B8BE236E4B5665 /* MilestonePickers.swift */,
 				CC6BE81407629DBE13B2EEDB /* OnboardingStepHeader.swift */,
 				2B949879832CF85679AFE56C /* RelationshipLengthModal.swift */,
@@ -896,6 +899,7 @@
 				342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */,
 				F1A549CA1023AB67C298B798 /* MainTabView.swift in Sources */,
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,
+				F223B5BB78F2F177EC4EBDA1 /* MilestoneDateModal.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				BD8620E466755ABD2D40FA83 /* MilestonePickers.swift in Sources */,
 				7945CB75D93045A1AF23CFB1 /* MilestoneService.swift in Sources */,

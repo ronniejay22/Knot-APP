@@ -119,12 +119,34 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // Tenure / Cohabitation / Birthday / Anniversary / Holidays — defaulted, pass freely.
-        for step: OnboardingStep in [.tenure, .cohabitation, .birthday, .anniversary, .holidays] {
+        // Tenure / Cohabitation / Holidays — defaulted, pass freely.
+        for step: OnboardingStep in [.tenure, .cohabitation, .holidays] {
             vm.currentStep = step
             vm.validateCurrentStep()
             XCTAssertTrue(vm.canProceed, "\(step) should default to canProceed")
         }
+
+        // Birthday — requires an explicit selection (no auto-default).
+        vm.currentStep = .birthday
+        vm.hasSetBirthday = false
+        vm.validateCurrentStep()
+        XCTAssertFalse(vm.canProceed)
+        vm.hasSetBirthday = true
+        vm.validateCurrentStep()
+        XCTAssertTrue(vm.canProceed)
+
+        // Anniversary — optional: passes when toggled off; when on, needs a date.
+        vm.currentStep = .anniversary
+        vm.hasAnniversary = false
+        vm.hasSetAnniversary = false
+        vm.validateCurrentStep()
+        XCTAssertTrue(vm.canProceed)
+        vm.hasAnniversary = true
+        vm.validateCurrentStep()
+        XCTAssertFalse(vm.canProceed)
+        vm.hasSetAnniversary = true
+        vm.validateCurrentStep()
+        XCTAssertTrue(vm.canProceed)
 
         // Location — needs city + state.
         vm.currentStep = .location

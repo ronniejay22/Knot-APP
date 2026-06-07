@@ -160,6 +160,10 @@ final class OnboardingViewModel {
             return "Select \(remaining) more dislike\(remaining == 1 ? "" : "s") to continue."
         case .vibes:
             return "Pick at least 1 vibe to continue."
+        case .birthday:
+            return "Please set your partner's birthday."
+        case .anniversary:
+            return "Set the anniversary date or turn off the toggle."
         case .customMilestones:
             return "Custom milestone names can't be empty."
         case .budgetJustBecause, .budgetMinorOccasion, .budgetMajorMilestone:
@@ -261,12 +265,20 @@ final class OnboardingViewModel {
     var partnerBirthdayMonth: Int = 1
     /// Birthday day (1–31). Required milestone.
     var partnerBirthdayDay: Int = 1
+    /// Whether the user has explicitly chosen a birthday. The month/day above
+    /// carry defaults, but the birthday step won't let the user proceed until
+    /// this flips true (via the date modal) so no date is silently saved.
+    var hasSetBirthday: Bool = false
     /// Whether the user has toggled the anniversary section on.
     var hasAnniversary: Bool = false
     /// Anniversary month (1–12). Only used when `hasAnniversary` is true.
     var anniversaryMonth: Int = 1
     /// Anniversary day (1–31). Only used when `hasAnniversary` is true.
     var anniversaryDay: Int = 1
+    /// Whether the user has explicitly chosen an anniversary date. Only
+    /// meaningful when `hasAnniversary` is true; gates proceeding the same way
+    /// `hasSetBirthday` does for the birthday step.
+    var hasSetAnniversary: Bool = false
     /// Set of holiday IDs the user has toggled on (e.g., "valentines_day", "christmas").
     var selectedHolidays: Set<String> = []
     /// User-created custom milestones (e.g., "First Date", "Gotcha Day").
@@ -546,6 +558,10 @@ final class OnboardingViewModel {
             }
         case .vibes:
             canProceed = selectedVibes.count >= Constants.Validation.minVibes
+        case .birthday:
+            canProceed = hasSetBirthday
+        case .anniversary:
+            canProceed = !hasAnniversary || hasSetAnniversary
         case .budgetJustBecause:
             canProceed = justBecauseMax >= justBecauseMin
         case .budgetMinorOccasion:
@@ -558,8 +574,8 @@ final class OnboardingViewModel {
             canProceed = !secondaryLoveLanguage.isEmpty
                 && secondaryLoveLanguage != primaryLoveLanguage
         default:
-            // welcome, tenure, cohabitation, birthday, anniversary, holidays, completion
-            // all proceed freely (defaults or no validation needed).
+            // welcome, tenure, cohabitation, holidays, completion all proceed
+            // freely (defaults or no validation needed).
             canProceed = true
         }
     }
