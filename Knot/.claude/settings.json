@@ -1,4 +1,7 @@
 {
+  "worktree": {
+    "baseRef": "head"
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +10,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-bank-reminder.sh\"",
             "statusMessage": "Loading memory-bank reading rule"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/feature-worktree-nudge.sh\"",
+            "statusMessage": "Loading feature-worktree rule"
           }
         ]
       }
