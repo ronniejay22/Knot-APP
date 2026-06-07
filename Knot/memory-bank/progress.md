@@ -6158,6 +6158,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.30 ✅ Onboarding — Interests/Dislikes as a Vertical List
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Redesign the onboarding Interests step ("What does X love?") and its twin Dislikes step ("What doesn't X like?") from a 3-column grid of tall image/gradient cards into a **vertical list of full-width selectable rows** — each an SF Symbol icon + label, with a highlighted border when selected — matching the Blinkist "Follow categories" reference the user supplied. Only the presentation of catalog items changed; all behavior (search/filter, custom-interest add flow, the "X selected (Y more needed)" counter, the ≥5 validation, and the container's Next button) is untouched.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/InterestSelectRow.swift`:** a reusable full-width selectable row shared by both screens (the same `Steps/Shared/` DRY pattern as `LoveLanguageCard` / `MilestonePickers` / `RelationshipLengthModal`). Layout: leading `Image(systemName:)` SF Symbol (18pt, 24×24 frame) + `Text(title)` in `Theme.Typography.cta` + `Spacer()` + a trailing `checkmark.circle.fill` shown only when selected. Chrome copies `KnotListRow` (16/16 padding, `Theme.Radius.md` corners, `Theme.surface` fill, hairline `Theme.surfaceBorder`). Selected state matches the user's chosen "accent border + checkmark" look: `Theme.accent` (pink) border at `lineWidth: 2`, a subtle `Theme.accent.opacity(0.08)` tint, the icon tinted to the accent, and the trailing check — animated with `.easeInOut(duration: 0.25)` like the rest of onboarding.
+- **`OnboardingInterestsView.swift`:** the `LazyVGrid(columns:)` of `InterestImageCard` is now a `LazyVStack(spacing: 12)` of `InterestSelectRow` (24pt horizontal padding to match the header/search). Deleted the now-unused `private let columns`, the `private struct InterestImageCard`, and the `static func cardGradient(for:)` / `static func imageName(for:)` helpers (verified via grep that the only callers were these two screens). **Kept** `static func iconName(for:)` — both screens still use it for the row icon. Removed the unused `import LucideIcons` (the screen only ever used SF Symbols).
+- **`OnboardingDislikesView.swift`:** same swap — `LazyVStack` of `InterestSelectRow` (using `OnboardingInterestsView.iconName(for:)`), deleted `private let columns`, the `private struct DislikeImageCard`, and the unused `import LucideIcons`. The catalog filter that excludes already-liked interests, search, counter, and custom-add are unchanged.
+
+**Tests:**
+- New `KnotTests/InterestSelectRowTests.swift` (6 tests): row render smoke tests (unselected / selected / dark), a check that every `Constants.interestCategories` entry maps to a non-empty SF Symbol, and `UIHostingController` render smoke tests for both `OnboardingInterestsView` and `OnboardingDislikesView` exercising the new list path with a seeded `OnboardingViewModel`.
+- Existing selection/validation tests (`OnboardingContainerViewTests`, `CustomInterestFlowTests`) are unaffected — the view-model logic was not touched.
+- Full suite green: **282 KnotTests pass**, 0 failures (`xcodebuild test … -only-testing:KnotTests`, iPhone 17 Pro).
+
+**Notes:**
+- Dropping `cardGradient`/`imageName` also retires the per-interest hue-rotation and the `Interests/interest-{slug}` asset-image lookup; the list rows are icon-only, so neither is needed any more. If image-backed cards are ever wanted again, restore those statics from git history.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
