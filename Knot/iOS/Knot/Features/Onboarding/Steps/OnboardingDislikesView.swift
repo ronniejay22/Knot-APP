@@ -105,20 +105,13 @@ struct OnboardingDislikesView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "them" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "them" : name
 
-            Text("What doesn't \(displayName) like?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-
-            Text("Choose at least 5 things your partner avoids.\nWe'll make sure to steer clear of these.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingHeader(
+            title: "What doesn't \(displayName) like?",
+            subtitle: "Choose at least 5 things your partner avoids.\nWe'll make sure to steer clear of these."
+        )
         .padding(.top, 4)
     }
 

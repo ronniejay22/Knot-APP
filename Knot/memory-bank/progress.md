@@ -6158,24 +6158,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 18.30 ✅ Onboarding — Interests/Dislikes as a Vertical List
+### Step 18.30 ✅ Onboarding — Left-Align Section Headers
 **Date:** 2026-06-07
 **Status:** Complete
 
-**Goal:** Redesign the onboarding Interests step ("What does X love?") and its twin Dislikes step ("What doesn't X like?") from a 3-column grid of tall image/gradient cards into a **vertical list of full-width selectable rows** — each an SF Symbol icon + label, with a highlighted border when selected — matching the Blinkist "Follow categories" reference the user supplied. Only the presentation of catalog items changed; all behavior (search/filter, custom-interest add flow, the "X selected (Y more needed)" counter, the ≥5 validation, and the container's Next button) is untouched.
+**Goal:** Left-align every onboarding section header (the serif title + gray subtitle) to the leading edge of the 24pt container instead of centering it, matching the approved Figma design (file `pSH5gTc4J24uMA7GI3Wcyl`, node `86:39` / OBX-9, confirmed via Figma MCP `get_design_context` — the `title` group uses `items-start` with a 12px gap). Previously each step duplicated its own centered `headerSection` (`VStack(spacing: 8)` with `.multilineTextAlignment(.center)`), so there was no single place to change alignment.
 
 **What changed:**
-- **New `Features/Onboarding/Steps/Shared/InterestSelectRow.swift`:** a reusable full-width selectable row shared by both screens (the same `Steps/Shared/` DRY pattern as `LoveLanguageCard` / `MilestonePickers` / `RelationshipLengthModal`). Layout: leading `Image(systemName:)` SF Symbol (18pt, 24×24 frame) + `Text(title)` in `Theme.Typography.cta` + `Spacer()` + a trailing `checkmark.circle.fill` shown only when selected. Chrome copies `KnotListRow` (16/16 padding, `Theme.Radius.md` corners, `Theme.surface` fill, hairline `Theme.surfaceBorder`). Selected state matches the user's chosen "accent border + checkmark" look: `Theme.accent` (pink) border at `lineWidth: 2`, a subtle `Theme.accent.opacity(0.08)` tint, the icon tinted to the accent, and the trailing check — animated with `.easeInOut(duration: 0.25)` like the rest of onboarding.
-- **`OnboardingInterestsView.swift`:** the `LazyVGrid(columns:)` of `InterestImageCard` is now a `LazyVStack(spacing: 12)` of `InterestSelectRow` (24pt horizontal padding to match the header/search). Deleted the now-unused `private let columns`, the `private struct InterestImageCard`, and the `static func cardGradient(for:)` / `static func imageName(for:)` helpers (verified via grep that the only callers were these two screens). **Kept** `static func iconName(for:)` — both screens still use it for the row icon. Removed the unused `import LucideIcons` (the screen only ever used SF Symbols).
-- **`OnboardingDislikesView.swift`:** same swap — `LazyVStack` of `InterestSelectRow` (using `OnboardingInterestsView.iconName(for:)`), deleted `private let columns`, the `private struct DislikeImageCard`, and the unused `import LucideIcons`. The catalog filter that excludes already-liked interests, search, counter, and custom-add are unchanged.
+- **New `Features/Onboarding/Steps/Shared/OnboardingHeader.swift`:** a reusable left-aligned header — `OnboardingHeader(title:subtitle:)` (subtitle optional, defaults to nil). It renders the title with `Theme.Typography.onboardingHeader` / `Theme.textPrimary` and the optional subtitle with `Theme.Typography.body` / `Theme.textSecondary` / `lineSpacing(3)`, inside a `VStack(alignment: .leading, spacing: 12)`. Each `Text` carries `.multilineTextAlignment(.leading)` + `.frame(maxWidth: .infinity, alignment: .leading)` so the block fills the container width and pins to the left rather than shrink-wrapping and centering. The 12pt spacing matches the Figma `gap-[12px]`.
+- **16 standard form steps migrated:** `OnboardingPartnerNameView`, `OnboardingTenureView`, `OnboardingCohabitationView`, `OnboardingLocationView`, `OnboardingInterestsView`, `OnboardingDislikesView`, `OnboardingBirthdayView`, `OnboardingAnniversaryView`, `OnboardingHolidaysView`, `OnboardingCustomMilestonesView`, `OnboardingVibesView`, `OnboardingJustBecauseBudgetView`, `OnboardingMinorOccasionBudgetView`, `OnboardingMajorMilestoneBudgetView`, `OnboardingPrimaryLoveLanguageView`, `OnboardingSecondaryLoveLanguageView`. Each step's `headerSection` now returns `OnboardingHeader(...)` and keeps its own `.padding(.top, 8)` / `.padding(.top, 4)`; steps that personalize the title with the partner's name compute `displayName` first and pass it in. The Holidays step keeps its "X selected" counter, now nested under the header in a leading `VStack(alignment: .leading, spacing: 12)`. This unified the subtitle color (some steps used `.secondary`, others `Theme.textSecondary`) on `Theme.textSecondary`.
+- **Intentionally excluded:** `OnboardingWelcomeView` and `OnboardingCompletionView` stay centered — they are bespoke "hero" screens (welcome illustration / "You're All Set!" celebration), not standard form steps.
+- The `OnboardingStep` enum, `OnboardingContainerView`, the progress tracker, and all step bodies/inputs below the header are untouched.
 
 **Tests:**
-- New `KnotTests/InterestSelectRowTests.swift` (6 tests): row render smoke tests (unselected / selected / dark), a check that every `Constants.interestCategories` entry maps to a non-empty SF Symbol, and `UIHostingController` render smoke tests for both `OnboardingInterestsView` and `OnboardingDislikesView` exercising the new list path with a seeded `OnboardingViewModel`.
-- Existing selection/validation tests (`OnboardingContainerViewTests`, `CustomInterestFlowTests`) are unaffected — the view-model logic was not touched.
-- Full suite green: **282 KnotTests pass**, 0 failures (`xcodebuild test … -only-testing:KnotTests`, iPhone 17 Pro).
+- New `KnotTests/OnboardingHeaderTests.swift` (4 tests): render smoke tests for `OnboardingHeader` with title+subtitle, title-only, and dark mode, plus a `subtitle`-defaults-to-nil assertion. Mirrors the `RelationshipLengthModalTests` render-smoke pattern.
+- Full suite green via `xcodebuild test` on iPhone 17 Pro (iOS 26.2): **TEST SUCCEEDED**, 0 failures.
 
 **Notes:**
-- Dropping `cardGradient`/`imageName` also retires the per-interest hue-rotation and the `Interests/interest-{slug}` asset-image lookup; the list rows are icon-only, so neither is needed any more. If image-backed cards are ever wanted again, restore those statics from git history.
+- New file was wired into the Knot target by running `cd iOS && xcodegen generate` (the project uses XcodeGen's `sources: [path: Knot]` rule, which auto-discovers files under `iOS/Knot/`).
+- Subtitle strings with hard `\n` line breaks (Interests, Dislikes, Vibes) were kept verbatim — left alignment renders them as two left-aligned lines, which reads fine; rewrapping was out of scope.
 
 ---
 
