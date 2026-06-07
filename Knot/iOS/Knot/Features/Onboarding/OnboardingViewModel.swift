@@ -126,6 +126,14 @@ final class OnboardingViewModel {
         return Double(currentStep.rawValue) / Double(OnboardingStep.totalSteps - 1)
     }
 
+    /// Whether the header back button should be shown for the current step.
+    /// Hidden on the Welcome step (no header) and on the first post-Welcome
+    /// step (Partner Name), where the only step to return to is the Welcome
+    /// intro. Visible from the third step onward.
+    var showsBackButton: Bool {
+        currentStep.rawValue > OnboardingStep.partnerName.rawValue
+    }
+
     /// Whether the "Next" button should be enabled.
     /// Each step view can override this by setting `canProceed`.
     /// The welcome and completion steps always allow proceeding.
@@ -339,6 +347,14 @@ final class OnboardingViewModel {
     func goToNextStep() {
         guard let nextIndex = OnboardingStep(rawValue: currentStep.rawValue + 1) else { return }
         currentStep = nextIndex
+        validateCurrentStep()
+    }
+
+    /// Returns to the previous onboarding step.
+    /// Does nothing if already on the first step.
+    func goToPreviousStep() {
+        guard let prevIndex = OnboardingStep(rawValue: currentStep.rawValue - 1) else { return }
+        currentStep = prevIndex
         validateCurrentStep()
     }
 

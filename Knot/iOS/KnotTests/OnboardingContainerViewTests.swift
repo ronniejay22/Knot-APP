@@ -55,6 +55,52 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertEqual(vm.currentStep, .completion)
     }
 
+    /// Walk backward through the flow, asserting `goToPreviousStep()` decrements
+    /// the step, is a no-op at the welcome step, and preserves entered data.
+    func testStepNavigationGoesBackward() {
+        let vm = OnboardingViewModel()
+        vm.partnerName = "Alex"
+
+        // Advance a few steps forward.
+        vm.goToNextStep() // -> partnerName
+        vm.goToNextStep() // -> tenure
+        vm.goToNextStep() // -> cohabitation
+        XCTAssertEqual(vm.currentStep, .cohabitation)
+
+        // Step back to the start, one at a time.
+        vm.goToPreviousStep()
+        XCTAssertEqual(vm.currentStep, .tenure)
+        vm.goToPreviousStep()
+        XCTAssertEqual(vm.currentStep, .partnerName)
+        vm.goToPreviousStep()
+        XCTAssertEqual(vm.currentStep, .welcome)
+
+        // Entered data persists across back navigation.
+        XCTAssertEqual(vm.partnerName, "Alex")
+
+        // Going back from the first step is a no-op.
+        vm.goToPreviousStep()
+        XCTAssertEqual(vm.currentStep, .welcome,
+                       "goToPreviousStep() at the welcome step should not move below it")
+    }
+
+    /// The header back button is hidden on Welcome and on the first
+    /// post-Welcome step (Partner Name), and shown from the third step onward.
+    func testBackButtonVisibility() {
+        let vm = OnboardingViewModel()
+
+        XCTAssertEqual(vm.currentStep, .welcome)
+        XCTAssertFalse(vm.showsBackButton, "No back button on the Welcome step")
+
+        vm.goToNextStep() // -> partnerName
+        XCTAssertEqual(vm.currentStep, .partnerName)
+        XCTAssertFalse(vm.showsBackButton, "No back button on the Partner Name step")
+
+        vm.goToNextStep() // -> tenure
+        XCTAssertEqual(vm.currentStep, .tenure)
+        XCTAssertTrue(vm.showsBackButton, "Back button shows from the third step onward")
+    }
+
     /// Spot-check that each per-screen validation rule actually gates `canProceed`.
     func testPerStepValidationRules() {
         let vm = OnboardingViewModel()

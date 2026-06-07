@@ -33,14 +33,38 @@ struct OnboardingContainerView: View {
     @State private var validationErrorText = ""
     @State private var dismissTask: Task<Void, Never>?
 
+    /// Tracks the direction of the last step change so the slide transition
+    /// can reverse for back navigation (in from leading / out to trailing).
+    @State private var isNavigatingBack = false
+
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Progress Bar (hidden on the Welcome step per the Figma design)
+            // MARK: - Header: Back Button + Progress Bar (hidden on the Welcome step per the Figma design)
             if !viewModel.currentStep.isFirst {
-                progressBar
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+                HStack(spacing: 16) {
+                    // On the first post-Welcome step (Partner Name) the only step
+                    // to return to is the Welcome intro, so the back button is
+                    // absent and the progress bar spans the full container width.
+                    // From step 3 (Tenure) onward the button appears and pushes
+                    // the progress bar to the right, shrinking its width.
+                    if viewModel.showsBackButton {
+                        backButton
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+                    progressBar
+                }
+                // Pin the header row to the back button's height so the progress
+                // bar's vertical (Y) position stays identical on every step —
+                // only its width changes when the button appears/disappears.
+                .frame(height: KnotIconButton.Size.lg.diameter)
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                // Animate the width change (button push) at the Partner Name ↔
+                // Tenure boundary. Keyed to `showsBackButton` so it fires only
+                // when visibility changes and never touches the nav buttons
+                // (see Step 18.18).
+                .animation(.easeInOut(duration: 0.25), value: viewModel.showsBackButton)
             }
 
             // MARK: - Step Content
@@ -54,8 +78,8 @@ struct OnboardingContainerView: View {
             stepContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
+                    insertion: .move(edge: isNavigatingBack ? .leading : .trailing).combined(with: .opacity),
+                    removal: .move(edge: isNavigatingBack ? .trailing : .leading).combined(with: .opacity)
                 ))
                 .id(viewModel.currentStep)
                 .animation(.easeInOut(duration: 0.25), value: viewModel.currentStep)
@@ -112,6 +136,25 @@ struct OnboardingContainerView: View {
         } message: {
             Text(viewModel.submissionError ?? "An unexpected error occurred. Please try again.")
         }
+    }
+
+    // MARK: - Back Button
+
+    /// Returns to the previous onboarding step. Sits to the left of the progress
+    /// bar in the header per the Figma design (node 107:4315). Uses the app's
+    /// standard accent-tinted ghost icon button.
+    private var backButton: some View {
+        KnotIconButton(
+            icon: Lucide.chevronLeft,
+            variant: .ghost,
+            size: .lg
+        ) {
+            isNavigatingBack = true
+            viewModel.goToPreviousStep()
+        }
+        // Offset the ghost button's transparent inset so the chevron glyph
+        // aligns with the 24pt content margin.
+        .padding(.leading, -10)
     }
 
     // MARK: - Progress Bar
@@ -225,6 +268,7 @@ struct OnboardingContainerView: View {
                 action: {
                     if viewModel.canProceed {
                         showValidationError = false
+                        isNavigatingBack = false
                         viewModel.goToNextStep()
                     } else if let message = viewModel.validationMessage {
                         validationErrorText = message

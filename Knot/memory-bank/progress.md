@@ -6115,6 +6115,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.28 ✅ Onboarding — Back Button
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Add a back button to the onboarding flow so users can return to a previous step (e.g. to correct their partner's name) without losing entered data, matching the approved Figma design (file `pSH5gTc4J24uMA7GI3Wcyl`, node `107:4315`, confirmed via Figma MCP `get_design_context`). The design places a chevron-left icon button to the left of the progress-bar header. The flow was previously forward-only — `OnboardingViewModel` exposed `goToNextStep()` but no way back.
+
+**What changed:**
+- **`OnboardingViewModel.swift`:** Added `goToPreviousStep()`, a mirror of `goToNextStep()` — it guards on `OnboardingStep(rawValue: currentStep.rawValue - 1)` (which is `nil` at `.welcome`, making it a safe no-op on the first step) and calls `validateCurrentStep()` after moving so `canProceed` / `validationMessage` reflect the step landed on. Because the single `OnboardingViewModel` instance persists across the whole flow, going back automatically preserves every value already entered.
+- **`OnboardingContainerView.swift`:** The header is now an `HStack(spacing: 16) { backButton; progressBar }` (still gated by the existing `if !viewModel.currentStep.isFirst` check and the same `.padding(.horizontal, 24)/.top(12)/.bottom(8)`). The `backButton` is conditionally inserted based on `viewModel.showsBackButton`: on the first post-Welcome step (Partner Name) the only step to return to is the Welcome intro, so the button is absent and the progress bar spans the **full** container width; from step 3 (Tenure) onward the button appears and **pushes the progress bar right, shrinking its width**. To keep the progress bar's vertical (Y) position identical on every step regardless of whether the (taller, 48pt `.lg`) button is present, the header `HStack` is pinned to the button's height via `.frame(height: KnotIconButton.Size.lg.diameter)` and the contents center vertically — so only the width changes between steps, never the Y. The width change is animated with `.transition(.move(edge: .leading).combined(with: .opacity))` on the button plus `.animation(.easeInOut(duration: 0.25), value: viewModel.showsBackButton)` on the header, keyed to `showsBackButton` so it fires only at the Partner Name ↔ Tenure boundary and never propagates to the navigation buttons (preserving the Step 18.18 fix). The new `backButton` computed view reuses `KnotIconButton` with the app's standard `.ghost` variant (accent-tinted `Lucide.chevronLeft`, `.lg` size — 48pt tap target / 24pt glyph) wired to `viewModel.goToPreviousStep()`, with `.padding(.leading, -10)` so the glyph aligns to the 24pt content margin. We deliberately used the app's accent-tinted ghost icon button rather than Figma's `#0000008c` gray (MUI's default placeholder), to follow the established Knot icon-button convention. A new `@State isNavigatingBack` flag makes `stepContent`'s slide transition direction-aware — back navigation slides in from the leading edge / out to trailing (the reverse of forward). The flag is set in each navigation action site (true in `backButton`, false in the Next action), so it is always correct at navigation time.
+- **`OnboardingViewModel.swift` (visibility helper):** Added a `showsBackButton` computed property (`currentStep.rawValue > OnboardingStep.partnerName.rawValue`) so the back button's visibility rule lives on the view model and is unit-testable.
+- **No other changes:** the `progressBar` computed property, `OnboardingViewModel.progress`, and the `OnboardingStep` enum are untouched.
+
+**Tests:**
+- **`OnboardingContainerViewTests.swift`:** Added `testStepNavigationGoesBackward()` — advances three steps, walks back to `.welcome` one step at a time asserting each `currentStep`, verifies entered `partnerName` persists across back navigation, and asserts `goToPreviousStep()` at `.welcome` is a no-op. Added `testBackButtonVisibility()` — asserts `showsBackButton` is false on Welcome and Partner Name and true from Tenure onward.
+- Onboarding suite green: **8 OnboardingContainerViewTests pass**, 0 failures (`xcodebuild test … -only-testing:KnotTests/OnboardingContainerViewTests`).
+
+**Notes:**
+- `memory-bank/architecture.md` previously documented `goToPreviousStep()` and a back button as if they existed — they did not. This step makes the code match (and corrects) that documentation.
+
+---
+
 ### Step 18.29 ✅ Import "Set Relationship Length" Modal
 **Date:** 2026-06-07
 **Status:** Complete
