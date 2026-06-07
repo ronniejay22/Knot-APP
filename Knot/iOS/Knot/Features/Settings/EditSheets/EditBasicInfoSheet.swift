@@ -51,7 +51,10 @@ struct EditBasicInfoSheet: View {
                 // MARK: - Form Fields
                 VStack(spacing: 22) {
                     nameSection(name: $vm.partnerName)
-                    tenureSection
+                    RelationshipLengthField(
+                        months: $vm.relationshipTenureMonths,
+                        label: "How long have you been together?"
+                    )
                     cohabitationSection(status: $vm.cohabitationStatus)
                     locationSection
                 }
@@ -135,83 +138,6 @@ struct EditBasicInfoSheet: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-    }
-
-    // MARK: - Relationship Tenure
-
-    private var tenureSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("How long have you been together?")
-                .knotFont(Theme.Typography.cta)
-
-            HStack(spacing: 12) {
-                // Years picker
-                HStack(spacing: 6) {
-                    Picker("Years", selection: Binding(
-                        get: { viewModel.relationshipTenureMonths / 12 },
-                        set: { newYears in
-                            let remainingMonths = viewModel.relationshipTenureMonths % 12
-                            viewModel.relationshipTenureMonths = newYears * 12 + remainingMonths
-                        }
-                    )) {
-                        ForEach(0..<31, id: \.self) { year in
-                            Text("\(year)").tag(year)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(Theme.accent)
-
-                    Text(viewModel.relationshipTenureMonths / 12 == 1 ? "year" : "years")
-                        .knotFont(Theme.Typography.body)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                // Months picker
-                HStack(spacing: 6) {
-                    Picker("Months", selection: Binding(
-                        get: { viewModel.relationshipTenureMonths % 12 },
-                        set: { newMonths in
-                            let currentYears = viewModel.relationshipTenureMonths / 12
-                            viewModel.relationshipTenureMonths = currentYears * 12 + newMonths
-                        }
-                    )) {
-                        ForEach(0..<12, id: \.self) { month in
-                            Text("\(month)").tag(month)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(Theme.accent)
-
-                    Text(viewModel.relationshipTenureMonths % 12 == 1 ? "month" : "months")
-                        .knotFont(Theme.Typography.body)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                Spacer()
-            }
-
-            // Summary text
-            Text(tenureSummary)
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    /// Human-readable tenure summary (e.g., "1 year, 0 months").
-    private var tenureSummary: String {
-        let years = viewModel.relationshipTenureMonths / 12
-        let months = viewModel.relationshipTenureMonths % 12
-        let yearText = years == 1 ? "1 year" : "\(years) years"
-        let monthText = months == 1 ? "1 month" : "\(months) months"
-        return "\(yearText), \(monthText)"
     }
 
     // MARK: - Cohabitation Status

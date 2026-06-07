@@ -6115,6 +6115,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.29 ✅ Import "Set Relationship Length" Modal
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Import the "Create Relationship Length Modal" Figma Make design (`~/Documents/Figma Make Code/Create Relationship Length Modal/`), whose `Obx3` frame is the onboarding tenure step. The design replaces the two inline `.menu` year/month pickers with a single tappable "Relationship Length" field (showing "X years, Y months" + a dropdown chevron) that opens a modal with − / + steppers and Cancel / Save. The design system overrides all Figma discrepancies.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/RelationshipLengthModal.swift`:** a reusable component with three parts — (1) `relationshipTenureSummary(months:)` file-level helper (correct singular/plural, replaces the duplicated `tenureSummary` computed properties in both call sites); (2) `RelationshipLengthField` — the tappable select-style field (label via `Theme.Typography.cta`, value via `body`, `Lucide.chevronDown` trailing icon, field-envelope chrome matching `KnotInput`: `Theme.surface` + `Theme.Radius.md` + `surfaceBorder` stroke + `.contentShape(Rectangle())`), presenting the modal via `.fullScreenCover { … .presentationBackground(.clear) }`; (3) `RelationshipLengthModal` — a **centered dialog** (chosen over the app's usual bottom sheet to stay faithful to the Figma layout) drawing a `.ultraThinMaterial` + `Theme.overlayDim` backdrop (tap-outside closes) behind a `KnotCard(variant: .elevated, padding: .xl, radius: Theme.Radius.xl)` with `Theme.Shadow.lg`. Card header = a bold "Set Relationship Length" title (`onboardingSubHeader` — Fraunces SemiBold 20pt; no close button — the dialog is dismissed via Cancel or by tapping the backdrop); two stepper rows use `KnotIconButton(Lucide.minus / .plus, variant: .surface, size: .lg)` flanking a big `heroDisplay` monospaced-digit value; footer = pill `KnotButton` Cancel (`.secondary`) / Save (`.primary`). **Animation:** the cover's built-in bottom-slide is suppressed (the field presents/dismisses inside a `Transaction` with `disablesAnimations = true`), and the modal runs its own transition — the backdrop fades while the card independently scales (0.94→1.0) + fades in on a smooth spring (`response 0.4, damping 0.86`, kicked one runloop tick after `.onAppear` so it isn't coalesced into first render); dismissal animates out with `.easeIn(0.2)` via `animateOut(then:)` before the parent tears the cover down.
+- **Design-system overrides:** Figma hexes → tokens (`#e95170`→`accent`, `#1a1a1a`→`textPrimary`, `#8c8c8c`→`textSecondary`, `#f5f3f4`→`surface`, `#e0dcde`→`surfaceBorder`); the white card becomes `surfaceElevated` on the dark theme; Figma's `% 12` month wrap was replaced with **clamp 0–11 (no wrap)** so incrementing past 11 stays 11 instead of silently jumping to 0; years clamp **0–50** (the imported design's range, up from the old picker's 0–30). Bounds live in `RelationshipLengthBounds`.
+- **`OnboardingTenureView.swift`:** removed `yearsPicker` / `monthsPicker` / the standalone `tenureSummary` line; the body is now `headerSection` + a single `RelationshipLengthField` bound to `viewModel.relationshipTenureMonths`. Dropped the now-unused `import LucideIcons`.
+- **`EditBasicInfoSheet.swift`:** the `tenureSection` computed property and its private `tenureSummary` were deleted; the form now renders `RelationshipLengthField(months: $vm.relationshipTenureMonths, label: "How long have you been together?")` (label kept to match the sibling field labels). The underlying `relationshipTenureMonths: Int` data model and the vault payload are unchanged, so the value still round-trips through `PUT /api/v1/vault`.
+
+**Tests:**
+- New `KnotTests/RelationshipLengthModalTests.swift` (16 tests): `relationshipTenureSummary` singular/plural/zero cases; `RelationshipLengthBounds` values + clamp math (no month wrap, year cap 50, lower-bound clamp); decompose/recompose round-trip; and light/dark render smoke tests for `RelationshipLengthField` and `RelationshipLengthModal`.
+- Full suite green: **276 KnotTests pass**, 0 failures.
+
+**Notes:**
+- The field + modal are intentionally shared between onboarding and the Settings edit sheet so the tenure interaction is identical everywhere — the same DRY pattern as `MilestonePickers` / `BudgetTierCard` / `LoveLanguageCard` in `Steps/Shared/`.
+- `presentationBackground(.clear)` (iOS 16.4+, fine on the iOS 17 target) is what lets the `fullScreenCover` render a transparent backing so the component can draw its own dimmed/blurred backdrop and centered card.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
