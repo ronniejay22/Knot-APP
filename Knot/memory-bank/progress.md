@@ -6158,6 +6158,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.30 ✅ Interests & Dislikes — Vertical List Layout
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Replace the 3-column image-card grid on the onboarding interests and dislikes screens with a flat single-column **list** of selectable rows (Blinkist "Follow categories" reference): each row an icon chip + category name, with a pink accent border + checkmark when selected.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/InterestListRow.swift`:** a reusable full-width selectable row — a tinted leading icon chip (`RoundedRectangle` radius 10, `Theme.accent.opacity(0.20)` when selected else `white.opacity(0.08)`), the title via `Theme.Typography.cta` in `Theme.textPrimary`, and a trailing `checkmark.circle.fill` shown only when selected. The row envelope is `Theme.surface` + `Theme.Radius.lg` clip + a stroke that switches `surfaceBorder`/1pt → `accent`/2pt on selection, animated with the standard 0.25s ease. Shared by both screens (no dislikes-specific copy).
+- **`OnboardingInterestsView.swift`:** the `LazyVGrid` (+ `private let columns`) was replaced by a `LazyVStack(spacing: 10)` of `InterestListRow`s wired to the existing `selectedInterests` / `toggleInterest(_:)` / `iconName(for:)` logic. Deleted the now-unused `InterestImageCard` struct and the `cardGradient(for:)` / `imageName(for:)` static helpers, plus the now-unused `import LucideIcons`. `iconName(for:)`, search, add-custom, counter, and validation are unchanged.
+- **`OnboardingDislikesView.swift`:** identical conversion — `LazyVStack` of `InterestListRow`s bound to `selectedDislikes` / `toggleDislike(_:)`; deleted `DislikeImageCard` and the unused `import LucideIcons`. The liked-interest catalog exclusion and min-5 validation are unchanged.
+- All search/filter, "add custom", selection-counter, and per-step validation behavior is preserved; only the per-item card and the container (grid → vertical stack) changed.
+
+**Tests:**
+- New `KnotTests/InterestListLayoutTests.swift` (5 tests): render smoke tests for `OnboardingInterestsView`, `OnboardingDislikesView`, and `InterestListRow` (selected + unselected), plus selection-drives-validation checks for both the interests and dislikes steps.
+- Onboarding suites green: **23 tests pass** across InterestListLayoutTests, CustomInterestFlowTests, and OnboardingContainerViewTests, 0 failures.
+
+**Notes:**
+- The shared row follows the same `Steps/Shared/` DRY pattern as `LoveLanguageCard` / `MilestonePickers` / `RelationshipLengthModal`.
+- The interest→asset-image lookup (`imageName(for:)`) and per-category gradients were dropped because the flat list no longer renders photo/gradient backgrounds; the `Interests/interest-*` asset catalog entries are now unused by these screens.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */; };
 		011E1518B7BAAF428484100D /* CustomInterestFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B7F67A602F7AA6991611684 /* CustomInterestFlowTests.swift */; };
+		9F1A2B3C4D5E6F7081920304 /* InterestListLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1A2B3C4D5E6F7081920305 /* InterestListLayoutTests.swift */; };
 		015B9791BD05434B8F8AB54C /* PendingDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E0F769ECF393ABCBB145B0 /* PendingDeletionView.swift */; };
 		02989CEE7ADA343855BC038E /* NotificationHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570478B18C9CF1B793C2640 /* NotificationHistoryService.swift */; };
 		029FB4D0B2739A47484F9FF7 /* HintLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0DFE789B202C84A0F6646 /* HintLocal.swift */; };
@@ -75,6 +76,7 @@
 		6D20B3CD59EA87BB169D4B15 /* KnotButtonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D7E2ADBC6B399AED76886E2 /* KnotButtonTests.swift */; };
 		70E8556AAF899368A188BFDC /* OnboardingCompletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */; };
 		7257121EBD1EF81159B119CE /* LoveLanguageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */; };
+		1A2B3C4D5E6F70819A0B1C2D /* InterestListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F70819A0B1C2E /* InterestListRow.swift */; };
 		72EC0668AF413912D66810A4 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D8B67046D026EDEC88D850 /* Theme.swift */; };
 		743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2218310C657F62A45F2B93C6 /* MilestonesManagementView.swift */; };
 		760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */; };
@@ -203,6 +205,7 @@
 		4A3004AEB082C62DE4C273BD /* KnotTabBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBarTests.swift; sourceTree = "<group>"; };
 		4A3695BA9DDC287A5A57B020 /* OnboardingCohabitationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCohabitationView.swift; sourceTree = "<group>"; };
 		4B7F67A602F7AA6991611684 /* CustomInterestFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomInterestFlowTests.swift; sourceTree = "<group>"; };
+		9F1A2B3C4D5E6F7081920305 /* InterestListLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestListLayoutTests.swift; sourceTree = "<group>"; };
 		4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		4E66C0B47ACDE0BD4A7E6BA5 /* KnotBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotBadge.swift; sourceTree = "<group>"; };
 		5015F04947428A3CCD23BE62 /* RelationshipLengthModalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipLengthModalTests.swift; sourceTree = "<group>"; };
@@ -222,6 +225,7 @@
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
 		71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCustomMilestonesView.swift; sourceTree = "<group>"; };
 		72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoveLanguageCard.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F70819A0B1C2E /* InterestListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestListRow.swift; sourceTree = "<group>"; };
 		7582B8EB702201D602F5AE93 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
@@ -397,6 +401,7 @@
 				0C4978321ECE51803BCF1427 /* AnimatedCoupleIllustration.swift */,
 				998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */,
 				72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */,
+				1A2B3C4D5E6F70819A0B1C2E /* InterestListRow.swift */,
 				F05B936676B8BE236E4B5665 /* MilestonePickers.swift */,
 				2B949879832CF85679AFE56C /* RelationshipLengthModal.swift */,
 			);
@@ -640,6 +645,7 @@
 				C3C7EABC7D0FC50070301E1A /* Components */,
 				E17D5A111778A9DEA39F388A /* AnimatedCoupleIllustrationTests.swift */,
 				4B7F67A602F7AA6991611684 /* CustomInterestFlowTests.swift */,
+				9F1A2B3C4D5E6F7081920305 /* InterestListLayoutTests.swift */,
 				1BF18BBEA2845B8FD5BED711 /* ForYouViewModelTests.swift */,
 				2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */,
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
@@ -801,6 +807,7 @@
 			files = (
 				7CDA2F00D18292BD74F68435 /* AnimatedCoupleIllustrationTests.swift in Sources */,
 				011E1518B7BAAF428484100D /* CustomInterestFlowTests.swift in Sources */,
+				9F1A2B3C4D5E6F7081920304 /* InterestListLayoutTests.swift in Sources */,
 				1A07C11CED68F4EE4C1CF0A3 /* ForYouViewModelTests.swift in Sources */,
 				0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */,
 				221D63C98DC7F9529455B97A /* KnotBadgeTests.swift in Sources */,
@@ -878,6 +885,7 @@
 				28398616A2FA06CA898657DB /* LocationSearchCompleter.swift in Sources */,
 				40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */,
 				7257121EBD1EF81159B119CE /* LoveLanguageCard.swift in Sources */,
+				1A2B3C4D5E6F70819A0B1C2D /* InterestListRow.swift in Sources */,
 				342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */,
 				F1A549CA1023AB67C298B798 /* MainTabView.swift in Sources */,
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,

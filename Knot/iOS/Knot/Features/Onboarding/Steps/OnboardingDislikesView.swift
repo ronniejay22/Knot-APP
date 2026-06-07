@@ -7,15 +7,16 @@
 //  Step 3.4: Full implementation — dark-themed 3-column image card grid.
 //  Step 18.14 (2026-05-17): Liked interests excluded from the catalog (was: shown disabled).
 //  Step 18.15 (2026-05-17): Removed the 5-item upper cap (now at-least-5).
+//  Step (2026-06-07): Replaced the 3-column image-card grid with a flat
+//            single-column list of selectable rows (`InterestListRow`).
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Step 4: Select at least 5 things the partner dislikes ("Hard Avoids").
 ///
-/// Dark-themed screen matching the Interests screen (Step 3.3) visual style.
-/// Uses the same 3-column image card grid with themed gradients and SF Symbol icons.
+/// Dark-themed screen matching the Interests screen visual style. Uses the same
+/// single-column vertical list of `InterestListRow` rows with SF Symbol icons.
 ///
 /// Interests already selected as "likes" in Step 3.3 are excluded from the
 /// catalog entirely (not rendered), so a category can never appear on both
@@ -49,8 +50,6 @@ struct OnboardingDislikesView: View {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
-
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header
@@ -63,27 +62,25 @@ struct OnboardingDislikesView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
 
-            // MARK: - Card Grid
+            // MARK: - Dislike List
             ScrollView {
                 if filteredInterests.isEmpty {
                     noResultsView
                         .padding(.horizontal, 24)
                         .padding(.top, 40)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 10) {
+                    LazyVStack(spacing: 10) {
                         ForEach(filteredInterests, id: \.self) { interest in
-                            DislikeImageCard(
+                            InterestListRow(
                                 title: interest,
-                                isSelected: viewModel.selectedDislikes.contains(interest),
                                 iconName: OnboardingInterestsView.iconName(for: interest),
-                                gradient: OnboardingInterestsView.cardGradient(for: interest),
-                                imageName: OnboardingInterestsView.imageName(for: interest)
+                                isSelected: viewModel.selectedDislikes.contains(interest)
                             ) {
                                 toggleDislike(interest)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
                     .padding(.bottom, 16)
                 }
             }
@@ -259,100 +256,6 @@ struct OnboardingDislikesView: View {
         case .overlapsLikes:
             addCustomError = "You already picked that as a like."
         }
-    }
-}
-
-// MARK: - Dislike Image Card
-
-/// A visual card representing a single interest category for the dislikes screen.
-///
-/// Matches the `InterestImageCard` style from Step 3.3. When an image is available
-/// in the asset catalog, the card displays it as a full-bleed photo; otherwise it
-/// falls back to the themed gradient background with a centered SF Symbol icon.
-///
-/// Visual states:
-/// - **Unselected:** Photo (or gradient) background, white text
-/// - **Selected (disliked):** Pink border, checkmark badge in top-right corner
-private struct DislikeImageCard: View {
-    let title: String
-    let isSelected: Bool
-    let iconName: String
-    let gradient: LinearGradient
-    /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
-    let imageName: String?
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Background: prefer asset image, fall back to gradient + icon
-                if let imageName {
-                    Image(imageName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    gradient
-
-                    // SF Symbol icon (only when no image)
-                    Image(systemName: iconName)
-                        .font(.system(size: 30, weight: .light))
-                        .foregroundStyle(.white.opacity(0.20))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-
-                // Bottom gradient overlay for text readability
-                LinearGradient(
-                    colors: [.clear, .clear, .black.opacity(0.55)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Interest name — bottom-left
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text(title)
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                        Spacer()
-                    }
-                }
-                .padding(10)
-
-                // Selection checkmark badge — top-right (only when selected as dislike)
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Circle()
-                                .fill(Color.pink)
-                                .frame(width: 22, height: 22)
-                                .overlay {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                                .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
-                        }
-                        Spacer()
-                    }
-                    .padding(7)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .aspectRatio(0.82, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        isSelected ? Color.pink : Color.white.opacity(0.06),
-                        lineWidth: isSelected ? 2.5 : 0.5
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.25), value: isSelected)
     }
 }
 

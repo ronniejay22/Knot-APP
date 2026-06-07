@@ -7,22 +7,23 @@
 //  Step 3.3: Full implementation — dark-themed 3-column image card grid
 //            with search bar and selection counter.
 //  Step 18.15 (2026-05-17): Removed the 5-item upper cap (now at-least-5).
+//  Step (2026-06-07): Replaced the 3-column image-card grid with a flat
+//            single-column list of selectable rows (`InterestListRow`).
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Step 3: Select at least 5 interests the partner likes.
 ///
-/// Dark-themed screen with a 3-column grid of visual interest cards. Each card
-/// displays a themed gradient background, an SF Symbol icon, and the interest name.
-/// The user must select at least 5 as "likes"; there is no upper bound.
+/// Dark-themed screen with a single-column vertical list of interest rows. Each
+/// row (`InterestListRow`) shows a tinted icon chip, the interest name, and a
+/// pink accent border + checkmark when selected. The user must select at least
+/// 5 as "likes"; there is no upper bound.
 ///
 /// Features:
 /// - Personalized title using the partner's name from Step 3.2
 /// - Search bar to filter the 40 interest categories
 /// - Selection counter showing "X selected (Y more needed)" until the minimum is met
-/// - `.preferredColorScheme(.dark)` for full dark theme including container chrome
 struct OnboardingInterestsView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
@@ -46,8 +47,6 @@ struct OnboardingInterestsView: View {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
-
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header
@@ -60,27 +59,25 @@ struct OnboardingInterestsView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
 
-            // MARK: - Card Grid
+            // MARK: - Interest List
             ScrollView {
                 if filteredInterests.isEmpty {
                     noResultsView
                         .padding(.horizontal, 24)
                         .padding(.top, 40)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 10) {
+                    LazyVStack(spacing: 10) {
                         ForEach(filteredInterests, id: \.self) { interest in
-                            InterestImageCard(
+                            InterestListRow(
                                 title: interest,
-                                isSelected: viewModel.selectedInterests.contains(interest),
                                 iconName: Self.iconName(for: interest),
-                                gradient: Self.cardGradient(for: interest),
-                                imageName: Self.imageName(for: interest)
+                                isSelected: viewModel.selectedInterests.contains(interest)
                             ) {
                                 toggleInterest(interest)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
                     .padding(.bottom, 16)
                 }
             }
@@ -261,50 +258,6 @@ struct OnboardingInterestsView: View {
         }
     }
 
-    // MARK: - Card Gradient Colors
-
-    /// Generates a themed gradient for each interest based on its position.
-    /// Spreads colors across the full hue spectrum so each card is visually distinct.
-    /// Custom (non-predefined) interests get a stable hue derived from their name
-    /// so they don't all collide on Travel's gradient.
-    static func cardGradient(for interest: String) -> LinearGradient {
-        let hue: Double
-        if let index = Constants.interestCategories.firstIndex(of: interest) {
-            hue = Double(index) / Double(max(Constants.interestCategories.count, 1))
-        } else {
-            let total = interest.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
-            hue = Double(total % 360) / 360.0
-        }
-
-        return LinearGradient(
-            colors: [
-                Color(hue: hue, saturation: 0.60, brightness: 0.50),
-                Color(
-                    hue: (hue + 0.03).truncatingRemainder(dividingBy: 1.0),
-                    saturation: 0.70,
-                    brightness: 0.22
-                )
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    // MARK: - Asset Catalog Image Name
-
-    /// Maps an interest name to its asset catalog image name.
-    /// Convention: `"Interests/interest-{lowercased-hyphenated}"`.
-    /// Returns nil if no image has been added to the asset catalog yet.
-    static func imageName(for interest: String) -> String? {
-        let slug = interest
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-        let name = "Interests/interest-\(slug)"
-        // Only return the name if the image actually exists in the catalog.
-        guard UIImage(named: name) != nil else { return nil }
-        return name
-    }
-
     // MARK: - SF Symbol Icons
 
     /// Maps each interest category to a themed SF Symbol.
@@ -352,102 +305,6 @@ struct OnboardingInterestsView: View {
             "Karaoke": "mic.fill"
         ]
         return icons[interest] ?? "star.fill"
-    }
-}
-
-// MARK: - Interest Image Card
-
-/// A visual card representing a single interest category.
-///
-/// When an image is available in the asset catalog, the card displays it as
-/// a full-bleed photo with a dark gradient overlay at the bottom for text
-/// readability. When no image is available, it falls back to the themed
-/// gradient background with a centered SF Symbol icon.
-///
-/// Visual states:
-/// - **Unselected:** Photo (or gradient) background, white text
-/// - **Selected:** Pink border, checkmark badge in top-right corner
-private struct InterestImageCard: View {
-    let title: String
-    let isSelected: Bool
-    let iconName: String
-    let gradient: LinearGradient
-    /// Asset catalog image name (e.g., "Interests/interest-travel"). Nil if no image added yet.
-    let imageName: String?
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Background: prefer asset image, fall back to gradient + icon
-                if let imageName {
-                    Image(imageName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    // Gradient background
-                    gradient
-
-                    // SF Symbol icon (large, centered, semi-transparent)
-                    Image(systemName: iconName)
-                        .font(.system(size: 30, weight: .light))
-                        .foregroundStyle(.white.opacity(0.20))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-
-                // Bottom gradient overlay for text readability
-                LinearGradient(
-                    colors: [.clear, .clear, .black.opacity(0.55)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Interest name — bottom-left
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text(title)
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-                        Spacer()
-                    }
-                }
-                .padding(10)
-
-                // Selection checkmark badge — top-right
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Circle()
-                                .fill(Color.pink)
-                                .frame(width: 22, height: 22)
-                                .overlay {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                                .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
-                        }
-                        Spacer()
-                    }
-                    .padding(7)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .aspectRatio(0.82, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        isSelected ? Color.pink : Color.white.opacity(0.06),
-                        lineWidth: isSelected ? 2.5 : 0.5
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.25), value: isSelected)
     }
 }
 
