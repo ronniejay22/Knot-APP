@@ -6158,6 +6158,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.30 ✅ Onboarding — Left-Align Section Headers
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Left-align every onboarding section header (the serif title + gray subtitle) to the leading edge of the 24pt container instead of centering it, matching the approved Figma design (file `pSH5gTc4J24uMA7GI3Wcyl`, node `86:39` / OBX-9, confirmed via Figma MCP `get_design_context` — the `title` group uses `items-start` with a 12px gap). Previously each step duplicated its own centered `headerSection` (`VStack(spacing: 8)` with `.multilineTextAlignment(.center)`), so there was no single place to change alignment.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/OnboardingHeader.swift`:** a reusable left-aligned header — `OnboardingHeader(title:subtitle:)` (subtitle optional, defaults to nil). It renders the title with `Theme.Typography.onboardingHeader` / `Theme.textPrimary` and the optional subtitle with `Theme.Typography.body` / `Theme.textSecondary` / `lineSpacing(3)`, inside a `VStack(alignment: .leading, spacing: 12)`. Each `Text` carries `.multilineTextAlignment(.leading)` + `.frame(maxWidth: .infinity, alignment: .leading)` so the block fills the container width and pins to the left rather than shrink-wrapping and centering. The 12pt spacing matches the Figma `gap-[12px]`.
+- **16 standard form steps migrated:** `OnboardingPartnerNameView`, `OnboardingTenureView`, `OnboardingCohabitationView`, `OnboardingLocationView`, `OnboardingInterestsView`, `OnboardingDislikesView`, `OnboardingBirthdayView`, `OnboardingAnniversaryView`, `OnboardingHolidaysView`, `OnboardingCustomMilestonesView`, `OnboardingVibesView`, `OnboardingJustBecauseBudgetView`, `OnboardingMinorOccasionBudgetView`, `OnboardingMajorMilestoneBudgetView`, `OnboardingPrimaryLoveLanguageView`, `OnboardingSecondaryLoveLanguageView`. Each step's `headerSection` now returns `OnboardingHeader(...)` and keeps its own `.padding(.top, 8)` / `.padding(.top, 4)`; steps that personalize the title with the partner's name compute `displayName` first and pass it in. The Holidays step keeps its "X selected" counter, now nested under the header in a leading `VStack(alignment: .leading, spacing: 12)`. This unified the subtitle color (some steps used `.secondary`, others `Theme.textSecondary`) on `Theme.textSecondary`.
+- **Intentionally excluded:** `OnboardingWelcomeView` and `OnboardingCompletionView` stay centered — they are bespoke "hero" screens (welcome illustration / "You're All Set!" celebration), not standard form steps.
+- The `OnboardingStep` enum, `OnboardingContainerView`, the progress tracker, and all step bodies/inputs below the header are untouched.
+
+**Tests:**
+- New `KnotTests/OnboardingHeaderTests.swift` (4 tests): render smoke tests for `OnboardingHeader` with title+subtitle, title-only, and dark mode, plus a `subtitle`-defaults-to-nil assertion. Mirrors the `RelationshipLengthModalTests` render-smoke pattern.
+- Full suite green via `xcodebuild test` on iPhone 17 Pro (iOS 26.2): **TEST SUCCEEDED**, 0 failures.
+
+**Notes:**
+- New file was wired into the Knot target by running `cd iOS && xcodegen generate` (the project uses XcodeGen's `sources: [path: Knot]` rule, which auto-discovers files under `iOS/Knot/`).
+- Subtitle strings with hard `\n` line breaks (Interests, Dislikes, Vibes) were kept verbatim — left alignment renders them as two left-aligned lines, which reads fine; rewrapping was out of scope.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

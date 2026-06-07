@@ -40,21 +40,13 @@ struct OnboardingPrimaryLoveLanguageView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "your partner" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "your partner" : name
 
-            Text("How does \(displayName) feel most loved?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Pick their primary love language.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingHeader(
+            title: "How does \(displayName) feel most loved?",
+            subtitle: "Pick their primary love language."
+        )
         .padding(.top, 4)
     }
 
