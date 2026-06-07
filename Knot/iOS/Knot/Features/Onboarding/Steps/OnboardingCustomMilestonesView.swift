@@ -38,16 +38,10 @@ struct OnboardingCustomMilestonesView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("Any custom milestones?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("Add dates unique to your relationship — first date, gotcha day, anything you want to remember.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        OnboardingStepHeader(
+            title: "Any custom milestones?",
+            subtitle: "Add dates unique to your relationship — first date, gotcha day, anything you want to remember."
+        )
         .padding(.top, 8)
     }
 

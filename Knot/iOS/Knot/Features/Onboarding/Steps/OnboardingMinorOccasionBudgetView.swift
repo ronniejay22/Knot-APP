@@ -56,18 +56,10 @@ struct OnboardingMinorOccasionBudgetView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("And for minor occasions?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Set a spending range for smaller holidays and celebrations.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        OnboardingStepHeader(
+            title: "And for minor occasions?",
+            subtitle: "Set a spending range for smaller holidays and celebrations."
+        )
         .padding(.top, 4)
     }
 }

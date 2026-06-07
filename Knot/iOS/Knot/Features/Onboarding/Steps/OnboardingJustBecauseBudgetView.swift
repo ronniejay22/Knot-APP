@@ -56,21 +56,13 @@ struct OnboardingJustBecauseBudgetView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "your partner" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "your partner" : name
 
-            Text("Just because, what feels right?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Set a spending range for small, spontaneous things for \(displayName).")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingStepHeader(
+            title: "Just because, what feels right?",
+            subtitle: "Set a spending range for small, spontaneous things for \(displayName)."
+        )
         .padding(.top, 4)
     }
 }

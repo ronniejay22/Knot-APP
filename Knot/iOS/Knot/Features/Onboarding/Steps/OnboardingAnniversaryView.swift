@@ -28,16 +28,10 @@ struct OnboardingAnniversaryView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("Do you celebrate an anniversary?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("Optional — flip the toggle if you want a reminder.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        OnboardingStepHeader(
+            title: "Do you celebrate an anniversary?",
+            subtitle: "Optional — flip the toggle if you want a reminder."
+        )
         .padding(.top, 8)
     }
 

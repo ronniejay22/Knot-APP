@@ -47,12 +47,8 @@ struct OnboardingCohabitationView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("Do you live together?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, 8)
+        OnboardingStepHeader(title: "Do you live together?")
+            .padding(.top, 8)
     }
 
     private func cohabitationOption(

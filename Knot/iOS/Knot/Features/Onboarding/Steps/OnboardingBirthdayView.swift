@@ -26,19 +26,13 @@ struct OnboardingBirthdayView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "your partner" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "your partner" : name
 
-            Text("When is \(displayName)'s birthday?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("We'll remind you so you never forget.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        return OnboardingStepHeader(
+            title: "When is \(displayName)'s birthday?",
+            subtitle: "We'll remind you so you never forget."
+        )
         .padding(.top, 8)
     }
 

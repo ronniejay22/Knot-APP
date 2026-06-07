@@ -41,15 +41,11 @@ struct OnboardingHolidaysView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("Which holidays should we remind you about?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("Tap to add reminders. You can change these later.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 8) {
+            OnboardingStepHeader(
+                title: "Which holidays should we remind you about?",
+                subtitle: "Tap to add reminders. You can change these later."
+            )
 
             if !viewModel.selectedHolidays.isEmpty {
                 Text("\(viewModel.selectedHolidays.count) selected")

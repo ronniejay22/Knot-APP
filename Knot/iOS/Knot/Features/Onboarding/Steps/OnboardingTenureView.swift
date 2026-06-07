@@ -29,19 +29,13 @@ struct OnboardingTenureView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "your partner" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "your partner" : name
 
-            Text("How long have you and \(displayName) been together?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("We'll use this to track your relationship milestones.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        return OnboardingStepHeader(
+            title: "How long have you and \(displayName) been together?",
+            subtitle: "We'll use this to track your relationship milestones."
+        )
         .padding(.top, 8)
     }
 }

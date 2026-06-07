@@ -102,20 +102,13 @@ struct OnboardingInterestsView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "Them" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "Them" : name
 
-            Text("What does \(displayName) love?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-
-            Text("Choose at least 5 things your partner enjoys.\nThis helps us personalize gift and date ideas.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingStepHeader(
+            title: "What does \(displayName) love?",
+            subtitle: "Choose at least 5 things your partner enjoys. This helps us personalize gift and date ideas."
+        )
         .padding(.top, 4)
     }
 

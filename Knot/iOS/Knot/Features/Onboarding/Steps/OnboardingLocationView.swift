@@ -41,16 +41,10 @@ struct OnboardingLocationView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("Where do you live?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .multilineTextAlignment(.center)
-
-            Text("Helps us find local experiences and restaurants.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        OnboardingStepHeader(
+            title: "Where do you live?",
+            subtitle: "Helps us find local experiences and restaurants."
+        )
         .padding(.top, 8)
     }
 

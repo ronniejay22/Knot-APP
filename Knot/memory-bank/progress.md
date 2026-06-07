@@ -6180,6 +6180,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.31 ✅ Left-Align Onboarding Step Headers
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Match the Figma "Love Languages" design (node `27:2`) where each onboarding step's header (title + subtitle) is **left-aligned and full-width** rather than centered. Apply this throughout the onboarding flow's question/input screens; leave the Welcome hero and Completion celebration screens centered.
+
+**What changed:**
+- **New `Features/Onboarding/Steps/Shared/OnboardingStepHeader.swift`:** a reusable header view taking `title: String` + optional `subtitle: String?`. Renders a `VStack(alignment: .leading, spacing: 8)` — title (a private 24pt Fraunces SemiBold `titleFont`; see below) and subtitle (`Theme.Typography.body`, `textSecondary`, `lineSpacing(3)`), each `.multilineTextAlignment(.leading)` + `.frame(maxWidth: .infinity, alignment: .leading)`, with the same on the outer VStack so the block spans the container left-aligned.
+- **Title size:** the header title uses a step-specific 28pt Fraunces SemiBold font (`titleFont`) — an override of the 32pt `Theme.Typography.onboardingHeader` token (same family + `.title` Dynamic Type relation, only the point size differs). The global token is left at 32pt for the Welcome hero and Completion screens, which still use it.
+- **Converted 16 question/input step views** to replace their duplicated inline `headerSection` (a centered `VStack` of two `Text`s) with `OnboardingStepHeader(...)`, keeping each call site's `.padding(.top, …)` and any dynamic partner-name interpolation in the title string: `OnboardingPartnerNameView`, `OnboardingTenureView`, `OnboardingCohabitationView` (title only), `OnboardingLocationView`, `OnboardingInterestsView`, `OnboardingDislikesView`, `OnboardingBirthdayView`, `OnboardingAnniversaryView`, `OnboardingHolidaysView` (keeps its "N selected" indicator as a leading-aligned sibling below the header), `OnboardingCustomMilestonesView`, `OnboardingVibesView`, `OnboardingJustBecauseBudgetView`, `OnboardingMinorOccasionBudgetView`, `OnboardingMajorMilestoneBudgetView`, `OnboardingPrimaryLoveLanguageView`, `OnboardingSecondaryLoveLanguageView`.
+- **Subtitle polish:** the Interests, Dislikes, and Vibes subtitles had a hard `\n` line break (a holdover from centered layout). Removed so the subtitle wraps naturally at full width, matching the Figma.
+- **Left centered (unchanged):** `OnboardingWelcomeView` (centered hero + animated couple illustration) and `OnboardingCompletionView` (centered "You're All Set!" celebration + summary cards) — these are hero/celebration archetypes, not section headers.
+- A few screens previously used `.foregroundStyle(.secondary)` for the subtitle; the shared component standardizes on `Theme.textSecondary`, which is the token the rest of the flow already used.
+
+**Tests:**
+- New `KnotTests/OnboardingStepHeaderTests.swift` (2 tests): render smoke tests for the shared header with a title + subtitle and with a title only — matching the `Steps/Shared/` component-test convention (`InterestListLayoutTests`, `RelationshipLengthModalTests`, `AnimatedCoupleIllustrationTests`). Full suite green, 0 failures.
+
+**Notes:**
+- Follows the same `Steps/Shared/` DRY pattern as `LoveLanguageCard` / `MilestonePickers` / `InterestListRow` / `RelationshipLengthModal` — one source of truth for the step header style.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

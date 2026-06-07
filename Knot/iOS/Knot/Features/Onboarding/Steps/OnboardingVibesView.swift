@@ -71,20 +71,13 @@ struct OnboardingVibesView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "their" : "\(name)'s"
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "their" : "\(name)'s"
 
-            Text("What's \(displayName) aesthetic?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-
-            Text("Choose vibes that match their style.\nThis shapes the look and feel of our suggestions.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingStepHeader(
+            title: "What's \(displayName) aesthetic?",
+            subtitle: "Choose vibes that match their style. This shapes the look and feel of our suggestions."
+        )
         .padding(.top, 4)
     }
 

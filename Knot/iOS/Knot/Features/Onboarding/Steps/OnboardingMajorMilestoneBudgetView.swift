@@ -54,18 +54,10 @@ struct OnboardingMajorMilestoneBudgetView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("And for major milestones?")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Birthdays, anniversaries, big holidays — set the range that feels right.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        OnboardingStepHeader(
+            title: "And for major milestones?",
+            subtitle: "Birthdays, anniversaries, big holidays — set the range that feels right."
+        )
         .padding(.top, 4)
     }
 }
