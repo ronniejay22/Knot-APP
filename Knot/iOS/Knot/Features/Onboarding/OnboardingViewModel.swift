@@ -160,6 +160,8 @@ final class OnboardingViewModel {
             return "Select \(remaining) more dislike\(remaining == 1 ? "" : "s") to continue."
         case .vibes:
             return "Pick at least 1 vibe to continue."
+        case .tenure:
+            return "Please set how long you've been together."
         case .birthday:
             return "Please set your partner's birthday."
         case .anniversary:
@@ -181,6 +183,11 @@ final class OnboardingViewModel {
 
     var partnerName: String = ""
     var relationshipTenureMonths: Int = 12
+    /// Whether the user has explicitly chosen a relationship length. The
+    /// tenure above carries a default, but the tenure step won't let the user
+    /// proceed until this flips true (via the stepper modal) so no length is
+    /// silently saved.
+    var hasSetTenure: Bool = false
     var cohabitationStatus: String = "living_together"
     var locationCity: String = ""
     var locationState: String = ""
@@ -558,6 +565,8 @@ final class OnboardingViewModel {
             }
         case .vibes:
             canProceed = selectedVibes.count >= Constants.Validation.minVibes
+        case .tenure:
+            canProceed = hasSetTenure
         case .birthday:
             canProceed = hasSetBirthday
         case .anniversary:
@@ -574,8 +583,8 @@ final class OnboardingViewModel {
             canProceed = !secondaryLoveLanguage.isEmpty
                 && secondaryLoveLanguage != primaryLoveLanguage
         default:
-            // welcome, tenure, cohabitation, holidays, completion all proceed
-            // freely (defaults or no validation needed).
+            // welcome, cohabitation, holidays, completion all proceed freely
+            // (defaults or no validation needed).
             canProceed = true
         }
     }

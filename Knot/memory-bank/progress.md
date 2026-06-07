@@ -6226,6 +6226,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.33 ✅ Relationship Length — Require an Explicit Selection
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** On the onboarding tenure step (Step 3, "How long have you and [partner] been together?"), stop pre-filling the Relationship Length field with "1 year, 0 months" — which let the user tap Next without ever opening the stepper, silently saving an unconfirmed default. The field now shows a placeholder and a "Required" badge, and Next stays disabled until a length is explicitly chosen. Mirrors the birthday treatment from Step 18.32.
+
+**What changed:**
+- **`Features/Onboarding/Steps/Shared/RelationshipLengthModal.swift`:** `RelationshipLengthField` gained three defaulted, opt-in parameters: `required: Bool` (renders `KnotBadge("Required", variant: .accent, size: .sm)` beside the label in an `HStack`), `hasSelection: Binding<Bool>?` (when non-nil and false, the field shows `placeholder` in `textTertiary` instead of the formatted tenure — the `isUnset` computed property), and `placeholder: String = "Select length"`. The modal's `onSave` now also flips `hasSelection?.wrappedValue = true`. All defaults preserve the prior always-filled behavior, so the Settings → Edit Profile call site (`EditBasicInfoSheet`) is unchanged.
+- **`OnboardingViewModel.swift`:** added `hasSetTenure: Bool = false`. `validateCurrentStep()` now gates `.tenure` on `hasSetTenure` (moved out of the freely-proceed `default` group), and `validationMessage` gained `case .tenure: "Please set how long you've been together."`.
+- **`OnboardingTenureView.swift`:** passes `required: true` and a `hasSetTenure` binding into `RelationshipLengthField`, and adds `.onChange(of: hasSetTenure)` to re-validate so Next enables immediately after Save. Preview sets `hasSetTenure = true`.
+
+**Tests:**
+- `KnotTests/OnboardingContainerViewTests.swift` `testPerStepValidationRules`: removed `.tenure` from the "defaults to canProceed" loop and added an explicit case — tenure requires `hasSetTenure`.
+- `KnotTests/RelationshipLengthModalTests.swift`: added `testFieldRendersRequiredPlaceholderState` (required + unset render smoke test).
+- Relevant suites green: `OnboardingContainerViewTests`, `RelationshipLengthRenderingTests`, `RelationshipTenureSummaryTests` — 17 tests pass, 0 failures.
+
+**Notes:**
+- The Edit Profile flow intentionally keeps the field pre-filled and unvalidated (an existing vault always has a tenure); the new behavior is onboarding-only via the opt-in params.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

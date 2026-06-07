@@ -15,15 +15,25 @@ struct OnboardingTenureView: View {
             VStack(spacing: 24) {
                 headerSection
 
-                RelationshipLengthField(months: Binding(
-                    get: { viewModel.relationshipTenureMonths },
-                    set: { viewModel.relationshipTenureMonths = $0 }
-                ))
+                RelationshipLengthField(
+                    months: Binding(
+                        get: { viewModel.relationshipTenureMonths },
+                        set: { viewModel.relationshipTenureMonths = $0 }
+                    ),
+                    required: true,
+                    hasSelection: Binding(
+                        get: { viewModel.hasSetTenure },
+                        set: { viewModel.hasSetTenure = $0 }
+                    )
+                )
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
         .onAppear {
+            viewModel.validateCurrentStep()
+        }
+        .onChange(of: viewModel.hasSetTenure) {
             viewModel.validateCurrentStep()
         }
     }
@@ -44,5 +54,6 @@ struct OnboardingTenureView: View {
     let vm = OnboardingViewModel()
     vm.partnerName = "Sarah"
     vm.relationshipTenureMonths = 30
+    vm.hasSetTenure = true
     return OnboardingTenureView().environment(vm)
 }

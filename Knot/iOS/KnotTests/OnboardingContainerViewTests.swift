@@ -119,12 +119,21 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // Tenure / Cohabitation / Holidays — defaulted, pass freely.
-        for step: OnboardingStep in [.tenure, .cohabitation, .holidays] {
+        // Cohabitation / Holidays — defaulted, pass freely.
+        for step: OnboardingStep in [.cohabitation, .holidays] {
             vm.currentStep = step
             vm.validateCurrentStep()
             XCTAssertTrue(vm.canProceed, "\(step) should default to canProceed")
         }
+
+        // Tenure — requires an explicit selection (no auto-default).
+        vm.currentStep = .tenure
+        vm.hasSetTenure = false
+        vm.validateCurrentStep()
+        XCTAssertFalse(vm.canProceed)
+        vm.hasSetTenure = true
+        vm.validateCurrentStep()
+        XCTAssertTrue(vm.canProceed)
 
         // Birthday — requires an explicit selection (no auto-default).
         vm.currentStep = .birthday

@@ -116,6 +116,18 @@ final class RelationshipLengthRenderingTests: XCTestCase {
         XCTAssertNotNil(hostingController.view, "RelationshipLengthField should render in dark mode")
     }
 
+    /// Required + unset: renders the placeholder/badge state without committing
+    /// a default tenure.
+    func testFieldRendersRequiredPlaceholderState() {
+        let view = RelationshipLengthField(
+            months: .constant(12),
+            required: true,
+            hasSelection: .constant(false)
+        )
+        let hostingController = UIHostingController(rootView: view)
+        XCTAssertNotNil(hostingController.view, "Required RelationshipLengthField should render its placeholder state")
+    }
+
     func testModalRenders() {
         let modal = RelationshipLengthModal(initialMonths: 30, onSave: { _ in }, onClose: {})
         let hostingController = UIHostingController(rootView: modal)

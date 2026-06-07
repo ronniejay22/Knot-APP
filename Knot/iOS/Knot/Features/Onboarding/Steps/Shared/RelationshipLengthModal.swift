@@ -49,20 +49,44 @@ struct RelationshipLengthField: View {
     /// to match the imported design.
     var label: String = "Relationship Length"
 
+    /// When true, a "Required" badge is shown beside the label.
+    var required: Bool = false
+
+    /// Whether the user has explicitly chosen a length. When provided and
+    /// `false`, the field shows `placeholder` and the modal opens at the
+    /// current `months` default without committing it until Save. When `nil`
+    /// the field always shows the formatted tenure (the Edit Profile flow).
+    var hasSelection: Binding<Bool>? = nil
+
+    /// Text shown in the field before a length is chosen.
+    var placeholder: String = "Select length"
+
     @State private var showingModal = false
+
+    /// True when an explicit selection is required but not yet made.
+    private var isUnset: Bool {
+        if let hasSelection { return !hasSelection.wrappedValue }
+        return false
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .knotFont(Theme.Typography.cta)
+            HStack(spacing: 8) {
+                Text(label)
+                    .knotFont(Theme.Typography.cta)
+
+                if required {
+                    KnotBadge("Required", variant: .accent, size: .sm)
+                }
+            }
 
             Button {
                 present()
             } label: {
                 HStack(spacing: 8) {
-                    Text(relationshipTenureSummary(months: months))
+                    Text(isUnset ? placeholder : relationshipTenureSummary(months: months))
                         .knotFont(Theme.Typography.body)
-                        .foregroundStyle(Theme.textPrimary)
+                        .foregroundStyle(isUnset ? Theme.textTertiary : Theme.textPrimary)
 
                     Spacer(minLength: 0)
 
@@ -90,6 +114,7 @@ struct RelationshipLengthField: View {
                 initialMonths: months,
                 onSave: { newMonths in
                     months = newMonths
+                    hasSelection?.wrappedValue = true
                     dismiss()
                 },
                 onClose: { dismiss() }
