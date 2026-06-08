@@ -69,7 +69,6 @@ enum BudgetTierConfig {
 struct BudgetTierSliderCard: View {
     let title: String
     let subtitle: String
-    let icon: UIImage
     let accent: Color
     let tier: BudgetTierConfig.Tier
     @Binding var minCents: Int
@@ -101,22 +100,12 @@ struct BudgetTierSliderCard: View {
 
     private var titleRow: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(accent.opacity(0.15))
-                .frame(width: 42, height: 42)
-                .overlay {
-                    Image(uiImage: icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-                        .foregroundStyle(accent)
-                }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Text(subtitle)
                     .knotFont(Theme.Typography.label)
@@ -129,6 +118,9 @@ struct BudgetTierSliderCard: View {
                 .knotFont(Theme.Typography.cta)
                 .monospacedDigit()
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+                .fixedSize()
+                .layoutPriority(1)
         }
     }
 
@@ -151,7 +143,6 @@ struct BudgetTierSliderCard: View {
             BudgetTierSliderCard(
                 title: "Just Because",
                 subtitle: "Spontaneous dates & small surprises",
-                icon: UIImage(systemName: "cup.and.saucer.fill") ?? UIImage(),
                 accent: Color(hue: 0.50, saturation: 0.45, brightness: 0.75),
                 tier: BudgetTierConfig.justBecause,
                 minCents: $minCents,

@@ -6294,6 +6294,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.36 ✅ Budget Cards — Remove Icon Badges & Lock Title to One Line
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** On the onboarding Budget step ("What feels right to spend?"), the "Major Milestone" tier title flipped between a two-line wrap and a truncated single line ("Major Miles…") while the range slider was dragged. The title row is an `HStack` (icon badge → title/subtitle → `Spacer()` → dynamic "$X – $Y+" readout); the 20pt Fraunces title didn't fit in the space left after the icon and price, and because neither the title nor the price `Text` had a `lineLimit`, each slider re-render made SwiftUI re-negotiate the row. Per user direction, the fix removes the icon badge from all three cards to free up width and locks the title to a single, non-truncating line.
+
+**What changed:**
+- **`Features/Onboarding/Steps/Shared/BudgetTierSliderCard.swift`:** removed the `let icon: UIImage` stored property and deleted the `Circle().overlay { Image(uiImage: icon) }` badge from `titleRow` — the row is now title/subtitle column → `Spacer()` → price readout. The title `Text` gained `.lineLimit(1)` + `.minimumScaleFactor(0.8)` (one line always; an imperceptible scale safety net only if a long title is still tight). The price readout gained `.lineLimit(1)` + `.fixedSize()` + `.layoutPriority(1)` so its re-render during a drag can't steal width from the title, keeping the layout stable. `accent` is retained (it still tints `BudgetRangeSlider`). The `#Preview` dropped its `icon:` argument.
+- **`Features/Onboarding/Steps/OnboardingBudgetView.swift`:** removed the three `icon: Lucide.coffee/.gift/.sparkles` arguments and the now-unused `import LucideIcons`.
+- **`Features/Settings/EditSheets/EditBudgetSheet.swift`:** same removal of the three `icon:` arguments and the now-unused `import LucideIcons`.
+
+**Tests:**
+- No test changes: `KnotTests` has no references to `BudgetTierSliderCard`, and `formatBudgetDollars`/`formatBudgetRange`/`BudgetSliderMath` are untouched. Build (iPhone 17 Pro simulator) and the full `KnotTests` suite pass.
+
+**Notes:**
+- This is a purely presentational change; the tier configuration, slider math, and persisted `*Min/*Max` cents are unchanged. The same card is shared by onboarding and Settings → Edit Budget, so both flows lose the icon badge together.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

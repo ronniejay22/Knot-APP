@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 struct EditBudgetSheet: View {
     @Environment(OnboardingViewModel.self) private var viewModel
@@ -26,7 +25,6 @@ struct EditBudgetSheet: View {
                     BudgetTierSliderCard(
                         title: "Just Because",
                         subtitle: "Spontaneous dates & small surprises",
-                        icon: Lucide.coffee,
                         accent: Color(hue: 0.50, saturation: 0.45, brightness: 0.75),
                         tier: BudgetTierConfig.justBecause,
                         minCents: $vm.justBecauseMin,
@@ -36,7 +34,6 @@ struct EditBudgetSheet: View {
                     BudgetTierSliderCard(
                         title: "Minor Occasion",
                         subtitle: "Smaller holidays & celebrations",
-                        icon: Lucide.gift,
                         accent: Color(hue: 0.08, saturation: 0.50, brightness: 0.85),
                         tier: BudgetTierConfig.minorOccasion,
                         minCents: $vm.minorOccasionMin,
@@ -46,7 +43,6 @@ struct EditBudgetSheet: View {
                     BudgetTierSliderCard(
                         title: "Major Milestone",
                         subtitle: "Birthdays, anniversaries & big holidays",
-                        icon: Lucide.sparkles,
                         accent: Theme.accent,
                         tier: BudgetTierConfig.majorMilestone,
                         minCents: $vm.majorMilestoneMin,
