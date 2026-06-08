@@ -52,6 +52,39 @@ final class InterestListLayoutTests: XCTestCase {
         XCTAssertNotNil(unselected.view)
     }
 
+    /// The shared row renders with a subtitle in both selected and unselected states.
+    func testInterestListRowRendersWithSubtitle() {
+        let selected = UIHostingController(
+            rootView: InterestListRow(
+                title: "Quiet Luxury",
+                iconName: "diamond",
+                subtitle: "Elegant & understated",
+                isSelected: true
+            ) {}
+        )
+        let unselected = UIHostingController(
+            rootView: InterestListRow(
+                title: "Outdoorsy",
+                iconName: "leaf.fill",
+                subtitle: "Nature & fresh air",
+                isSelected: false
+            ) {}
+        )
+        XCTAssertNotNil(selected.view)
+        XCTAssertNotNil(unselected.view)
+    }
+
+    /// The vibes screen renders without crashing in its new list layout.
+    func testVibesViewRenders() {
+        let vm = OnboardingViewModel()
+        vm.partnerName = "Alex"
+        vm.selectedVibes = ["quiet_luxury", "romantic"]
+        let host = UIHostingController(
+            rootView: OnboardingVibesView().environment(vm)
+        )
+        XCTAssertNotNil(host.view, "OnboardingVibesView should render in list layout")
+    }
+
     // MARK: - Selection still drives validation
 
     /// Selecting the minimum number of interests lets the interests step proceed.
@@ -83,5 +116,20 @@ final class InterestListLayoutTests: XCTestCase {
         )
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed, "At the minimum dislikes the step should allow proceeding")
+    }
+
+    /// Selecting at least one vibe lets the vibes step proceed.
+    func testVibeSelectionDrivesValidation() {
+        let vm = OnboardingViewModel()
+        vm.partnerName = "Alex"
+        vm.currentStep = .vibes
+
+        vm.selectedVibes = []
+        vm.validateCurrentStep()
+        XCTAssertFalse(vm.canProceed, "No vibes selected should block proceeding")
+
+        vm.selectedVibes = Set(Constants.vibeOptions.prefix(Constants.Validation.minVibes))
+        vm.validateCurrentStep()
+        XCTAssertTrue(vm.canProceed, "At the minimum vibes the step should allow proceeding")
     }
 }

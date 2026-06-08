@@ -6247,6 +6247,24 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.34 ✅ Aesthetic Vibes — Convert to the Shared List Experience
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Bring the onboarding Aesthetic Vibes step (Step 12, "What's [partner]'s aesthetic?") in line with the interests/dislikes screens by replacing its 2-column gradient card grid with the same scannable single-column list. Each vibe keeps its short description as a subtitle, and the icons move from Lucide to SF Symbols so the rows are visually identical to the interests/dislikes rows.
+
+**What changed:**
+- **`Features/Onboarding/Steps/Shared/InterestListRow.swift`:** added an optional, defaulted `subtitle: String? = nil` parameter (placed after `iconName`, so the title-only interests/dislikes call sites are unchanged). The label is now a leading `VStack(spacing: 2)` of the title plus, when a non-empty subtitle is supplied, a secondary line (`Theme.Typography.label`, `Theme.textSecondary`). Added a subtitle case to the `#Preview`.
+- **`Features/Onboarding/Steps/OnboardingVibesView.swift`:** swapped the `LazyVGrid`/`VibeCard` body for a `ScrollView { LazyVStack(spacing: 10) }` of `InterestListRow`s (title = `displayName(for:)`, subtitle = `vibeDescription(for:)`, icon = `vibeSymbol(for:)`), with `.padding(.horizontal, 24)` to match the header and the interests list. Removed the `columns` grid definition and the entire `private struct VibeCard`. Added a new SF Symbol mapping `vibeSymbol(for:) -> String` for the list rows (quiet_luxury → `diamond`, street_urban → `building.2.fill`, outdoorsy → `leaf.fill`, vintage → `clock.arrow.circlepath`, minimalist → `circle`, bohemian → `sun.max.fill`, romantic → `heart.fill`, adventurous → `safari`, default → `sparkles`). **Kept** the Lucide `vibeIcon(for:) -> UIImage` and `vibeGradient(for:) -> LinearGradient` static helpers (and `import LucideIcons`) — they are still consumed by `RecommendationsView` and `OnboardingCompletionView`, which render the gradient vibe cards and are out of scope for this change. The header, selection counter, `toggleVibe`, `displayName`/`vibeDescription`, validation hooks, and the three `#Preview`s are unchanged.
+
+**Tests:**
+- `KnotTests/InterestListLayoutTests.swift`: added `testInterestListRowRendersWithSubtitle` (subtitle row in both states), `testVibesViewRenders` (vibes screen renders in the list layout), and `testVibeSelectionDrivesValidation` (0 vibes blocks, ≥ `minVibes` allows proceeding).
+
+**Notes:**
+- Follows the same `Steps/Shared/` DRY pattern as `InterestListRow` / `OnboardingStepHeader`; the vibes step now shares the row component with interests/dislikes, so there is one source of truth for the list-row style.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

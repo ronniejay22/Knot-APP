@@ -6,6 +6,12 @@
 //  Step 3.1: Placeholder for onboarding Step 6 — Aesthetic Vibes.
 //  Step 3.6: Full implementation — dark-themed 2-column visual card grid
 //            with Lucide icons, descriptions, and multi-select (min 1, no max).
+//  Updated: The onboarding step itself converted to the shared vertical-list
+//           experience (`InterestListRow`) used by the interests/dislikes steps —
+//           SF Symbol icon chips (`vibeSymbol(for:)`) plus a description subtitle.
+//           The Lucide `vibeIcon(for:)` + `vibeGradient(for:)` helpers are kept
+//           for the Recommendations and Completion screens that still render the
+//           gradient vibe cards.
 //
 
 import SwiftUI
@@ -13,20 +19,19 @@ import LucideIcons
 
 /// Step 6: Select aesthetic vibes that describe the partner's style.
 ///
-/// Dark-themed screen with a 2-column grid of visual vibe cards. Each card
-/// displays a themed gradient background, a Lucide icon, the vibe display name,
-/// and a short description. The user must select at least 1 vibe (no maximum).
+/// Single-column vertical list of vibe rows, matching the onboarding
+/// interests/dislikes screens. Each row shows an SF Symbol icon chip, the vibe
+/// display name, and a short description subtitle. The user must select at
+/// least 1 vibe (no maximum).
 ///
 /// Features:
 /// - Personalized title using the partner's name from Step 3.2
-/// - 2-column grid of 8 vibe cards with unique gradients and Lucide icons
+/// - Vertical list of 8 vibe rows (`InterestListRow`) with SF Symbol icons
 /// - Selection counter showing "X selected" with checkmark when at least 1 chosen
 /// - No maximum limit — all 8 vibes can be selected
-/// - Pink border + checkmark badge for selected state
+/// - Accent border + checkmark for selected state
 struct OnboardingVibesView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,23 +40,21 @@ struct OnboardingVibesView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
 
-            // MARK: - Card Grid
+            // MARK: - Vibe List
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(Constants.vibeOptions, id: \.self) { vibe in
-                        VibeCard(
-                            vibe: vibe,
-                            displayName: Self.displayName(for: vibe),
-                            description: Self.vibeDescription(for: vibe),
-                            icon: Self.vibeIcon(for: vibe),
-                            gradient: Self.vibeGradient(for: vibe),
+                        InterestListRow(
+                            title: Self.displayName(for: vibe),
+                            iconName: Self.vibeSymbol(for: vibe),
+                            subtitle: Self.vibeDescription(for: vibe),
                             isSelected: viewModel.selectedVibes.contains(vibe)
                         ) {
                             toggleVibe(vibe)
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 24)
                 .padding(.bottom, 16)
             }
 
@@ -146,9 +149,28 @@ struct OnboardingVibesView: View {
         return descriptions[vibe] ?? ""
     }
 
-    // MARK: - Lucide Icons
+    // MARK: - Vibe Symbols (list rows)
 
-    /// Maps each vibe to a Lucide icon.
+    /// Maps each vibe to an SF Symbol, matching the icon-chip style used by the
+    /// interests/dislikes list rows. Used by the onboarding step's `InterestListRow`s.
+    static func vibeSymbol(for vibe: String) -> String {
+        switch vibe {
+        case "quiet_luxury": return "diamond"
+        case "street_urban": return "building.2.fill"
+        case "outdoorsy":    return "leaf.fill"
+        case "vintage":      return "clock.arrow.circlepath"
+        case "minimalist":   return "circle"
+        case "bohemian":     return "sun.max.fill"
+        case "romantic":     return "heart.fill"
+        case "adventurous":  return "safari"
+        default:             return "sparkles"
+        }
+    }
+
+    // MARK: - Lucide Icons (gradient cards)
+
+    /// Maps each vibe to a Lucide icon. Used by the Recommendations and
+    /// Completion screens that still render the gradient vibe cards.
     static func vibeIcon(for vibe: String) -> UIImage {
         switch vibe {
         case "quiet_luxury": return Lucide.gem
@@ -166,6 +188,7 @@ struct OnboardingVibesView: View {
     // MARK: - Card Gradients
 
     /// Generates a themed gradient for each vibe with a unique color palette.
+    /// Used by the Recommendations and Completion gradient vibe cards.
     static func vibeGradient(for vibe: String) -> LinearGradient {
         let colors: (Color, Color) = {
             switch vibe {
@@ -222,110 +245,6 @@ struct OnboardingVibesView: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-    }
-}
-
-// MARK: - Vibe Card
-
-/// A visual card representing a single aesthetic vibe option.
-///
-/// Displays a themed gradient background with a centered Lucide icon,
-/// the vibe display name, and a short description. Larger than interest cards
-/// since there are only 8 vibes (2-column grid vs 3-column).
-///
-/// Visual states:
-/// - **Unselected:** Gradient background, semi-transparent icon, white text
-/// - **Selected:** Pink border, checkmark badge in top-right corner, slight scale-up
-private struct VibeCard: View {
-    let vibe: String
-    let displayName: String
-    let description: String
-    let icon: UIImage
-    let gradient: LinearGradient
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Gradient background
-                gradient
-
-                // Dark overlay for text readability
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.40)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Large Lucide icon (centered, semi-transparent)
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 36, height: 36)
-                    .foregroundStyle(.white.opacity(0.18))
-                    .offset(x: 30, y: -20)
-
-                // Content — vibe name + description at bottom-left
-                VStack(alignment: .leading, spacing: 4) {
-                    Spacer()
-
-                    // Lucide icon (small, above name)
-                    Image(uiImage: icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(.white.opacity(0.85))
-
-                    Text(displayName)
-                        .knotFont(Theme.Typography.cardTitle)
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-
-                    Text(description)
-                        .knotFont(Theme.Typography.label)
-                        .foregroundStyle(.white.opacity(0.70))
-                        .shadow(color: .black.opacity(0.4), radius: 1, x: 0, y: 1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-
-                // Selection checkmark badge — top-right
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Circle()
-                                .fill(Color.pink)
-                                .frame(width: 26, height: 26)
-                                .overlay {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                                .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
-                        }
-                        Spacer()
-                    }
-                    .padding(10)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .aspectRatio(1.25, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        isSelected ? Color.pink : Color.white.opacity(0.06),
-                        lineWidth: isSelected ? 2.5 : 0.5
-                    )
-            )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.25), value: isSelected)
     }
 }
 

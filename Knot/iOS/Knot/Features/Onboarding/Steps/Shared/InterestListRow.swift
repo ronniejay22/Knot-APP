@@ -21,6 +21,9 @@ struct InterestListRow: View {
     let title: String
     /// SF Symbol name, from `OnboardingInterestsView.iconName(for:)`.
     let iconName: String
+    /// Optional secondary line shown beneath the title (e.g. a vibe description).
+    /// Interests/dislikes leave this `nil`, rendering a title-only row.
+    var subtitle: String? = nil
     let isSelected: Bool
     let action: () -> Void
 
@@ -38,9 +41,17 @@ struct InterestListRow: View {
                         .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                 }
 
-                Text(title)
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .knotFont(Theme.Typography.cta)
+                        .foregroundStyle(Theme.textPrimary)
+
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .knotFont(Theme.Typography.label)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
 
                 Spacer(minLength: 0)
 
@@ -77,6 +88,12 @@ struct InterestListRow: View {
         InterestListRow(title: "Travel", iconName: "airplane", isSelected: true) {}
         InterestListRow(title: "Cooking", iconName: "flame.fill", isSelected: false) {}
         InterestListRow(title: "Movies", iconName: "film", isSelected: false) {}
+        InterestListRow(
+            title: "Quiet Luxury",
+            iconName: "diamond",
+            subtitle: "Elegant & understated",
+            isSelected: true
+        ) {}
     }
     .padding(24)
     .background(Theme.backgroundGradient)
