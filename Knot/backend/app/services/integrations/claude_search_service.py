@@ -20,6 +20,7 @@ from typing import Any, Optional
 import httpx
 from anthropic import AsyncAnthropic
 
+from app.agents.state import UNLIMITED_BUDGET_MAX_CENTS
 from app.core.config import (
     ANTHROPIC_API_KEY,
     BRAVE_SEARCH_API_KEY,
@@ -90,7 +91,11 @@ def _build_search_queries(
     """
     city, state, country = location
     location_str = ", ".join(p for p in (city, state) if p) or "United States"
+    # When the max is the "no upper limit" sentinel, omit the "under $X"
+    # qualifier so we don't search for "gifts under $1,000,000".
+    budget_uncapped = budget_range[1] >= UNLIMITED_BUDGET_MAX_CENTS
     budget_max_dollars = budget_range[1] / 100
+    budget_qualifier = "" if budget_uncapped else f" under ${budget_max_dollars:.0f}"
     occasion_mod = OCCASION_MODIFIERS.get(occasion_type, "")
     vibe_terms = " ".join(
         VIBE_SEARCH_TERMS.get(v, "") for v in vibes[:2]
@@ -100,7 +105,7 @@ def _build_search_queries(
 
     # 1. Gift queries from top interests (2-3 queries)
     for interest in interests[:3]:
-        q = f"best {occasion_mod} {interest.lower()} gifts under ${budget_max_dollars:.0f}"
+        q = f"best {occasion_mod} {interest.lower()} gifts{budget_qualifier}"
         if vibe_terms:
             q += f" {vibe_terms} style"
         queries.append({"query": q, "search_type": "gift"})
@@ -109,7 +114,7 @@ def _build_search_queries(
     if city:
         vibe_desc = vibe_terms or "fun unique"
         queries.append({
-            "query": f"best {vibe_desc} date ideas in {location_str} under ${budget_max_dollars:.0f}",
+            "query": f"best {vibe_desc} date ideas in {location_str}{budget_qualifier}",
             "search_type": "date",
         })
         queries.append({
@@ -248,7 +253,10 @@ def _build_extraction_prompt(
 ) -> str:
     """Build the user prompt for Claude to extract candidates from search results."""
     budget_min_dollars = budget_range[0] / 100
-    budget_max_dollars = budget_range[1] / 100
+    if budget_range[1] >= UNLIMITED_BUDGET_MAX_CENTS:
+        budget_line = f"${budget_min_dollars:.0f} and up"
+    else:
+        budget_line = f"${budget_min_dollars:.0f} - ${budget_range[1] / 100:.0f}"
 
     results_text = ""
     for i, r in enumerate(search_results, 1):
@@ -267,7 +275,7 @@ Context:
 - Aesthetic vibes: {', '.join(vibes)}
 - Location: {location_str}
 - Occasion: {occasion_type}
-- Budget: ${budget_min_dollars:.0f} - ${budget_max_dollars:.0f}
+- Budget: {budget_line}
 """
 
     if hints:

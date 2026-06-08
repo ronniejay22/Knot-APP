@@ -21,6 +21,14 @@ from pydantic import BaseModel, Field
 from app.models.feedback_analysis import UserPreferencesWeights
 
 
+# Sentinel max_amount (cents) representing "no upper limit". The client stores
+# this when the budget slider's max thumb is at the open-ended top stop. Mirror
+# of `BudgetTierConfig.unlimitedMaxCents` on iOS. A value at/above this is
+# treated as "uncapped" for prompt rendering (the price filter naturally allows
+# anything below it).
+UNLIMITED_BUDGET_MAX_CENTS = 100_000_000
+
+
 # ======================================================================
 # Sub-models: Vault profile data
 # ======================================================================

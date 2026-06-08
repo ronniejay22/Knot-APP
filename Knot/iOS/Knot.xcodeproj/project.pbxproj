@@ -28,11 +28,11 @@
 		14D42AECDFF7278AF328FAA6 /* RecommendationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */; };
 		165A8F6527B1F20D47746B69 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */; };
 		168A8F125687F66E13CCD309 /* KnotListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF842D5AE22164C7C51BADC0 /* KnotListRow.swift */; };
-		17E347848C145FDD3DC07204 /* OnboardingMajorMilestoneBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF991DCEDEFEBFAD42DB2B67 /* OnboardingMajorMilestoneBudgetView.swift */; };
 		19846ADF1D0701CD4F2F93C9 /* OnboardingContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3B473EB33D90B1F3C92FA0 /* OnboardingContainerView.swift */; };
 		1A07C11CED68F4EE4C1CF0A3 /* ForYouViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF18BBEA2845B8FD5BED711 /* ForYouViewModelTests.swift */; };
 		1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */; };
 		20F5F8C787700176C7A83296 /* KnotBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E66C0B47ACDE0BD4A7E6BA5 /* KnotBadge.swift */; };
+		21AC0A3B7B2A0C0D3FAC50CE /* OnboardingBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */; };
 		221D63C98DC7F9529455B97A /* KnotBadgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E67470A9F668B0E113298E /* KnotBadgeTests.swift */; };
 		22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */; };
 		2320F84E7581775AE98DBDF9 /* HintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DD62D4760696C298A091D4 /* HintService.swift */; };
@@ -62,6 +62,7 @@
 		4F11E62B42F6B6D67F9C7EA0 /* KnotIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914FECBA760D35D7247CEEA4 /* KnotIconButton.swift */; };
 		4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */; };
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
+		524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */; };
 		5372989409F891880F3CDC5B /* OnboardingSecondaryLoveLanguageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */; };
 		54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5C280C9E2257F8A526806C /* KnotInput.swift */; };
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
@@ -80,7 +81,6 @@
 		743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2218310C657F62A45F2B93C6 /* MilestonesManagementView.swift */; };
 		760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */; };
 		764D00845275A66B57ED1168 /* OnboardingDislikesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */; };
-		77A0FD692D026B6F8CF18ED4 /* OnboardingJustBecauseBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9768557D7F86604EE78C91E6 /* OnboardingJustBecauseBudgetView.swift */; };
 		7945CB75D93045A1AF23CFB1 /* MilestoneService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6882D8537794629538474FA1 /* MilestoneService.swift */; };
 		79E843E0017B21A9C7E2769E /* DMSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 499C780CDB2EA93A0BB3DF18 /* DMSans-Regular.ttf */; };
 		7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */; };
@@ -111,18 +111,18 @@
 		B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */; };
 		B74AF2D2AFB98ECFC5631CC3 /* ThemeTokensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C8EF2118B994A6892D3A66 /* ThemeTokensTests.swift */; };
 		B78A0ACB9F0DF225A170A72A /* KnotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF95CBBB1655CB14B054EE0 /* KnotUITests.swift */; };
+		B85D84F22A5ED86F5CF927B0 /* BudgetRangeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */; };
 		BA0F0F182E850CF45B99F2D1 /* KnotProgressIndicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3344E208921ACDD3D2B3191A /* KnotProgressIndicatorTests.swift */; };
 		BB1BF9D7EFDB096248E5F005 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1541CF32446B10AE48A6B /* AuthViewModel.swift */; };
-		BC3A351371E266D80DD0C295 /* OnboardingMinorOccasionBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A27C588D5C4E2DF360D4D7 /* OnboardingMinorOccasionBudgetView.swift */; };
 		BCC92B5D905F1D7F384E7E4E /* PDFExportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2C3C3C2E3D4C654663EA5C /* PDFExportRenderer.swift */; };
 		BCD0809721CB1FE2E93FDB03 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7D2C17D189446F4586EF2 /* ExportService.swift */; };
 		BD8620E466755ABD2D40FA83 /* MilestonePickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05B936676B8BE236E4B5665 /* MilestonePickers.swift */; };
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
 		C11FDDA590E4984354043118 /* RelationshipLengthModalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5015F04947428A3CCD23BE62 /* RelationshipLengthModalTests.swift */; };
 		C680BA7B1788FC22A44FC074 /* DMSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */; };
-		D079C687466F2725E710D465 /* BudgetTierCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
 		D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */; };
+		D1E38DC90E073BBDE6B134D7 /* BudgetRangeSliderMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96B2B980EF9DED7D4AB9A79 /* BudgetRangeSliderMathTests.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
 		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
 		DA3F459CB98EBDA8B0FBCB2C /* ForYouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0CC323FB5ADE12F70A632E /* ForYouView.swift */; };
@@ -193,6 +193,7 @@
 		2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSecondaryLoveLanguageView.swift; sourceTree = "<group>"; };
 		2DB2C0E473B2693C71D80BC2 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditMilestonesSheet.swift; sourceTree = "<group>"; };
+		2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBudgetView.swift; sourceTree = "<group>"; };
 		2E3B473EB33D90B1F3C92FA0 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		3344E208921ACDD3D2B3191A /* KnotProgressIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicatorTests.swift; sourceTree = "<group>"; };
 		3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
@@ -250,9 +251,7 @@
 		91DD62D4760696C298A091D4 /* HintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintService.swift; sourceTree = "<group>"; };
 		93D78112D68DB3912DFC57EB /* KnotCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCardTests.swift; sourceTree = "<group>"; };
 		9576279FACB0210014A38F96 /* MilestoneLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneLocal.swift; sourceTree = "<group>"; };
-		9768557D7F86604EE78C91E6 /* OnboardingJustBecauseBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingJustBecauseBudgetView.swift; sourceTree = "<group>"; };
 		98A9210BC3C12D656CB34484 /* SavedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedView.swift; sourceTree = "<group>"; };
-		998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierCard.swift; sourceTree = "<group>"; };
 		99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantHandoffTests.swift; sourceTree = "<group>"; };
 		99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsViewTests.swift; sourceTree = "<group>"; };
 		99E67470A9F668B0E113298E /* KnotBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotBadgeTests.swift; sourceTree = "<group>"; };
@@ -276,7 +275,9 @@
 		CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAnniversaryView.swift; sourceTree = "<group>"; };
 		CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerViewTests.swift; sourceTree = "<group>"; };
 		D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCard.swift; sourceTree = "<group>"; };
+		D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierSliderCard.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSlider.swift; sourceTree = "<group>"; };
 		DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBar.swift; sourceTree = "<group>"; };
 		DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E17D5A111778A9DEA39F388A /* AnimatedCoupleIllustrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedCoupleIllustrationTests.swift; sourceTree = "<group>"; };
@@ -286,7 +287,6 @@
 		E529A365072848BDDB2D5608 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E5FBFBD59619A963A80CB4E0 /* InterestListLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestListLayoutTests.swift; sourceTree = "<group>"; };
 		E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Medium.ttf"; sourceTree = "<group>"; };
-		E7A27C588D5C4E2DF360D4D7 /* OnboardingMinorOccasionBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingMinorOccasionBudgetView.swift; sourceTree = "<group>"; };
 		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E8C8988390613CAAE41FFF2A /* OnboardingHolidaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingHolidaysView.swift; sourceTree = "<group>"; };
 		E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
@@ -296,12 +296,12 @@
 		EDA1C8294A683DC8D8ACF90B /* LocationSearchCompleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSearchCompleter.swift; sourceTree = "<group>"; };
 		F05B936676B8BE236E4B5665 /* MilestonePickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestonePickers.swift; sourceTree = "<group>"; };
 		F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf"; sourceTree = "<group>"; };
+		F96B2B980EF9DED7D4AB9A79 /* BudgetRangeSliderMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSliderMathTests.swift; sourceTree = "<group>"; };
 		FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
 		FD6ED0CB18062570291BACCB /* EditBasicInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditBasicInfoSheet.swift; sourceTree = "<group>"; };
 		FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsViewModel.swift; sourceTree = "<group>"; };
 		FE4C79FC327A17CD5D429407 /* DMSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Bold.ttf"; sourceTree = "<group>"; };
-		FF991DCEDEFEBFAD42DB2B67 /* OnboardingMajorMilestoneBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingMajorMilestoneBudgetView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -405,7 +405,8 @@
 			isa = PBXGroup;
 			children = (
 				0C4978321ECE51803BCF1427 /* AnimatedCoupleIllustration.swift */,
-				998ADAEB40B84CC60D3E3B5F /* BudgetTierCard.swift */,
+				DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */,
+				D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */,
 				A932CC2FBD754E6625A3E2BC /* InterestListRow.swift */,
 				72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */,
 				5F33C4BA9B9774419EE06AF2 /* MilestoneDateModal.swift */,
@@ -469,16 +470,14 @@
 				4604556E24420117821D4B6F /* Shared */,
 				CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */,
 				48BEC7B93990DCC896576B89 /* OnboardingBirthdayView.swift */,
+				2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */,
 				4A3695BA9DDC287A5A57B020 /* OnboardingCohabitationView.swift */,
 				CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */,
 				71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */,
 				62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */,
 				E8C8988390613CAAE41FFF2A /* OnboardingHolidaysView.swift */,
 				8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */,
-				9768557D7F86604EE78C91E6 /* OnboardingJustBecauseBudgetView.swift */,
 				EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */,
-				FF991DCEDEFEBFAD42DB2B67 /* OnboardingMajorMilestoneBudgetView.swift */,
-				E7A27C588D5C4E2DF360D4D7 /* OnboardingMinorOccasionBudgetView.swift */,
 				0EEA2AB2842B17EB2E0B0CAD /* OnboardingPartnerNameView.swift */,
 				79E0578B5B4BA8997C736757 /* OnboardingPrimaryLoveLanguageView.swift */,
 				2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */,
@@ -652,6 +651,7 @@
 			children = (
 				C3C7EABC7D0FC50070301E1A /* Components */,
 				E17D5A111778A9DEA39F388A /* AnimatedCoupleIllustrationTests.swift */,
+				F96B2B980EF9DED7D4AB9A79 /* BudgetRangeSliderMathTests.swift */,
 				4B7F67A602F7AA6991611684 /* CustomInterestFlowTests.swift */,
 				1BF18BBEA2845B8FD5BED711 /* ForYouViewModelTests.swift */,
 				2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */,
@@ -815,6 +815,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7CDA2F00D18292BD74F68435 /* AnimatedCoupleIllustrationTests.swift in Sources */,
+				D1E38DC90E073BBDE6B134D7 /* BudgetRangeSliderMathTests.swift in Sources */,
 				011E1518B7BAAF428484100D /* CustomInterestFlowTests.swift in Sources */,
 				1A07C11CED68F4EE4C1CF0A3 /* ForYouViewModelTests.swift in Sources */,
 				0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */,
@@ -860,7 +861,8 @@
 				D155E9C636CA5A53E9C0CEEA /* AppDelegate.swift in Sources */,
 				3F5DBBCC7D3535B153EF65D8 /* AppReviewPromptSheet.swift in Sources */,
 				BB1BF9D7EFDB096248E5F005 /* AuthViewModel.swift in Sources */,
-				D079C687466F2725E710D465 /* BudgetTierCard.swift in Sources */,
+				B85D84F22A5ED86F5CF927B0 /* BudgetRangeSlider.swift in Sources */,
+				524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */,
 				06C72BD05C0E2E648E681C6B /* Constants.swift in Sources */,
 				80FEF8E6EB94CEEDF05C648A /* ContentView.swift in Sources */,
 				D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */,
@@ -912,6 +914,7 @@
 				07F8A133AEC890D6F2B20EC8 /* NotificationsViewModel.swift in Sources */,
 				5C606FA18835044C2DAD3DA4 /* OnboardingAnniversaryView.swift in Sources */,
 				4C56400A123060F4311F9203 /* OnboardingBirthdayView.swift in Sources */,
+				21AC0A3B7B2A0C0D3FAC50CE /* OnboardingBudgetView.swift in Sources */,
 				0368A6F5F789682DEE58F0C1 /* OnboardingCohabitationView.swift in Sources */,
 				70E8556AAF899368A188BFDC /* OnboardingCompletionView.swift in Sources */,
 				19846ADF1D0701CD4F2F93C9 /* OnboardingContainerView.swift in Sources */,
@@ -919,10 +922,7 @@
 				764D00845275A66B57ED1168 /* OnboardingDislikesView.swift in Sources */,
 				37708E89FDD983424E4D77BF /* OnboardingHolidaysView.swift in Sources */,
 				7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */,
-				77A0FD692D026B6F8CF18ED4 /* OnboardingJustBecauseBudgetView.swift in Sources */,
 				760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */,
-				17E347848C145FDD3DC07204 /* OnboardingMajorMilestoneBudgetView.swift in Sources */,
-				BC3A351371E266D80DD0C295 /* OnboardingMinorOccasionBudgetView.swift in Sources */,
 				25EBD64F244E63B2453EE6A8 /* OnboardingPartnerNameView.swift in Sources */,
 				0AE79C4674BEBA2701204DA5 /* OnboardingPrimaryLoveLanguageView.swift in Sources */,
 				5372989409F891880F3CDC5B /* OnboardingSecondaryLoveLanguageView.swift in Sources */,

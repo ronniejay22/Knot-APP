@@ -320,9 +320,13 @@ final class PDFExportRenderer: NSObject, WKNavigationDelegate {
             html += "<table><tr><th>Occasion</th><th>Range</th></tr>"
             for budget in vault.budgets {
                 let min = formatPrice(cents: budget.minAmount, currency: budget.currency)
-                let max = formatPrice(cents: budget.maxAmount, currency: budget.currency)
+                // An at/above-sentinel max means "no upper limit" — render it as
+                // such instead of a literal "$1,000,000".
+                let range = budget.maxAmount >= BudgetTierConfig.unlimitedMaxCents
+                    ? "\(min) and up"
+                    : "\(min) – \(formatPrice(cents: budget.maxAmount, currency: budget.currency))"
                 html += "<tr><td>\(escapeHTML(formatSnakeCase(budget.occasionType)))</td>"
-                html += "<td>\(escapeHTML(min)) – \(escapeHTML(max))</td></tr>"
+                html += "<td>\(escapeHTML(range))</td></tr>"
             }
             html += "</table>"
         }

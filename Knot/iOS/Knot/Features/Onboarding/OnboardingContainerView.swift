@@ -225,12 +225,8 @@ struct OnboardingContainerView: View {
             OnboardingCustomMilestonesView()
         case .vibes:
             OnboardingVibesView()
-        case .budgetJustBecause:
-            OnboardingJustBecauseBudgetView()
-        case .budgetMinorOccasion:
-            OnboardingMinorOccasionBudgetView()
-        case .budgetMajorMilestone:
-            OnboardingMajorMilestoneBudgetView()
+        case .budget:
+            OnboardingBudgetView()
         case .primaryLoveLanguage:
             OnboardingPrimaryLoveLanguageView()
         case .secondaryLoveLanguage:

@@ -180,6 +180,27 @@ class TestBuildUserPrompt:
         assert "$50" in prompt
         assert "$150" in prompt
 
+    def test_prompt_renders_unlimited_budget_as_open_ended(self):
+        """A sentinel max ("no upper limit") renders as "$X and up", not "$1,000,000"."""
+        from app.agents.state import UNLIMITED_BUDGET_MAX_CENTS
+
+        vault = _sample_vault_data()
+        budget = BudgetRange(
+            min_amount=5000,
+            max_amount=UNLIMITED_BUDGET_MAX_CENTS,
+            currency="USD",
+        )
+        prompt = _build_user_prompt(
+            vault_data=vault,
+            hints=[],
+            occasion_type="major_milestone",
+            budget_range=budget,
+        )
+        assert "$50 and up" in prompt
+        # The raw sentinel must not leak into the prompt as a literal dollar amount.
+        assert "1000000" not in prompt
+        assert "1,000,000" not in prompt
+
     def test_prompt_includes_exclusion_list(self):
         vault = _sample_vault_data()
         prompt = _build_user_prompt(

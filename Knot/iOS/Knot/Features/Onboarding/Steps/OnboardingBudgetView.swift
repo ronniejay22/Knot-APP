@@ -1,16 +1,16 @@
 //
-//  EditBudgetSheet.swift
+//  OnboardingBudgetView.swift
 //  Knot
 //
-//  Edit-only composite that surfaces all three budget tiers in one screen.
-//  Used by the Settings → Edit Vault flow. Onboarding uses the per-tier
-//  one-question-per-screen views instead.
+//  Single consolidated budget step: all three tiers (Just Because, Minor
+//  Occasion, Major Milestone) on one page, each with a dual-thumb range slider.
+//  Replaces the former three per-tier screens.
 //
 
 import SwiftUI
 import LucideIcons
 
-struct EditBudgetSheet: View {
+struct OnboardingBudgetView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     var body: some View {
@@ -63,26 +63,19 @@ struct EditBudgetSheet: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.isEmpty ? "your partner" : name
+        let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = name.isEmpty ? "your partner" : name
 
-            Text("Budget for \(displayName)")
-                .knotFont(Theme.Typography.sectionHeader)
-                .foregroundStyle(Theme.textPrimary)
-
-            Text("Set comfortable spending ranges\nfor each type of occasion.")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
+        return OnboardingStepHeader(
+            title: "What feels right to spend?",
+            subtitle: "Set a comfortable range for each kind of occasion with \(displayName)."
+        )
         .padding(.top, 4)
     }
 }
 
-#Preview("Default") {
-    EditBudgetSheet()
+#Preview {
+    OnboardingBudgetView()
         .background(Theme.backgroundGradient.ignoresSafeArea())
         .environment(OnboardingViewModel())
 }

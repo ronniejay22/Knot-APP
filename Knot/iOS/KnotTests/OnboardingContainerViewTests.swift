@@ -17,9 +17,9 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 18 distinct steps.
-    func testOnboardingStepHasEighteenSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 18)
+    /// Asserts the onboarding flow currently has 16 distinct steps.
+    func testOnboardingStepHasSixteenSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 16)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
@@ -180,8 +180,8 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // Budget tier screens — max must be >= min.
-        vm.currentStep = .budgetJustBecause
+        // Budget — the single consolidated step requires every tier's max >= min.
+        vm.currentStep = .budget
         vm.justBecauseMin = 5000
         vm.justBecauseMax = 4000
         vm.validateCurrentStep()

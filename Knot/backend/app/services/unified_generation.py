@@ -21,6 +21,7 @@ from typing import Any, Optional
 from anthropic import AsyncAnthropic
 
 from app.agents.state import (
+    UNLIMITED_BUDGET_MAX_CENTS,
     BudgetRange,
     CandidateRecommendation,
     LocationData,
@@ -182,11 +183,16 @@ def _build_user_prompt(
         tenure_str = f"{years} year(s), {months} month(s)" if years else f"{months} month(s)"
         parts.append(f"Together for: {tenure_str}")
 
-    # Budget
+    # Budget. A max at/above the sentinel means the user chose "no upper
+    # limit", so render it as an open-ended range rather than a literal
+    # (and misleading) "$1,000,000".
     budget_min = budget_range.min_amount / 100
-    budget_max = budget_range.max_amount / 100
     parts.append(f"\n=== BUDGET ===")
-    parts.append(f"Range: ${budget_min:.0f} - ${budget_max:.0f} {budget_range.currency}")
+    if budget_range.max_amount >= UNLIMITED_BUDGET_MAX_CENTS:
+        parts.append(f"Range: ${budget_min:.0f} and up {budget_range.currency}")
+    else:
+        budget_max = budget_range.max_amount / 100
+        parts.append(f"Range: ${budget_min:.0f} - ${budget_max:.0f} {budget_range.currency}")
     parts.append("Purchasable items should fall within this budget range.")
     parts.append("Ideas can be free or low-cost — no budget constraint for ideas.")
 

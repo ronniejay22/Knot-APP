@@ -68,12 +68,10 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case holidays = 9
     case customMilestones = 10
     case vibes = 11
-    case budgetJustBecause = 12
-    case budgetMinorOccasion = 13
-    case budgetMajorMilestone = 14
-    case primaryLoveLanguage = 15
-    case secondaryLoveLanguage = 16
-    case completion = 17
+    case budget = 12
+    case primaryLoveLanguage = 13
+    case secondaryLoveLanguage = 14
+    case completion = 15
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -86,7 +84,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .dislikes: return "Dislikes"
         case .birthday, .anniversary, .holidays, .customMilestones: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
-        case .budgetJustBecause, .budgetMinorOccasion, .budgetMajorMilestone: return "Budget"
+        case .budget: return "Budget"
         case .primaryLoveLanguage, .secondaryLoveLanguage: return "Love Languages"
         case .completion: return "All Set!"
         }
@@ -168,7 +166,7 @@ final class OnboardingViewModel {
             return "Set the anniversary date or turn off the toggle."
         case .customMilestones:
             return "Custom milestone names can't be empty."
-        case .budgetJustBecause, .budgetMinorOccasion, .budgetMajorMilestone:
+        case .budget:
             return "Maximum budget must be at least the minimum."
         case .primaryLoveLanguage:
             return "Choose your partner's primary love language."
@@ -334,14 +332,6 @@ final class OnboardingViewModel {
     var minorOccasionMax: Int = 15000  // cents
     var majorMilestoneMin: Int = 10000 // cents
     var majorMilestoneMax: Int = 50000 // cents
-
-    /// Selected budget range IDs per tier (e.g., "2000-5000").
-    /// The budget view supports multi-select — the effective min/max
-    /// above are computed as min(selected mins) / max(selected maxes).
-    /// Stored here so selections persist when navigating between steps.
-    var justBecauseRanges: Set<String> = ["2000-5000"]
-    var minorOccasionRanges: Set<String> = ["5000-15000"]
-    var majorMilestoneRanges: Set<String> = ["10000-50000"]
 
     // MARK: - Love Languages (Step 3.8)
 
@@ -571,12 +561,10 @@ final class OnboardingViewModel {
             canProceed = hasSetBirthday
         case .anniversary:
             canProceed = !hasAnniversary || hasSetAnniversary
-        case .budgetJustBecause:
+        case .budget:
             canProceed = justBecauseMax >= justBecauseMin
-        case .budgetMinorOccasion:
-            canProceed = minorOccasionMax >= minorOccasionMin
-        case .budgetMajorMilestone:
-            canProceed = majorMilestoneMax >= majorMilestoneMin
+                && minorOccasionMax >= minorOccasionMin
+                && majorMilestoneMax >= majorMilestoneMin
         case .primaryLoveLanguage:
             canProceed = !primaryLoveLanguage.isEmpty
         case .secondaryLoveLanguage:

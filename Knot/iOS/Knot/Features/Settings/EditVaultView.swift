@@ -290,11 +290,9 @@ struct EditVaultView: View {
     }
 
     private func budgetSubtitle(vm: OnboardingViewModel) -> String {
-        let jbMin = vm.justBecauseMin / 100
-        let jbMax = vm.justBecauseMax / 100
-        let mmMin = vm.majorMilestoneMin / 100
-        let mmMax = vm.majorMilestoneMax / 100
-        return "$\(jbMin)–$\(jbMax) casual · $\(mmMin)–$\(mmMax) major"
+        let casual = formatBudgetRange(minCents: vm.justBecauseMin, maxCents: vm.justBecauseMax)
+        let major = formatBudgetRange(minCents: vm.majorMilestoneMin, maxCents: vm.majorMilestoneMax)
+        return "\(casual) casual · \(major) major"
     }
 
     private func loveLanguagesSubtitle(vm: OnboardingViewModel) -> String {
@@ -375,15 +373,12 @@ struct EditVaultView: View {
                 case "just_because":
                     vm.justBecauseMin = budget.minAmount
                     vm.justBecauseMax = budget.maxAmount
-                    vm.justBecauseRanges = ["\(budget.minAmount)-\(budget.maxAmount)"]
                 case "minor_occasion":
                     vm.minorOccasionMin = budget.minAmount
                     vm.minorOccasionMax = budget.maxAmount
-                    vm.minorOccasionRanges = ["\(budget.minAmount)-\(budget.maxAmount)"]
                 case "major_milestone":
                     vm.majorMilestoneMin = budget.minAmount
                     vm.majorMilestoneMax = budget.maxAmount
-                    vm.majorMilestoneRanges = ["\(budget.minAmount)-\(budget.maxAmount)"]
                 default:
                     break
                 }

@@ -355,7 +355,7 @@ struct OnboardingCompletionView: View {
 
             Spacer()
 
-            Text("\(formatDollars(min)) – \(formatDollars(max))")
+            Text(formatBudgetRange(minCents: min, maxCents: max))
                 .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
         }
@@ -505,14 +505,6 @@ private struct SummaryCard<Content: View>: View {
             }
         }
     }
-}
-
-// MARK: - Dollar Formatting (file-level to avoid @MainActor isolation)
-
-/// Formats cents to a dollar string (e.g., 5000 → "$50").
-private func formatDollars(_ cents: Int) -> String {
-    let dollars = cents / 100
-    return "$\(dollars)"
 }
 
 // MARK: - Previews

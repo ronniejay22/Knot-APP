@@ -6265,6 +6265,35 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.35 ✅ Budget — Single Page with Dual-Thumb Range Sliders
+**Date:** 2026-06-07
+**Status:** Complete
+
+**Goal:** Collapse the three separate budget onboarding steps ("Just because…", "And for minor occasions?", "And for major milestones?") into one page, and replace the four discrete dollar-range buttons per tier with a tactile dual-thumb range slider. Per user direction, the top of each tier's range is open-ended ("$200+/$500+/$1,000+") so it never feels limiting. This drops onboarding from 18 steps to 16.
+
+**What changed:**
+- **`Features/Onboarding/Steps/Shared/BudgetRangeSlider.swift` (new):** a custom dual-thumb range slider. Pure snapping/position math is namespaced under `enum BudgetSliderMath` (`snap`, `cents(forX:)`, `x(forCents:)`) so it's unit-testable without a view. The `BudgetRangeSlider` view binds two Int-cents values, snaps to a per-tier step, keeps a one-step gap so `max >= min` always holds, locks the active thumb on the first drag event (no fast-drag hand-off), fires a light haptic only when the snapped value changes, and exposes per-thumb `accessibilityAdjustableAction`. Reaching the ceiling stores `BudgetTierConfig.unlimitedMaxCents`.
+- **`Features/Onboarding/Steps/Shared/BudgetTierSliderCard.swift` (new):** hosts the relocated `formatBudgetDollars` and `BudgetTierConfig` (floor/ceiling/step per tier + the `unlimitedMaxCents = 100_000_000` sentinel). The card reuses the prior icon-badge + title + subtitle row, adds a right-aligned "$X – $Y"/"$X – $Y+" readout, the slider, and floor/ceiling end labels.
+- **`Features/Onboarding/Steps/OnboardingBudgetView.swift` (new):** the consolidated step — one `OnboardingStepHeader` ("What feels right to spend?") over a `ScrollView` stacking the three `BudgetTierSliderCard`s, bound to the view model's `*Min/*Max` via `@Bindable`.
+- **`Features/Onboarding/OnboardingViewModel.swift`:** `OnboardingStep` collapsed the three budget cases into a single `budget = 12` and renumbered `primaryLoveLanguage=13, secondaryLoveLanguage=14, completion=15` (`totalSteps` now 16). `.title`, `validationMessage`, and `validateCurrentStep` updated to the single `.budget` case (validates all three tiers' `max >= min`). Removed the now-dead `*Ranges: Set<String>` multi-select state.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** router collapsed to `case .budget: OnboardingBudgetView()`; progress bar now reads "Step X of 16".
+- **`Features/Settings/EditSheets/EditBudgetSheet.swift`:** switched to the three `BudgetTierSliderCard`s for visual consistency with onboarding.
+- **`Features/Settings/EditVaultView.swift`:** removed the three `vm.*Ranges = […]` writes in `loadVaultData()`.
+- **Deleted:** `OnboardingJustBecauseBudgetView.swift`, `OnboardingMinorOccasionBudgetView.swift`, `OnboardingMajorMilestoneBudgetView.swift`, and `Steps/Shared/BudgetTierCard.swift` (the bracket-button card, `BudgetRangeOption`, `BudgetPresets`, `toggleBudgetRange`, `syncEffectiveBudget`).
+- **Backend (open-ended "no limit"):** the client stores a sentinel max (`$1,000,000`) when a tier is open-ended. Added `UNLIMITED_BUDGET_MAX_CENTS` to `app/agents/state.py`; `app/services/unified_generation.py` and `app/services/integrations/claude_search_service.py` now render an at/above-sentinel max as "$X and up" (and drop the "under $X" search qualifier) so the literal "$1,000,000" never leaks into prompts/queries. The recommendation price filter in `aggregation.py` is unchanged — a huge max correctly means "uncapped". No DB/DTO/Pydantic schema change (only `max >= min >= 0` is validated).
+
+**Tests:**
+- `KnotTests/BudgetRangeSliderMathTests.swift` (new): snapping clamps to floor/ceiling, nearest-step rounding (incl. midpoint-rounds-up), sentinel positions the thumb at the ceiling, and the x↔cents round-trip.
+- `KnotTests/OnboardingContainerViewTests.swift`: `totalSteps` assertion 18 → 16 (test renamed to `testOnboardingStepHasSixteenSteps`); budget validation now uses `.budget`. `testBuildVaultPayloadShapeUnchanged` (`budgets.count == 3`) unchanged.
+- `backend/tests/test_unified_generation.py`: added `test_prompt_renders_unlimited_budget_as_open_ended` (sentinel max renders "$50 and up", no literal "1000000"/"1,000,000").
+- All 294 iOS `KnotTests` and the backend suite pass.
+
+**Notes:**
+- `BudgetSliderMath` is a namespaced enum rather than top-level free functions — `@testable import` reliably exposes type members, and it avoids polluting global scope with `x`/`cents`.
+- The sentinel approach keeps the backend contract identical; if a nullable `max_amount` is ever preferred, that would be a larger DB/DTO change.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
