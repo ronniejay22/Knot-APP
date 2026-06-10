@@ -21,7 +21,7 @@
 		07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AE7970627763281E43105B /* HomeView.swift */; };
 		07F8A133AEC890D6F2B20EC8 /* NotificationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4247B99E99F834D9DCE623D0 /* NotificationsViewModel.swift */; };
 		08FF4428155608D136787B78 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AA11148E4DFC8D8D22DA69D6 /* Supabase */; };
-		0AE79C4674BEBA2701204DA5 /* OnboardingPrimaryLoveLanguageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0578B5B4BA8997C736757 /* OnboardingPrimaryLoveLanguageView.swift */; };
+		0AE79C4674BEBA2701204DA5 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */; };
 		0F10E179CDCEFC0E9E1627CD /* OnboardingTenureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */; };
 		0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */; };
 		13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */; };
@@ -62,7 +62,6 @@
 		4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */; };
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
 		524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */; };
-		5372989409F891880F3CDC5B /* OnboardingSecondaryLoveLanguageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */; };
 		54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5C280C9E2257F8A526806C /* KnotInput.swift */; };
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
 		5C0948792EDCB23B6E652A8F /* KnotCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D78112D68DB3912DFC57EB /* KnotCardTests.swift */; };
@@ -189,7 +188,6 @@
 		2A26FAED19328A49BE6820DE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewTests.swift; sourceTree = "<group>"; };
 		2B949879832CF85679AFE56C /* RelationshipLengthModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipLengthModal.swift; sourceTree = "<group>"; };
-		2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSecondaryLoveLanguageView.swift; sourceTree = "<group>"; };
 		2DB2C0E473B2693C71D80BC2 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditMilestonesSheet.swift; sourceTree = "<group>"; };
 		2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBudgetView.swift; sourceTree = "<group>"; };
@@ -231,7 +229,7 @@
 		7582B8EB702201D602F5AE93 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
-		79E0578B5B4BA8997C736757 /* OnboardingPrimaryLoveLanguageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPrimaryLoveLanguageView.swift; sourceTree = "<group>"; };
+		79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
 		7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationTests.swift; sourceTree = "<group>"; };
 		80F2A43D31A1865709700823 /* KnotInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotInputTests.swift; sourceTree = "<group>"; };
 		82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
@@ -476,8 +474,7 @@
 				8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */,
 				EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */,
 				0EEA2AB2842B17EB2E0B0CAD /* OnboardingPartnerNameView.swift */,
-				79E0578B5B4BA8997C736757 /* OnboardingPrimaryLoveLanguageView.swift */,
-				2B97A49B985CD2459DFF9730 /* OnboardingSecondaryLoveLanguageView.swift */,
+				79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */,
 				60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */,
 				21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */,
 				FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */,
@@ -920,8 +917,7 @@
 				7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */,
 				760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */,
 				25EBD64F244E63B2453EE6A8 /* OnboardingPartnerNameView.swift in Sources */,
-				0AE79C4674BEBA2701204DA5 /* OnboardingPrimaryLoveLanguageView.swift in Sources */,
-				5372989409F891880F3CDC5B /* OnboardingSecondaryLoveLanguageView.swift in Sources */,
+				0AE79C4674BEBA2701204DA5 /* OnboardingLoveLanguagesView.swift in Sources */,
 				F2796C120E1368BCDDE4F0BE /* OnboardingStepHeader.swift in Sources */,
 				0F10E179CDCEFC0E9E1627CD /* OnboardingTenureView.swift in Sources */,
 				E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */,

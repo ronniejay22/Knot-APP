@@ -6334,6 +6334,47 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.38 ✅ Onboarding — Merge Primary & Secondary Love Languages Into One Step
+**Date:** 2026-06-09
+**Status:** Complete
+
+**Goal:** The Love Languages section asked two near-identical questions on back-to-back screens — "How does [Name] feel most loved?" (pick primary) and "And what's their secondary?" (pick secondary, with the primary card disabled). Both render the same five `LoveLanguageCard`s and differ only in which selection they capture. Per user request, these were combined into a single screen using a guided sequential tap, shortening the flow from 15 steps to 14.
+
+**What changed:**
+- **`Features/Onboarding/Steps/OnboardingLoveLanguagesView.swift` (new, replaces `OnboardingPrimaryLoveLanguageView.swift` + `OnboardingSecondaryLoveLanguageView.swift`):** one `ScrollView` → `VStack` of `LoveLanguageCard`s with a static title ("How does [Name] feel most loved?") and a computed subtitle that guides the user — "Pick their primary love language." → "Now pick their secondary." → "Tap any card to change your picks." A single `select(_:)` applies the guided rules: an unselected tap fills primary first then secondary; tapping the PRIMARY card promotes the secondary up to primary (keeping badges contiguous); tapping the SECONDARY card clears it. No card is ever disabled. `validateCurrentStep()` is driven from `.onAppear` plus `.onChange` on both `primaryLoveLanguage` and `secondaryLoveLanguage`.
+- **`Features/Onboarding/Steps/OnboardingPrimaryLoveLanguageView.swift` + `OnboardingSecondaryLoveLanguageView.swift`:** deleted.
+- **`Features/Onboarding/OnboardingViewModel.swift`:** replaced `case primaryLoveLanguage = 12` / `case secondaryLoveLanguage = 13` with a single `case loveLanguages = 12` and renumbered `completion`→13 (so `totalSteps` is now 14; `progress` and the "Step X of N" label recompute automatically). Collapsed the `title` and `validationMessage` cases onto `.loveLanguages` (the message is now context-aware: primary-empty asks for a primary, otherwise asks for a distinct secondary). The merged `validateCurrentStep()` requires both languages set and different.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** collapsed the `.primaryLoveLanguage`/`.secondaryLoveLanguage` switch pair into a single `case .loveLanguages: OnboardingLoveLanguagesView()`.
+- **`Knot.xcodeproj/project.pbxproj`:** repurposed the primary view's file references to `OnboardingLoveLanguagesView.swift` and removed the four `OnboardingSecondaryLoveLanguageView.swift` entries.
+
+**Tests:**
+- **`KnotTests/OnboardingContainerViewTests.swift`:** `testOnboardingStepHasFifteenSteps` → `testOnboardingStepHasFourteenSteps` (asserts `totalSteps == 14`); the two per-step validation blocks for `.primaryLoveLanguage`/`.secondaryLoveLanguage` collapsed into one `.loveLanguages` block (empty → false; primary only → false; same primary+secondary → false; distinct → true). The forward/backward walk and `buildVaultPayload` shape tests are data-driven and unchanged. Full `OnboardingContainerViewTests` suite passes (8/8) on the iPhone 17 Pro simulator.
+
+**Notes:**
+- No data-model or backend change: the `primaryLoveLanguage`/`secondaryLoveLanguage` view-model properties, the `LoveLanguagesPayload(primary, secondary)` vault payload, and the shared `LoveLanguageCard`/`LoveLanguageDisplay` (still used by `EditLoveLanguagesSheet` and `OnboardingCompletionView`) are all untouched — only the step that collects the two picks was merged.
+
+---
+
+### Step 18.39 ✅ Onboarding — Restyle Love Language Cards to Match the Interests Rows
+**Date:** 2026-06-09
+**Status:** Complete
+
+**Goal:** The love language entries used large per-language gradient cards with a circular icon and a pinned-corner badge — visually inconsistent with the rest of onboarding. Per user request, they were restyled to match the flat interests/dislikes rows (`InterestListRow`).
+
+**What changed:**
+- **`Features/Onboarding/Steps/Shared/LoveLanguageCard.swift`:** rebuilt the card body in the `InterestListRow` aesthetic — a flat `Theme.surface` row, a tinted rounded-square icon chip (`Theme.accent.opacity(0.20)` fill + accent icon when selected, else `surfaceElevated` + `textSecondary`), the language name (`cta` font) over its description (`label` font, `lineLimit(2)`), and an accent border (2pt when selected / 1pt `surfaceBorder` otherwise, with the secondary state using `accent.opacity(0.6)`). The selection indicator is an inline trailing `PRIMARY`/`SECONDARY` capsule badge. Removed the per-language `LoveLanguageDisplay.gradient(for:)` helper (no longer referenced anywhere), the circular icon badge, the `ZStack` pinned-corner badge overlay, the `1.02` primary scale effect, and the unused `isDisabled` parameter.
+- **Anti-jank guards:** to stop a long name like "Words of Affirmation" reflowing when the wide "SECONDARY" badge appears, the title got `.lineLimit(1)` + `.minimumScaleFactor(0.85)` and the badge got `.fixedSize()` + `.layoutPriority(1)` — the same recipe `BudgetTierSliderCard` uses (Step 18.36).
+
+**Affected screens (shared component):** the combined `OnboardingLoveLanguagesView` (the screen the change targeted) and the Settings `EditLoveLanguagesSheet`, which both render `LoveLanguageCard`, now share the new flat look. `OnboardingCompletionView` only uses the `icon(for:)` / `name(for:)` display helpers and is visually unchanged.
+
+**Tests:**
+- No new tests: `LoveLanguageCard` is a presentational component with no test references, and the selection/validation logic (covered by `OnboardingContainerViewTests`) is unchanged. Full app build (iPhone 17 Pro simulator) succeeds and the `OnboardingContainerViewTests` suite still passes (8/8).
+
+**Notes:**
+- Purely presentational. The `LoveLanguageSelectionState` enum, the guided `select(_:)` logic in `OnboardingLoveLanguagesView`, the edit sheet's `selectLanguage(_:)` toggle, and the vault payload are all untouched.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

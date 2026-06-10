@@ -68,9 +68,8 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case holidays = 9
     case vibes = 10
     case budget = 11
-    case primaryLoveLanguage = 12
-    case secondaryLoveLanguage = 13
-    case completion = 14
+    case loveLanguages = 12
+    case completion = 13
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -84,7 +83,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .birthday, .anniversary, .holidays: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
         case .budget: return "Budget"
-        case .primaryLoveLanguage, .secondaryLoveLanguage: return "Love Languages"
+        case .loveLanguages: return "Love Languages"
         case .completion: return "All Set!"
         }
     }
@@ -167,10 +166,10 @@ final class OnboardingViewModel {
             return "Custom milestone names can't be empty."
         case .budget:
             return "Maximum budget must be at least the minimum."
-        case .primaryLoveLanguage:
-            return "Choose your partner's primary love language."
-        case .secondaryLoveLanguage:
-            return "Choose a secondary love language (different from primary)."
+        case .loveLanguages:
+            return primaryLoveLanguage.isEmpty
+                ? "Choose your partner's primary love language."
+                : "Choose a secondary love language (different from primary)."
         default:
             return nil
         }
@@ -566,10 +565,9 @@ final class OnboardingViewModel {
             canProceed = justBecauseMax >= justBecauseMin
                 && minorOccasionMax >= minorOccasionMin
                 && majorMilestoneMax >= majorMilestoneMin
-        case .primaryLoveLanguage:
+        case .loveLanguages:
             canProceed = !primaryLoveLanguage.isEmpty
-        case .secondaryLoveLanguage:
-            canProceed = !secondaryLoveLanguage.isEmpty
+                && !secondaryLoveLanguage.isEmpty
                 && secondaryLoveLanguage != primaryLoveLanguage
         default:
             // welcome, cohabitation, completion all proceed freely

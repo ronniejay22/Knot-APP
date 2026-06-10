@@ -2,9 +2,14 @@
 //  LoveLanguageCard.swift
 //  Knot
 //
-//  Shared love language card visual + display-name/icon/gradient helpers
-//  used by the primary/secondary onboarding screens, EditLoveLanguagesSheet,
-//  RecommendationCard, and OnboardingCompletionView.
+//  Shared love language card visual + display-name/icon/description helpers
+//  used by the combined love languages onboarding screen and the Settings
+//  EditLoveLanguagesSheet.
+//
+//  Styled to match the onboarding interests/dislikes rows (`InterestListRow`):
+//  a flat `Theme.surface` row with a tinted leading icon chip, the language
+//  name + description, an accent border when selected, and a trailing
+//  PRIMARY / SECONDARY rank badge.
 //
 
 import SwiftUI
@@ -57,81 +62,25 @@ enum LoveLanguageDisplay {
         default: return Lucide.heart
         }
     }
-
-    /// Unique background gradient for each love language.
-    static func gradient(for language: String) -> LinearGradient {
-        let colors: (Color, Color) = {
-            switch language {
-            case "words_of_affirmation":
-                return (
-                    Color(hue: 0.04, saturation: 0.45, brightness: 0.50),
-                    Color(hue: 0.06, saturation: 0.55, brightness: 0.22)
-                )
-            case "acts_of_service":
-                return (
-                    Color(hue: 0.38, saturation: 0.50, brightness: 0.42),
-                    Color(hue: 0.40, saturation: 0.60, brightness: 0.18)
-                )
-            case "receiving_gifts":
-                return (
-                    Color(hue: 0.82, saturation: 0.50, brightness: 0.50),
-                    Color(hue: 0.85, saturation: 0.60, brightness: 0.22)
-                )
-            case "quality_time":
-                return (
-                    Color(hue: 0.12, saturation: 0.55, brightness: 0.52),
-                    Color(hue: 0.14, saturation: 0.65, brightness: 0.22)
-                )
-            case "physical_touch":
-                return (
-                    Color(hue: 0.95, saturation: 0.45, brightness: 0.48),
-                    Color(hue: 0.97, saturation: 0.55, brightness: 0.22)
-                )
-            default:
-                return (
-                    Color(hue: 0.75, saturation: 0.40, brightness: 0.40),
-                    Color(hue: 0.75, saturation: 0.50, brightness: 0.18)
-                )
-            }
-        }()
-
-        return LinearGradient(
-            colors: [colors.0, colors.1],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
 }
 
 // MARK: - Love Language Card
 
-/// A full-width card representing a single love language option.
+/// A full-width selectable row representing a single love language option.
 ///
-/// Layout: gradient background with icon + text on the left, and an
-/// independent badge overlay pinned to the top-right corner.
+/// Mirrors `InterestListRow`'s flat aesthetic: a tinted leading icon chip, the
+/// language name + description, and an accent border when selected. Because a
+/// love language can be ranked, the trailing indicator is a PRIMARY / SECONDARY
+/// pill badge rather than a plain checkmark.
 ///
 /// Visual states:
-/// - **Unselected:** Gradient background, subtle border, 1.0 scale
-/// - **Primary:** Pink border, "PRIMARY" badge (top-right), 1.02 scale
-/// - **Secondary:** Muted pink border, "SECONDARY" badge (top-right)
-/// - **Disabled:** rendered at 0.5 opacity to indicate it can't be picked
+/// - **Unselected:** `Theme.surface` background, subtle border, muted icon
+/// - **Primary:** pink (`Theme.accent`) border + icon chip, "PRIMARY" badge
+/// - **Secondary:** muted-pink border + icon chip, "SECONDARY" badge
 struct LoveLanguageCard: View {
     let language: String
     let selectionState: LoveLanguageSelectionState
-    let isDisabled: Bool
     let action: () -> Void
-
-    init(
-        language: String,
-        selectionState: LoveLanguageSelectionState,
-        isDisabled: Bool = false,
-        action: @escaping () -> Void
-    ) {
-        self.language = language
-        self.selectionState = selectionState
-        self.isDisabled = isDisabled
-        self.action = action
-    }
 
     private var isSelected: Bool {
         selectionState != .unselected
@@ -139,75 +88,94 @@ struct LoveLanguageCard: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack(alignment: .topTrailing) {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(isSelected ? 0.20 : 0.12))
-                            .frame(width: 48, height: 48)
+            HStack(spacing: 14) {
+                // Leading icon chip
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isSelected ? Theme.accent.opacity(0.20) : Theme.surfaceElevated)
+                        .frame(width: 40, height: 40)
 
-                        Image(uiImage: LoveLanguageDisplay.icon(for: language))
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
-                            .foregroundStyle(.white.opacity(isSelected ? 0.95 : 0.75))
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(LoveLanguageDisplay.name(for: language))
-                            .knotFont(Theme.Typography.cardTitle)
-                            .foregroundStyle(.white)
-
-                        Text(LoveLanguageDisplay.description(for: language))
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(.white.opacity(0.65))
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 0)
+                    Image(uiImage: LoveLanguageDisplay.icon(for: language))
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                        .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                 }
-                .padding(16)
 
+                VStack(alignment: .leading, spacing: 2) {
+                    // One line always: keeps the row height stable when the
+                    // trailing badge appears and steals width. The scale floor
+                    // absorbs the tight case — the longest name ("Words of
+                    // Affirmation") next to the wider "SECONDARY" badge on a
+                    // narrow device — without truncating to an ellipsis.
+                    Text(LoveLanguageDisplay.name(for: language))
+                        .knotFont(Theme.Typography.cta)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    Text(LoveLanguageDisplay.description(for: language))
+                        .knotFont(Theme.Typography.label)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                // Trailing rank badge — only when selected. Fixed-size with a
+                // higher layout priority so it can't be compressed by the title.
                 if selectionState == .primary {
-                    Text("PRIMARY")
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.pink))
-                        .padding(10)
-                        .transition(.scale.combined(with: .opacity))
+                    rankBadge("PRIMARY", fill: Theme.accent)
                 } else if selectionState == .secondary {
-                    Text("SECONDARY")
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.pink.opacity(0.6)))
-                        .padding(10)
-                        .transition(.scale.combined(with: .opacity))
+                    rankBadge("SECONDARY", fill: Theme.accent.opacity(0.6))
                 }
             }
-            .background(LoveLanguageDisplay.gradient(for: language))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg))
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(borderColor, lineWidth: isSelected ? 2.5 : 0.5)
+                RoundedRectangle(cornerRadius: Theme.Radius.lg)
+                    .stroke(borderColor, lineWidth: isSelected ? 2 : 1)
             )
-            .scaleEffect(selectionState == .primary ? 1.02 : 1.0)
-            .opacity(isDisabled ? 0.5 : 1.0)
         }
         .buttonStyle(.plain)
-        .disabled(isDisabled)
         .animation(.easeInOut(duration: 0.25), value: selectionState)
     }
 
     private var borderColor: Color {
         switch selectionState {
-        case .primary: return .pink
-        case .secondary: return .pink.opacity(0.6)
-        case .unselected: return .white.opacity(0.06)
+        case .primary: return Theme.accent
+        case .secondary: return Theme.accent.opacity(0.6)
+        case .unselected: return Theme.surfaceBorder
         }
     }
+
+    private func rankBadge(_ text: String, fill: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .heavy))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(fill))
+            .fixedSize()
+            .layoutPriority(1)
+            .transition(.scale.combined(with: .opacity))
+    }
+}
+
+// MARK: - Preview
+
+#Preview("Love Language Cards") {
+    VStack(spacing: 12) {
+        LoveLanguageCard(language: "quality_time", selectionState: .primary) {}
+        LoveLanguageCard(language: "physical_touch", selectionState: .secondary) {}
+        LoveLanguageCard(language: "words_of_affirmation", selectionState: .unselected) {}
+        LoveLanguageCard(language: "acts_of_service", selectionState: .unselected) {}
+        LoveLanguageCard(language: "receiving_gifts", selectionState: .unselected) {}
+    }
+    .padding(20)
+    .background(Theme.backgroundGradient)
 }

@@ -17,9 +17,9 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 15 distinct steps.
-    func testOnboardingStepHasFifteenSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 15)
+    /// Asserts the onboarding flow currently has 14 distinct steps.
+    func testOnboardingStepHasFourteenSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 14)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
@@ -191,18 +191,14 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // PrimaryLoveLanguage — must be set.
-        vm.currentStep = .primaryLoveLanguage
+        // LoveLanguages — the single combined step needs BOTH a primary and a
+        // secondary, and the two must differ.
+        vm.currentStep = .loveLanguages
         vm.primaryLoveLanguage = ""
+        vm.secondaryLoveLanguage = ""
         vm.validateCurrentStep()
         XCTAssertFalse(vm.canProceed)
-        vm.primaryLoveLanguage = "quality_time"
-        vm.validateCurrentStep()
-        XCTAssertTrue(vm.canProceed)
-
-        // SecondaryLoveLanguage — must be set AND different from primary.
-        vm.currentStep = .secondaryLoveLanguage
-        vm.secondaryLoveLanguage = ""
+        vm.primaryLoveLanguage = "quality_time"  // primary only
         vm.validateCurrentStep()
         XCTAssertFalse(vm.canProceed)
         vm.secondaryLoveLanguage = "quality_time"  // same as primary
