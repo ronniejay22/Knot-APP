@@ -220,9 +220,7 @@ struct OnboardingContainerView: View {
         case .anniversary:
             OnboardingAnniversaryView()
         case .holidays:
-            OnboardingHolidaysView()
-        case .customMilestones:
-            OnboardingCustomMilestonesView()
+            OnboardingHolidaysMilestonesView()
         case .vibes:
             OnboardingVibesView()
         case .budget:

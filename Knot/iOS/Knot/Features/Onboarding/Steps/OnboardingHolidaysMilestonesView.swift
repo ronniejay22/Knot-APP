@@ -1,14 +1,15 @@
 //
-//  OnboardingCustomMilestonesView.swift
+//  OnboardingHolidaysMilestonesView.swift
 //  Knot
 //
-//  One-question screen: add custom milestones (first date, gotcha day, etc.).
+//  One screen combining two date-collection questions: pick US holidays to set
+//  reminders for, and add custom milestones (first date, gotcha day, etc.).
 //
 
 import SwiftUI
 import LucideIcons
 
-struct OnboardingCustomMilestonesView: View {
+struct OnboardingHolidaysMilestonesView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
 
     @State private var showingCustomSheet = false
@@ -21,6 +22,23 @@ struct OnboardingCustomMilestonesView: View {
         ScrollView {
             VStack(spacing: 24) {
                 headerSection
+
+                VStack(spacing: 8) {
+                    ForEach(HolidayOption.allHolidays) { holiday in
+                        HolidayChip(
+                            holiday: holiday,
+                            isSelected: viewModel.selectedHolidays.contains(holiday.id),
+                            onToggle: {
+                                if viewModel.selectedHolidays.contains(holiday.id) {
+                                    viewModel.selectedHolidays.remove(holiday.id)
+                                } else {
+                                    viewModel.selectedHolidays.insert(holiday.id)
+                                }
+                            }
+                        )
+                    }
+                }
+
                 customMilestonesSection
             }
             .padding(.horizontal, 24)
@@ -38,15 +56,28 @@ struct OnboardingCustomMilestonesView: View {
     }
 
     private var headerSection: some View {
-        OnboardingStepHeader(
-            title: "Any custom milestones?",
-            subtitle: "Add dates unique to your relationship — first date, gotcha day, anything you want to remember."
-        )
+        VStack(alignment: .leading, spacing: 8) {
+            OnboardingStepHeader(
+                title: "Which dates should we remember?",
+                subtitle: "Tap holidays to add reminders, and add any milestones unique to your relationship. You can change these later."
+            )
+
+            if !viewModel.selectedHolidays.isEmpty {
+                Text("\(viewModel.selectedHolidays.count) selected")
+                    .knotFont(Theme.Typography.label)
+                    .foregroundStyle(Theme.accent)
+                    .padding(.top, 2)
+            }
+        }
         .padding(.top, 8)
     }
 
     private var customMilestonesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Custom milestones")
+                .knotFont(Theme.Typography.cta)
+                .foregroundStyle(Theme.textSecondary)
+
             if !viewModel.customMilestones.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(viewModel.customMilestones) { milestone in
@@ -72,6 +103,7 @@ struct OnboardingCustomMilestonesView: View {
                     )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func customMilestoneRow(_ milestone: CustomMilestone) -> some View {
@@ -227,6 +259,54 @@ struct OnboardingCustomMilestonesView: View {
     }
 }
 
+// MARK: - Holiday Chip Component
+
+private struct HolidayChip: View {
+    let holiday: HolidayOption
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 10) {
+                Image(systemName: holiday.iconName)
+                    .font(.body)
+                    .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(holiday.displayName)
+                        .knotFont(Theme.Typography.cta)
+                        .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
+
+                    Text(formattedMilestoneDate(month: holiday.month, day: holiday.day))
+                        .knotFont(Theme.Typography.label)
+                        .foregroundStyle(isSelected ? Theme.textSecondary : Theme.textTertiary)
+                }
+
+                Spacer()
+
+                Image(uiImage: isSelected ? Lucide.circleCheck : Lucide.circle)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(isSelected ? Theme.accent.opacity(0.12) : Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Theme.accent.opacity(0.5) : Theme.surfaceBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+    }
+}
+
 #Preview {
-    OnboardingCustomMilestonesView().environment(OnboardingViewModel())
+    OnboardingHolidaysMilestonesView().environment(OnboardingViewModel())
 }

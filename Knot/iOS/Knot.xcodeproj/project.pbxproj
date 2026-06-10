@@ -45,7 +45,7 @@
 		342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */; };
 		3536D1D4A74A18601003E198 /* KnotTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */; };
 		365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */; };
-		37708E89FDD983424E4D77BF /* OnboardingHolidaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C8988390613CAAE41FFF2A /* OnboardingHolidaysView.swift */; };
+		37708E89FDD983424E4D77BF /* OnboardingHolidaysMilestonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C8988390613CAAE41FFF2A /* OnboardingHolidaysMilestonesView.swift */; };
 		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
 		3F5DBBCC7D3535B153EF65D8 /* AppReviewPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */; };
 		40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726769364F3363201EE0535 /* LoginView.swift */; };
@@ -53,7 +53,6 @@
 		4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB2C0E473B2693C71D80BC2 /* SignInView.swift */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
 		463FADB1181873781B5F1960 /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */; };
-		47EBF8A0AC40917F6CC501A7 /* OnboardingCustomMilestonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */; };
 		49AD544F61858BCDB867B9D7 /* ForYouViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E024DDF822D8F0F3C33EA2 /* ForYouViewModel.swift */; };
 		4A8D782C2C6213823CC3C6FD /* LucideIcons in Frameworks */ = {isa = PBXBuildFile; productRef = 15C498B5F04CB77F50A32471 /* LucideIcons */; };
 		4AA57C07036B773D45F3B15A /* EditBasicInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6ED0CB18062570291BACCB /* EditBasicInfoSheet.swift */; };
@@ -228,7 +227,6 @@
 		6AC7D2C17D189446F4586EF2 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		6D0923D42485ED34C6E165B1 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptSheet.swift; sourceTree = "<group>"; };
-		71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCustomMilestonesView.swift; sourceTree = "<group>"; };
 		72B992FECB8EF8B48B5A0400 /* LoveLanguageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoveLanguageCard.swift; sourceTree = "<group>"; };
 		7582B8EB702201D602F5AE93 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
@@ -288,7 +286,7 @@
 		E5FBFBD59619A963A80CB4E0 /* InterestListLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestListLayoutTests.swift; sourceTree = "<group>"; };
 		E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Medium.ttf"; sourceTree = "<group>"; };
 		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		E8C8988390613CAAE41FFF2A /* OnboardingHolidaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingHolidaysView.swift; sourceTree = "<group>"; };
+		E8C8988390613CAAE41FFF2A /* OnboardingHolidaysMilestonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingHolidaysMilestonesView.swift; sourceTree = "<group>"; };
 		E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLocationView.swift; sourceTree = "<group>"; };
@@ -473,9 +471,8 @@
 				2E3A6A48F2B8FA190B084F63 /* OnboardingBudgetView.swift */,
 				4A3695BA9DDC287A5A57B020 /* OnboardingCohabitationView.swift */,
 				CB4B978E3F162B4D603002D9 /* OnboardingCompletionView.swift */,
-				71DF73C665B3749B692B78EB /* OnboardingCustomMilestonesView.swift */,
 				62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */,
-				E8C8988390613CAAE41FFF2A /* OnboardingHolidaysView.swift */,
+				E8C8988390613CAAE41FFF2A /* OnboardingHolidaysMilestonesView.swift */,
 				8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */,
 				EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */,
 				0EEA2AB2842B17EB2E0B0CAD /* OnboardingPartnerNameView.swift */,
@@ -918,9 +915,8 @@
 				0368A6F5F789682DEE58F0C1 /* OnboardingCohabitationView.swift in Sources */,
 				70E8556AAF899368A188BFDC /* OnboardingCompletionView.swift in Sources */,
 				19846ADF1D0701CD4F2F93C9 /* OnboardingContainerView.swift in Sources */,
-				47EBF8A0AC40917F6CC501A7 /* OnboardingCustomMilestonesView.swift in Sources */,
 				764D00845275A66B57ED1168 /* OnboardingDislikesView.swift in Sources */,
-				37708E89FDD983424E4D77BF /* OnboardingHolidaysView.swift in Sources */,
+				37708E89FDD983424E4D77BF /* OnboardingHolidaysMilestonesView.swift in Sources */,
 				7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */,
 				760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */,
 				25EBD64F244E63B2453EE6A8 /* OnboardingPartnerNameView.swift in Sources */,

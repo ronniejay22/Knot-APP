@@ -17,16 +17,16 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 16 distinct steps.
-    func testOnboardingStepHasSixteenSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 16)
+    /// Asserts the onboarding flow currently has 15 distinct steps.
+    func testOnboardingStepHasFifteenSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 15)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
         XCTAssertTrue(OnboardingStep.completion.isLast)
     }
 
-    /// Walk forward through all 18 steps, asserting rawValue advances by 1 each time.
+    /// Walk forward through every step, asserting rawValue advances by 1 each time.
     func testStepNavigationAdvancesForward() {
         let vm = OnboardingViewModel()
         // Required-input steps need to be satisfied so canProceed lets us advance past them.
@@ -119,8 +119,8 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // Cohabitation / Holidays — defaulted, pass freely.
-        for step: OnboardingStep in [.cohabitation, .holidays] {
+        // Cohabitation — defaulted, passes freely.
+        for step: OnboardingStep in [.cohabitation] {
             vm.currentStep = step
             vm.validateCurrentStep()
             XCTAssertTrue(vm.canProceed, "\(step) should default to canProceed")
@@ -168,8 +168,9 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // CustomMilestones — empty name in any item fails.
-        vm.currentStep = .customMilestones
+        // Holidays + custom milestones — holidays optional; an empty milestone
+        // name in any item fails.
+        vm.currentStep = .holidays
         vm.customMilestones = []
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)

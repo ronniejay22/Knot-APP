@@ -6313,6 +6313,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.37 ✅ Onboarding — Merge Holidays & Custom Milestones Into One Step
+**Date:** 2026-06-09
+**Status:** Complete
+
+**Goal:** The Milestones section of onboarding asked two short, closely related date questions on back-to-back screens — "Which holidays should we remind you about?" (5 holiday chips) and "Any custom milestones?" (a short list plus one Add button). Per user request, these were combined into a single screen so related date-collection lives in one place, shortening the flow from 16 steps to 15.
+
+**What changed:**
+- **`Features/Onboarding/Steps/OnboardingHolidaysMilestonesView.swift` (new, replaces `OnboardingHolidaysView.swift`):** one `ScrollView` → `VStack(spacing: 24)` with a single page title ("Which dates should we remember?"), the "N selected" holiday counter, the holiday `HolidayChip` list, then a "Custom milestones" subsection label above the existing milestone cards + dashed "Add Custom Milestone" button. The custom-milestone `.sheet` (name field, month/day pickers, yearly/one-time recurrence, Cancel/Save), `customMilestoneRow`, and `resetCustomSheetState()` were folded in verbatim from the deleted `OnboardingCustomMilestonesView`. All shared helpers reused unchanged (`OnboardingStepHeader`, `formattedMilestoneDate`, `milestoneMonthPicker`/`milestoneDayPicker`, `OnboardingViewModel.clampDay`/`daysInMonth`, `KnotInput`).
+- **`Features/Onboarding/Steps/OnboardingHolidaysView.swift` + `OnboardingCustomMilestonesView.swift`:** deleted.
+- **`Features/Onboarding/OnboardingViewModel.swift`:** removed `case customMilestones = 10` and renumbered `vibes`→10 … `completion`→14 (so `totalSteps` is now 15; `progress` recomputes automatically). Dropped `.customMilestones` from the "Milestones" `title` group. Moved the custom-milestone non-empty-name validation and its `validationMessage` ("Custom milestone names can't be empty.") from `.customMilestones` onto `.holidays`; holidays themselves remain optional, so the only blocker on the merged step is a saved milestone with a blank name.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** collapsed the `.holidays`/`.customMilestones` switch pair into a single `case .holidays: OnboardingHolidaysMilestonesView()`.
+- **`Knot.xcodeproj/project.pbxproj`:** renamed the holidays file references to `OnboardingHolidaysMilestonesView.swift` and removed the four `OnboardingCustomMilestonesView.swift` entries.
+
+**Tests:**
+- **`KnotTests/OnboardingContainerViewTests.swift`:** `testOnboardingStepHasSixteenSteps` → `testOnboardingStepHasFifteenSteps` (asserts `totalSteps == 15`); the per-step validation block that drove `.customMilestones` now drives `.holidays`; `.holidays` removed from the "defaults freely" loop since it now carries the milestone-name check. The forward/backward walk and `buildVaultPayload` shape tests are data-driven and unchanged. Full `OnboardingContainerViewTests` suite passes (8/8) on the iPhone 16e simulator.
+
+**Notes:**
+- No data-model or backend change: `selectedHolidays` and `customMilestones` properties, the vault payload, and the milestone-count mapping are all untouched — only the step that collects them was merged.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

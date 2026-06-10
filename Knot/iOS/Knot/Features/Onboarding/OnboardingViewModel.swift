@@ -66,12 +66,11 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case birthday = 7
     case anniversary = 8
     case holidays = 9
-    case customMilestones = 10
-    case vibes = 11
-    case budget = 12
-    case primaryLoveLanguage = 13
-    case secondaryLoveLanguage = 14
-    case completion = 15
+    case vibes = 10
+    case budget = 11
+    case primaryLoveLanguage = 12
+    case secondaryLoveLanguage = 13
+    case completion = 14
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -82,7 +81,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .partnerName, .tenure, .cohabitation, .location: return "Partner Info"
         case .interests: return "Interests"
         case .dislikes: return "Dislikes"
-        case .birthday, .anniversary, .holidays, .customMilestones: return "Milestones"
+        case .birthday, .anniversary, .holidays: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
         case .budget: return "Budget"
         case .primaryLoveLanguage, .secondaryLoveLanguage: return "Love Languages"
@@ -164,7 +163,7 @@ final class OnboardingViewModel {
             return "Please set your partner's birthday."
         case .anniversary:
             return "Set the anniversary date or turn off the toggle."
-        case .customMilestones:
+        case .holidays:
             return "Custom milestone names can't be empty."
         case .budget:
             return "Maximum budget must be at least the minimum."
@@ -549,7 +548,9 @@ final class OnboardingViewModel {
         case .dislikes:
             canProceed = selectedDislikes.count >= Constants.Validation.minDislikes
                 && selectedDislikes.isDisjoint(with: selectedInterests)
-        case .customMilestones:
+        case .holidays:
+            // Holidays themselves are optional; the only blocker is a saved
+            // custom milestone with a blank name.
             canProceed = customMilestones.allSatisfy {
                 !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
@@ -571,7 +572,7 @@ final class OnboardingViewModel {
             canProceed = !secondaryLoveLanguage.isEmpty
                 && secondaryLoveLanguage != primaryLoveLanguage
         default:
-            // welcome, cohabitation, holidays, completion all proceed freely
+            // welcome, cohabitation, completion all proceed freely
             // (defaults or no validation needed).
             canProceed = true
         }
