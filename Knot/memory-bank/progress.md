@@ -6375,6 +6375,29 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.40 ✅ Onboarding — Remove the Holidays Step & Seed All Holidays by Default
+**Date:** 2026-06-10
+**Status:** Complete
+
+**Goal:** Per user request, drop the dedicated "Which dates should we remember?" onboarding screen (the holidays/custom-milestones picker) and instead add all five predefined holidays to the partner's milestones — and therefore the 14/7/3-day reminder queue — automatically. Holidays must still be editable and addable after onboarding via Settings → Edit Milestones.
+
+**What changed:**
+- **`Features/Onboarding/OnboardingViewModel.swift`:** Added `init(seedDefaultHolidays: Bool = false)`. When `true`, `selectedHolidays` is pre-populated with every `HolidayOption.allHolidays` id, so `buildVaultPayload()`'s existing holiday loop emits all five `"holiday"` milestones. Removed `case holidays` from `OnboardingStep` and renumbered the trailing cases to stay contiguous (`vibes = 9`, `budget = 10`, `loveLanguages = 11`, `completion = 12`); `totalSteps` is now **13**. Removed the `.holidays` branches from `title`, `validationMessage`, and `validateCurrentStep()`.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** The container now creates `OnboardingViewModel(seedDefaultHolidays: true)` and the `.holidays` case was removed from `stepContent`. Navigation goes anniversary → aesthetic vibes.
+- **Deleted `Features/Onboarding/Steps/OnboardingHolidaysMilestonesView.swift`** and its four `Knot.xcodeproj/project.pbxproj` references (the project does not use synchronized file groups).
+
+**What deliberately stayed:** `HolidayOption`/`CustomMilestone`, the `selectedHolidays`/`customMilestones` properties, the holiday loop in `buildVaultPayload()`, and the entire Settings edit flow (`EditMilestonesSheet`, `EditVaultView`) — all reused for post-onboarding holiday/custom-milestone editing. The edit flow uses the plain `OnboardingViewModel()` initializer (seed defaults to `false`) and hydrates `selectedHolidays` from the backend, so pre-seeding never leaks into editing. The `OnboardingCompletionView` summary now lists all five seeded holidays.
+
+**Backend:** No changes. The notification scheduler already turns every `milestone_type = "holiday"` row into 14/7/3-day `notification_queue` entries, so seeding the holidays in the vault payload is sufficient to add the reminders by default.
+
+**Tests:**
+- `KnotTests/OnboardingContainerViewTests.swift`: updated the step-count assertion to 13 (renamed `testOnboardingStepHasThirteenSteps`), removed the now-defunct `.holidays` sub-block from `testPerStepValidationRules`, and added `testSeedDefaultHolidaysSelectsAllHolidays` (default init seeds nothing; `seedDefaultHolidays: true` selects all five and emits five `"holiday"` payload milestones). `testBuildVaultPayloadShapeUnchanged` is unchanged (it sets `selectedHolidays` explicitly).
+
+**Notes:**
+- Custom milestones can no longer be added *during* onboarding (the only entry point was the removed screen); they remain fully available post-onboarding in Settings → Edit Milestones.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

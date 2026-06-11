@@ -28,7 +28,7 @@ struct OnboardingContainerView: View {
     /// Called when the user finishes onboarding (taps "Get Started" on the last step).
     var onComplete: () -> Void
 
-    @State private var viewModel = OnboardingViewModel()
+    @State private var viewModel = OnboardingViewModel(seedDefaultHolidays: true)
     @State private var showValidationError = false
     @State private var validationErrorText = ""
     @State private var dismissTask: Task<Void, Never>?
@@ -219,8 +219,6 @@ struct OnboardingContainerView: View {
             OnboardingBirthdayView()
         case .anniversary:
             OnboardingAnniversaryView()
-        case .holidays:
-            OnboardingHolidaysMilestonesView()
         case .vibes:
             OnboardingVibesView()
         case .budget:

@@ -65,11 +65,10 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case dislikes = 6
     case birthday = 7
     case anniversary = 8
-    case holidays = 9
-    case vibes = 10
-    case budget = 11
-    case loveLanguages = 12
-    case completion = 13
+    case vibes = 9
+    case budget = 10
+    case loveLanguages = 11
+    case completion = 12
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -80,7 +79,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .partnerName, .tenure, .cohabitation, .location: return "Partner Info"
         case .interests: return "Interests"
         case .dislikes: return "Dislikes"
-        case .birthday, .anniversary, .holidays: return "Milestones"
+        case .birthday, .anniversary: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
         case .budget: return "Budget"
         case .loveLanguages: return "Love Languages"
@@ -109,6 +108,20 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
 @Observable
 @MainActor
 final class OnboardingViewModel {
+
+    /// Creates the onboarding view model.
+    ///
+    /// - Parameter seedDefaultHolidays: When `true`, every predefined holiday is
+    ///   pre-selected so the onboarding flow adds them all to the partner's
+    ///   milestones (and thus the reminder queue) by default — there is no longer
+    ///   a holidays step where the user picks them. The Settings edit flow uses
+    ///   the default (`false`) and hydrates `selectedHolidays` from the backend
+    ///   instead, so pre-seeding must not leak into editing.
+    init(seedDefaultHolidays: Bool = false) {
+        if seedDefaultHolidays {
+            selectedHolidays = Set(HolidayOption.allHolidays.map { $0.id })
+        }
+    }
 
     // MARK: - Navigation State
 
@@ -162,8 +175,6 @@ final class OnboardingViewModel {
             return "Please set your partner's birthday."
         case .anniversary:
             return "Set the anniversary date or turn off the toggle."
-        case .holidays:
-            return "Custom milestone names can't be empty."
         case .budget:
             return "Maximum budget must be at least the minimum."
         case .loveLanguages:
@@ -547,12 +558,6 @@ final class OnboardingViewModel {
         case .dislikes:
             canProceed = selectedDislikes.count >= Constants.Validation.minDislikes
                 && selectedDislikes.isDisjoint(with: selectedInterests)
-        case .holidays:
-            // Holidays themselves are optional; the only blocker is a saved
-            // custom milestone with a blank name.
-            canProceed = customMilestones.allSatisfy {
-                !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
         case .vibes:
             canProceed = selectedVibes.count >= Constants.Validation.minVibes
         case .tenure:

@@ -17,9 +17,9 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 14 distinct steps.
-    func testOnboardingStepHasFourteenSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 14)
+    /// Asserts the onboarding flow currently has 13 distinct steps.
+    func testOnboardingStepHasThirteenSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 13)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
@@ -168,19 +168,6 @@ final class OnboardingContainerViewTests: XCTestCase {
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
-        // Holidays + custom milestones — holidays optional; an empty milestone
-        // name in any item fails.
-        vm.currentStep = .holidays
-        vm.customMilestones = []
-        vm.validateCurrentStep()
-        XCTAssertTrue(vm.canProceed)
-        vm.customMilestones = [CustomMilestone(name: "  ", month: 1, day: 1, recurrence: "yearly")]
-        vm.validateCurrentStep()
-        XCTAssertFalse(vm.canProceed)
-        vm.customMilestones = [CustomMilestone(name: "First Date", month: 1, day: 1, recurrence: "yearly")]
-        vm.validateCurrentStep()
-        XCTAssertTrue(vm.canProceed)
-
         // Budget — the single consolidated step requires every tier's max >= min.
         vm.currentStep = .budget
         vm.justBecauseMin = 5000
@@ -249,6 +236,24 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertEqual(payload.budgets.count, 3)
         XCTAssertEqual(payload.loveLanguages.primary, "quality_time")
         XCTAssertEqual(payload.loveLanguages.secondary, "physical_touch")
+    }
+
+    /// The holidays onboarding step was removed; onboarding now seeds every
+    /// predefined holiday by default so they all become reminders without a
+    /// dedicated picker screen. The edit flow (plain init) must NOT be seeded.
+    func testSeedDefaultHolidaysSelectsAllHolidays() {
+        // Default initializer (used by the Settings edit flow) seeds nothing.
+        XCTAssertTrue(OnboardingViewModel().selectedHolidays.isEmpty)
+
+        // Onboarding initializer pre-selects all predefined holidays.
+        let vm = OnboardingViewModel(seedDefaultHolidays: true)
+        XCTAssertEqual(vm.selectedHolidays.count, HolidayOption.allHolidays.count)
+        XCTAssertEqual(vm.selectedHolidays, Set(HolidayOption.allHolidays.map { $0.id }))
+
+        // All seeded holidays flow into the vault payload as "holiday" milestones.
+        vm.partnerName = "Sample Partner"
+        let holidayMilestones = vm.buildVaultPayload().milestones.filter { $0.milestoneType == "holiday" }
+        XCTAssertEqual(holidayMilestones.count, HolidayOption.allHolidays.count)
     }
 
     /// Verify `isSubmitting` toggles drive the loading overlay.
