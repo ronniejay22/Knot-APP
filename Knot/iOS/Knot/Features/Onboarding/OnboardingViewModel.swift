@@ -66,9 +66,8 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case birthday = 7
     case anniversary = 8
     case vibes = 9
-    case budget = 10
-    case loveLanguages = 11
-    case completion = 12
+    case loveLanguages = 10
+    case completion = 11
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -81,7 +80,6 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .dislikes: return "Dislikes"
         case .birthday, .anniversary: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
-        case .budget: return "Budget"
         case .loveLanguages: return "Love Languages"
         case .completion: return "All Set!"
         }
@@ -175,8 +173,6 @@ final class OnboardingViewModel {
             return "Please set your partner's birthday."
         case .anniversary:
             return "Set the anniversary date or turn off the toggle."
-        case .budget:
-            return "Maximum budget must be at least the minimum."
         case .loveLanguages:
             return primaryLoveLanguage.isEmpty
                 ? "Choose your partner's primary love language."
@@ -335,12 +331,12 @@ final class OnboardingViewModel {
 
     /// Effective budget bounds (computed from selected ranges).
     /// These are what get submitted to the backend.
-    var justBecauseMin: Int = 2000     // cents
-    var justBecauseMax: Int = 5000     // cents
-    var minorOccasionMin: Int = 5000   // cents
-    var minorOccasionMax: Int = 15000  // cents
-    var majorMilestoneMin: Int = 10000 // cents
-    var majorMilestoneMax: Int = 50000 // cents
+    var justBecauseMin: Int = 5000     // cents ($50)
+    var justBecauseMax: Int = 15000    // cents ($150)
+    var minorOccasionMin: Int = 12500  // cents ($125)
+    var minorOccasionMax: Int = 37500  // cents ($375)
+    var majorMilestoneMin: Int = 25000 // cents ($250)
+    var majorMilestoneMax: Int = 75000 // cents ($750)
 
     // MARK: - Love Languages (Step 3.8)
 
@@ -566,10 +562,6 @@ final class OnboardingViewModel {
             canProceed = hasSetBirthday
         case .anniversary:
             canProceed = !hasAnniversary || hasSetAnniversary
-        case .budget:
-            canProceed = justBecauseMax >= justBecauseMin
-                && minorOccasionMax >= minorOccasionMin
-                && majorMilestoneMax >= majorMilestoneMin
         case .loveLanguages:
             canProceed = !primaryLoveLanguage.isEmpty
                 && !secondaryLoveLanguage.isEmpty

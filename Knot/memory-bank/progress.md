@@ -6398,6 +6398,32 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.41 ✅ Onboarding — Remove the Budget Step & Seed Default Budget Ranges
+**Date:** 2026-06-11
+**Status:** Complete
+
+**Goal:** Per user request, drop the dedicated "What feels right to spend?" budget onboarding screen (the three dual-thumb range sliders) and instead seed sensible default budget ranges that flow straight into the vault. Budgets must still be editable after onboarding via Settings → Edit Profile → Budget Tiers.
+
+**Default ranges (cents):** Just Because $50–$150 (5000–15000), Minor Occasion $125–$375 (12500–37500), Major Milestone $250–$750 (25000–75000). Each value is a multiple of its tier's slider `step` and within `[lower, ceiling]` (`BudgetTierSliderCard.swift`), so the Settings sliders render the seeded values correctly.
+
+**What changed:**
+- **`Features/Onboarding/OnboardingViewModel.swift`:** Updated the six budget property defaults (`justBecauseMin`…`majorMilestoneMax`) to the seeded cents values above. Removed `case budget` from `OnboardingStep` and renumbered the trailing cases to stay contiguous (`vibes = 9`, `loveLanguages = 10`, `completion = 11`); `totalSteps` is now **12**. Removed the `.budget` branches from `title`, `validationMessage`, and `validateCurrentStep()`. The six budget properties and the budget tiers in `buildVaultPayload()` are retained — they are still always submitted, now using the seeded defaults.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** The `.budget` case was removed from `stepContent`. Navigation now goes aesthetic vibes → love languages.
+- **Deleted `Features/Onboarding/Steps/OnboardingBudgetView.swift`** and its four `Knot.xcodeproj/project.pbxproj` references (the project does not use synchronized file groups). `OnboardingCompletionView`'s preview sample values were updated to the new defaults.
+
+**What deliberately stayed:** `BudgetTierSliderCard`/`BudgetRangeSlider`, the budget properties, the budget loop in `buildVaultPayload()`, and the entire Settings edit flow (`EditBudgetSheet`, `EditVaultView`) — all reused for post-onboarding editing. The `OnboardingCompletionView` summary still lists the (now default) budget tiers.
+
+**Backend:** No changes. The backend still requires exactly three budget tiers in the vault payload and applies no defaults of its own; since `buildVaultPayload()` always emits all three tiers from the view model, the seeded defaults satisfy the contract unchanged.
+
+**Tests:**
+- `KnotTests/OnboardingContainerViewTests.swift`: updated the step-count assertion to 12 (renamed `testOnboardingStepHasTwelveSteps`, now also asserting no step carries the "Budget" title), removed the now-defunct `.budget` sub-block from `testPerStepValidationRules`, and added `testDefaultBudgetValues` (asserts the six seeded cents defaults and that `buildVaultPayload()` still emits all three tiers). `testBuildVaultPayloadShapeUnchanged` is unchanged (still asserts `budgets.count == 3`).
+- Ran `KnotTests/OnboardingContainerViewTests` + `KnotTests/BudgetRangeSliderMathTests`: 17 tests, 0 failures.
+
+**Notes:**
+- Budgets can no longer be customized *during* onboarding; they remain fully available post-onboarding in Settings → Edit Profile → Budget Tiers, where the sliders load at the seeded defaults.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

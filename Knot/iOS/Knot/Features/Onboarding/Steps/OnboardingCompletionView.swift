@@ -535,12 +535,12 @@ private struct SummaryCard<Content: View>: View {
         CustomMilestone(name: "Trip to Paris", month: 11, day: 5, recurrence: "one_time")
     ]
     vm.selectedVibes = ["quiet_luxury", "romantic", "minimalist"]
-    vm.justBecauseMin = 2000
-    vm.justBecauseMax = 5000
-    vm.minorOccasionMin = 5000
-    vm.minorOccasionMax = 15000
-    vm.majorMilestoneMin = 10000
-    vm.majorMilestoneMax = 50000
+    vm.justBecauseMin = 5000
+    vm.justBecauseMax = 15000
+    vm.minorOccasionMin = 12500
+    vm.minorOccasionMax = 37500
+    vm.majorMilestoneMin = 25000
+    vm.majorMilestoneMax = 75000
     vm.primaryLoveLanguage = "quality_time"
     vm.secondaryLoveLanguage = "receiving_gifts"
     return OnboardingCompletionView()

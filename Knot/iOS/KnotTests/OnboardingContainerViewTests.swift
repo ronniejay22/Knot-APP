@@ -17,13 +17,37 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 13 distinct steps.
-    func testOnboardingStepHasThirteenSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 13)
+    /// Asserts the onboarding flow currently has 12 distinct steps. The
+    /// dedicated Budget step was removed — budgets are seeded with defaults and
+    /// edited later in Settings — so no remaining step carries the "Budget" title.
+    func testOnboardingStepHasTwelveSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 12)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
         XCTAssertTrue(OnboardingStep.completion.isLast)
+        XCTAssertFalse(OnboardingStep.allCases.contains { $0.title == "Budget" },
+                       "The Budget onboarding step should no longer exist")
+    }
+
+    /// The Budget onboarding step was removed, so its values are never collected
+    /// from a screen — they must default to the seeded ranges (in cents) that
+    /// flow straight into the vault payload.
+    func testDefaultBudgetValues() {
+        let vm = OnboardingViewModel()
+        XCTAssertEqual(vm.justBecauseMin, 5000)      // $50
+        XCTAssertEqual(vm.justBecauseMax, 15000)     // $150
+        XCTAssertEqual(vm.minorOccasionMin, 12500)   // $125
+        XCTAssertEqual(vm.minorOccasionMax, 37500)   // $375
+        XCTAssertEqual(vm.majorMilestoneMin, 25000)  // $250
+        XCTAssertEqual(vm.majorMilestoneMax, 75000)  // $750
+
+        // The defaults must still be submitted as all three tiers.
+        vm.partnerName = "Sample Partner"
+        let budgets = vm.buildVaultPayload().budgets
+        XCTAssertEqual(budgets.count, 3)
+        XCTAssertEqual(Set(budgets.map { $0.occasionType }),
+                       ["just_because", "minor_occasion", "major_milestone"])
     }
 
     /// Walk forward through every step, asserting rawValue advances by 1 each time.
@@ -165,16 +189,6 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertFalse(vm.canProceed)
         vm.locationCity = "Brooklyn"
         vm.locationState = "NY"
-        vm.validateCurrentStep()
-        XCTAssertTrue(vm.canProceed)
-
-        // Budget — the single consolidated step requires every tier's max >= min.
-        vm.currentStep = .budget
-        vm.justBecauseMin = 5000
-        vm.justBecauseMax = 4000
-        vm.validateCurrentStep()
-        XCTAssertFalse(vm.canProceed)
-        vm.justBecauseMax = 5000
         vm.validateCurrentStep()
         XCTAssertTrue(vm.canProceed)
 
