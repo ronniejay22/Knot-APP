@@ -104,31 +104,34 @@ struct LoveLanguageCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // One line always: keeps the row height stable when the
-                    // trailing badge appears and steals width. The scale floor
-                    // absorbs the tight case — the longest name ("Words of
-                    // Affirmation") next to the wider "SECONDARY" badge on a
-                    // narrow device — without truncating to an ellipsis.
-                    Text(LoveLanguageDisplay.name(for: language))
-                        .knotFont(Theme.Typography.cta)
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    // Title and badge share one row so the description below can
+                    // use the full card width. One line always for the title:
+                    // the scale floor absorbs the tight case — the longest name
+                    // ("Words of Affirmation") next to the wider "SECONDARY"
+                    // badge on a narrow device — without truncating to ellipsis.
+                    HStack(spacing: 8) {
+                        Text(LoveLanguageDisplay.name(for: language))
+                            .knotFont(Theme.Typography.cta)
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+
+                        Spacer(minLength: 8)
+
+                        // Trailing rank badge — only when selected. Fixed-size
+                        // with a higher layout priority so it can't be
+                        // compressed by the title.
+                        if selectionState == .primary {
+                            rankBadge("PRIMARY", fill: Theme.accent)
+                        } else if selectionState == .secondary {
+                            rankBadge("SECONDARY", fill: Theme.accent.opacity(0.6))
+                        }
+                    }
 
                     Text(LoveLanguageDisplay.description(for: language))
                         .knotFont(Theme.Typography.label)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(2)
-                }
-
-                Spacer(minLength: 8)
-
-                // Trailing rank badge — only when selected. Fixed-size with a
-                // higher layout priority so it can't be compressed by the title.
-                if selectionState == .primary {
-                    rankBadge("PRIMARY", fill: Theme.accent)
-                } else if selectionState == .secondary {
-                    rankBadge("SECONDARY", fill: Theme.accent.opacity(0.6))
                 }
             }
             .padding(.horizontal, 16)
