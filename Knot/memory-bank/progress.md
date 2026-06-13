@@ -6424,6 +6424,35 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.42 ✅ Onboarding — Replace the "You're All Set!" Summary with an In-Onboarding Recommendation Reveal
+**Date:** 2026-06-12
+**Status:** Complete
+
+**Goal:** Per user request, delete the static "You're All Set!" summary page (the final onboarding step, "Step 12 of 12", which recapped the partner vault). In its place, once the user finishes the last data-entry step (Love Languages), the app submits the vault, generates the user's first "Just Because" recommendation, and shows the recommendation cards **inside the onboarding flow** — the user is not taken to the For You tab until they tap "Continue". This makes the onboarding payoff immediate (real recommendations) instead of a recap of data they just entered.
+
+**Approach (minimal churn):** The `.completion` enum case, the `OnboardingCompletionView.swift` file, and `totalSteps == 12` were all kept — this avoids `Knot.xcodeproj/project.pbxproj` edits and keeps existing tests compiling. Only **what the final step renders** and **when the vault is submitted** changed.
+
+**What changed:**
+- **`Features/Onboarding/OnboardingViewModel.swift`:** Retitled `.completion` from "All Set!" to "Your Picks". Added `showsProgressHeader` (`currentStep != .completion`) so the container hides the back button + progress bar on the reveal step. `submitVault()`, `isLast`, `totalSteps`, and `progress` are unchanged.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** Header row now gated on `showsProgressHeader`. `navigationButtons` restructured into three branches: `.completion` shows a "Continue" button that calls `onComplete()` directly (always enabled/visible so the user is never trapped in loading/error); `.loveLanguages` submits the vault on "Next" then advances on success (the `isSubmitting` overlay covers the POST, and the existing "Unable to Save" alert drives retry on failure, now advancing via `goToNextStep()` instead of `onComplete()`); all other steps unchanged. The validation-banner logic was factored into a `presentValidationError()` helper. The old `isLast → submitVault → onComplete` block was removed.
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift` (repurposed in place):** Replaced the ~513-line summary with a lightweight reveal that reuses the real recommendation engine — `RecommendationsViewModel.configure(modelContext:)` + `generateRecommendations()` (default `occasionType: "just_because"`, `milestoneId: nil`, the same run `JustBecauseCard` makes). States mirror `RecommendationsView.suggestionsContent`: loading → `ForYouLoadingView`, celebration → `ForYouClimaxView`, error → message + "Try Again", empty → reassurance copy, loaded → a `ScrollView` of `RecommendationCard`s under an `OnboardingStepHeader`. The card CTAs match the For You tab: `onSelect` routes ideas/plans to `openIdeaFromTrio` (→ `IdeaDetailView`) and gifts/experiences to `selectRecommendation` (→ `SelectionConfirmationSheet` → merchant handoff), and the return-to-app `PurchasePromptSheet` / `PurchaseRatingSheet` + `scenePhase` `handleReturnFromMerchant` modifiers are ported onto `body` (reusing the existing VM methods and sheet components). `onSave` saves the pick. Two For-You behaviors are **deliberately not ported** because they're premature during first-run onboarding: the App Store review prompt (`AppReviewPromptSheet` / `requestReview`, which would also burn the review cooldown) and the background "still preparing" notification machinery (`handleAppBackgroundedWhileLoading` / `cancelPendingLoadingNotification`).
+- **`Features/Recommendations/RecommendationsView.swift`:** De-privatized `ForYouLoadingView` and `ForYouClimaxView` (dropped `private`) so the reveal reuses the exact same loading + celebration animations for visual parity. No other changes.
+- **`App/ContentView.swift`:** Updated the stale `onComplete` comment to reflect the new "Continue on the reveal step" trigger.
+
+**What deliberately stayed out:** The reveal does **not** wire the full `RecommendationsView`'s toolbar, the 100pt tab-bar bottom clearance, the Adjust Vibe / Refresh actions, or the `vaultMissing → hasCompletedOnboarding = false` re-route. Omitting the last one is intentional: the vault was just created, and a read-after-write lag could otherwise bounce the user back out of onboarding mid-reveal — instead a failed run shows the error state with the always-present "Continue" still reachable.
+
+**Backend:** No changes. The vault is created via the same `submitVault()`/`POST /api/v1/vault` path, just triggered on the Love Languages step; recommendations use the existing `POST /api/v1/recommendations/generate` (just_because) endpoint.
+
+**Tests:**
+- `KnotTests/OnboardingContainerViewTests.swift`: added `testProgressHeaderHiddenOnFinalStep` (asserts `showsProgressHeader` is `true` on `.loveLanguages`, `false` on `.completion`). Existing tests (`.completion`, `totalSteps == 12`, step-walk) remain valid since the enum is unchanged.
+- Ran `OnboardingContainerViewTests` + `OnboardingStepHeaderTests`: 13 tests, 0 failures. Full `build-for-testing` succeeds.
+
+**Notes:**
+- New end-to-end flow: Love Languages → "Next" → vault submit (overlay) → on success advance to the reveal (header hidden) → generate just_because → loading → celebration → cards → "Continue" → `MainTabView` (For You). On submit failure the user stays on Love Languages with the "Unable to Save" alert.
+- The reveal still omits the `RecommendationsView` chrome that doesn't belong in onboarding — the toolbar, the 100pt tab-bar bottom clearance, the Adjust Vibe / Refresh buttons, and the `vaultMissing → hasCompletedOnboarding = false` re-route — but the card CTAs themselves (Select / Read / Save and the full purchase-handoff chain) are at full parity.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

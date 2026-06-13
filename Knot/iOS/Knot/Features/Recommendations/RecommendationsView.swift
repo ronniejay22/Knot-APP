@@ -642,7 +642,9 @@ struct RecommendationsView: View {
 /// - Progress bar that fills toward 95% over ~28s (the parent owns final completion)
 ///
 /// Mirrors the Figma Make design at figma.com/make/tD11m6jemTVFt7nfWVVdt3
-private struct ForYouLoadingView: View {
+// Internal (not `private`) so the onboarding recommendation-reveal step
+// (`OnboardingCompletionView`) can reuse the exact same loading animation.
+struct ForYouLoadingView: View {
 
     // Center icon cycle (every 2 seconds)
     private static let centerIcons: [UIImage] = [
@@ -845,7 +847,9 @@ private struct ForYouLoadingView: View {
 /// a spring-loaded checkmark, and orbiting celebration icons.
 ///
 /// Mirrors the Figma Make climax sequence at figma.com/make/tD11m6jemTVFt7nfWVVdt3
-private struct ForYouClimaxView: View {
+// Internal (not `private`) so the onboarding recommendation-reveal step
+// (`OnboardingCompletionView`) can reuse the same celebration animation.
+struct ForYouClimaxView: View {
 
     // MARK: Particle data (deterministic — computed once at type load)
 

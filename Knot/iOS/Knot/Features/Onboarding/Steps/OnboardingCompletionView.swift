@@ -5,562 +5,295 @@
 //  Created on February 7, 2026.
 //  Step 3.1: Placeholder for onboarding Step 9 — Completion / Transition to Home.
 //  Step 3.9: Full implementation — success header with comprehensive profile summary.
+//  Step 19.x: Replaced the static "You're All Set!" summary with an in-onboarding
+//             recommendation reveal. The user's first "Just Because" picks are
+//             generated and shown here before they ever reach the For You tab.
 //
 
 import SwiftUI
 import LucideIcons
 
-/// Step 9: Onboarding complete — shows a success celebration and full partner profile summary.
+/// The final onboarding step: the user's very first recommendations, generated and
+/// shown *inside* the onboarding flow before they reach the Home / For You tab.
 ///
-/// Displays a scrollable summary of all data entered during onboarding, organized into
-/// visual sections: partner info, interests & dislikes, milestones, aesthetic vibes,
-/// budget tiers, and love languages. Each section uses the same icons and display names
-/// as its originating step for visual consistency.
+/// By the time this view appears the partner vault has already been submitted — the
+/// Love Languages step's "Next" button POSTs it (see `OnboardingContainerView`). So
+/// this view immediately kicks off a default "Just Because" recommendation run using
+/// the same `RecommendationsViewModel` engine the For You tab uses, then renders the
+/// resulting cards.
 ///
-/// The "Get Started" button is handled by `OnboardingContainerView`'s navigation bar
-/// (it detects `.isLast` on the current step and swaps the Next button for Get Started).
+/// Unlike `RecommendationsView`, this reveal deliberately omits the toolbar, the
+/// tab-bar bottom clearance, the Adjust Vibe / Refresh actions, and the
+/// `vaultMissing → hasCompletedOnboarding = false` re-route. The last one matters:
+/// we have *just* created the vault, and a read-after-write lag could otherwise bounce
+/// the user back out of onboarding mid-reveal.
 ///
-/// Features:
-/// - Animated success header with party popper icon and personalized message
-/// - 6 summary sections matching the onboarding steps
-/// - Vibes shown as colored accent pills
-/// - Interests/dislikes as compact tags
-/// - Upcoming milestone with computed date label
-/// - Love languages with Primary/Secondary badges
-/// - Budget tiers with formatted dollar ranges
+/// The "Continue" button that finishes onboarding lives in `OnboardingContainerView`'s
+/// navigation bar (it detects `.isLast` on this step), so it stays reachable in every
+/// state below — loading, loaded, empty, or error — and the user is never trapped.
 struct OnboardingCompletionView: View {
-    @Environment(OnboardingViewModel.self) private var viewModel
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
+
+    @State private var viewModel = RecommendationsViewModel()
+
+    /// True while the climax celebration plays — between loading completing and the
+    /// recommendation cards appearing. Mirrors `RecommendationsView`'s own flag.
+    @State private var isPlayingClimax = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // MARK: - Success Header
-                successHeader
-                    .padding(.top, 8)
+        content
+            // Trigger the celebration only on a fresh, successful load — skips on
+            // error or when no recommendations came back.
+            .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
+                guard wasLoading,
+                      !nowLoading,
+                      !viewModel.recommendations.isEmpty,
+                      viewModel.errorMessage == nil
+                else { return }
 
-                // MARK: - Profile Summary Sections
-                partnerInfoSection
-                interestsSection
-                milestonesSection
-                vibesSection
-                budgetSection
-                loveLanguagesSection
-
-                // MARK: - Footer Hint
-                Text("Tap \"Get Started\" below to begin")
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.top, 4)
-                    .padding(.bottom, 16)
+                withAnimation(.easeIn(duration: 0.2)) {
+                    isPlayingClimax = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) {
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        isPlayingClimax = false
+                    }
+                }
             }
-            .padding(.horizontal, 20)
+            .task {
+                viewModel.configure(modelContext: modelContext)
+                // Default arguments → occasionType "just_because", milestoneId nil,
+                // the same run the For You tab's JustBecauseCard makes.
+                await viewModel.generateRecommendations()
+            }
+            // MARK: - CTA flow (full parity with RecommendationsView)
+            //
+            // The card "Select" button opens this confirmation sheet, which hands
+            // off to the merchant. Mirrors RecommendationsView so onboarding picks
+            // behave identically to the For You tab.
+            .sheet(isPresented: $viewModel.showConfirmationSheet) {
+                if let item = viewModel.selectedRecommendation {
+                    SelectionConfirmationSheet(
+                        item: item,
+                        onConfirm: {
+                            Task { await viewModel.confirmSelection() }
+                        },
+                        onCancel: {
+                            viewModel.dismissSelection()
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Idea / date-plan "Read" button opens the idea detail.
+            .fullScreenCover(isPresented: $viewModel.showIdeaDetail) {
+                if let idea = viewModel.selectedIdea {
+                    IdeaDetailView(idea: idea) {
+                        viewModel.showIdeaDetail = false
+                        viewModel.selectedIdea = nil
+                    }
+                }
+            }
+            // Return-to-app purchase prompt after the merchant handoff.
+            .sheet(isPresented: $viewModel.showPurchasePromptSheet) {
+                if let item = viewModel.pendingHandoffRecommendation {
+                    PurchasePromptSheet(
+                        title: item.title,
+                        merchantName: item.merchantName,
+                        onConfirmPurchase: {
+                            Task { await viewModel.confirmPurchase() }
+                        },
+                        onSaveForLater: {
+                            viewModel.declinePurchaseAndSave()
+                        },
+                        onDismiss: {
+                            viewModel.dismissPurchasePrompt()
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Rating prompt after confirming a purchase.
+            .sheet(isPresented: $viewModel.showRatingPrompt) {
+                if let item = viewModel.pendingHandoffRecommendation {
+                    PurchaseRatingSheet(
+                        itemTitle: item.title,
+                        onSubmit: { rating, feedbackText in
+                            Task {
+                                await viewModel.submitPurchaseRating(rating, feedbackText: feedbackText)
+                            }
+                        },
+                        onSkip: {
+                            viewModel.skipPurchaseRating()
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            // Detect return from the merchant to fire the purchase prompt.
+            //
+            // Unlike RecommendationsView, this onboarding reveal deliberately does
+            // NOT port the App Store review prompt or the background "still
+            // preparing" notification machinery — requesting a review or scheduling
+            // a loading notification during first-run onboarding is premature.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    viewModel.handleReturnFromMerchant()
+                }
+            }
+    }
+
+    // MARK: - State Switch
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.isLoading {
+            ForYouLoadingView()
+        } else if isPlayingClimax {
+            ForYouClimaxView()
+                .transition(.opacity)
+        } else if let error = viewModel.errorMessage {
+            errorState(message: error)
+        } else if viewModel.recommendations.isEmpty {
+            emptyState
+        } else {
+            recommendationsList
         }
     }
 
-    // MARK: - Success Header
+    // MARK: - Loaded
 
-    private var successHeader: some View {
-        VStack(spacing: 14) {
-            let name = viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var recommendationsList: some View {
+        VStack(spacing: 0) {
+            OnboardingStepHeader(
+                title: "Here are your first picks",
+                subtitle: "A few ideas to get you started. Tap Continue when you're ready."
+            )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
 
-            Text("You're All Set!")
-                .knotFont(Theme.Typography.onboardingHeader)
-                .tracking(-0.5)
-                .foregroundStyle(Theme.textPrimary)
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(viewModel.recommendations, id: \.id) { item in
+                        RecommendationCard(
+                            title: item.title,
+                            descriptionText: item.description,
+                            recommendationType: item.recommendationType,
+                            priceCents: item.isIdea == true ? nil : item.priceCents,
+                            currency: item.currency,
+                            priceConfidence: item.priceConfidence ?? "unknown",
+                            merchantName: item.isIdea == true ? nil : item.merchantName,
+                            locationCity: item.location?.city,
+                            locationState: item.location?.state,
+                            imageURL: item.imageUrl,
+                            isSaved: viewModel.isSaved(item.id),
+                            matchedInterests: item.matchedInterests ?? [],
+                            matchedVibes: item.matchedVibes ?? [],
+                            matchedLoveLanguages: item.matchedLoveLanguages ?? [],
+                            personalizationNote: item.personalizationNote,
+                            // Full parity with the For You tab: ideas/plans open the
+                            // idea detail; gifts/experiences open the selection
+                            // confirmation sheet → merchant handoff (the sheets and
+                            // return-to-app prompts are wired on `body` below).
+                            onSelect: {
+                                if item.isIdea == true || item.recommendationType == "plan" {
+                                    viewModel.openIdeaFromTrio(item)
+                                } else {
+                                    viewModel.selectRecommendation(item)
+                                }
+                            },
+                            onSave: {
+                                viewModel.saveRecommendation(item)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+                // Modest bottom clearance so the last card clears the container's
+                // "Continue" button (no tab bar exists here, so no 100pt inset).
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
 
-            Text(name.isEmpty
-                 ? "Your Partner Vault is ready.\nKnot will find personalized gifts, dates, and experiences."
-                 : "\(name)'s vault is ready.\nKnot will find personalized gifts, dates, and experiences.")
+    // MARK: - Error State
+
+    /// Generation failed. The container's "Continue" button remains below, so the
+    /// user can always proceed to Home even if this run errored.
+    private func errorState(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(uiImage: Lucide.circleAlert)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+                .foregroundStyle(Theme.textTertiary)
+
+            Text(message)
                 .knotFont(Theme.Typography.body)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
-        }
-        .padding(.bottom, 4)
-    }
+                .padding(.horizontal, 40)
 
-    // MARK: - Partner Info Section
+            Button {
+                Task { await viewModel.generateRecommendations() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(uiImage: Lucide.refreshCw)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 14, height: 14)
 
-    private var partnerInfoSection: some View {
-        SummaryCard(icon: Lucide.user, title: "Partner Info") {
-            VStack(alignment: .leading, spacing: 10) {
-                if !viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    summaryRow(label: "Name", value: viewModel.partnerName.trimmingCharacters(in: .whitespacesAndNewlines))
+                    Text("Try Again")
+                        .knotFont(Theme.Typography.cta)
                 }
-
-                summaryRow(label: "Together", value: formatTenure(viewModel.relationshipTenureMonths))
-                summaryRow(label: "Living", value: formatCohabitation(viewModel.cohabitationStatus))
-
-                let city = viewModel.locationCity.trimmingCharacters(in: .whitespacesAndNewlines)
-                let state = viewModel.locationState.trimmingCharacters(in: .whitespacesAndNewlines)
-                let location = [city, state].filter { !$0.isEmpty }.joined(separator: ", ")
-                if !location.isEmpty {
-                    summaryRow(label: "Location", value: location)
-                }
-            }
-        }
-    }
-
-    // MARK: - Interests & Dislikes Section
-
-    private var interestsSection: some View {
-        SummaryCard(icon: Lucide.sparkles, title: "Interests & Dislikes") {
-            VStack(alignment: .leading, spacing: 14) {
-                // Likes
-                if !viewModel.selectedInterests.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label {
-                            Text("\(viewModel.selectedInterests.count) Likes")
-                                .knotFont(Theme.Typography.label)
-                        } icon: {
-                            Image(uiImage: Lucide.heart)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
-                        }
-                        .foregroundStyle(Theme.accent)
-
-                        FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-                            ForEach(viewModel.selectedInterests.sorted(), id: \.self) { interest in
-                                KnotBadge(interest, variant: .accent, size: .sm)
-                            }
-                        }
-                    }
-                }
-
-                // Dislikes
-                if !viewModel.selectedDislikes.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label {
-                            Text("\(viewModel.selectedDislikes.count) Hard Avoids")
-                                .knotFont(Theme.Typography.label)
-                        } icon: {
-                            Image(uiImage: Lucide.ban)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
-                        }
-                        .foregroundStyle(Theme.textSecondary)
-
-                        FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-                            ForEach(viewModel.selectedDislikes.sorted(), id: \.self) { dislike in
-                                KnotBadge(dislike, variant: .default, size: .sm)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Milestones Section
-
-    private var milestonesSection: some View {
-        SummaryCard(icon: Lucide.calendar, title: "Milestones") {
-            VStack(alignment: .leading, spacing: 10) {
-                // Birthday (always present)
-                milestoneRow(
-                    icon: "birthday.cake.fill",
-                    name: "Birthday",
-                    date: formatMonthDay(month: viewModel.partnerBirthdayMonth, day: viewModel.partnerBirthdayDay)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule()
+                        .fill(Theme.accent)
                 )
-
-                // Anniversary (optional)
-                if viewModel.hasAnniversary {
-                    milestoneRow(
-                        icon: "heart.circle.fill",
-                        name: "Anniversary",
-                        date: formatMonthDay(month: viewModel.anniversaryMonth, day: viewModel.anniversaryDay)
-                    )
-                }
-
-                // Holidays
-                let selectedHolidayObjects = HolidayOption.allHolidays.filter {
-                    viewModel.selectedHolidays.contains($0.id)
-                }
-                ForEach(selectedHolidayObjects) { holiday in
-                    milestoneRow(
-                        icon: holiday.iconName,
-                        name: holiday.displayName,
-                        date: formatMonthDay(month: holiday.month, day: holiday.day)
-                    )
-                }
-
-                // Custom milestones
-                ForEach(viewModel.customMilestones) { milestone in
-                    milestoneRow(
-                        icon: "star.fill",
-                        name: milestone.name,
-                        date: formatMonthDay(month: milestone.month, day: milestone.day),
-                        recurrence: milestone.recurrence
-                    )
-                }
-
-                // Upcoming milestone indicator
-                if let upcoming = nextUpcomingMilestone() {
-                    HStack(spacing: 6) {
-                        Image(uiImage: Lucide.bellRing)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 12, height: 12)
-                        Text("Next up: \(upcoming.name) \(upcoming.daysAway)")
-                            .knotFont(Theme.Typography.label)
-                    }
-                    .foregroundStyle(Theme.accent)
-                    .padding(.top, 4)
-                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Vibes Section
+    // MARK: - Empty State
 
-    private var vibesSection: some View {
-        SummaryCard(icon: Lucide.palette, title: "Aesthetic Vibes") {
-            if viewModel.selectedVibes.isEmpty {
-                Text("None selected")
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            Image(uiImage: Lucide.sparkles)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+                .foregroundStyle(Theme.textTertiary)
+
+            VStack(spacing: 8) {
+                Text("You're all set")
+                    .knotFont(Theme.Typography.cardTitle)
+                    .foregroundStyle(Theme.textPrimary)
+
+                Text("We'll have personalized picks waiting for you on the For You tab.")
                     .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textTertiary)
-            } else {
-                FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-                    ForEach(viewModel.selectedVibes.sorted(), id: \.self) { vibe in
-                        HStack(spacing: 5) {
-                            Image(uiImage: OnboardingVibesView.vibeIcon(for: vibe))
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
-
-                            Text(OnboardingVibesView.displayName(for: vibe))
-                                .knotFont(Theme.Typography.label)
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Theme.accent.opacity(0.75))
-                        .clipShape(Capsule())
-                    }
-                }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
             }
         }
-    }
-
-    // MARK: - Budget Section
-
-    private var budgetSection: some View {
-        SummaryCard(icon: Lucide.wallet, title: "Budget Tiers") {
-            VStack(alignment: .leading, spacing: 10) {
-                budgetRow(
-                    icon: Lucide.coffee,
-                    label: "Just Because",
-                    min: viewModel.justBecauseMin,
-                    max: viewModel.justBecauseMax
-                )
-                budgetRow(
-                    icon: Lucide.gift,
-                    label: "Minor Occasion",
-                    min: viewModel.minorOccasionMin,
-                    max: viewModel.minorOccasionMax
-                )
-                budgetRow(
-                    icon: Lucide.sparkles,
-                    label: "Major Milestone",
-                    min: viewModel.majorMilestoneMin,
-                    max: viewModel.majorMilestoneMax
-                )
-            }
-        }
-    }
-
-    // MARK: - Love Languages Section
-
-    private var loveLanguagesSection: some View {
-        SummaryCard(icon: Lucide.heart, title: "Love Languages") {
-            VStack(alignment: .leading, spacing: 10) {
-                if !viewModel.primaryLoveLanguage.isEmpty {
-                    loveLanguageRow(
-                        language: viewModel.primaryLoveLanguage,
-                        rank: "Primary"
-                    )
-                }
-                if !viewModel.secondaryLoveLanguage.isEmpty {
-                    loveLanguageRow(
-                        language: viewModel.secondaryLoveLanguage,
-                        rank: "Secondary"
-                    )
-                }
-            }
-        }
-    }
-
-    // MARK: - Reusable Row Components
-
-    private func summaryRow(label: String, value: String) -> some View {
-        HStack(spacing: 0) {
-            Text(label)
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(Theme.textTertiary)
-                .frame(width: 68, alignment: .leading)
-
-            Text(value)
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-        }
-    }
-
-    private func milestoneRow(icon: String, name: String, date: String, recurrence: String? = nil) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.accent)
-                .frame(width: 18)
-
-            Text(name)
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Text(date)
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(Theme.textSecondary)
-
-            if let recurrence, recurrence == "one_time" {
-                Text("once")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Theme.surface)
-                    .clipShape(Capsule())
-            }
-        }
-    }
-
-    private func budgetRow(icon: UIImage, label: String, min: Int, max: Int) -> some View {
-        HStack(spacing: 8) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 14, height: 14)
-                .foregroundStyle(Theme.accent)
-
-            Text(label)
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Text(formatBudgetRange(minCents: min, maxCents: max))
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(Theme.textSecondary)
-        }
-    }
-
-    private func loveLanguageRow(language: String, rank: String) -> some View {
-        HStack(spacing: 10) {
-            Image(uiImage: LoveLanguageDisplay.icon(for: language))
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .foregroundStyle(rank == "Primary" ? Theme.accent : Theme.textSecondary)
-
-            Text(LoveLanguageDisplay.name(for: language))
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Text(rank.uppercased())
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(rank == "Primary" ? Theme.accent : Theme.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    (rank == "Primary" ? Theme.accent : Theme.textSecondary).opacity(0.15)
-                )
-                .clipShape(Capsule())
-        }
-    }
-
-    // MARK: - Formatting Helpers
-
-    private func formatTenure(_ months: Int) -> String {
-        let years = months / 12
-        let remaining = months % 12
-        if years == 0 {
-            return "\(remaining) month\(remaining == 1 ? "" : "s")"
-        } else if remaining == 0 {
-            return "\(years) year\(years == 1 ? "" : "s")"
-        } else {
-            return "\(years)y \(remaining)m"
-        }
-    }
-
-    private func formatCohabitation(_ status: String) -> String {
-        switch status {
-        case "living_together": return "Living Together"
-        case "separate": return "Separate"
-        case "long_distance": return "Long Distance"
-        default: return status.replacingOccurrences(of: "_", with: " ").capitalized
-        }
-    }
-
-    private func formatMonthDay(month: Int, day: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        var components = DateComponents()
-        components.month = month
-        components.day = day
-        components.year = 2000
-        if let date = Calendar.current.date(from: components) {
-            return formatter.string(from: date)
-        }
-        return "\(month)/\(day)"
-    }
-
-    /// Computes the next upcoming milestone from all entered milestones.
-    private func nextUpcomingMilestone() -> (name: String, daysAway: String)? {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let currentYear = calendar.component(.year, from: today)
-
-        // Gather all milestones with their month/day
-        var milestones: [(name: String, month: Int, day: Int)] = []
-
-        milestones.append(("Birthday", viewModel.partnerBirthdayMonth, viewModel.partnerBirthdayDay))
-
-        if viewModel.hasAnniversary {
-            milestones.append(("Anniversary", viewModel.anniversaryMonth, viewModel.anniversaryDay))
-        }
-
-        for holidayID in viewModel.selectedHolidays {
-            if let holiday = HolidayOption.allHolidays.first(where: { $0.id == holidayID }) {
-                milestones.append((holiday.displayName, holiday.month, holiday.day))
-            }
-        }
-
-        for milestone in viewModel.customMilestones {
-            milestones.append((milestone.name, milestone.month, milestone.day))
-        }
-
-        // Find the nearest future occurrence
-        var nearest: (name: String, days: Int)?
-
-        for m in milestones {
-            var components = DateComponents()
-            components.month = m.month
-            components.day = m.day
-            components.year = currentYear
-
-            guard let thisYear = calendar.date(from: components) else { continue }
-
-            let target: Date
-            if thisYear >= today {
-                target = thisYear
-            } else {
-                components.year = currentYear + 1
-                guard let nextYear = calendar.date(from: components) else { continue }
-                target = nextYear
-            }
-
-            let days = calendar.dateComponents([.day], from: today, to: target).day ?? 999
-            if nearest == nil || days < nearest!.days {
-                nearest = (m.name, days)
-            }
-        }
-
-        guard let result = nearest else { return nil }
-        let daysText: String
-        if result.days == 0 {
-            daysText = "is today!"
-        } else if result.days == 1 {
-            daysText = "is tomorrow"
-        } else {
-            daysText = "in \(result.days) days"
-        }
-        return (result.name, daysText)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-// MARK: - Summary Card Component
+// MARK: - Preview
 
-/// A reusable card container for profile summary sections.
-/// Displays a Lucide icon + title header followed by custom content.
-private struct SummaryCard<Content: View>: View {
-    let icon: UIImage
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        KnotCard(padding: .lg) {
-            VStack(alignment: .leading, spacing: 14) {
-                KnotSectionHeader(title, icon: icon, style: .subhead)
-                content
-            }
-        }
-    }
-}
-
-// MARK: - Previews
-
-#Preview("Empty") {
+#Preview {
     OnboardingCompletionView()
-        .background(Theme.backgroundGradient.ignoresSafeArea())
-        .environment(OnboardingViewModel())
-}
-
-#Preview("Full Profile") {
-    let vm = OnboardingViewModel()
-    vm.partnerName = "Alex"
-    vm.relationshipTenureMonths = 26
-    vm.cohabitationStatus = "living_together"
-    vm.locationCity = "San Francisco"
-    vm.locationState = "CA"
-    vm.selectedInterests = ["Cooking", "Travel", "Photography", "Music", "Hiking"]
-    vm.selectedDislikes = ["Gaming", "Sports", "Cars", "Skiing", "Surfing"]
-    vm.partnerBirthdayMonth = 3
-    vm.partnerBirthdayDay = 15
-    vm.hasAnniversary = true
-    vm.anniversaryMonth = 9
-    vm.anniversaryDay = 22
-    vm.selectedHolidays = ["valentines_day", "christmas"]
-    vm.customMilestones = [
-        CustomMilestone(name: "First Date", month: 6, day: 10, recurrence: "yearly"),
-        CustomMilestone(name: "Trip to Paris", month: 11, day: 5, recurrence: "one_time")
-    ]
-    vm.selectedVibes = ["quiet_luxury", "romantic", "minimalist"]
-    vm.justBecauseMin = 5000
-    vm.justBecauseMax = 15000
-    vm.minorOccasionMin = 12500
-    vm.minorOccasionMax = 37500
-    vm.majorMilestoneMin = 25000
-    vm.majorMilestoneMax = 75000
-    vm.primaryLoveLanguage = "quality_time"
-    vm.secondaryLoveLanguage = "receiving_gifts"
-    return OnboardingCompletionView()
-        .background(Theme.backgroundGradient.ignoresSafeArea())
-        .environment(vm)
-}
-
-#Preview("Minimal Profile") {
-    let vm = OnboardingViewModel()
-    vm.partnerName = "Jordan"
-    vm.relationshipTenureMonths = 6
-    vm.cohabitationStatus = "long_distance"
-    vm.selectedInterests = ["Art", "Coffee", "Movies", "Yoga", "Baking"]
-    vm.selectedDislikes = ["Cars", "DIY", "Gardening", "Running", "Cycling"]
-    vm.partnerBirthdayMonth = 12
-    vm.partnerBirthdayDay = 1
-    vm.selectedVibes = ["bohemian"]
-    vm.primaryLoveLanguage = "words_of_affirmation"
-    vm.secondaryLoveLanguage = "acts_of_service"
-    return OnboardingCompletionView()
-        .background(Theme.backgroundGradient.ignoresSafeArea())
-        .environment(vm)
 }

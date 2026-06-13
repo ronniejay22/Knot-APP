@@ -81,7 +81,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .birthday, .anniversary: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
         case .loveLanguages: return "Love Languages"
-        case .completion: return "All Set!"
+        case .completion: return "Your Picks"
         }
     }
 
@@ -139,6 +139,15 @@ final class OnboardingViewModel {
     /// intro. Visible from the third step onward.
     var showsBackButton: Bool {
         currentStep.rawValue > OnboardingStep.partnerName.rawValue
+    }
+
+    /// Whether the onboarding header (back button + progress bar) should be shown
+    /// for the current step. Hidden on the final recommendation-reveal step: the
+    /// vault is already submitted by the time we land there, so there is nothing
+    /// to navigate back to or re-edit, and the "Step 12 of 12" indicator no longer
+    /// makes sense once the user is looking at their first recommendations.
+    var showsProgressHeader: Bool {
+        currentStep != .completion
     }
 
     /// Whether the "Next" button should be enabled.

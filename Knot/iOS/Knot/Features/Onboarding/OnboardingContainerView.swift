@@ -39,8 +39,11 @@ struct OnboardingContainerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header: Back Button + Progress Bar (hidden on the Welcome step per the Figma design)
-            if !viewModel.currentStep.isFirst {
+            // MARK: - Header: Back Button + Progress Bar
+            // Hidden on the Welcome step (per the Figma design) and on the final
+            // recommendation-reveal step (the vault is already submitted — there's
+            // nothing to navigate back to, and "Step 12 of 12" no longer applies).
+            if viewModel.showsProgressHeader && !viewModel.currentStep.isFirst {
                 HStack(spacing: 16) {
                     // On the first post-Welcome step (Partner Name) the only step
                     // to return to is the Welcome intro, so the back button is
@@ -128,7 +131,8 @@ struct OnboardingContainerView: View {
                 Task {
                     let success = await viewModel.submitVault()
                     if success {
-                        onComplete()
+                        isNavigatingBack = false
+                        viewModel.goToNextStep()
                     }
                 }
             }
@@ -233,20 +237,42 @@ struct OnboardingContainerView: View {
     @ViewBuilder
     private var navigationButtons: some View {
         if viewModel.currentStep.isLast {
+            // Final recommendation-reveal step. The vault is already submitted and
+            // the user is looking at their first picks, so "Continue" simply
+            // finishes onboarding. Always enabled and visible — independent of the
+            // reveal's loading/error/empty state — so the user is never trapped.
             KnotButton(
-                "Get Started",
+                "Continue",
+                variant: .primary,
+                size: .lg,
+                action: { onComplete() }
+            )
+            .frame(maxWidth: .infinity)
+        } else if viewModel.currentStep == .loveLanguages {
+            // Last data-entry step: submit the vault here, then advance into the
+            // recommendation reveal on success. On failure the "Unable to Save"
+            // alert drives retry and the user stays on this step.
+            KnotButton(
+                "Next",
                 variant: .primary,
                 size: .lg,
                 action: {
+                    guard viewModel.canProceed else {
+                        presentValidationError()
+                        return
+                    }
                     Task {
                         let success = await viewModel.submitVault()
                         if success {
-                            onComplete()
+                            showValidationError = false
+                            isNavigatingBack = false
+                            viewModel.goToNextStep()
                         }
                     }
                 }
             )
             .frame(maxWidth: .infinity)
+            .opacity(viewModel.canProceed ? 1.0 : 0.4)
             .disabled(viewModel.isSubmitting)
         } else {
             KnotButton(
@@ -258,20 +284,28 @@ struct OnboardingContainerView: View {
                         showValidationError = false
                         isNavigatingBack = false
                         viewModel.goToNextStep()
-                    } else if let message = viewModel.validationMessage {
-                        validationErrorText = message
-                        showValidationError = true
-                        dismissTask?.cancel()
-                        dismissTask = Task {
-                            try? await Task.sleep(for: .seconds(3))
-                            guard !Task.isCancelled else { return }
-                            showValidationError = false
-                        }
+                    } else {
+                        presentValidationError()
                     }
                 }
             )
             .frame(maxWidth: .infinity)
             .opacity(viewModel.canProceed ? 1.0 : 0.4)
+        }
+    }
+
+    /// Shows the inline validation banner with the current step's message and
+    /// schedules its auto-dismiss after 3 seconds. Used when the user taps Next
+    /// before the current step's inputs are valid.
+    private func presentValidationError() {
+        guard let message = viewModel.validationMessage else { return }
+        validationErrorText = message
+        showValidationError = true
+        dismissTask?.cancel()
+        dismissTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            showValidationError = false
         }
     }
 }

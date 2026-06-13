@@ -125,6 +125,20 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertTrue(vm.showsBackButton, "Back button shows from the third step onward")
     }
 
+    /// The onboarding header (back button + progress bar) is hidden on the final
+    /// recommendation-reveal step (`.completion`) — the vault is already submitted
+    /// by then — but shown on the data-entry steps.
+    func testProgressHeaderHiddenOnFinalStep() {
+        let vm = OnboardingViewModel()
+
+        vm.currentStep = .loveLanguages
+        XCTAssertTrue(vm.showsProgressHeader, "Header should show on a data-entry step")
+
+        vm.currentStep = .completion
+        XCTAssertFalse(vm.showsProgressHeader,
+                       "Header should be hidden on the final recommendation-reveal step")
+    }
+
     /// Spot-check that each per-screen validation rule actually gates `canProceed`.
     func testPerStepValidationRules() {
         let vm = OnboardingViewModel()

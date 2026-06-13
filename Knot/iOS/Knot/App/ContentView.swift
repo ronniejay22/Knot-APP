@@ -51,7 +51,9 @@ struct ContentView: View {
                 } else {
                     // MARK: - Authenticated + No vault → Onboarding
                     OnboardingContainerView {
-                        // Called when user taps "Get Started" on the completion step
+                        // Called when the user taps "Continue" on the final
+                        // recommendation-reveal step (the vault was already submitted
+                        // on the Love Languages step).
                         authViewModel.hasCompletedOnboarding = true
                     }
                 }
