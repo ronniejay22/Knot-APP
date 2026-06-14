@@ -89,6 +89,26 @@ final class RecommendationsViewModel {
     /// Populated on launch from SwiftData and updated when the user taps Save.
     var savedRecommendationIds: Set<String> = []
 
+    // MARK: - Spotlight Deck State (June 12, 2026)
+
+    /// Partner's first name, used to personalize the detail page's
+    /// "Why Knot picked this for {name}" header. Loaded best-effort.
+    var partnerName: String?
+
+    /// Whether a deck top-up fetch is currently in flight (drives the
+    /// end-of-deck "Finding more…" state in `SpotlightDeckView`).
+    var isLoadingMore = false
+
+    /// The recommendation whose Spotlight detail page is presented. Non-nil
+    /// drives the detail full-screen cover.
+    var selectedDetailItem: RecommendationItemResponse?
+
+    /// Bumped whenever the deck is replaced wholesale (a fresh generate or a
+    /// full refresh) so `SpotlightDeckView` resets to the first card. A deck
+    /// top-up (`loadMoreForDeck`) appends instead and deliberately does NOT bump
+    /// this — the user keeps their place.
+    var deckResetToken = 0
+
     // MARK: - Return-to-App State (Step 9.4)
 
     /// The recommendation that was handed off to the merchant.
@@ -162,6 +182,17 @@ final class RecommendationsViewModel {
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
         loadSavedIds()
+        Task { await loadPartnerName() }
+    }
+
+    /// Best-effort load of the partner's name for detail-page personalization.
+    /// Silent on failure — the detail page falls back to "your partner".
+    func loadPartnerName() async {
+        guard partnerName == nil else { return }
+        let vaultService = VaultService()
+        if let vault = try? await vaultService.getVault() {
+            partnerName = vault.partnerName
+        }
     }
 
     // MARK: - Generate
@@ -189,6 +220,7 @@ final class RecommendationsViewModel {
             recommendations = response.recommendations
             briefingText = response.briefingText
             hasLoadedInitially = true
+            deckResetToken += 1
         } catch let serviceError as RecommendationServiceError {
             if case .noVault = serviceError {
                 // Re-verify: the backend says no vault exists. Confirm via Supabase directly.
@@ -325,6 +357,7 @@ final class RecommendationsViewModel {
                 vibeOverride: vibeOverrideArray
             )
             recommendations = response.recommendations
+            deckResetToken += 1
         } catch let serviceError as RecommendationServiceError {
             switch serviceError {
             case .staleRecommendations:
@@ -652,6 +685,91 @@ final class RecommendationsViewModel {
             createdAt: ""
         )
         selectIdea(idea)
+    }
+
+    // MARK: - Spotlight Deck (June 12, 2026)
+
+    /// 👎 — records a "disliked" feedback signal for the card the user passed on.
+    /// Fire-and-forget; the weekly feedback-analysis job down-weights the disliked
+    /// vibes/interests/types. The deck advances locally regardless of the result.
+    func recordDislike(_ item: RecommendationItemResponse) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "disliked"
+            )
+        }
+    }
+
+    /// Appends a fresh batch of recommendations to the deck when the user reaches
+    /// the end. Reuses the refresh path (the `/refresh` endpoint already excludes
+    /// recently-seen titles) with the current set as the exclusion list, and dedupes
+    /// by id. Best-effort: on failure the deck shows its end-of-deck state.
+    func loadMoreForDeck() async {
+        guard !isLoadingMore, !isRefreshing else { return }
+        // Exclude saved items: the `/refresh` endpoint records a negative
+        // "refreshed" signal for every id we pass as rejected, and we must not
+        // train the model against the user's own positive picks. Passed items
+        // already carry their own "disliked" signal, and the server dedupes by
+        // recent title, so dropping the saved ids here loses no exclusion.
+        let seenIds = recommendations.map(\.id).filter { !isSaved($0) }
+        guard !seenIds.isEmpty else { return }
+
+        isLoadingMore = true
+
+        let vibeOverrideArray = vibeOverride.map { Array($0).sorted() }
+        do {
+            let response = try await service.refreshRecommendations(
+                rejectedIds: seenIds,
+                reason: "show_different",
+                vibeOverride: vibeOverrideArray
+            )
+            let existing = Set(recommendations.map(\.id))
+            let fresh = response.recommendations.filter { !existing.contains($0.id) }
+            recommendations.append(contentsOf: fresh)
+        } catch {
+            print("[Knot] RecommendationsViewModel: deck top-up failed — \(error)")
+        }
+
+        isLoadingMore = false
+    }
+
+    /// Opens the Spotlight detail page for a recommendation (tap on a deck card).
+    func openDetail(_ item: RecommendationItemResponse) {
+        selectedDetailItem = item
+    }
+
+    /// Dismisses the Spotlight detail page.
+    func dismissDetail() {
+        selectedDetailItem = nil
+    }
+
+    /// Primary CTA from the detail page for a purchasable recommendation. Mirrors
+    /// `confirmSelection()` (records "selected", opens the merchant URL, preserves
+    /// the item for the return-to-app purchase prompt) but takes the item directly
+    /// since the detail page is itself the confirmation surface — no intermediate
+    /// confirmation sheet. Dismisses the detail first so the return-to-app prompt
+    /// lands on the deck.
+    func openMerchantFromDetail(_ item: RecommendationItemResponse) async {
+        selectedDetailItem = nil
+
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: item.id,
+                action: "selected"
+            )
+        }
+
+        pendingHandoffRecommendation = item
+
+        if let urlString = item.externalUrl {
+            await MerchantHandoffService.openMerchantURL(
+                urlString: urlString,
+                recommendationId: item.id,
+                service: service
+            )
+        }
     }
 
     // MARK: - Private Helpers

@@ -74,16 +74,40 @@ class TestPurchasedFeedbackModel:
             )
 
     def test_all_valid_actions_accepted_including_purchased(self):
-        """All six feedback actions should be accepted by the model."""
+        """All feedback actions (including 'disliked') should be accepted by the model."""
         from app.models.recommendations import RecommendationFeedbackRequest
 
-        valid_actions = ["selected", "saved", "shared", "rated", "handoff", "purchased"]
+        valid_actions = [
+            "selected", "saved", "shared", "rated", "handoff", "purchased", "disliked",
+        ]
         for action in valid_actions:
             req = RecommendationFeedbackRequest(
                 recommendation_id="rec-123",
                 action=action,
             )
             assert req.action == action
+
+    def test_disliked_action_is_valid(self):
+        """The Spotlight deck's 👎 records a 'disliked' feedback action."""
+        from app.models.recommendations import RecommendationFeedbackRequest
+
+        req = RecommendationFeedbackRequest(
+            recommendation_id="rec-123",
+            action="disliked",
+        )
+        assert req.action == "disliked"
+
+    def test_invalid_action_rejected(self):
+        """An unknown action should be rejected by the Literal constraint."""
+        import pytest
+        from pydantic import ValidationError
+        from app.models.recommendations import RecommendationFeedbackRequest
+
+        with pytest.raises(ValidationError):
+            RecommendationFeedbackRequest(
+                recommendation_id="rec-123",
+                action="not_a_real_action",
+            )
 
 
 # ---------------------------------------------------------------------------

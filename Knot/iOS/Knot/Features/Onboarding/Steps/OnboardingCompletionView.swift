@@ -96,6 +96,19 @@ struct OnboardingCompletionView: View {
                     }
                 }
             }
+            // Spotlight detail page — opened by tapping a deck card. Mirrors the
+            // For You tab so onboarding picks behave identically.
+            .fullScreenCover(item: $viewModel.selectedDetailItem) { item in
+                RecommendationDetailView(
+                    item: item,
+                    partnerName: viewModel.partnerName,
+                    isSaved: viewModel.isSaved(item.id),
+                    onOpenMerchant: { Task { await viewModel.openMerchantFromDetail(item) } },
+                    onSave: { viewModel.saveRecommendation(item) },
+                    onShare: { viewModel.shareRecommendation(item) },
+                    onDismiss: { viewModel.dismissDetail() }
+                )
+            }
             // Return-to-app purchase prompt after the merchant handoff.
             .sheet(isPresented: $viewModel.showPurchasePromptSheet) {
                 if let item = viewModel.pendingHandoffRecommendation {
@@ -171,53 +184,26 @@ struct OnboardingCompletionView: View {
         VStack(spacing: 0) {
             OnboardingStepHeader(
                 title: "Here are your first picks",
-                subtitle: "A few ideas to get you started. Tap Continue when you're ready."
+                subtitle: "Save the ones you love, pass on the rest. Tap Continue when you're ready."
             )
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
 
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    ForEach(viewModel.recommendations, id: \.id) { item in
-                        RecommendationCard(
-                            title: item.title,
-                            descriptionText: item.description,
-                            recommendationType: item.recommendationType,
-                            priceCents: item.isIdea == true ? nil : item.priceCents,
-                            currency: item.currency,
-                            priceConfidence: item.priceConfidence ?? "unknown",
-                            merchantName: item.isIdea == true ? nil : item.merchantName,
-                            locationCity: item.location?.city,
-                            locationState: item.location?.state,
-                            imageURL: item.imageUrl,
-                            isSaved: viewModel.isSaved(item.id),
-                            matchedInterests: item.matchedInterests ?? [],
-                            matchedVibes: item.matchedVibes ?? [],
-                            matchedLoveLanguages: item.matchedLoveLanguages ?? [],
-                            personalizationNote: item.personalizationNote,
-                            // Full parity with the For You tab: ideas/plans open the
-                            // idea detail; gifts/experiences open the selection
-                            // confirmation sheet → merchant handoff (the sheets and
-                            // return-to-app prompts are wired on `body` below).
-                            onSelect: {
-                                if item.isIdea == true || item.recommendationType == "plan" {
-                                    viewModel.openIdeaFromTrio(item)
-                                } else {
-                                    viewModel.selectRecommendation(item)
-                                }
-                            },
-                            onSave: {
-                                viewModel.saveRecommendation(item)
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, 20)
-                // Modest bottom clearance so the last card clears the container's
-                // "Continue" button (no tab bar exists here, so no 100pt inset).
-                .padding(.bottom, 24)
-            }
-            .scrollIndicators(.hidden)
+            // The same Spotlight deck the For You tab uses. Onboarding is a fixed
+            // reveal of the first picks, so `onNeedMore` is a no-op (the deck shows
+            // its end-of-deck state and the container's "Continue" proceeds).
+            SpotlightDeckView(
+                items: viewModel.recommendations,
+                partnerName: viewModel.partnerName,
+                isSaved: { viewModel.isSaved($0) },
+                onLike: { viewModel.saveRecommendation($0) },
+                onPass: { viewModel.recordDislike($0) },
+                onOpenDetail: { viewModel.openDetail($0) },
+                onNeedMore: {},
+                isLoadingMore: false,
+                resetToken: viewModel.deckResetToken
+            )
+            .padding(.bottom, 24)
         }
     }
 

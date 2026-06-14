@@ -1275,3 +1275,155 @@ final class SessionHintsRefreshFlowTests: XCTestCase {
         XCTAssertTrue(skipped)
     }
 }
+
+// MARK: - Spotlight Deck State Tests (June 12, 2026)
+
+@MainActor
+final class SpotlightDeckStateTests: XCTestCase {
+
+    /// Detail presentation is empty on init.
+    func testDetailInitialState() {
+        let vm = RecommendationsViewModel()
+        XCTAssertNil(vm.selectedDetailItem)
+        XCTAssertEqual(vm.deckResetToken, 0)
+        XCTAssertFalse(vm.isLoadingMore)
+    }
+
+    /// openDetail sets the presented item; dismissDetail clears it.
+    func testOpenAndDismissDetail() {
+        let vm = RecommendationsViewModel()
+        let item = makeItem(id: "d-1", title: "Spa Day")
+
+        vm.openDetail(item)
+        XCTAssertEqual(vm.selectedDetailItem?.id, "d-1")
+
+        vm.dismissDetail()
+        XCTAssertNil(vm.selectedDetailItem)
+    }
+
+    /// 👎 records a dislike without crashing and without mutating detail state.
+    /// (The feedback call itself is fire-and-forget; the deck advances locally.)
+    func testRecordDislikeIsSafe() {
+        let vm = RecommendationsViewModel()
+        let item = makeItem(id: "d-2", title: "Pass Me")
+
+        vm.recordDislike(item)
+
+        XCTAssertNil(vm.selectedDetailItem)
+        XCTAssertFalse(vm.isSaved("d-2"), "a dislike must not save the item")
+    }
+
+    /// A deck top-up with no current recommendations is a guarded no-op.
+    func testLoadMoreForDeckGuardsOnEmpty() async {
+        let vm = RecommendationsViewModel()
+        XCTAssertTrue(vm.recommendations.isEmpty)
+
+        await vm.loadMoreForDeck()
+
+        XCTAssertFalse(vm.isLoadingMore)
+        XCTAssertTrue(vm.recommendations.isEmpty)
+    }
+
+    private func makeItem(id: String, title: String) -> RecommendationItemResponse {
+        let json = """
+        {
+            "id": "\(id)", "recommendation_type": "gift", "title": "\(title)",
+            "description": "Test", "price_cents": 5000, "currency": "USD",
+            "external_url": "https://example.com/\(id)", "image_url": null,
+            "merchant_name": "Test Store", "source": "test", "location": null,
+            "interest_score": 0.8, "vibe_score": 0.7, "love_language_score": 0.6, "final_score": 0.7
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }
+}
+
+// MARK: - Spotlight View Rendering Tests (June 12, 2026)
+
+@MainActor
+final class SpotlightViewRenderingTests: XCTestCase {
+
+    /// The Spotlight detail page renders for every recommendation type.
+    func testDetailRendersAllTypes() {
+        for type in ["gift", "experience", "date", "idea", "plan"] {
+            let item = makeItem(type: type)
+            let view = RecommendationDetailView(
+                item: item,
+                partnerName: "Alex",
+                isSaved: false,
+                onOpenMerchant: {},
+                onSave: {},
+                onShare: {},
+                onDismiss: {}
+            )
+            let host = UIHostingController(rootView: view)
+            XCTAssertNotNil(host.view, "RecommendationDetailView should render for type: \(type)")
+        }
+    }
+
+    /// The Spotlight deck renders with a multi-item deck.
+    func testDeckRendersWithItems() {
+        let items = [makeItem(type: "gift"), makeItem(type: "experience"), makeItem(type: "idea")]
+        let view = SpotlightDeckView(
+            items: items,
+            partnerName: "Alex",
+            isSaved: { _ in false },
+            onLike: { _ in },
+            onPass: { _ in },
+            onOpenDetail: { _ in },
+            onNeedMore: {}
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "SpotlightDeckView should render with items")
+    }
+
+    /// The Spotlight deck renders its end-of-deck state when empty.
+    func testDeckRendersEmpty() {
+        let view = SpotlightDeckView(
+            items: [],
+            partnerName: nil,
+            isSaved: { _ in false },
+            onLike: { _ in },
+            onPass: { _ in },
+            onOpenDetail: { _ in },
+            onNeedMore: {}
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "SpotlightDeckView should render its empty state")
+    }
+
+    /// The Spotlight card renders for every recommendation type.
+    func testSpotlightCardRendersAllTypes() {
+        for type in ["gift", "experience", "date", "idea", "plan"] {
+            let card = SpotlightCard(item: makeItem(type: type), partnerName: "Alex", isSaved: false)
+            let host = UIHostingController(rootView: card)
+            XCTAssertNotNil(host.view, "SpotlightCard should render for type: \(type)")
+        }
+    }
+
+    private func makeItem(type: String) -> RecommendationItemResponse {
+        let isIdea = (type == "idea" || type == "plan")
+        let sections = isIdea
+            ? """
+              , "content_sections": [
+                {"type": "overview", "heading": "The Idea", "body": "A cozy night in.", "items": null},
+                {"type": "steps", "heading": "How", "body": null, "items": ["Cook together", "Watch a film"]}
+              ]
+              """
+            : ""
+        let json = """
+        {
+            "id": "\(type)-1", "recommendation_type": "\(type)", "title": "\(type.capitalized) Pick",
+            "description": "A lovely \(type).", "price_cents": \(isIdea ? "null" : "8500"), "currency": "USD",
+            "external_url": \(isIdea ? "null" : "\"https://example.com/x\""), "image_url": null,
+            "merchant_name": \(isIdea ? "null" : "\"Test Store\""), "source": "test",
+            "location": {"city": "Brooklyn", "state": "NY", "country": "US", "address": "1 Main St"},
+            "is_idea": \(isIdea ? "true" : "false")\(sections),
+            "interest_score": 0.8, "vibe_score": 0.7, "love_language_score": 0.6, "final_score": 0.7,
+            "matched_interests": ["Art"], "matched_vibes": ["romantic"], "matched_love_languages": ["quality_time"],
+            "personalization_note": "She mentioned loving this."
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }
+}

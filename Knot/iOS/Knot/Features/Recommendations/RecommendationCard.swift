@@ -392,18 +392,12 @@ struct RecommendationCard: View {
     // MARK: - Matching Factors
 
     /// Vibes → love languages → interests; vertical scroll lets us show all of them.
-    private var orderedChips: [DisplayChip] {
-        var chips: [DisplayChip] = []
-        chips.append(contentsOf: matchedVibes.map {
-            DisplayChip(label: OnboardingVibesView.displayName(for: $0), style: .vibe)
-        })
-        chips.append(contentsOf: matchedLoveLanguages.map {
-            DisplayChip(label: LoveLanguageDisplay.name(for: $0), style: .loveLanguage)
-        })
-        chips.append(contentsOf: matchedInterests.map {
-            DisplayChip(label: $0, style: .interest)
-        })
-        return chips
+    private var orderedChips: [RecommendationDisplayChip] {
+        RecommendationDisplayChip.build(
+            vibes: matchedVibes,
+            loveLanguages: matchedLoveLanguages,
+            interests: matchedInterests
+        )
     }
 
     private var matchingFactorsSection: some View {
@@ -432,77 +426,8 @@ private struct MetaPart {
     let text: String
 }
 
-// MARK: - Display Chip Model
-
-private struct DisplayChip: Identifiable {
-    let id = UUID()
-    let label: String
-    let style: MatchingFactorChip.ChipStyle
-}
-
-// MARK: - Matching Factor Chip
-
-private struct MatchingFactorChip: View {
-    let label: String
-    let style: ChipStyle
-
-    enum ChipStyle {
-        case interest
-        case vibe
-        case loveLanguage
-    }
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: iconName)
-                .font(.system(size: 8, weight: .bold))
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .lineLimit(1)
-        }
-        .foregroundStyle(foregroundColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(backgroundColor)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(borderColor, lineWidth: 0.5)
-        )
-    }
-
-    private var iconName: String {
-        switch style {
-        case .interest: return "heart.fill"
-        case .vibe: return "sparkles"
-        case .loveLanguage: return "hand.raised.fill"
-        }
-    }
-
-    private var foregroundColor: Color {
-        switch style {
-        case .interest: return Theme.accent
-        case .vibe: return Color.purple
-        case .loveLanguage: return Color.orange
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch style {
-        case .interest: return Theme.accent.opacity(0.18)
-        case .vibe: return Color.purple.opacity(0.18)
-        case .loveLanguage: return Color.orange.opacity(0.18)
-        }
-    }
-
-    private var borderColor: Color {
-        switch style {
-        case .interest: return Theme.accent.opacity(0.3)
-        case .vibe: return Color.purple.opacity(0.3)
-        case .loveLanguage: return Color.orange.opacity(0.3)
-        }
-    }
-}
+// NOTE: `MatchingFactorChip` and the chip-builder live in `RecommendationChips.swift`
+// so the card, the Spotlight deck card, and the detail page share one implementation.
 
 // MARK: - Preview
 

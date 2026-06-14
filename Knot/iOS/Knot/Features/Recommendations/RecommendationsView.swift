@@ -229,6 +229,18 @@ struct RecommendationsView: View {
                     }
                 }
             }
+            // Spotlight detail page (June 12, 2026) — opened by tapping a deck card.
+            .fullScreenCover(item: $viewModel.selectedDetailItem) { item in
+                RecommendationDetailView(
+                    item: item,
+                    partnerName: viewModel.partnerName,
+                    isSaved: viewModel.isSaved(item.id),
+                    onOpenMerchant: { Task { await viewModel.openMerchantFromDetail(item) } },
+                    onSave: { viewModel.saveRecommendation(item) },
+                    onShare: { viewModel.shareRecommendation(item) },
+                    onDismiss: { viewModel.dismissDetail() }
+                )
+            }
     }
 
     // MARK: - Recommendations Body
@@ -409,43 +421,20 @@ struct RecommendationsView: View {
             }
 
             ZStack {
-                // Vertical scrolling feed (Rappi/DoorDash pattern)
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.recommendations, id: \.id) { item in
-                            RecommendationCard(
-                                title: item.title,
-                                descriptionText: item.description,
-                                recommendationType: item.recommendationType,
-                                priceCents: item.isIdea == true ? nil : item.priceCents,
-                                currency: item.currency,
-                                priceConfidence: item.priceConfidence ?? "unknown",
-                                merchantName: item.isIdea == true ? nil : item.merchantName,
-                                locationCity: item.location?.city,
-                                locationState: item.location?.state,
-                                imageURL: item.imageUrl,
-                                isSaved: viewModel.isSaved(item.id),
-                                matchedInterests: item.matchedInterests ?? [],
-                                matchedVibes: item.matchedVibes ?? [],
-                                matchedLoveLanguages: item.matchedLoveLanguages ?? [],
-                                personalizationNote: item.personalizationNote,
-                                onSelect: {
-                                    if item.isIdea == true || item.recommendationType == "plan" {
-                                        viewModel.openIdeaFromTrio(item)
-                                    } else {
-                                        viewModel.selectRecommendation(item)
-                                    }
-                                },
-                                onSave: {
-                                    viewModel.saveRecommendation(item)
-                                }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
-                }
-                .scrollIndicators(.hidden)
+                // Spotlight deck — focused one-card-at-a-time discovery with
+                // 👍 save / 👎 pass voting and tap-through to the detail page.
+                SpotlightDeckView(
+                    items: viewModel.recommendations,
+                    partnerName: viewModel.partnerName,
+                    isSaved: { viewModel.isSaved($0) },
+                    onLike: { viewModel.saveRecommendation($0) },
+                    onPass: { viewModel.recordDislike($0) },
+                    onOpenDetail: { viewModel.openDetail($0) },
+                    onNeedMore: { Task { await viewModel.loadMoreForDeck() } },
+                    isLoadingMore: viewModel.isLoadingMore,
+                    resetToken: viewModel.deckResetToken
+                )
+                .padding(.top, 8)
                 .opacity(viewModel.cardsVisible ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
 

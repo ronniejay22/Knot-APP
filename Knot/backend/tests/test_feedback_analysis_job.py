@@ -431,6 +431,14 @@ class TestScoreFromFeedback:
         """Refreshing (rejecting) is a negative signal (-0.5)."""
         assert _score_from_feedback("refreshed", None) == -0.5
 
+    def test_disliked_returns_strong_negative(self):
+        """Passing on an item in the Spotlight deck is a strong negative (-0.6)."""
+        assert _score_from_feedback("disliked", None) == -0.6
+
+    def test_disliked_more_negative_than_refreshed(self):
+        """A per-item 'disliked' should outweigh a whole-set 'refreshed'."""
+        assert _score_from_feedback("disliked", None) < _score_from_feedback("refreshed", None)
+
     def test_unknown_action_returns_zero(self):
         """Unknown actions should return 0.0 (neutral)."""
         assert _score_from_feedback("unknown_action", None) == 0.0

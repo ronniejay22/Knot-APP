@@ -6453,6 +6453,41 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.43 ✅ Recommendations — "Spotlight" Experience (Swipe/Vote Deck + Immersive Detail Page)
+**Date:** 2026-06-12
+**Status:** Complete
+
+**Goal:** Per user request ("the pages are a bit generic and bad now"), replace the passive vertical-scrolling feed of flat `RecommendationCard`s — where tapping a gift/experience dropped into a thin `SelectionConfirmationSheet` and immediately handed off to the merchant — with a focused, delightful **Spotlight** experience inspired by Blinkist (one-at-a-time 👍/👎 discovery) and Airbnb (a rich detail page you dive into before committing). The same surface is shared by the **onboarding reveal** (`OnboardingCompletionView`) and the **main For You loop** (`RecommendationsView`).
+
+**Approach:** The presentation layer changed; the engine did not. `RecommendationsViewModel` is reused wholesale — every existing flow (merchant handoff, return-to-app purchase prompt, rating, App Store review, background loading, refresh-with-reason, vibe override) is untouched. Only the deck/detail views and a few thin VM methods were added. The old `RecommendationCard` feed code is retained in the repo (still driven by the same VM) so the swap is low-risk and reversible.
+
+**What changed (iOS):**
+- **`Features/Recommendations/SpotlightDeckView.swift` (new):** A Blinkist-style deck rendering one `SpotlightCard` at a time from `viewModel.recommendations`. Below the card sit two circular buttons — 👎 pass (records a `disliked` signal + advances) and 👍 save (saves to library + advances) — plus drag-to-swipe (left = pass, right = save) with a rotation/opacity follow and "SAVE"/"PASS" stamps. Tapping the card opens the detail page. A slim dot/progress row sits on top. When the user advances past the last card, `onNeedMore` is fired (the For You tab tops up via `loadMoreForDeck`; onboarding is a fixed reveal and shows an end-of-deck state). A `resetToken` resets the deck to the first card on a wholesale replace (fresh generate / full refresh) but not on an append top-up. The file also contains the shared **`SpotlightCard`** (enlarged hero + type badge + personalization snippet, title, meta line, match chips).
+- **`Features/Recommendations/RecommendationDetailView.swift` (new):** One Airbnb-style detail page for **every** recommendation type. Collapsing hero with overlaid back/share/save buttons; title + meta (price · merchant · location); a **"Why Knot picked this for {partner}"** card that elevates the `personalization_note` into the emotional centerpiece with the matched vibes/love-languages/interests as proof badges; an "About" section; a location row for experiences/dates; and the structured idea content (via the shared `IdeaContentSectionsView`) for Knot Originals. A sticky bottom bar pins price + the primary CTA — "Open in {Merchant}" for purchasables (→ the existing merchant handoff) or "Save to Library" for ideas. Save state is optimistic/local so the heart + CTA flip on tap. This replaces `SelectionConfirmationSheet` as the destination and is a strict superset of `IdeaDetailView`.
+- **`Features/Recommendations/IdeaContentSectionsView.swift` (new):** The structured-section renderers (overview / steps / tips / conversation / budget_tips / variations / music / food_pairing) extracted out of `IdeaDetailView` so both the legacy idea detail and the new unified detail render Knot Original content identically. `IdeaDetailView` now delegates to it.
+- **`Features/Recommendations/RecommendationChips.swift` (new):** The `MatchingFactorChip` (promoted from `private` in `RecommendationCard`) plus a `RecommendationDisplayChip.build(...)` ordered-chip builder, shared by the card, the Spotlight card, and the detail page.
+- **`Features/Recommendations/RecommendationsViewModel.swift`:** Added `partnerName` (best-effort `VaultService().getVault()` load in `configure`, for the detail header), `isLoadingMore`, `selectedDetailItem` + `deckResetToken`, and methods `recordDislike(_:)` (fire-and-forget `disliked` feedback), `loadMoreForDeck()` (appends a deduped fresh batch via the refresh path, no animation/replace), `openDetail`/`dismissDetail`, and `openMerchantFromDetail(_:)` (records "selected", opens the merchant URL, preserves the item for the return-to-app prompt — no intermediate confirmation sheet). `generateRecommendations`/`refreshRecommendations` bump `deckResetToken` on a successful wholesale replace.
+- **`Features/Recommendations/RecommendationsView.swift`:** `recommendationsContent` now hosts `SpotlightDeckView` instead of the `ScrollView`/`LazyVStack` of cards; a `fullScreenCover(item:)` presents `RecommendationDetailView`. The briefing card, loading/climax states, Adjust Vibe / Refresh buttons, all sheets, and scene-phase handling are unchanged.
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** `recommendationsList` now hosts the same `SpotlightDeckView` (onboarding variant: `onNeedMore` is a no-op, so the deck shows its end-of-deck state and the container's "Continue" proceeds) plus the detail `fullScreenCover`.
+- **`Features/Recommendations/RecommendationCard.swift`:** Chip code removed (now shared); `orderedChips` uses `RecommendationDisplayChip.build`. The card itself is retained for reference but no longer the primary discovery surface.
+- **`Knot.xcodeproj/project.pbxproj`:** Registered the 4 new Swift files (build-file, file-reference, group-children, and Sources-phase entries).
+
+**What changed (backend) — the 👎 signal:**
+- **`supabase/migrations/00026_add_disliked_feedback_action.sql` (new):** Extends the `recommendation_feedback.action` CHECK constraint to include `disliked` (following the `00017_add_purchased…` pattern).
+- **`app/models/recommendations.py`:** Added `disliked` to the `RecommendationFeedbackRequest.action` Literal. The feedback endpoint stores `payload.action` directly (no separate allowlist), so the signal flows through once the model + DB accept it.
+- **`app/services/feedback_analysis.py`:** Scores `disliked` at `-0.6` (slightly stronger than `refreshed`'s `-0.5`) so the weekly learning job down-weights the disliked vibes/interests/types.
+
+**Tests:**
+- **Backend:** `tests/test_feedback_analysis_job.py` — `disliked` scores `-0.6` and is more negative than `refreshed`. `tests/test_return_to_app.py` — the model accepts `disliked`, accepts all actions, and rejects an unknown action. Ran `test_feedback_analysis_job.py` + `test_return_to_app.py`: **79 passed**.
+- **iOS:** `KnotTests/RecommendationsViewTests.swift` — `SpotlightDeckStateTests` (detail open/dismiss, deck-reset-token default, `recordDislike` safety, `loadMoreForDeck` empty guard) and `SpotlightViewRenderingTests` (detail page, deck with items, deck empty state, and the Spotlight card all render across gift/experience/date/idea/plan). Added `#Preview`s for `RecommendationDetailView` and `SpotlightDeckView`. New tests: **8 passed**; existing recommendation tests: **55 passed** (no regression). Full `xcodebuild build` succeeds.
+
+**Notes:**
+- New For You loop: Get Recommendations → loading → celebration → Spotlight deck; 👍 saves, 👎 teaches, tap → immersive detail → "Open in {Merchant}" (return-to-app purchase prompt still fires) or "Save"; the deck tops up when exhausted; Adjust Vibe / Refresh still work.
+- New onboarding reveal: same deck, fixed to the first picks (no top-up) with the container's "Continue" to finish.
+- The deck **replaces** the vertical feed as the primary discovery presentation; the old feed code is retained for reference.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

@@ -112,6 +112,7 @@ def _score_from_feedback(action: str, rating: int | None) -> float:
       - saved:      +0.2 (mild positive — user bookmarked)
       - handoff:    +0.1 (weak positive — user visited merchant)
       - refreshed:  -0.5 (negative — user rejected the set)
+      - disliked:   -0.6 (negative — user passed on the item in the Spotlight deck)
     """
     if action == "rated" and rating is not None:
         # Maps 1 → -1.0, 2 → -0.5, 3 → 0.0, 4 → +0.5, 5 → +1.0
@@ -124,6 +125,7 @@ def _score_from_feedback(action: str, rating: int | None) -> float:
         "saved": 0.2,
         "handoff": 0.1,
         "refreshed": -0.5,
+        "disliked": -0.6,
     }
     return action_scores.get(action, 0.0)
 
