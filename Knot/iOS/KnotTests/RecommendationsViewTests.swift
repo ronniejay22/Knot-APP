@@ -1395,10 +1395,40 @@ final class SpotlightViewRenderingTests: XCTestCase {
     /// The Spotlight card renders for every recommendation type.
     func testSpotlightCardRendersAllTypes() {
         for type in ["gift", "experience", "date", "idea", "plan"] {
-            let card = SpotlightCard(item: makeItem(type: type), partnerName: "Alex", isSaved: false)
+            let card = SpotlightCard(
+                item: makeItem(type: type),
+                partnerName: "Alex",
+                isSaved: false,
+                onSeeDetails: {}
+            )
             let host = UIHostingController(rootView: card)
             XCTAssertNotNil(host.view, "SpotlightCard should render for type: \(type)")
         }
+    }
+
+    /// The browse-only Spotlight carousel renders with a multi-item set.
+    func testCarouselRendersWithItems() {
+        let items = [makeItem(type: "gift"), makeItem(type: "experience"), makeItem(type: "idea")]
+        let view = SpotlightCarouselView(
+            items: items,
+            partnerName: "Alex",
+            isSaved: { _ in false },
+            onOpenDetail: { _ in }
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "SpotlightCarouselView should render with items")
+    }
+
+    /// The carousel renders with a single item (no page dots) without crashing.
+    func testCarouselRendersSingleItem() {
+        let view = SpotlightCarouselView(
+            items: [makeItem(type: "date")],
+            partnerName: nil,
+            isSaved: { _ in true },
+            onOpenDetail: { _ in }
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "SpotlightCarouselView should render a single item")
     }
 
     private func makeItem(type: String) -> RecommendationItemResponse {

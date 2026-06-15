@@ -6510,6 +6510,29 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.45 ✅ Recommendations — Immersive Spotlight Card + Browse-Only Onboarding Carousel
+**Date:** 2026-06-14
+**Status:** Complete
+
+**Goal:** Restyle the recommendation reveal to match a provided mockup: one full-bleed image card with the match chips, title, description, and a pink "See Details" button all overlaid on the photo, page dots below, and the existing "Continue" button. The in-onboarding reveal becomes a browse-only carousel (no save/pass voting); the For You tab keeps its swipe-to-vote deck but adopts the same immersive card.
+
+**Approach:** The card visual is shared via `SpotlightCard`, so the redesign lands once and both surfaces inherit it. The two surfaces differ only in their container: onboarding uses a new browse-only `SpotlightCarouselView` (paged `TabView` + custom page dots), while the For You tab keeps `SpotlightDeckView` (drag-to-vote + 👍/👎 buttons + numeric progress). Per user decision, onboarding no longer records save/pass — saving happens later on the For You tab and the detail page's Save button.
+
+**What changed:**
+- **`Features/Recommendations/SpotlightDeckView.swift`:** Rebuilt `SpotlightCard` as a full-bleed `ZStack(alignment: .bottom)` clipped to a 22pt rounded rect and sized `maxHeight: .infinity`. The image fills the whole card (`Color.clear.overlay { image.scaledToFill() }.clipped()`), with a light top scrim (badge legibility) and a heavier bottom scrim (`.clear → .black.opacity(0.85)`, 340pt). Overlaid at the bottom: cream chips (`MatchingFactorChip(onImage: true)`), white Fraunces title, white description (`item.description`, ≤4 lines — **newly surfaced**, the old card never showed it), and a full-width pink "See Details" `KnotButton` driven by a new `onSeeDetails` closure. Removed the old image-hero + white `detailsSection`, the meta line (`metaLine`/`metaParts`/`MetaPart`/`locationText`), the "Tap for details" affordance, and the personalization snippet overlay. Added `SpotlightCarouselView` (browse-only paged carousel with custom page dots, shown only when `items.count > 1`). In `SpotlightDeckView.cardStack` the whole-card `.onTapGesture` was removed (the explicit button now opens detail) and the card is sized `maxHeight: .infinity` so it fills the deck; drag-to-vote, action buttons, and the numeric progress row are unchanged.
+- **`Features/Recommendations/RecommendationChips.swift`:** Added an `onImage: Bool = false` flag to `MatchingFactorChip`. When true the chip renders the uniform cream "on-image" pill (fixed cream fill `#FFF0E0`, dark text, 13pt, no icon, no border) for legibility over a photo; the default colored/icon appearance (detail page, legacy feed card) is untouched.
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** Reveal header retitled to "Here are your recommendations" (subtitle dropped to match the mockup). The `SpotlightDeckView` usage was replaced with `SpotlightCarouselView` (no `onLike`/`onPass`/`onNeedMore`). All sheets, the detail `fullScreenCover`, and the container's "Continue" button are unchanged.
+
+**Backend:** No changes.
+
+**Tests:** Updated `KnotTests/RecommendationsViewTests` — `testSpotlightCardRendersAllTypes` now passes `onSeeDetails:`, and two new smoke tests (`testCarouselRendersWithItems`, `testCarouselRendersSingleItem`) cover the carousel. Full `xcodebuild build-for-testing` and `xcodebuild test` succeed (307 unit tests, 0 failures).
+
+**Notes:**
+- Scope: the immersive card is shared everywhere; the voting interaction is intentionally onboarding-vs-ForYou specific. The For You deck now opens detail via the in-card "See Details" button instead of a whole-card tap.
+- The detail page chips remain colored/icon-led — only the on-card chips use the new cream appearance.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

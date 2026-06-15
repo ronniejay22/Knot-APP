@@ -228,26 +228,20 @@ struct OnboardingCompletionView: View {
 
     private var recommendationsList: some View {
         VStack(spacing: 0) {
-            OnboardingStepHeader(
-                title: "Here are your first picks",
-                subtitle: "Save the ones you love, pass on the rest. Tap Continue when you're ready."
-            )
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            OnboardingStepHeader(title: "Here are your recommendations")
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
 
-            // The same Spotlight deck the For You tab uses. Onboarding is a fixed
-            // reveal of the first picks, so `onNeedMore` is a no-op (the deck shows
-            // its end-of-deck state and the container's "Continue" proceeds).
-            SpotlightDeckView(
+            // A browse-only carousel of the first picks: the user swipes between
+            // the Spotlight cards (page dots track position) and taps "See Details"
+            // to open a pick. There's no save/pass voting here — saving happens
+            // later on the For You tab and the detail page. The container's
+            // "Continue" button proceeds to Home.
+            SpotlightCarouselView(
                 items: viewModel.recommendations,
                 partnerName: viewModel.partnerName,
                 isSaved: { viewModel.isSaved($0) },
-                onLike: { viewModel.saveRecommendation($0) },
-                onPass: { viewModel.recordDislike($0) },
-                onOpenDetail: { viewModel.openDetail($0) },
-                onNeedMore: {},
-                isLoadingMore: false,
-                resetToken: viewModel.deckResetToken
+                onOpenDetail: { viewModel.openDetail($0) }
             )
             .padding(.bottom, 24)
         }

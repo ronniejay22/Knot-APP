@@ -71,9 +71,8 @@ struct SpotlightDeckView: View {
                     .padding(.bottom, 8)
             } else {
                 endOfDeck
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: resetToken) { _, _ in
@@ -107,15 +106,15 @@ struct SpotlightDeckView: View {
         return SpotlightCard(
             item: item,
             partnerName: partnerName,
-            isSaved: isSaved(item.id)
+            isSaved: isSaved(item.id),
+            onSeeDetails: { onOpenDetail(item) }
         )
         .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(x: dragOffset.width, y: dragOffset.height * 0.2)
         .rotationEffect(.degrees(Double(dragOffset.width / 22)))
         .overlay(alignment: .topLeading) { decisionStamp(visible: dir < -30, like: false) }
         .overlay(alignment: .topTrailing) { decisionStamp(visible: dir > 30, like: true) }
-        .contentShape(Rectangle())
-        .onTapGesture { onOpenDetail(item) }
         .gesture(
             DragGesture()
                 .onChanged { value in
@@ -270,68 +269,37 @@ struct SpotlightDeckView: View {
 
 // MARK: - Spotlight Card
 
-/// The enlarged, focused card shown in the deck — a hero image with the type
-/// badge and personalization snippet, then title, meta line, and match chips.
-/// Tapping is handled by the parent (`SpotlightDeckView`), which opens the
-/// detail page.
+/// The enlarged, focused card shown in the deck and the onboarding carousel — a
+/// full-bleed hero image with the type badge, and the match chips, title,
+/// description, and a "See Details" button overlaid over a scrim at the bottom.
+/// The card itself owns the "See Details" action; swipe/vote (deck) and paging
+/// (carousel) are handled by the parent container.
 struct SpotlightCard: View {
     let item: RecommendationItemResponse
     var partnerName: String?
     let isSaved: Bool
+    /// Opens the recommendation's detail page (the pink "See Details" button).
+    var onSeeDetails: () -> Void
 
-    private let heroHeight: CGFloat = 300
     private let cardCornerRadius: CGFloat = 22
 
-    private var isIdea: Bool {
-        item.isIdea == true || item.recommendationType == "plan"
-    }
-
     var body: some View {
-        KnotCard(variant: .default, padding: .none, radius: cardCornerRadius) {
-            VStack(alignment: .leading, spacing: 0) {
-                heroSection
-                detailsSection
-            }
-        }
-        .shadow(Theme.Shadow.lg)
-    }
+        ZStack(alignment: .bottom) {
+            imageBackground
 
-    // MARK: - Hero
+            // Uniform dark tint over the whole photo (#1F1A29 @ 85%) so the image
+            // reads as a moody backdrop and the overlaid content stays legible.
+            Color(red: 0x1F / 255, green: 0x1A / 255, blue: 0x29 / 255)
+                .opacity(0.85)
 
-    private var heroSection: some View {
-        ZStack {
-            if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(minWidth: 0, maxWidth: .infinity)
-                            .frame(height: heroHeight)
-                            .clipped()
-                    case .failure:
-                        fallbackGradient
-                    case .empty:
-                        ZStack {
-                            fallbackGradient
-                            ProgressView().tint(.white.opacity(0.5))
-                        }
-                    @unknown default:
-                        fallbackGradient
-                    }
-                }
-            } else {
-                fallbackGradient
-            }
-
-            // Scrims
-            VStack {
+            // Scrims — light at the top (badge legibility), heavy at the bottom
+            // so the overlaid chips/title/description/button stay readable.
+            VStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 70)
-                Spacer()
-                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 110)
+                    .frame(height: 90)
+                Spacer(minLength: 0)
+                LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 340)
             }
 
             // Top row: type badge + saved indicator
@@ -356,51 +324,95 @@ struct SpotlightCard: View {
                 Spacer()
             }
 
-            // Personalization snippet bottom-leading
-            if let note = personalizationNote {
-                VStack {
-                    Spacer()
-                    HStack {
-                        personalizationOverlay(note: note)
-                        Spacer(minLength: 0)
+            bottomOverlay
+                .padding(20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
+        .shadow(Theme.Shadow.lg)
+    }
+
+    // MARK: - Image
+
+    @ViewBuilder
+    private var imageBackground: some View {
+        if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    Color.clear.overlay {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
                     }
-                    .padding(14)
+                    .clipped()
+                case .failure:
+                    fallbackGradient
+                case .empty:
+                    ZStack {
+                        fallbackGradient
+                        ProgressView().tint(.white.opacity(0.5))
+                    }
+                @unknown default:
+                    fallbackGradient
                 }
             }
+        } else {
+            fallbackGradient
         }
-        .frame(height: heroHeight)
-        .clipped()
     }
 
-    private var personalizationNote: String? {
-        guard let note = item.personalizationNote?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !note.isEmpty else { return nil }
-        return note
-    }
+    // MARK: - Bottom Overlay
 
-    private func personalizationOverlay(note: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-                .foregroundStyle(.white)
-                .padding(.top, 2)
+    private var bottomOverlay: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let chips = RecommendationDisplayChip.build(
+                vibes: item.matchedVibes ?? [],
+                loveLanguages: item.matchedLoveLanguages ?? [],
+                interests: item.matchedInterests ?? []
+            )
+            if !chips.isEmpty {
+                FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+                    ForEach(chips) { chip in
+                        MatchingFactorChip(label: chip.label, style: chip.style, onImage: true)
+                    }
+                }
+                // Force the flow layout to measure against the real card width
+                // (not an unconstrained one), so its reported height accounts for
+                // wrapped rows and the title below it never overlaps the chips.
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-            Text(note)
-                .knotFont(Theme.Typography.italicQuote)
+            Text(item.title)
+                .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let description = descriptionText {
+                Text(description)
+                    .knotFont(Theme.Typography.body)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            KnotButton(
+                "See Details",
+                variant: .primary,
+                size: .lg,
+                shape: .rounded,
+                action: onSeeDetails
+            )
+            .padding(.top, 4)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var descriptionText: String? {
+        guard let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !description.isEmpty else { return nil }
+        return description
     }
 
     private var fallbackGradient: some View {
@@ -441,107 +453,6 @@ struct SpotlightCard: View {
         )
     }
 
-    // MARK: - Details
-
-    private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(item.title)
-                .knotFont(Theme.Typography.cardTitle)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            metaLine
-
-            let chips = RecommendationDisplayChip.build(
-                vibes: item.matchedVibes ?? [],
-                loveLanguages: item.matchedLoveLanguages ?? [],
-                interests: item.matchedInterests ?? []
-            )
-            if !chips.isEmpty {
-                FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-                    ForEach(chips) { chip in
-                        MatchingFactorChip(label: chip.label, style: chip.style)
-                    }
-                }
-            }
-
-            // Tap affordance
-            HStack(spacing: 5) {
-                Image(uiImage: Lucide.arrowUpRight)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
-                Text("Tap for details")
-                    .knotFont(Theme.Typography.label)
-            }
-            .foregroundStyle(Theme.accent)
-            .padding(.top, 2)
-        }
-        .padding(16)
-    }
-
-    @ViewBuilder
-    private var metaLine: some View {
-        let parts = metaParts
-        if !parts.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
-                    if index > 0 {
-                        Circle()
-                            .fill(Theme.textTertiary)
-                            .frame(width: 3, height: 3)
-                    }
-                    HStack(spacing: 4) {
-                        Image(uiImage: part.icon)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 11, height: 11)
-                        Text(part.text)
-                            .knotFont(Theme.Typography.label)
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(Theme.textSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private struct MetaPart {
-        let icon: UIImage
-        let text: String
-    }
-
-    private var metaParts: [MetaPart] {
-        var parts: [MetaPart] = []
-        if !isIdea, let merchant = item.merchantName, !merchant.isEmpty {
-            parts.append(MetaPart(icon: Lucide.store, text: merchant))
-        }
-        if !isIdea, let priceCents = item.priceCents {
-            let prefix = item.priceConfidence == "estimated" ? "~" : ""
-            parts.append(MetaPart(
-                icon: Lucide.dollarSign,
-                text: prefix + RecommendationCard.formattedPrice(cents: priceCents, currency: item.currency)
-            ))
-        }
-        if let loc = locationText {
-            parts.append(MetaPart(icon: Lucide.mapPin, text: loc))
-        }
-        return parts
-    }
-
-    private var locationText: String? {
-        guard let location = item.location else { return nil }
-        let cityState = [location.city, location.state]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        guard !cityState.isEmpty else { return nil }
-        return cityState.joined(separator: ", ")
-    }
-
     // MARK: - Type Helpers
 
     private var typeIconLucide: UIImage {
@@ -578,6 +489,60 @@ struct SpotlightCard: View {
     }
 }
 
+// MARK: - Spotlight Carousel
+
+/// A browse-only, paged version of the Spotlight cards used by the onboarding
+/// reveal. Unlike `SpotlightDeckView`, there is no save/pass voting — the user
+/// swipes horizontally between a fixed set of `SpotlightCard`s (page dots track
+/// position) and taps "See Details" to open the detail page. Saving happens later
+/// (the For You deck, or the detail page's Save button).
+struct SpotlightCarouselView: View {
+    let items: [RecommendationItemResponse]
+    var partnerName: String?
+
+    /// Returns whether a recommendation is already saved (drives the card badge).
+    let isSaved: (String) -> Bool
+
+    /// Tap — open the recommendation's detail page.
+    let onOpenDetail: @MainActor (RecommendationItemResponse) -> Void
+
+    @State private var index: Int = 0
+
+    var body: some View {
+        VStack(spacing: 16) {
+            TabView(selection: $index) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                    SpotlightCard(
+                        item: item,
+                        partnerName: partnerName,
+                        isSaved: isSaved(item.id),
+                        onSeeDetails: { onOpenDetail(item) }
+                    )
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .tag(i)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            if items.count > 1 {
+                pageDots
+            }
+        }
+    }
+
+    private var pageDots: some View {
+        HStack(spacing: 7) {
+            ForEach(0..<items.count, id: \.self) { i in
+                Circle()
+                    .fill(i == index ? Theme.accent : Theme.surfaceBorder)
+                    .frame(width: 7, height: 7)
+                    .animation(Theme.Motion.standard, value: index)
+            }
+        }
+    }
+}
+
 // MARK: - Preview
 
 #if DEBUG
@@ -597,6 +562,25 @@ struct SpotlightCard: View {
             onOpenDetail: { _ in },
             onNeedMore: {}
         )
+    }
+}
+
+#Preview("Spotlight Carousel") {
+    ZStack {
+        Theme.backgroundGradient.ignoresSafeArea()
+        VStack(spacing: 0) {
+            SpotlightCarouselView(
+                items: [
+                    PreviewRecommendations.decode(type: "date", isIdea: false),
+                    PreviewRecommendations.decode(type: "experience", isIdea: false),
+                    PreviewRecommendations.decode(type: "idea", isIdea: true),
+                ],
+                partnerName: "Jas",
+                isSaved: { _ in false },
+                onOpenDetail: { _ in }
+            )
+        }
+        .padding(.vertical, 24)
     }
 }
 #endif

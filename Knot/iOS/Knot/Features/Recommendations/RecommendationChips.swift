@@ -16,28 +16,41 @@ struct MatchingFactorChip: View {
     let label: String
     let style: ChipStyle
 
+    /// When true, the chip renders in the uniform cream "on-image" appearance used
+    /// by the Spotlight card (overlaid on a photo): a solid cream pill with dark
+    /// text and no icon, identical for every style. The default colored, icon-led
+    /// appearance is kept for the detail page and the legacy feed card.
+    var onImage: Bool = false
+
     enum ChipStyle {
         case interest
         case vibe
         case loveLanguage
     }
 
+    /// Fixed (scheme-independent) cream fill + dark text for the on-image pill —
+    /// it always sits over a darkened photo, so it should not follow light/dark mode.
+    private static let onImageFill = Color(red: 1.0, green: 0.94, blue: 0.88)
+    private static let onImageText = Color(red: 0.12, green: 0.07, blue: 0.16)
+
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: iconName)
-                .font(.system(size: 8, weight: .bold))
+            if !onImage {
+                Image(systemName: iconName)
+                    .font(.system(size: 8, weight: .bold))
+            }
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: onImage ? 13 : 10, weight: .medium))
                 .lineLimit(1)
         }
-        .foregroundStyle(foregroundColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(backgroundColor)
+        .foregroundStyle(onImage ? Self.onImageText : foregroundColor)
+        .padding(.horizontal, onImage ? 12 : 8)
+        .padding(.vertical, onImage ? 6 : 4)
+        .background(onImage ? Self.onImageFill : backgroundColor)
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(borderColor, lineWidth: 0.5)
+                .stroke(onImage ? Color.clear : borderColor, lineWidth: 0.5)
         )
     }
 
