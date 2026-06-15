@@ -357,11 +357,8 @@ final class OnboardingViewModel {
     /// Whether the vault is currently being submitted to the backend.
     var isSubmitting = false
 
-    /// Error message from vault submission, shown in an alert.
+    /// Error message from vault submission, surfaced by the reveal step's error state.
     var submissionError: String?
-
-    /// Controls the visibility of the submission error alert.
-    var showSubmissionError = false
 
     // MARK: - Navigation Actions
 
@@ -390,9 +387,9 @@ final class OnboardingViewModel {
     /// Builds a `VaultCreatePayload` from all collected onboarding data, sends it
     /// to `POST /api/v1/vault`, and returns whether the submission succeeded.
     ///
-    /// On success: returns `true`. The caller (container view) navigates to Home.
-    /// On failure: sets `submissionError` and `showSubmissionError`, returns `false`.
-    /// The user can dismiss the alert and retry.
+    /// On success: returns `true`. The caller advances into the recommendation reveal.
+    /// On failure: sets `submissionError` and returns `false`. The reveal step shows
+    /// a retry-able error state.
     ///
     /// - Returns: `true` if the vault was created successfully, `false` otherwise.
     func submitVault() async -> Bool {
@@ -411,12 +408,10 @@ final class OnboardingViewModel {
             return true
         } catch let error as VaultServiceError {
             submissionError = error.errorDescription
-            showSubmissionError = true
             print("[Knot] Vault submission failed: \(error.errorDescription ?? "Unknown error")")
             return false
         } catch {
             submissionError = "An unexpected error occurred. Please try again."
-            showSubmissionError = true
             print("[Knot] Vault submission failed: \(error)")
             return false
         }

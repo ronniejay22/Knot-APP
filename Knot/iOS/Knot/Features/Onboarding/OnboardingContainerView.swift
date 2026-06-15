@@ -115,31 +115,6 @@ struct OnboardingContainerView: View {
             dismissTask = nil
             showValidationError = false
         }
-        // MARK: - Vault Submission Loading Overlay (Step 3.11)
-        .overlay {
-            if viewModel.isSubmitting {
-                KnotProgressIndicator.Overlay(
-                    message: "Creating your partner vault...\nThis may take a moment"
-                )
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: viewModel.isSubmitting)
-        // MARK: - Vault Submission Error Alert (Step 3.11)
-        .alert("Unable to Save", isPresented: $viewModel.showSubmissionError) {
-            Button("Try Again") {
-                Task {
-                    let success = await viewModel.submitVault()
-                    if success {
-                        isNavigatingBack = false
-                        viewModel.goToNextStep()
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text(viewModel.submissionError ?? "An unexpected error occurred. Please try again.")
-        }
     }
 
     // MARK: - Back Button
@@ -248,33 +223,11 @@ struct OnboardingContainerView: View {
                 action: { onComplete() }
             )
             .frame(maxWidth: .infinity)
-        } else if viewModel.currentStep == .loveLanguages {
-            // Last data-entry step: submit the vault here, then advance into the
-            // recommendation reveal on success. On failure the "Unable to Save"
-            // alert drives retry and the user stays on this step.
-            KnotButton(
-                "Next",
-                variant: .primary,
-                size: .lg,
-                action: {
-                    guard viewModel.canProceed else {
-                        presentValidationError()
-                        return
-                    }
-                    Task {
-                        let success = await viewModel.submitVault()
-                        if success {
-                            showValidationError = false
-                            isNavigatingBack = false
-                            viewModel.goToNextStep()
-                        }
-                    }
-                }
-            )
-            .frame(maxWidth: .infinity)
-            .opacity(viewModel.canProceed ? 1.0 : 0.4)
-            .disabled(viewModel.isSubmitting)
         } else {
+            // Every data-entry step (including the final Love Languages step)
+            // simply advances forward. The vault is submitted on the next
+            // (`.completion`) step, behind a single loading screen — see
+            // `OnboardingCompletionView`.
             KnotButton(
                 viewModel.currentStep == .welcome ? "Get Started" : "Next",
                 variant: .primary,

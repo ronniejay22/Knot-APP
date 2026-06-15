@@ -6488,6 +6488,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.44 ✅ Onboarding — Remove the "Creating your partner vault…" Modal, Go Straight to the Loading Screen
+**Date:** 2026-06-14
+**Status:** Complete
+
+**Goal:** Per user request, drop the intermediate dimmed "Creating your partner vault… / This may take a moment" card overlay that appeared when tapping "Next" on the Love Languages step. Previously two loading UIs played back-to-back (and briefly overlapped): the vault overlay during the `POST /api/v1/vault`, then the full-screen `ForYouLoadingView` ("Thinking about what they love…") on the reveal step during recommendation generation. Now a single continuous `ForYouLoadingView` covers both vault creation and recommendation generation.
+
+**Approach:** Move the vault submission off the Love Languages "Next" button and into the `.completion` (reveal) step's startup task, so one loading screen spans the whole "create vault → generate recommendations" period. The Love Languages "Next" button now simply advances like every other data-entry step.
+
+**What changed:**
+- **`Features/Onboarding/OnboardingContainerView.swift`:** Removed the `isSubmitting` `KnotProgressIndicator.Overlay` and its animation, and removed the "Unable to Save" submission-error alert (error handling moved to the reveal step). The dedicated `.loveLanguages` navigation-button branch was deleted — with submission gone it was identical to the generic "Next" branch, so Love Languages now falls through to it and just calls `goToNextStep()` after the `canProceed` check.
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** Added `@Environment(OnboardingViewModel.self) private var onboarding` (already injected by the container) plus `vaultReady` / `vaultFailed` state. The `.task` now runs a new `submitVaultThenGenerate()` helper: it `await`s `onboarding.submitVault()`, and on success sets `vaultReady` immediately before `await viewModel.generateRecommendations()` (so the loading screen never flashes the empty state), or sets `vaultFailed` on failure. The `content` switch shows `ForYouLoadingView` while `!vaultReady || viewModel.isLoading`, and a new vault-failure branch reuses the existing `errorState` (now parameterized with a `retry` closure) showing `onboarding.submissionError` with a "Try Again" that re-runs the flow. The recommendation-generation error branch passes its own retry. The `#Preview` injects `.environment(OnboardingViewModel())`.
+
+**Backend:** No changes. Same `submitVault()`/`POST /api/v1/vault` then `POST /api/v1/recommendations/generate` (just_because) path, just sequenced inside the reveal step.
+
+**Tests:** `KnotTests/OnboardingContainerViewTests` (11 tests) and `OnboardingStepHeaderTests` pass unchanged — they are logic-level (step ordering, payload building, `isSubmitting` toggling) and never asserted the overlay view. Full `xcodebuild build` and `xcodebuild test` both succeed (all suites, 0 failures).
+
+**Notes:**
+- New end-to-end flow: Love Languages → "Next" → advance to the reveal step → `ForYouLoadingView` shows continuously through vault creation **and** recommendation generation → celebration → cards → "Continue". On vault-submit failure the reveal step shows the retry-able error state, and the always-present "Continue" still lets the user proceed (never trapped).
+- Behavior change: vault submission errors now surface on the reveal step (with retry) rather than as an alert keeping the user on Love Languages, since `canProceed` already validates the inputs before advancing and submit failures are network/server-side.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

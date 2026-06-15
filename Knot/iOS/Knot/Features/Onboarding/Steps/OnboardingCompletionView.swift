@@ -35,11 +35,25 @@ struct OnboardingCompletionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The shared onboarding view model (injected by `OnboardingContainerView`).
+    /// Used to submit the partner vault as the first step of this reveal so the
+    /// vault POST and the recommendation generation sit behind one loading screen.
+    @Environment(OnboardingViewModel.self) private var onboarding
+
     @State private var viewModel = RecommendationsViewModel()
 
     /// True while the climax celebration plays — between loading completing and the
     /// recommendation cards appearing. Mirrors `RecommendationsView`'s own flag.
     @State private var isPlayingClimax = false
+
+    /// True once the partner vault POST has succeeded. Until then the loading
+    /// screen represents vault creation; afterward it represents recommendation
+    /// generation. Keeping it `false` initially shows `ForYouLoadingView`
+    /// immediately, with no empty-state flash before submission starts.
+    @State private var vaultReady = false
+
+    /// True if the vault POST failed, surfacing a retry-able error state.
+    @State private var vaultFailed = false
 
     var body: some View {
         content
@@ -63,9 +77,7 @@ struct OnboardingCompletionView: View {
             }
             .task {
                 viewModel.configure(modelContext: modelContext)
-                // Default arguments → occasionType "just_because", milestoneId nil,
-                // the same run the For You tab's JustBecauseCard makes.
-                await viewModel.generateRecommendations()
+                await submitVaultThenGenerate()
             }
             // MARK: - CTA flow (full parity with RecommendationsView)
             //
@@ -160,17 +172,51 @@ struct OnboardingCompletionView: View {
             }
     }
 
+    // MARK: - Reveal Flow
+
+    /// Submits the partner vault, then — on success — generates the first
+    /// recommendations. Both run behind a single `ForYouLoadingView`: the loading
+    /// screen represents vault creation until `vaultReady` flips, then seamlessly
+    /// represents recommendation generation. On vault failure it stops and shows
+    /// the retry-able error state. Also used by the error state's "Try Again".
+    private func submitVaultThenGenerate() async {
+        vaultFailed = false
+        let success = await onboarding.submitVault()
+        guard success else {
+            vaultFailed = true
+            return
+        }
+        // Set `vaultReady` immediately before the awaited call: the synchronous
+        // prefix of `generateRecommendations()` sets `isLoading = true` in the
+        // same run-loop tick, so the loading screen never flashes the empty state.
+        vaultReady = true
+        // Default arguments → occasionType "just_because", milestoneId nil,
+        // the same run the For You tab's JustBecauseCard makes.
+        await viewModel.generateRecommendations()
+    }
+
     // MARK: - State Switch
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.isLoading {
+        if vaultFailed {
+            errorState(
+                message: onboarding.submissionError
+                    ?? "We couldn't save your partner vault. Please try again.",
+                retry: { Task { await submitVaultThenGenerate() } }
+            )
+        } else if !vaultReady || viewModel.isLoading {
+            // One continuous loading screen: vault creation first (`!vaultReady`),
+            // then recommendation generation (`viewModel.isLoading`).
             ForYouLoadingView()
         } else if isPlayingClimax {
             ForYouClimaxView()
                 .transition(.opacity)
         } else if let error = viewModel.errorMessage {
-            errorState(message: error)
+            errorState(
+                message: error,
+                retry: { Task { await viewModel.generateRecommendations() } }
+            )
         } else if viewModel.recommendations.isEmpty {
             emptyState
         } else {
@@ -209,9 +255,10 @@ struct OnboardingCompletionView: View {
 
     // MARK: - Error State
 
-    /// Generation failed. The container's "Continue" button remains below, so the
-    /// user can always proceed to Home even if this run errored.
-    private func errorState(message: String) -> some View {
+    /// Vault submission or recommendation generation failed. The container's
+    /// "Continue" button remains below, so the user can always proceed to Home
+    /// even if this run errored. `retry` re-runs whichever step failed.
+    private func errorState(message: String, retry: @escaping () -> Void) -> some View {
         VStack(spacing: 16) {
             Image(uiImage: Lucide.circleAlert)
                 .renderingMode(.template)
@@ -227,7 +274,7 @@ struct OnboardingCompletionView: View {
                 .padding(.horizontal, 40)
 
             Button {
-                Task { await viewModel.generateRecommendations() }
+                retry()
             } label: {
                 HStack(spacing: 6) {
                     Image(uiImage: Lucide.refreshCw)
@@ -282,4 +329,5 @@ struct OnboardingCompletionView: View {
 
 #Preview {
     OnboardingCompletionView()
+        .environment(OnboardingViewModel())
 }
