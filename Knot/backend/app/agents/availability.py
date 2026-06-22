@@ -36,7 +36,7 @@ VALID_STATUS_RANGE = range(200, 400)  # 2xx and 3xx are considered available
 MAX_PAGE_CONTENT_CHARS = 8000  # limit page text sent to Claude per candidate
 
 # Claude model for price extraction
-CLAUDE_PRICE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_PRICE_MODEL = "claude-sonnet-4-6"
 CLAUDE_PRICE_MAX_TOKENS = 1024
 
 # User-Agent to avoid bot detection on merchant sites

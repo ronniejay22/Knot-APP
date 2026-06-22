@@ -206,7 +206,7 @@ def _mock_claude_results() -> list[dict]:
             "image_url": "https://i.etsystatic.com/example.jpg",
             "merchant_name": "CeramicStudio",
             "location": None,
-            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-20250514"},
+            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-6"},
         },
         {
             "id": str(uuid.uuid4()),
@@ -220,7 +220,7 @@ def _mock_claude_results() -> list[dict]:
             "image_url": None,
             "merchant_name": "Austin Sailing Tours",
             "location": {"city": "Austin", "state": "TX", "country": "US", "address": None},
-            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-20250514"},
+            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-6"},
         },
         {
             "id": str(uuid.uuid4()),
@@ -234,7 +234,7 @@ def _mock_claude_results() -> list[dict]:
             "image_url": "https://www.claycafe.com/images/pottery.jpg",
             "merchant_name": "Clay Cafe Austin",
             "location": {"city": "Austin", "state": "TX", "country": "US", "address": "123 Art St"},
-            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-20250514"},
+            "metadata": {"search_source": "claude_search", "extraction_model": "claude-sonnet-4-6"},
         },
     ]
 

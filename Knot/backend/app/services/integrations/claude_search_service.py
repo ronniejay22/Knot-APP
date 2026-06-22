@@ -41,7 +41,7 @@ RESULTS_PER_QUERY = 5  # Brave results per query
 TARGET_CANDIDATES = 20  # match TARGET_CANDIDATE_COUNT in aggregation.py
 
 # Claude model for structured extraction
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 4096
 
 # Map occasion types to search intent modifiers

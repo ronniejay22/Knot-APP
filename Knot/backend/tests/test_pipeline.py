@@ -126,7 +126,7 @@ def _make_candidate(
         "external_url": external_url or f"https://example.com/products/{cid}",
         "image_url": "https://images.example.com/test.jpg",
         "merchant_name": merchant_name,
-        "metadata": {"generation_model": "claude-sonnet-4-20250514"},
+        "metadata": {"generation_model": "claude-sonnet-4-6"},
         "is_idea": is_idea,
         "personalization_note": "Specifically picked for this partner.",
         "search_query": f"buy {title}" if not is_idea else None,

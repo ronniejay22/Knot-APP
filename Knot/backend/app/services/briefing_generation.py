@@ -25,7 +25,7 @@ from app.core.config import ANTHROPIC_API_KEY, is_anthropic_configured
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 512
 MAX_RETRIES = 1
 
