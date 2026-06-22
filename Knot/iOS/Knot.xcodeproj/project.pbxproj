@@ -21,7 +21,6 @@
 		07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AE7970627763281E43105B /* HomeView.swift */; };
 		07F8A133AEC890D6F2B20EC8 /* NotificationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4247B99E99F834D9DCE623D0 /* NotificationsViewModel.swift */; };
 		08FF4428155608D136787B78 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AA11148E4DFC8D8D22DA69D6 /* Supabase */; };
-		0AE79C4674BEBA2701204DA5 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */; };
 		0F10E179CDCEFC0E9E1627CD /* OnboardingTenureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */; };
 		0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */; };
 		13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */; };
@@ -43,6 +42,7 @@
 		2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40694013F15F1931FBD4B467 /* LoginViewTests.swift */; };
 		342F98B7D643E05A09F139A0 /* MagicLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082F77FD6E0C7FFE4FA375FB /* MagicLinkView.swift */; };
 		3536D1D4A74A18601003E198 /* KnotTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */; };
+		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
 		365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */; };
 		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
 		3F5DBBCC7D3535B153EF65D8 /* AppReviewPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */; };
@@ -60,6 +60,7 @@
 		4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */; };
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
 		524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */; };
+		53E2D5CAA744A77BD7605D2E /* SpotlightDeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E2752657209F3332327EB51 /* SpotlightDeckView.swift */; };
 		54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5C280C9E2257F8A526806C /* KnotInput.swift */; };
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
 		5C0948792EDCB23B6E652A8F /* KnotCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D78112D68DB3912DFC57EB /* KnotCardTests.swift */; };
@@ -92,12 +93,9 @@
 		8FEFC8AAD111CA83F1ECA171 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0923D42485ED34C6E165B1 /* RecommendationService.swift */; };
 		9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */; };
 		933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77282BCCC7022C9A21681178 /* IdeaDetailView.swift */; };
-		A1B2C3D40000000000000001 /* IdeaContentSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000002 /* IdeaContentSectionsView.swift */; };
-		A1B2C3D40000000000000003 /* RecommendationChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000004 /* RecommendationChips.swift */; };
-		A1B2C3D40000000000000005 /* RecommendationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000006 /* RecommendationDetailView.swift */; };
-		A1B2C3D40000000000000007 /* SpotlightDeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000008 /* SpotlightDeckView.swift */; };
 		950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */; };
 		96462109E4898C16649196D4 /* InterestListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A932CC2FBD754E6625A3E2BC /* InterestListRow.swift */; };
+		98B2849C8DE2B34605B99EB6 /* IdeaContentSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */; };
 		9BE80618A782CFF1A09FFF6B /* EditMilestonesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */; };
 		9E94658B3F754231C13D1E5E /* KnotTabBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3004AEB082C62DE4C273BD /* KnotTabBarTests.swift */; };
 		9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D4AED680722D46D3983508 /* RecommendationsView.swift */; };
@@ -105,6 +103,8 @@
 		A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9576279FACB0210014A38F96 /* MilestoneLocal.swift */; };
 		A3EDB10EF71EF3D6DCD10DC4 /* SavedRecommendation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D5AEEE5FEBF1EE92002601 /* SavedRecommendation.swift */; };
 		A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */; };
+		A8A62B3DDAF2B1B6B91C0F91 /* RecommendationChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27246AF7688E6B7BC72E6000 /* RecommendationChips.swift */; };
+		A8A74F998ADC8DB98A086507 /* RecommendationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFE262DAE19130A6305235A /* RecommendationDetailView.swift */; };
 		AB8A884D6F0B4D808482D6AD /* KnotButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE385E616111A330CB02F728 /* KnotButton.swift */; };
 		AC47CFEA2B0497DAD41D0906 /* EditBudgetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F8B078B8DD86126BD9BD9A /* EditBudgetSheet.swift */; };
 		B2F480B32CF173ACAA00C01E /* TabNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */; };
@@ -186,12 +186,14 @@
 		21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingVibesView.swift; sourceTree = "<group>"; };
 		2218310C657F62A45F2B93C6 /* MilestonesManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestonesManagementView.swift; sourceTree = "<group>"; };
 		2325C1170451BB00CC54D30E /* SavedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedViewModel.swift; sourceTree = "<group>"; };
+		27246AF7688E6B7BC72E6000 /* RecommendationChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationChips.swift; sourceTree = "<group>"; };
 		27AC80CFB913B9EFCC18506D /* AccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountService.swift; sourceTree = "<group>"; };
 		2A26FAED19328A49BE6820DE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewTests.swift; sourceTree = "<group>"; };
 		2B949879832CF85679AFE56C /* RelationshipLengthModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipLengthModal.swift; sourceTree = "<group>"; };
 		2DB2C0E473B2693C71D80BC2 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditMilestonesSheet.swift; sourceTree = "<group>"; };
+		2E2752657209F3332327EB51 /* SpotlightDeckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightDeckView.swift; sourceTree = "<group>"; };
 		2E3B473EB33D90B1F3C92FA0 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		3344E208921ACDD3D2B3191A /* KnotProgressIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicatorTests.swift; sourceTree = "<group>"; };
 		3D5163ABE18C166E5BBB2B36 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
@@ -230,11 +232,6 @@
 		7582B8EB702201D602F5AE93 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
-		A1B2C3D40000000000000002 /* IdeaContentSectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaContentSectionsView.swift; sourceTree = "<group>"; };
-		A1B2C3D40000000000000004 /* RecommendationChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationChips.swift; sourceTree = "<group>"; };
-		A1B2C3D40000000000000006 /* RecommendationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationDetailView.swift; sourceTree = "<group>"; };
-		A1B2C3D40000000000000008 /* SpotlightDeckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightDeckView.swift; sourceTree = "<group>"; };
-		79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
 		7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationTests.swift; sourceTree = "<group>"; };
 		80F2A43D31A1865709700823 /* KnotInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotInputTests.swift; sourceTree = "<group>"; };
 		82C9B68579CAF5F6FE602DC4 /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
@@ -246,6 +243,7 @@
 		8A501D3EBBEA7CF8A2C828AD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReauthenticationSheet.swift; sourceTree = "<group>"; };
 		8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingInterestsView.swift; sourceTree = "<group>"; };
+		8FFE262DAE19130A6305235A /* RecommendationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationDetailView.swift; sourceTree = "<group>"; };
 		90925173E680B5538BCBD054 /* SettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewTests.swift; sourceTree = "<group>"; };
 		9131AE157A0315E3D726AA8D /* DeviceTokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTokenService.swift; sourceTree = "<group>"; };
 		914FECBA760D35D7247CEEA4 /* KnotIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotIconButton.swift; sourceTree = "<group>"; };
@@ -276,6 +274,7 @@
 		CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAnniversaryView.swift; sourceTree = "<group>"; };
 		CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerViewTests.swift; sourceTree = "<group>"; };
 		D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCard.swift; sourceTree = "<group>"; };
+		D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
 		D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierSliderCard.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSlider.swift; sourceTree = "<group>"; };
@@ -297,6 +296,7 @@
 		F05B936676B8BE236E4B5665 /* MilestonePickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestonePickers.swift; sourceTree = "<group>"; };
 		F84DE885123A9B87A6095798 /* Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf"; sourceTree = "<group>"; };
 		F96B2B980EF9DED7D4AB9A79 /* BudgetRangeSliderMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSliderMathTests.swift; sourceTree = "<group>"; };
+		F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaContentSectionsView.swift; sourceTree = "<group>"; };
 		FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
 		FD6ED0CB18062570291BACCB /* EditBasicInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditBasicInfoSheet.swift; sourceTree = "<group>"; };
@@ -454,16 +454,16 @@
 			children = (
 				6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */,
 				E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */,
+				F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */,
 				77282BCCC7022C9A21681178 /* IdeaDetailView.swift */,
-				A1B2C3D40000000000000002 /* IdeaContentSectionsView.swift */,
 				895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */,
 				05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */,
 				AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */,
-				A1B2C3D40000000000000004 /* RecommendationChips.swift */,
-				A1B2C3D40000000000000006 /* RecommendationDetailView.swift */,
+				27246AF7688E6B7BC72E6000 /* RecommendationChips.swift */,
+				8FFE262DAE19130A6305235A /* RecommendationDetailView.swift */,
 				A0D4AED680722D46D3983508 /* RecommendationsView.swift */,
 				FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */,
-				A1B2C3D40000000000000008 /* SpotlightDeckView.swift */,
+				2E2752657209F3332327EB51 /* SpotlightDeckView.swift */,
 			);
 			path = Recommendations;
 			sourceTree = "<group>";
@@ -479,8 +479,8 @@
 				62F640B21DF76BE13AC81E76 /* OnboardingDislikesView.swift */,
 				8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */,
 				EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */,
+				D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */,
 				0EEA2AB2842B17EB2E0B0CAD /* OnboardingPartnerNameView.swift */,
-				79E0578B5B4BA8997C736757 /* OnboardingLoveLanguagesView.swift */,
 				60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */,
 				21AB456FA5C0E634023407CA /* OnboardingVibesView.swift */,
 				FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */,
@@ -750,7 +750,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					45DAD458DC1620EA1D0D1B14 = {
 						DevelopmentTeam = VN5G3R8J23;
@@ -768,7 +768,6 @@
 				};
 			};
 			buildConfigurationList = 3C708B7A2654AF70D1DC9355 /* Build configuration list for PBXProject "Knot" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -783,6 +782,7 @@
 				7078CC367226AD1E61FC90A1 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = F7E46C8D3CE8BBD34B623C23 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -882,11 +882,8 @@
 				2320F84E7581775AE98DBDF9 /* HintService.swift in Sources */,
 				07B5812E567FD4F19A2E9FD1 /* HomeView.swift in Sources */,
 				9202C44B87DD812AF791C1B1 /* HomeViewModel.swift in Sources */,
+				98B2849C8DE2B34605B99EB6 /* IdeaContentSectionsView.swift in Sources */,
 				933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */,
-				A1B2C3D40000000000000001 /* IdeaContentSectionsView.swift in Sources */,
-				A1B2C3D40000000000000003 /* RecommendationChips.swift in Sources */,
-				A1B2C3D40000000000000005 /* RecommendationDetailView.swift in Sources */,
-				A1B2C3D40000000000000007 /* SpotlightDeckView.swift in Sources */,
 				96462109E4898C16649196D4 /* InterestListRow.swift in Sources */,
 				A233D0878A5E94F553AA7322 /* JustBecauseCard.swift in Sources */,
 				BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */,
@@ -924,8 +921,8 @@
 				764D00845275A66B57ED1168 /* OnboardingDislikesView.swift in Sources */,
 				7A03A2E7AC33BE87B2E44505 /* OnboardingInterestsView.swift in Sources */,
 				760C480FAC990EF196A3C121 /* OnboardingLocationView.swift in Sources */,
+				3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */,
 				25EBD64F244E63B2453EE6A8 /* OnboardingPartnerNameView.swift in Sources */,
-				0AE79C4674BEBA2701204DA5 /* OnboardingLoveLanguagesView.swift in Sources */,
 				F2796C120E1368BCDDE4F0BE /* OnboardingStepHeader.swift in Sources */,
 				0F10E179CDCEFC0E9E1627CD /* OnboardingTenureView.swift in Sources */,
 				E9B83E6A6D9FFC37C05E7FE8 /* OnboardingVibesView.swift in Sources */,
@@ -938,6 +935,8 @@
 				03B65E3B26EFA2D4644F34F9 /* PurchaseRatingSheet.swift in Sources */,
 				E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */,
 				3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */,
+				A8A62B3DDAF2B1B6B91C0F91 /* RecommendationChips.swift in Sources */,
+				A8A74F998ADC8DB98A086507 /* RecommendationDetailView.swift in Sources */,
 				6298CD41C2C411EDCD7C8E37 /* RecommendationLocal.swift in Sources */,
 				8FEFC8AAD111CA83F1ECA171 /* RecommendationService.swift in Sources */,
 				9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */,
@@ -949,6 +948,7 @@
 				D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */,
 				50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */,
 				4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */,
+				53E2D5CAA744A77BD7605D2E /* SpotlightDeckView.swift in Sources */,
 				950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */,
 				1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */,
 				72EC0668AF413912D66810A4 /* Theme.swift in Sources */,
