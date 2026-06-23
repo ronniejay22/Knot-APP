@@ -40,6 +40,12 @@ struct OnboardingCompletionView: View {
     /// vault POST and the recommendation generation sit behind one loading screen.
     @Environment(OnboardingViewModel.self) private var onboarding
 
+    /// Drives the container's "Continue" button visibility. The button lives in
+    /// `OnboardingContainerView`'s navigation bar, so this reveal reports up
+    /// whether it is still in progress: the button stays hidden while loading or
+    /// celebrating, and appears only once the user reaches a terminal state.
+    @Binding var showContinue: Bool
+
     @State private var viewModel = RecommendationsViewModel()
 
     /// True while the climax celebration plays — between loading completing and the
@@ -55,8 +61,43 @@ struct OnboardingCompletionView: View {
     /// True if the vault POST failed, surfacing a retry-able error state.
     @State private var vaultFailed = false
 
+    /// True while the reveal is still in progress — the loading screen (vault
+    /// creation then recommendation generation) or the climax celebration is on
+    /// screen. Mirrors the busy branches of `content` below. The container hides
+    /// "Continue" while this is true; it stays interactive in the loaded, empty,
+    /// error, and vault-failed states so the user is never trapped.
+    private var isRevealing: Bool {
+        Self.revealInProgress(
+            vaultFailed: vaultFailed,
+            vaultReady: vaultReady,
+            isLoading: viewModel.isLoading,
+            isPlayingClimax: isPlayingClimax
+        )
+    }
+
+    /// Pure gating logic for `isRevealing`, factored out of the computed property
+    /// so the Continue-button gating can be unit-tested independently of the
+    /// view's `@State`. Mirrors the busy branches of the `content` switch: the
+    /// reveal is "in progress" while the loading screen (vault creation then
+    /// recommendation generation) or the climax celebration is on screen, and
+    /// NOT in progress in the terminal loaded / empty / error / vault-failed
+    /// states (where "Continue" should appear so the user is never trapped).
+    static func revealInProgress(
+        vaultFailed: Bool,
+        vaultReady: Bool,
+        isLoading: Bool,
+        isPlayingClimax: Bool
+    ) -> Bool {
+        (!vaultFailed && (!vaultReady || isLoading)) || isPlayingClimax
+    }
+
     var body: some View {
         content
+            // Keep the container's "Continue" button in sync with the reveal's
+            // progress without mutating state mid-render.
+            .onChange(of: isRevealing) { _, revealing in
+                showContinue = !revealing
+            }
             // Trigger the celebration only on a fresh, successful load — skips on
             // error or when no recommendations came back.
             .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
@@ -76,6 +117,9 @@ struct OnboardingCompletionView: View {
                 }
             }
             .task {
+                // Hide "Continue" the moment the reveal begins; `onChange` above
+                // re-shows it once the reveal finishes.
+                showContinue = false
                 viewModel.configure(modelContext: modelContext)
                 await submitVaultThenGenerate()
             }
@@ -322,6 +366,6 @@ struct OnboardingCompletionView: View {
 // MARK: - Preview
 
 #Preview {
-    OnboardingCompletionView()
+    OnboardingCompletionView(showContinue: .constant(true))
         .environment(OnboardingViewModel())
 }

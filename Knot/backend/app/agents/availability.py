@@ -26,6 +26,7 @@ from typing import Any
 import httpx
 
 from app.agents.state import CandidateRecommendation, RecommendationState
+from app.services.llm_tuning import fast_generation_params
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,8 @@ async def _verify_prices_with_claude(
             max_tokens=CLAUDE_PRICE_MAX_TOKENS,
             system=PRICE_EXTRACTION_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
+            # Keep extraction fast — see app/services/llm_tuning.py.
+            **fast_generation_params(CLAUDE_PRICE_MODEL),
         )
 
         text = response.content[0].text.strip()

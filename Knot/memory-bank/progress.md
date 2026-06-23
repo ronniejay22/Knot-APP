@@ -6533,6 +6533,61 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.46 ✅ For You — Center the "No milestones yet" Empty State
+**Date:** 2026-06-23
+**Status:** Complete
+
+**Goal:** The milestones empty state on the For You tab (calendar icon, "No milestones yet", description, "Add Your First Milestone" button) rendered shifted left of center instead of horizontally centered.
+
+**Root cause:** `emptyTimeline` is a `VStack` inside the screen's parent `VStack(alignment: .leading)`. With no width constraint it sized to its content and, being narrower than the column, was pinned to the parent's leading edge — so its internal `.center` alignment centered content within a left-anchored box. The "Surprise them today" card looked centered only because `KnotCard` applies `.frame(maxWidth: .infinity)`.
+
+**What changed:**
+- **`Features/ForYou/ForYouView.swift`:** Added `.frame(maxWidth: .infinity)` to the `emptyTimeline` VStack so it fills the column; its existing `.center` alignment now lands on the true screen center.
+
+**Backend:** No changes.
+
+---
+
+### Step 18.47 ✅ Onboarding — Hide "Continue" Until the Recommendation Reveal Finishes
+**Date:** 2026-06-23
+**Status:** Complete
+
+**Goal:** During the in-onboarding recommendation reveal, the "Continue" button was visible while the loading screen ("Thinking about what they love…") was still running, letting users skip past their first picks before they appeared.
+
+**Approach:** The "Continue" button lives in `OnboardingContainerView`'s navigation bar (it detects `.isLast`), but the reveal's loading state lives in `OnboardingCompletionView`. The completion view now reports its progress up via a binding, and the container hides the button while the reveal is in progress.
+
+**What changed:**
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** Added `@Binding var showContinue: Bool` and a computed `isRevealing` (`(!vaultFailed && (!vaultReady || viewModel.isLoading)) || isPlayingClimax`) mirroring the busy branches of the `content` switch. `.onChange(of: isRevealing)` sets `showContinue = !revealing`; `.task` sets it `false` at reveal start. The button stays hidden during loading and the climax animation, and appears in every terminal state (loaded, empty, error, vault-failed) so the user is never trapped. `#Preview` passes `showContinue: .constant(true)`.
+- **`Features/Onboarding/OnboardingContainerView.swift`:** Added `@State private var completionShowContinue = false` (default hidden), passes the binding into `OnboardingCompletionView`, and wraps the `.isLast` "Continue" `KnotButton` in `if completionShowContinue`. No transition/animation — animating nav buttons delays first taps on device.
+
+**Backend:** No changes.
+
+**Tests:** `KnotTests/OnboardingCompletionViewContinueGatingTests` covers `isRevealing` across the loading, climax, loaded, empty, error, and vault-failed states.
+
+---
+
+### Step 18.48 ✅ Recommendations — Fix Post-Model-Swap Latency Regression + Persistence
+**Date:** 2026-06-23
+**Status:** Complete
+
+**Goal:** The in-onboarding recommendation reveal began timing out ("request timed out") after the loading bar filled. Restore generation to the ~30s target and fix recommendation persistence.
+
+**Root cause:** Recommendation generation had run for months on the retired `claude-sonnet-4-20250514` (Sonnet 4), which had no `effort`/thinking concept. When Anthropic retired it, the model-ID fix (commit `2149851`) swapped in `claude-sonnet-4-6` as a pure model-ID change — but Sonnet 4.6 **defaults to `effort: high`** (deliberative thinking), roughly doubling generation latency and pushing the pipeline past the iOS 60s client timeout. Separately, migration `00021_add_personalization_note.sql` had never been pushed to the remote Supabase, so every insert failed with `PGRST204` (the endpoint caught it and still returned recs, so picks silently never persisted).
+
+**What changed:**
+- **`app/services/llm_tuning.py` (new):** `fast_generation_params(model)` returns `{"thinking": {"type": "disabled"}}` plus `{"output_config": {"effort": "low"}}` for effort-capable models only (Sonnet 4.6, Opus 4.5–4.8). Haiku 4.5 / Sonnet 4.5 / Opus 4.0–4.1 reject `effort` with a 400, so it is added conditionally by exact-prefix match.
+- **All recommendation-generating Claude calls** now spread `**fast_generation_params(...)`: `app/services/unified_generation.py` (the reveal's gift/idea/date cards), `app/services/idea_generation.py` (full idea/date-plan detail — also a recommendation), `app/services/briefing_generation.py` (milestone briefings), `app/agents/availability.py` (price extraction), and `app/services/integrations/claude_search_service.py` (candidate extraction).
+- **`app/services/unified_generation.py`:** `CLAUDE_MODEL` swapped `claude-sonnet-4-6` → `claude-haiku-4-5` for the dominant generation call (~90% of pipeline latency: ~34s on Sonnet vs ~23s on Haiku). The other paths stay on Sonnet 4.6 with fast params. Documented as a one-line revert to trade ~10s for richer recs.
+- **`iOS/Knot/Services/RecommendationService.swift`:** Raised the generate/refresh `timeoutInterval` 60 → 90s as a safety margin over the ~30s target.
+
+**Backend / DB:** Applied migration `00021_add_personalization_note.sql` to the remote Supabase (the remote migration history was empty — schema had been applied manually — so existing migrations were repaired to `applied` first, then `00021` pushed). Verified the `personalization_note` column now exists; recommendations persist again.
+
+**Measured:** Full pipeline end-to-end ~20s average (well under the ~30s target), down from >60s.
+
+**Tests:** New `tests/test_llm_tuning.py` covers the effort-capable vs not split. Existing generation suites (`test_unified_generation.py`, `test_pipeline.py`, `test_aggregation_node.py`) pass (95/95).
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

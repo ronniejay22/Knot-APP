@@ -21,6 +21,7 @@ import httpx
 from anthropic import AsyncAnthropic
 
 from app.agents.state import UNLIMITED_BUDGET_MAX_CENTS
+from app.services.llm_tuning import fast_generation_params
 from app.core.config import (
     ANTHROPIC_API_KEY,
     BRAVE_SEARCH_API_KEY,
@@ -324,6 +325,8 @@ async def _extract_candidates_with_claude(
             max_tokens=CLAUDE_MAX_TOKENS,
             system=EXTRACTION_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
+            # Keep extraction fast — see app/services/llm_tuning.py.
+            **fast_generation_params(CLAUDE_MODEL),
         )
 
         text = response.content[0].text.strip()

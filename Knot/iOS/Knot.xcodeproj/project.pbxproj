@@ -127,6 +127,7 @@
 		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
 		DA3F459CB98EBDA8B0FBCB2C /* ForYouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0CC323FB5ADE12F70A632E /* ForYouView.swift */; };
 		DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */; };
+		BB11CC22DD33EE44FF550022 /* OnboardingCompletionViewContinueGatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB11CC22DD33EE44FF550011 /* OnboardingCompletionViewContinueGatingTests.swift */; };
 		DDF62F31AA5CDFB0A50567A9 /* SavedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A9210BC3C12D656CB34484 /* SavedView.swift */; };
 		DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554263B4D803E9B67716AEEF /* NetworkMonitor.swift */; };
 		E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */; };
@@ -273,6 +274,7 @@
 		CC6BE81407629DBE13B2EEDB /* OnboardingStepHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStepHeader.swift; sourceTree = "<group>"; };
 		CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAnniversaryView.swift; sourceTree = "<group>"; };
 		CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerViewTests.swift; sourceTree = "<group>"; };
+		BB11CC22DD33EE44FF550011 /* OnboardingCompletionViewContinueGatingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompletionViewContinueGatingTests.swift; sourceTree = "<group>"; };
 		D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCard.swift; sourceTree = "<group>"; };
 		D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
 		D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierSliderCard.swift; sourceTree = "<group>"; };
@@ -660,6 +662,7 @@
 				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
 				CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */,
+				BB11CC22DD33EE44FF550011 /* OnboardingCompletionViewContinueGatingTests.swift */,
 				54549B56941A144EF54808E9 /* OnboardingStepHeaderTests.swift */,
 				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
@@ -833,6 +836,7 @@
 				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
 				DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */,
+				BB11CC22DD33EE44FF550022 /* OnboardingCompletionViewContinueGatingTests.swift in Sources */,
 				896FCE434B1B1D625DEE6CD6 /* OnboardingStepHeaderTests.swift in Sources */,
 				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,

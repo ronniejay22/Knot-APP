@@ -101,7 +101,7 @@ final class RecommendationService: Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 60 // AI pipeline may take longer
+        request.timeoutInterval = 90 // AI pipeline may take longer (safety margin over the ~30s target)
 
         let payload = RecommendationGeneratePayload(
             milestoneId: milestoneId,
@@ -190,7 +190,7 @@ final class RecommendationService: Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 60
+        request.timeoutInterval = 90
 
         let payload = RecommendationRefreshPayload(
             rejectedRecommendationIds: rejectedIds,

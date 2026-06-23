@@ -20,6 +20,8 @@ from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
+from app.services.llm_tuning import fast_generation_params
+
 from app.agents.state import (
     UNLIMITED_BUDGET_MAX_CENTS,
     BudgetRange,
@@ -37,7 +39,13 @@ logger = logging.getLogger(__name__)
 # Constants
 # ======================================================================
 
-CLAUDE_MODEL = "claude-sonnet-4-6"
+# Haiku 4.5 keeps the dominant generation call (~90% of pipeline latency) near
+# the ~30s target. Sonnet 4.6 produces slightly richer recommendations but its
+# generation runs ~34s vs Haiku's ~23s, pushing the end-to-end reveal to ~38s.
+# Swap back to "claude-sonnet-4-6" here to trade ~10s of latency for quality.
+# (Haiku does not accept output_config.effort — fast_generation_params handles
+# that automatically.)
+CLAUDE_MODEL = "claude-haiku-4-5"
 CLAUDE_MAX_TOKENS = 4096
 MAX_RETRIES = 2
 
@@ -408,6 +416,8 @@ async def generate_unified_recommendations(
                 max_tokens=CLAUDE_MAX_TOKENS,
                 system=UNIFIED_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
+                # Keep generation fast — see app/services/llm_tuning.py.
+                **fast_generation_params(CLAUDE_MODEL),
             )
 
             text = response.content[0].text.strip()

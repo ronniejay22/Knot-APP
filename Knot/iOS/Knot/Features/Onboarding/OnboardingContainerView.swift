@@ -37,6 +37,12 @@ struct OnboardingContainerView: View {
     /// can reverse for back navigation (in from leading / out to trailing).
     @State private var isNavigatingBack = false
 
+    /// Whether the final completion step's recommendation reveal has finished and
+    /// the "Continue" button should be shown. Starts hidden so the user can't skip
+    /// past the loading screen; `OnboardingCompletionView` flips it once the reveal
+    /// reaches a terminal state.
+    @State private var completionShowContinue = false
+
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header: Back Button + Progress Bar
@@ -203,7 +209,7 @@ struct OnboardingContainerView: View {
         case .loveLanguages:
             OnboardingLoveLanguagesView()
         case .completion:
-            OnboardingCompletionView()
+            OnboardingCompletionView(showContinue: $completionShowContinue)
         }
     }
 
@@ -212,17 +218,22 @@ struct OnboardingContainerView: View {
     @ViewBuilder
     private var navigationButtons: some View {
         if viewModel.currentStep.isLast {
-            // Final recommendation-reveal step. The vault is already submitted and
-            // the user is looking at their first picks, so "Continue" simply
-            // finishes onboarding. Always enabled and visible — independent of the
-            // reveal's loading/error/empty state — so the user is never trapped.
-            KnotButton(
-                "Continue",
-                variant: .primary,
-                size: .lg,
-                action: { onComplete() }
-            )
-            .frame(maxWidth: .infinity)
+            // Final recommendation-reveal step. "Continue" stays hidden while the
+            // reveal is loading or playing its climax (driven by
+            // `completionShowContinue`) so the user can't skip past their first
+            // picks before they appear. Once the reveal reaches a terminal state
+            // (loaded, empty, or error) the button appears and finishes onboarding.
+            // No transition/animation here — animating the nav buttons delays
+            // first taps on real devices (see Step Content comment above).
+            if completionShowContinue {
+                KnotButton(
+                    "Continue",
+                    variant: .primary,
+                    size: .lg,
+                    action: { onComplete() }
+                )
+                .frame(maxWidth: .infinity)
+            }
         } else {
             // Every data-entry step (including the final Love Languages step)
             // simply advances forward. The vault is submitted on the next

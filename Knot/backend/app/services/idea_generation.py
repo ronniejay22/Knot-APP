@@ -16,6 +16,8 @@ from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
+from app.services.llm_tuning import fast_generation_params
+
 from app.agents.state import RelevantHint, VaultData
 from app.core.config import ANTHROPIC_API_KEY, is_anthropic_configured
 
@@ -286,6 +288,8 @@ async def generate_ideas(
                 max_tokens=CLAUDE_MAX_TOKENS,
                 system=IDEA_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
+                # Keep generation fast — see app/services/llm_tuning.py.
+                **fast_generation_params(CLAUDE_MODEL),
             )
 
             text = response.content[0].text.strip()

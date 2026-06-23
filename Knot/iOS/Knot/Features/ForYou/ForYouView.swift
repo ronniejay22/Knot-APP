@@ -185,6 +185,7 @@ struct ForYouView: View {
             .fixedSize()
             .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
     }
 }
