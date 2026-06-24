@@ -302,6 +302,10 @@ extension Theme {
         /// headers. Scales relative to `.title`.
         static let sectionHeader: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.light)
 
+        /// Fraunces (SemiBold, 600) @ 28pt. Semibold variant of `sectionHeader`
+        /// for prominent detail titles. Scales relative to `.title`.
+        static let sectionHeaderSemibold: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.semibold)
+
         /// Fraunces (SemiBold, 600) @ 32pt. Onboarding page titles — a
         /// slightly larger scale than `sectionHeader` (28pt) so the
         /// onboarding flow reads as a more deliberate brand moment.

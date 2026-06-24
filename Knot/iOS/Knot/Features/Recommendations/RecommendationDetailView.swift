@@ -244,7 +244,7 @@ struct RecommendationDetailView: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(item.title)
-                .knotFont(Theme.Typography.sectionHeader)
+                .knotFont(Theme.Typography.sectionHeaderSemibold)
                 .foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 

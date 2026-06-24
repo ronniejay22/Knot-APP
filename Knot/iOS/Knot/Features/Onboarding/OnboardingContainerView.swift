@@ -153,10 +153,6 @@ struct OnboardingContainerView: View {
                     .foregroundStyle(Theme.textSecondary)
 
                 Spacer()
-
-                Text("Step \(viewModel.currentStep.rawValue + 1) of \(OnboardingStep.totalSteps)")
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(Theme.textTertiary)
             }
 
             // Animated progress track

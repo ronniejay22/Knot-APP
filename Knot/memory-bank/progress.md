@@ -6586,6 +6586,19 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** New `tests/test_llm_tuning.py` covers the effort-capable vs not split. Existing generation suites (`test_unified_generation.py`, `test_pipeline.py`, `test_aggregation_node.py`) pass (95/95).
 
+### Step 18.49 ✅ Recommendations & Onboarding — Match the Main-App Reveal to Onboarding + Header Polish
+**Date:** 2026-06-23
+**Status:** Complete
+
+**Goal:** Make the post-onboarding "get recommendations" experience identical to the in-onboarding reveal, plus two small header tweaks.
+
+**What changed:**
+- **`iOS/Knot/Features/Recommendations/RecommendationsView.swift`:** Replaced the interactive `SpotlightDeckView` (swipe-to-vote deck with 👍 save / 👎 pass, PASS/SAVE stamps, progress capsules) with the browse-only `SpotlightCarouselView` already used by `OnboardingCompletionView` — so the main For You reveal is now the exact same paged carousel (page dots, tap "See Details", no voting). Removed the bottom action bar ("Adjust Vibe" + "Refresh"), the `showActionButtons`/`adjustVibeButton`/`refreshButton` helpers, the `RefreshLoadingOverlay`, and the now-unreachable refresh-reason / session-hint / vibe-override sheet presentations. Saving in the main app now happens via the detail page's Save button (same as onboarding). The milestone briefing card ("Knot's Take"), climax animation, loading/empty/error states, and purchase-handoff sheets are unchanged. The `RefreshReasonSheet`/`SessionHintsSheet`/`VibeOverrideSheet` struct definitions and the corresponding `RecommendationsViewModel` methods remain as (now-unused) dead code for a later cleanup pass.
+- **`iOS/Knot/Features/Onboarding/OnboardingContainerView.swift`:** Removed the "Step X of Y" counter from the shared onboarding `progressBar`, so it no longer appears on any onboarding step (the category label and progress bar remain).
+- **`iOS/Knot/Core/Theme.swift` + `RecommendationDetailView.swift`:** Added a `Theme.Typography.sectionHeaderSemibold` token (Fraunces SemiBold 600 @ 28pt) and applied it to the recommendation detail title so it renders semibold, leaving the shared `sectionHeader` token Light elsewhere.
+
+**Tests:** `xcodebuild build` succeeds; the existing component tests in `KnotTests/RecommendationsViewTests.swift` (both `SpotlightDeckView` and `SpotlightCarouselView` render tests) and the recommendation view/model/refresh suites pass (35/35 in the affected classes).
+
 ---
 
 ## Next Steps

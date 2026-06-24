@@ -11,28 +11,29 @@
 //  Step 9.4: Return-to-app purchase prompt and rating sheets after merchant handoff.
 //  Step 10.4: App Store review prompt after 5-star purchase ratings.
 //  Step 14.8: Added "Suggestions"/"Ideas" segmented control and ideas feed.
+//  June 23, 2026: Reuse the browse-only `SpotlightCarouselView` (the onboarding
+//  reveal) so the main-app recommendation experience matches onboarding exactly —
+//  no swipe voting, Refresh, or Adjust Vibe. Saving happens on the detail page.
 //
 
 import SwiftUI
 import StoreKit
 import LucideIcons
 
-/// Displays exactly 3 recommendation cards in a horizontal paging scroll view.
+/// Displays the first picks in the same browse-only carousel as the onboarding
+/// reveal — one Spotlight card at a time, swipe to page, tap "See Details".
 ///
 /// Layout:
 /// ```
 /// ┌─────────────────────────────────────┐
-/// │  ← Recommendations        ● ● ○    │
+/// │  ← Recommendations                  │
 /// ├─────────────────────────────────────┤
 /// │                                     │
 /// │  ┌─────────────────────────────┐    │
-/// │  │   RecommendationCard (1/3)  │    │
+/// │  │      SpotlightCard (1/3)    │    │
 /// │  │   ← swipe to page →        │    │
 /// │  └─────────────────────────────┘    │
-/// │                                     │
-/// │  ┌─────────────────────────────┐    │
-/// │  │      🔄 Refresh             │    │
-/// │  └─────────────────────────────┘    │
+/// │              ● ● ○                   │
 /// └─────────────────────────────────────┘
 /// ```
 struct RecommendationsView: View {
@@ -99,49 +100,6 @@ struct RecommendationsView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
                 }
-            }
-            .sheet(isPresented: $viewModel.showRefreshReasonSheet) {
-                RefreshReasonSheet { reason in
-                    viewModel.handleRefreshReason(reason)
-                }
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
-            // Session hint capture sheet (Step 18.6) — shown after the user picks
-            // a refresh reason. Lets them jot down anything new they've noticed
-            // about their partner; the hint persists via HintService and the
-            // pipeline picks it up on the next run via pgvector.
-            .sheet(isPresented: $viewModel.showSessionHintsSheet) {
-                SessionHintsSheet(
-                    onSubmit: { text in
-                        Task {
-                            await viewModel.submitSessionHintAndRefresh(text: text)
-                        }
-                    },
-                    onSkip: {
-                        Task {
-                            await viewModel.skipSessionHintAndRefresh()
-                        }
-                    }
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $viewModel.showVibeOverrideSheet) {
-                VibeOverrideSheet(
-                    selectedVibes: viewModel.vibeOverride ?? [],
-                    onSave: { vibes in
-                        Task {
-                            await viewModel.saveVibeOverride(vibes)
-                        }
-                    },
-                    onClear: {
-                        viewModel.clearVibeOverride()
-                        viewModel.showVibeOverrideSheet = false
-                    }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
             }
             // Purchase prompt sheet (Step 9.4)
             .sheet(isPresented: $viewModel.showPurchasePromptSheet) {
@@ -245,41 +203,12 @@ struct RecommendationsView: View {
 
     // MARK: - Recommendations Body
 
-    /// Whether the bottom action buttons (Adjust Vibe + Refresh) should render.
-    /// Mirrors the conditions for `recommendationsContent` in `suggestionsContent`.
-    private var showActionButtons: Bool {
-        !viewModel.isLoading
-            && !isPlayingClimax
-            && viewModel.errorMessage == nil
-            && !viewModel.recommendations.isEmpty
-    }
-
-    /// The full recommendations UI.
-    ///
-    /// Structured as a `VStack` so the action buttons (Step 6.5: Adjust Vibe + Refresh)
-    /// always render as a sibling of the greedy paged content rather than relying on
-    /// nested `safeAreaInset` composition (which doesn't propagate cleanly through
-    /// NavigationStack pushes inside `MainTabView`'s `safeAreaInset`-mounted `KnotTabBar`).
+    /// The full recommendations UI — a browse-only carousel matching the
+    /// onboarding reveal, with no voting or action buttons.
     private var recommendationsBody: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Theme.backgroundGradient.ignoresSafeArea()
-                suggestionsContent
-            }
-
-            if showActionButtons {
-                HStack(spacing: 12) {
-                    adjustVibeButton
-                    refreshButton
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                // Bottom clearance equal to the KnotTabBar height (~93pt content +
-                // home indicator). SwiftUI's `safeAreaInset` from MainTabView does
-                // not propagate through `navigationDestination` pushes, so we pad
-                // explicitly here. Step 18.3.
-                .padding(.bottom, 100)
-            }
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+            suggestionsContent
         }
         .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
             // Trigger the climax celebration only on a fresh successful load.
@@ -420,105 +349,25 @@ struct RecommendationsView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            ZStack {
-                // Spotlight deck — focused one-card-at-a-time discovery with
-                // 👍 save / 👎 pass voting and tap-through to the detail page.
-                SpotlightDeckView(
-                    items: viewModel.recommendations,
-                    partnerName: viewModel.partnerName,
-                    isSaved: { viewModel.isSaved($0) },
-                    onLike: { viewModel.saveRecommendation($0) },
-                    onPass: { viewModel.recordDislike($0) },
-                    onOpenDetail: { viewModel.openDetail($0) },
-                    onNeedMore: { Task { await viewModel.loadMoreForDeck() } },
-                    isLoadingMore: viewModel.isLoadingMore,
-                    resetToken: viewModel.deckResetToken
-                )
-                .padding(.top, 8)
-                .opacity(viewModel.cardsVisible ? 1 : 0)
-                .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
-
-                // Refresh loading overlay (Step 6.4)
-                if viewModel.isRefreshing {
-                    RefreshLoadingOverlay()
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: viewModel.isRefreshing)
-        }
-    }
-
-    // MARK: - Adjust Vibe Button (Step 6.5)
-
-    private var adjustVibeButton: some View {
-        Button {
-            viewModel.requestVibeOverride()
-        } label: {
-            HStack(spacing: 8) {
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-
-                Text("Adjust Vibe")
-                    .knotFont(Theme.Typography.cta)
-            }
-            .foregroundStyle(viewModel.hasVibeOverride ? .white : Theme.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(viewModel.hasVibeOverride ? Theme.accent.opacity(0.3) : Theme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(
-                                viewModel.hasVibeOverride ? Theme.accent : Theme.surfaceBorder,
-                                lineWidth: viewModel.hasVibeOverride ? 1.5 : 1
-                            )
-                    )
+            // Browse-only carousel — the same first-picks reveal used by the
+            // onboarding completion screen (`OnboardingCompletionView`). The user
+            // swipes between the Spotlight cards (page dots track position) and taps
+            // "See Details" to open a pick. There's no save/pass voting here —
+            // saving happens on the detail page.
+            SpotlightCarouselView(
+                items: viewModel.recommendations,
+                partnerName: viewModel.partnerName,
+                isSaved: { viewModel.isSaved($0) },
+                onOpenDetail: { viewModel.openDetail($0) }
             )
+            .padding(.top, 8)
+            // Clearance above the KnotTabBar (~93pt content + home indicator).
+            // SwiftUI's `safeAreaInset` from MainTabView does not propagate through
+            // `navigationDestination` pushes, so we pad explicitly here.
+            .padding(.bottom, 100)
+            .opacity(viewModel.cardsVisible ? 1 : 0)
+            .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
         }
-        .disabled(viewModel.isRefreshing || !viewModel.cardsVisible)
-        .opacity(viewModel.isRefreshing || !viewModel.cardsVisible ? 0.6 : 1.0)
-    }
-
-    // MARK: - Refresh Button
-
-    private var refreshButton: some View {
-        Button {
-            viewModel.requestRefresh()
-        } label: {
-            HStack(spacing: 8) {
-                if viewModel.isRefreshing {
-                    ProgressView()
-                        .tint(Theme.textPrimary)
-                        .scaleEffect(0.8)
-                } else {
-                    Image(uiImage: Lucide.refreshCw)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                }
-
-                Text(viewModel.isRefreshing ? "Finding better options..." : "Refresh")
-                    .knotFont(Theme.Typography.cta)
-            }
-            .foregroundStyle(Theme.textPrimary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Theme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Theme.surfaceBorder, lineWidth: 1)
-                    )
-            )
-        }
-        .disabled(viewModel.isRefreshing || !viewModel.cardsVisible)
-        .opacity(viewModel.isRefreshing || !viewModel.cardsVisible ? 0.6 : 1.0)
     }
 
     // MARK: - Loading State
@@ -1096,43 +945,6 @@ struct ForYouClimaxView: View {
             // Success text fades up
             withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
                 textVisible = true
-            }
-        }
-    }
-}
-
-// MARK: - Refresh Loading Overlay
-
-/// Compact loading overlay shown over existing recommendation cards during a refresh.
-/// Uses a pulsing sparkles icon without orbiting elements to keep the overlay subtle.
-private struct RefreshLoadingOverlay: View {
-
-    @State private var pulse = false
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 32, height: 32)
-                .foregroundStyle(Theme.accent)
-                .scaleEffect(pulse ? 1.15 : 0.88)
-
-            Text("Finding better options...")
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 22)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Theme.surface)
-                .shadow(color: Theme.overlayDim.opacity(0.25), radius: 14, x: 0, y: 4)
-        )
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                pulse = true
             }
         }
     }
