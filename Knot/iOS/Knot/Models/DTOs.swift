@@ -339,7 +339,10 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let id: String
     let recommendationType: String
     let title: String
-    let description: String?
+    /// Sanitized at the model layer so any leaked snake_case tag tokens render
+    /// as readable text everywhere this field is shown. See `rawDescription`.
+    var description: String? { rawDescription?.humanizingTagTokens }
+    private let rawDescription: String?
     let priceCents: Int?
     let currency: String
     let priceConfidence: String?
@@ -359,12 +362,14 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let matchedVibes: [String]?
     let matchedLoveLanguages: [String]?
     // Unified generation field (Step 15.1)
-    let personalizationNote: String?
+    var personalizationNote: String? { rawPersonalizationNote?.humanizingTagTokens }
+    private let rawPersonalizationNote: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case recommendationType = "recommendation_type"
-        case title, description
+        case title
+        case rawDescription = "description"
         case priceCents = "price_cents"
         case currency
         case priceConfidence = "price_confidence"
@@ -381,7 +386,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case matchedInterests = "matched_interests"
         case matchedVibes = "matched_vibes"
         case matchedLoveLanguages = "matched_love_languages"
-        case personalizationNote = "personalization_note"
+        case rawPersonalizationNote = "personalization_note"
     }
 }
 
@@ -406,8 +411,18 @@ struct IdeaContentSection: Codable, Sendable, Identifiable {
 
     let type: String
     let heading: String
-    let body: String?
-    let items: [String]?
+    /// Sanitized at the model layer (see `String.humanizingTagTokens`).
+    var body: String? { rawBody?.humanizingTagTokens }
+    var items: [String]? { rawItems?.map { $0.humanizingTagTokens } }
+
+    private let rawBody: String?
+    private let rawItems: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case type, heading
+        case rawBody = "body"
+        case rawItems = "items"
+    }
 }
 
 /// Payload for `POST /api/v1/ideas/generate`.
@@ -433,7 +448,8 @@ struct IdeaGeneratePayload: Codable, Sendable {
 struct IdeaItemResponse: Codable, Sendable, Identifiable {
     let id: String
     let title: String
-    let description: String?
+    var description: String? { rawDescription?.humanizingTagTokens }
+    private let rawDescription: String?
     let recommendationType: String
     let contentSections: [IdeaContentSection]
     let matchedInterests: [String]?
@@ -441,8 +457,31 @@ struct IdeaItemResponse: Codable, Sendable, Identifiable {
     let matchedLoveLanguages: [String]?
     let createdAt: String
 
+    init(
+        id: String,
+        title: String,
+        description: String?,
+        recommendationType: String,
+        contentSections: [IdeaContentSection],
+        matchedInterests: [String]?,
+        matchedVibes: [String]?,
+        matchedLoveLanguages: [String]?,
+        createdAt: String
+    ) {
+        self.id = id
+        self.title = title
+        self.rawDescription = description
+        self.recommendationType = recommendationType
+        self.contentSections = contentSections
+        self.matchedInterests = matchedInterests
+        self.matchedVibes = matchedVibes
+        self.matchedLoveLanguages = matchedLoveLanguages
+        self.createdAt = createdAt
+    }
+
     enum CodingKeys: String, CodingKey {
-        case id, title, description
+        case id, title
+        case rawDescription = "description"
         case recommendationType = "recommendation_type"
         case contentSections = "content_sections"
         case matchedInterests = "matched_interests"
@@ -855,4 +894,22 @@ struct MilestoneItemResponse: Codable, Sendable, Identifiable {
 struct MilestoneListResponse: Codable, Sendable {
     let milestones: [MilestoneItemResponse]
     let count: Int
+}
+
+// MARK: - AI prose sanitizing
+
+extension String {
+    /// Rewrites snake_case tag tokens that occasionally leak into AI-generated
+    /// prose into readable text, e.g. "acts_of_service" -> "acts of service".
+    /// Only underscores *between* word characters are replaced, so ordinary text
+    /// is never altered. Applied at the model layer (recommendation description /
+    /// personalization note / content sections) so the UI is bulletproof against
+    /// older or cached recommendations that still carry raw tags.
+    var humanizingTagTokens: String {
+        replacingOccurrences(
+            of: "(?<=[A-Za-z0-9])_(?=[A-Za-z0-9])",
+            with: " ",
+            options: .regularExpression
+        )
+    }
 }

@@ -114,6 +114,47 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.priceConfidence)
     }
 
+    /// Raw snake_case tag tokens that leak into prose are humanized at the model
+    /// layer (defensive net for older/cached recommendations).
+    func testRecommendationItemHumanizesLeakedTagTokens() throws {
+        let json = """
+        {
+            "id": "tag-1",
+            "recommendation_type": "plan",
+            "title": "Dinner & Film",
+            "description": "Honoring their quiet_luxury and street_urban aesthetic.",
+            "currency": "USD",
+            "source": "unified",
+            "interest_score": 0.5,
+            "vibe_score": 0.5,
+            "love_language_score": 0.5,
+            "final_score": 0.5,
+            "personalization_note": "Delivering acts_of_service and words_of_affirmation.",
+            "content_sections": [
+                {"type": "overview", "heading": "Overview", "body": "A quiet_luxury evening."},
+                {"type": "steps", "heading": "Steps", "items": ["Plan the words_of_affirmation toast"]}
+            ]
+        }
+        """.data(using: .utf8)!
+
+        let item = try JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+
+        XCTAssertEqual(item.description, "Honoring their quiet luxury and street urban aesthetic.")
+        XCTAssertEqual(item.personalizationNote, "Delivering acts of service and words of affirmation.")
+        XCTAssertFalse(item.personalizationNote?.contains("_") ?? false)
+        let section = item.contentSections?.first
+        XCTAssertEqual(section?.body, "A quiet luxury evening.")
+        XCTAssertEqual(item.contentSections?.last?.items?.first, "Plan the words of affirmation toast")
+    }
+
+    /// The humanizer only rewrites underscores between word characters, leaving
+    /// ordinary text and leading/trailing underscores untouched.
+    func testHumanizingTagTokensScope() {
+        XCTAssertEqual("acts_of_service".humanizingTagTokens, "acts of service")
+        XCTAssertEqual("hello world".humanizingTagTokens, "hello world")
+        XCTAssertEqual("_leading and trailing_".humanizingTagTokens, "_leading and trailing_")
+    }
+
     /// Verify RecommendationGenerateResponse decodes correctly.
     func testGenerateResponseDecodes() throws {
         let json = """

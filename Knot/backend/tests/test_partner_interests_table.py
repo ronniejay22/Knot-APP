@@ -448,10 +448,11 @@ class TestPartnerInterestsSchema:
         _delete_interest(row["id"])
         print("  interest_type 'dislike' accepted")
 
-    def test_interest_category_check_constraint_rejects_invalid(self, test_vault):
+    def test_interest_category_accepts_custom_value(self, test_vault):
         """
-        interest_category must be from the predefined list.
-        Inserting an invalid category should be rejected.
+        Migration 00025 dropped the 40-item CHECK constraint so users can add
+        custom interests during onboarding. A free-form, off-list category
+        should now be accepted (regression guard against re-adding a CHECK).
         """
         vault_id = test_vault["vault"]["id"]
 
@@ -460,12 +461,13 @@ class TestPartnerInterestsSchema:
             "interest_type": "like",
             "interest_category": "Underwater Basket Weaving",
         })
-        assert resp.status_code in (400, 409), (
-            f"Expected 400/409 for invalid interest_category "
-            f"'Underwater Basket Weaving', got HTTP {resp.status_code}. "
-            f"Response: {resp.text}"
+        assert resp.status_code in (200, 201), (
+            f"Expected the custom interest_category to be accepted, "
+            f"got HTTP {resp.status_code}. Response: {resp.text}"
         )
-        print("  interest_category CHECK constraint rejects invalid category")
+        row = resp.json()[0]
+        _delete_interest(row["id"])
+        print("  custom (off-list) interest_category accepted")
 
     def test_interest_category_accepts_all_valid(self, test_vault):
         """

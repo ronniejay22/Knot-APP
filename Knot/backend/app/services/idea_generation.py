@@ -17,6 +17,7 @@ from typing import Any, Optional
 from anthropic import AsyncAnthropic
 
 from app.services.llm_tuning import fast_generation_params
+from app.services.text_cleanup import humanize_tags, truncate_prose
 
 from app.agents.state import RelevantHint, VaultData
 from app.core.config import ANTHROPIC_API_KEY, is_anthropic_configured
@@ -69,6 +70,13 @@ You will receive detailed information about a partner including their \
 interests, aesthetic vibes, love languages, and personal hints. Use ALL \
 of this data to create ideas that feel tailor-made for this specific couple.
 
+LOCATION: When a city is provided, make out-and-about ideas specific to it — \
+name real neighborhoods, parks, and well-known local spots, and reflect the \
+city's character. Let even at-home ideas borrow local flavor (e.g. pick up \
+pastries from a named local bakery, watch the sunset from a specific local \
+overlook). The "steps" should reference concrete local places, not generic \
+ones. If no city is provided, keep ideas location-flexible.
+
 For each idea, generate:
 1. A compelling title (under 60 characters)
 2. A 1-2 sentence description that captures the essence
@@ -95,6 +103,12 @@ Each section must be a JSON object with:
 - "items": an array of strings (for setup, steps, conversation, variations)
 
 Use either "body" or "items" per section, not both.
+
+NATURAL PROSE: Write every title, description, heading, body, and item in natural, \
+human language. NEVER print raw tag identifiers or underscores in prose — write \
+"quiet luxury", not "quiet_luxury"; "quality time", not "quality_time". (The \
+matched_vibes / matched_love_languages / matched_interests arrays MUST still use the \
+exact tag values provided.)
 
 Return ONLY a JSON array of idea objects. No markdown, no code fences, no explanation.
 
@@ -135,6 +149,10 @@ def _build_user_prompt(
     if vault_data.location_city:
         location_parts = [p for p in (vault_data.location_city, vault_data.location_state) if p]
         parts.append(f"Location: {', '.join(location_parts)}")
+        parts.append(
+            "Ground out-and-about ideas in this city — name real neighborhoods and "
+            "local spots in the steps, not generic placeholders."
+        )
 
     parts.append(f"Interests (LOVES): {', '.join(vault_data.interests)}")
     parts.append(f"Dislikes (AVOID): {', '.join(vault_data.dislikes)}")
@@ -202,12 +220,19 @@ def _validate_idea(idea: dict[str, Any]) -> bool:
     return True
 
 
-def _normalize_idea(idea: dict[str, Any]) -> dict[str, Any]:
+def _normalize_idea(idea: dict[str, Any], vault_data: VaultData) -> dict[str, Any]:
     """Normalize and clean up a validated idea dict."""
     # Ensure matched factors are lists
     idea.setdefault("matched_interests", [])
     idea.setdefault("matched_vibes", [])
     idea.setdefault("matched_love_languages", [])
+
+    # Raw snake_case tags the model was given and may echo into prose.
+    tag_vocab = [
+        *vault_data.vibes,
+        vault_data.primary_love_language,
+        vault_data.secondary_love_language,
+    ]
 
     # Filter sections to only valid types and clean up
     clean_sections = []
@@ -222,16 +247,20 @@ def _normalize_idea(idea: dict[str, Any]) -> dict[str, Any]:
             "heading": section.get("heading", section_type.replace("_", " ").title()),
         }
         if section.get("body"):
-            clean_section["body"] = str(section["body"])[:2000]
+            clean_section["body"] = humanize_tags(str(section["body"]), tag_vocab)[:2000]
         if section.get("items") and isinstance(section["items"], list):
-            clean_section["items"] = [str(item)[:500] for item in section["items"][:20]]
+            clean_section["items"] = [
+                humanize_tags(str(item), tag_vocab)[:500] for item in section["items"][:20]
+            ]
         clean_sections.append(clean_section)
 
     idea["content_sections"] = clean_sections
 
-    # Truncate title and description
+    # Truncate title and description (graceful, word-boundary trim for the note).
     idea["title"] = str(idea["title"])[:100]
-    idea["description"] = str(idea.get("description", ""))[:500]
+    idea["description"] = truncate_prose(
+        humanize_tags(str(idea.get("description", "")), tag_vocab), 500
+    )
 
     return idea
 
@@ -315,7 +344,7 @@ async def generate_ideas(
             valid_ideas = []
             for raw_idea in ideas:
                 if _validate_idea(raw_idea):
-                    idea = _normalize_idea(raw_idea)
+                    idea = _normalize_idea(raw_idea, vault_data)
                     idea["id"] = str(uuid.uuid4())
                     valid_ideas.append(idea)
                 else:

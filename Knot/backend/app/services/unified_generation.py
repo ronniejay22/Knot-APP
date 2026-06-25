@@ -21,6 +21,7 @@ from typing import Any, Optional
 from anthropic import AsyncAnthropic
 
 from app.services.llm_tuning import fast_generation_params
+from app.services.text_cleanup import humanize_tags, truncate_prose
 
 from app.agents.state import (
     UNLIMITED_BUDGET_MAX_CENTS,
@@ -113,18 +114,42 @@ Provide a search_query that would find this exact item online for purchase/booki
 6. For ideas: Include rich structured content with steps, tips, and personalization.
 7. Only link to things people can actually BUY or BOOK. No articles, blog posts, \
 listicles, or review roundups.
+8. For "date" and "experience" recommendations, the description must answer "what \
+is this date and why is it a great one" — paint the setting, the activity, and the \
+feel of it. This is SEPARATE from the personalization_note, which explains why it \
+fits THIS partner. Don't let the two repeat each other.
+9. LOCATION GROUNDING — when the partner's city is provided, ground every \
+location-bound recommendation in it. For "date", "experience", and "plan", name real \
+neighborhoods, districts, and well-known local venues or landmarks in that city and \
+reflect its regional character — never a generic "a cozy restaurant" or "a local park". \
+For purchasable restaurants, venues, classes, and ticketed experiences, name a real \
+establishment IN that city. If no city is provided, keep suggestions location-flexible.
+10. NATURAL PROSE — write the title, description, personalization_note, and all \
+content_sections in natural, human language. NEVER print raw tag identifiers or \
+underscores in prose: write "quiet luxury", not "quiet_luxury"; "quality time", not \
+"quality_time". (The matched_vibes / matched_love_languages / matched_interests arrays \
+MUST still contain the exact tag values provided — only the prose is humanized.)
 
 For each recommendation, return a JSON object with these keys:
 - "title": string (under 60 characters)
-- "description": string (1-2 sentences)
+- "description": string. For "gift", "idea", and "plan" types: 1-2 sentences. \
+For "date" and "experience" types: a fuller 3-4 sentence description that vividly \
+describes what the date/outing actually is (the setting, the activity, the feel of \
+the evening) and what makes it a memorable experience — concrete and evocative, \
+not a generic blurb. When a city is provided, anchor it in that city — the \
+neighborhood, the venue, the local feel.
 - "recommendation_type": "gift" | "experience" | "date" | "idea" | "plan"
 - "is_purchasable": boolean (true for gifts/experiences/dates, false for ideas/plans)
 - "merchant_name": string or null (for purchasable items)
 - "price_cents": integer or null (in US cents, e.g. $50 = 5000; null for ideas)
 - "search_query": string or null (for purchasable items: a specific search query \
-to find this product/experience for purchase online. Include brand, product name, etc.)
-- "personalization_note": string (1-2 sentences explaining WHY this is perfect \
-for this specific partner, referencing their actual interests/hints/vibes)
+to find this product/experience for purchase online. Include brand, product name, etc. \
+For location-bound experiences (restaurants, classes, tours, tickets), include the \
+partner's city and state so the result is local, e.g. "couples pottery class Austin TX")
+- "personalization_note": string (2-3 sentences, under ~400 characters, written warmly \
+in second person, that (a) reference the partner's actual interests, hints, and vibes, \
+and (b) explain why THIS partner specifically will love it — framed around their \
+primary/secondary love language. Keep it tight; do not run long.)
 - "matched_interests": array of interest names this connects to
 - "matched_vibes": array of vibe tags this aligns with
 - "matched_love_languages": array of love language names this supports
@@ -172,6 +197,10 @@ def _build_user_prompt(
     if vault_data.location_city:
         location_parts = [p for p in (vault_data.location_city, vault_data.location_state) if p]
         parts.append(f"Location: {', '.join(location_parts)}")
+        parts.append(
+            "Ground every date/experience/plan in this city — name real neighborhoods "
+            "and local venues, not generic placeholders."
+        )
 
     parts.append(f"Interests (LOVES): {', '.join(vault_data.interests)}")
     parts.append(f"Dislikes (HARD AVOID): {', '.join(vault_data.dislikes)}")
@@ -296,6 +325,13 @@ def _normalize_recommendation(
     is_idea = rec_type in ("idea", "plan")
     is_purchasable = rec.get("is_purchasable", not is_idea)
 
+    # Raw snake_case tags the model was given and may echo into prose.
+    tag_vocab = [
+        *vault_data.vibes,
+        vault_data.primary_love_language,
+        vault_data.secondary_love_language,
+    ]
+
     # Clean content sections for ideas
     content_sections = None
     if rec.get("content_sections"):
@@ -311,9 +347,11 @@ def _normalize_recommendation(
                 "heading": section.get("heading", section_type.replace("_", " ").title()),
             }
             if section.get("body"):
-                clean_section["body"] = str(section["body"])[:2000]
+                clean_section["body"] = humanize_tags(str(section["body"]), tag_vocab)[:2000]
             if section.get("items") and isinstance(section["items"], list):
-                clean_section["items"] = [str(item)[:500] for item in section["items"][:20]]
+                clean_section["items"] = [
+                    humanize_tags(str(item), tag_vocab)[:500] for item in section["items"][:20]
+                ]
             clean_sections.append(clean_section)
         content_sections = clean_sections if clean_sections else None
 
@@ -331,7 +369,7 @@ def _normalize_recommendation(
         source="unified",
         type=rec_type,
         title=str(rec["title"])[:100],
-        description=str(rec.get("description", ""))[:500],
+        description=truncate_prose(humanize_tags(str(rec.get("description", "")), tag_vocab), 600),
         price_cents=rec.get("price_cents") if is_purchasable else None,
         currency=vault_data.budgets[0].currency if vault_data.budgets else "USD",
         price_confidence="estimated" if rec.get("price_cents") and is_purchasable else "unknown",
@@ -342,7 +380,9 @@ def _normalize_recommendation(
         metadata={"generation_model": CLAUDE_MODEL},
         is_idea=is_idea,
         content_sections=content_sections,
-        personalization_note=str(rec.get("personalization_note", ""))[:300],
+        personalization_note=truncate_prose(
+            humanize_tags(str(rec.get("personalization_note", "")), tag_vocab), 600
+        ),
         search_query=rec.get("search_query") if is_purchasable else None,
         matched_interests=rec.get("matched_interests", []),
         matched_vibes=rec.get("matched_vibes", []),

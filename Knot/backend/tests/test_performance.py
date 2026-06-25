@@ -31,7 +31,7 @@ from app.agents.state import (
     VaultData,
 )
 from app.main import app
-from app.core.security import get_current_user_id
+from app.core.security import get_active_user_id
 
 
 # ---------------------------------------------------------------------------
@@ -187,12 +187,15 @@ class TestAPIEndpointPerformance:
             },
         }
 
-        start = time.perf_counter()
-        with patch("app.api.vault.get_service_client", return_value=mock_client):
-            with patch("app.api.vault.get_current_user_id", return_value="user-perf"):
+        app.dependency_overrides[get_active_user_id] = lambda: "user-perf"
+        try:
+            start = time.perf_counter()
+            with patch("app.api.vault.get_service_client", return_value=mock_client):
                 with patch("app.api.vault.schedule_notifications_for_milestones", new_callable=AsyncMock):
                     resp = client.post("/api/v1/vault", json=payload)
-        elapsed_ms = (time.perf_counter() - start) * 1000
+            elapsed_ms = (time.perf_counter() - start) * 1000
+        finally:
+            app.dependency_overrides.pop(get_active_user_id, None)
 
         # May return 201 or 409 depending on mock setup — timing is what matters
         assert elapsed_ms < 500, f"Vault creation took {elapsed_ms:.1f}ms (limit: 500ms)"
@@ -207,19 +210,24 @@ class TestAPIEndpointPerformance:
             "id": "hint-123",
             "user_id": "user-perf",
             "hint_text": "She mentioned wanting a new cookbook",
+            "source": "text_input",
+            "is_used": False,
             "created_at": "2026-02-16T00:00:00Z",
         }])
         mock_client.table.return_value = mock_table
 
-        start = time.perf_counter()
-        with patch("app.api.hints.get_service_client", return_value=mock_client):
-            with patch("app.api.hints.get_current_user_id", return_value="user-perf"):
+        app.dependency_overrides[get_active_user_id] = lambda: "user-perf"
+        try:
+            start = time.perf_counter()
+            with patch("app.api.hints.get_service_client", return_value=mock_client):
                 with patch("app.api.hints.generate_embedding", new_callable=AsyncMock, return_value=None):
                     resp = client.post(
                         "/api/v1/hints",
                         json={"hint_text": "She mentioned wanting a new cookbook"},
                     )
-        elapsed_ms = (time.perf_counter() - start) * 1000
+            elapsed_ms = (time.perf_counter() - start) * 1000
+        finally:
+            app.dependency_overrides.pop(get_active_user_id, None)
 
         assert elapsed_ms < 500, f"Hint submission took {elapsed_ms:.1f}ms (limit: 500ms)"
         print(f"  POST /api/v1/hints responded in {elapsed_ms:.1f}ms")
@@ -343,14 +351,14 @@ class TestConcurrentLoad:
         mock_db.table.side_effect = lambda _: make_mock_table()
 
         # Override FastAPI dependency for auth
-        app.dependency_overrides[get_current_user_id] = lambda: "user-perf"
+        app.dependency_overrides[get_active_user_id] = lambda: "user-perf"
         try:
             with patch("app.api.hints.get_service_client", return_value=mock_db):
                 for _ in range(50):
                     resp = client.get("/api/v1/hints")
                     results.append(resp.status_code)
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
         total_s = time.perf_counter() - start
         success_count = sum(1 for r in results if r == 200)

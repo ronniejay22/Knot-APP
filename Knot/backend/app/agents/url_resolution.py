@@ -16,7 +16,7 @@ from typing import Any
 
 import httpx
 
-from app.agents.state import CandidateRecommendation, RecommendationState
+from app.agents.state import CandidateRecommendation, LocationData, RecommendationState
 from app.core.config import BRAVE_SEARCH_API_KEY, is_brave_search_configured
 
 logger = logging.getLogger(__name__)
@@ -117,6 +117,35 @@ def _build_merchant_search_url(candidate: CandidateRecommendation) -> str:
 
 
 # ======================================================================
+# Query localization
+# ======================================================================
+
+def _localize_search_query(
+    search_query: str,
+    location: LocationData | None,
+) -> str:
+    """
+    Ensure a location-bound experience search resolves to a LOCAL result.
+
+    For candidates that carry a location (only date/experience get one), append
+    the city and state to the Brave query when the locale isn't already present.
+    Belt-and-suspenders for when Claude omits the city from search_query.
+    Returns the query unchanged when there's no location/city.
+
+    The "already present" check matches the full "City State" locale, not a bare
+    city substring — otherwise a city that is also a common word (Reading,
+    Mobile, Bend) would be falsely detected in unrelated prose ("a reading nook")
+    and localization would be silently skipped.
+    """
+    if not location or not location.city:
+        return search_query
+    locale = " ".join(p for p in (location.city, location.state) if p)
+    if locale.lower() in search_query.lower():
+        return search_query
+    return f"{search_query} {locale}".strip()
+
+
+# ======================================================================
 # LangGraph node
 # ======================================================================
 
@@ -156,8 +185,12 @@ async def resolve_purchase_urls(
         if candidate.is_idea or not candidate.search_query:
             return candidate
 
+        # Keep location-bound experiences (date/experience carry a location)
+        # resolving to a LOCAL result even if Claude omitted the city.
+        query = _localize_search_query(candidate.search_query, candidate.location)
+
         url = await _search_for_purchase_url(
-            search_query=candidate.search_query,
+            search_query=query,
             merchant_name=candidate.merchant_name,
         )
 

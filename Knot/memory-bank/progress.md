@@ -6599,6 +6599,71 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** `xcodebuild build` succeeds; the existing component tests in `KnotTests/RecommendationsViewTests.swift` (both `SpotlightDeckView` and `SpotlightCarouselView` render tests) and the recommendation view/model/refresh suites pass (35/35 in the affected classes).
 
+### Step 18.50 ✅ Recommendations — Richer Date & Experience Detail Content
+**Date:** 2026-06-23
+**Status:** Complete
+
+**Goal:** Date and experience recommendations felt thin — a card carried only a 1–2 sentence `description` plus a 1–2 sentence `personalization_note`, so the user couldn't tell *what the date actually is*, *why it'll be a good date*, or *how it connects to their partner* beyond a single line.
+
+**Approach:** Kept it paragraph-only (no structured `content_sections` for dates) to protect the deliberate ~23s Haiku generation latency — adding multi-section content to outing cards would have pushed output tokens and reveal time up. Instead, enriched the two existing free-text fields the iOS detail page already renders with no line limit.
+
+**What changed (backend-only):**
+- **`app/services/unified_generation.py` (`UNIFIED_SYSTEM_PROMPT`):** Made the `description` spec type-aware — `gift`/`idea`/`plan` stay 1–2 sentences, while `date` and `experience` now get a fuller **3–4 sentence** description that vividly describes what the outing actually is (setting, activity, feel) and what makes it memorable. Strengthened `personalization_note` from "1-2 sentences" to **2–3 sentences** written warmly in second person, referencing the partner's actual interests/hints/vibes and explaining why *this* partner will love it, framed around their primary/secondary love language. Added a Rule clarifying the date/experience description ("what is this date and why is it good") must stay distinct from the partner-relevance note.
+- **`app/services/unified_generation.py` (`_normalize_recommendation`):** Bumped the `personalization_note` truncation cap from `[:300]` → `[:500]` so the richer 2–3 sentence note isn't clipped. `description` was already capped at `[:500]`. No DB migration — `description`/`personalization_note` are untyped `TEXT`.
+
+**No iOS change required:** The detail page's `aboutBlock` (description) and `whyBlock` ("Why Knot picked this for {partner}" note) in `RecommendationDetailView.swift` already render full multi-line text via `.fixedSize(horizontal: false, vertical: true)` with no `lineLimit`, so the longer content flows into the existing sections automatically. The carousel `SpotlightCard` teaser stays intentionally truncated. No model, API-schema, validation, or pipeline changes — the "exactly 3 cards" guarantee (PRD F2) is unaffected because no new field is validation-gated.
+
+**Tests:** `tests/test_unified_generation.py` extended — a new `TestSystemPrompt` class asserts the prompt carries the date/experience 3–4 sentence guidance and the 2–3 sentence/love-language note instruction; the truncation test was updated to the 500-char cap; new normalization tests confirm a ~400-char note and a long date description + note survive intact. Full file passes (42/42).
+
+### Step 18.51 ✅ Backend — Repair 12 Stale Test Failures (auth-dependency + dropped CHECK)
+**Date:** 2026-06-24
+**Status:** Complete
+
+**Goal:** A full `pytest` run reported **12 failed, 1802 passed, 18 skipped**. All 12 were stale test code (not production or schema bugs) left behind by two earlier refactors.
+
+**Root causes:**
+- **Auth-dependency rename (11 tests):** Authenticated routes moved from `get_current_user_id` to the stricter wrapper `get_active_user_id` (`app/core/security.py`), which calls `get_current_user_id` *and then* queries the `users` table for `scheduled_deletion_at` (the account-deletion gate). The failing tests still overrode/patched the old `get_current_user_id`, so `get_active_user_id`'s body still ran against an unmocked `users` table → HTTP 500 "Failed to verify account status" (8 `test_notification_history.py` unit tests, `test_performance.py::test_50_sequential_authenticated_checks`), or an `AttributeError` for the two perf tests that did `patch("app.api.vault/hints.get_current_user_id", …)` on a symbol those modules never imported.
+- **CHECK constraint removed by design (1 test):** `test_partner_interests_table.py::test_interest_category_check_constraint_rejects_invalid` asserted an off-list `interest_category` is rejected, but migration `00025_allow_custom_interest_categories.sql` intentionally dropped that 40-item CHECK so users can add custom interests — the DB now (correctly) returns 201.
+
+**What changed (test-only):**
+- **`tests/test_notification_history.py`:** swapped the 8 unit-test dependency overrides from `get_current_user_id` → `get_active_user_id` (overriding the *actual* route dependency makes FastAPI substitute it wholesale, so the `users` lookup never runs and needs no extra mock). Live-integration tests untouched.
+- **`tests/test_performance.py`:** changed the import to `get_active_user_id`; replaced the two broken `patch(... get_current_user_id …)` context managers with `app.dependency_overrides[get_active_user_id]` in `try/finally`; switched `test_50_sequential_authenticated_checks`'s override to `get_active_user_id`. Also added the previously-masked `source`/`is_used` keys to `test_hint_submission_under_500ms`'s mocked hint row (the handler reads them when building `HintCreateResponse`; the old auth failure had hidden this). Latency thresholds unchanged.
+- **`tests/test_partner_interests_table.py`:** replaced the obsolete reject-invalid test with `test_interest_category_accepts_custom_value`, asserting a free-form category is now accepted (HTTP 201) per migration 00025, with row cleanup — keeping a regression guard against a CHECK being re-added.
+
+**Tests:** The three edited files pass (52/52). No app code, schema, or migrations were touched.
+
+### Step 18.52 ✅ Recommendations — Ground Dates/Experiences/Ideas in the Partner's City
+**Date:** 2026-06-24
+**Status:** Complete
+
+**Goal:** Dates, experiences, and ideas felt "agnostic" of the chosen location. The vault stores the partner's city/state and both generators already printed a bare `Location: Austin, TX` line into their user prompts — but neither *system* prompt told Claude to use it, so it treated the city as ignorable metadata and produced generic suggestions ("a cozy restaurant", "a local park"). (The location-aware Yelp/Ticketmaster integrations were bypassed when Step 13.1 moved all generation into the single Claude call.)
+
+**Approach:** Backend-only prompt grounding (no schema/iOS change), and get specific — name real neighborhoods and venues. Purchasable links are still verified downstream in `resolve_purchase_urls`/`verify_availability`, so naming real spots is safe; in-app ideas may occasionally reference a stale spot, acceptable for inspiration. All grounding is conditional on a city being present (no city → today's location-flexible behavior).
+
+**What changed:**
+- **`app/services/unified_generation.py`:** Added **Rule 9 (LOCATION GROUNDING)** to `UNIFIED_SYSTEM_PROMPT` — when a city is given, ground `date`/`experience`/`plan` in it with real neighborhoods, districts, and well-known local venues/landmarks; name a real establishment in that city for purchasable restaurants/venues/classes/tickets. Wove city-awareness into the `date`/`experience` description spec ("anchor it in that city") and the `search_query` spec ("include the partner's city and state … e.g. 'couples pottery class Austin TX'"). `_build_user_prompt` now appends a one-line grounding directive after the `Location:` line (only when a city is set).
+- **`app/services/idea_generation.py`:** Added a LOCATION instruction to `IDEA_SYSTEM_PROMPT` (out-and-about ideas name real neighborhoods/parks/local spots; even at-home ideas borrow local flavor; steps reference concrete local places) and the same conditional grounding directive in `_build_user_prompt`.
+- **`app/agents/url_resolution.py`:** New `_localize_search_query(search_query, location)` helper appends the city/state to the Brave query for candidates that carry a `location` (only `date`/`experience`), when the city isn't already present (case-insensitive) — belt-and-suspenders so booking links resolve locally even if Claude omits the city. Applied in `_resolve_single`; gifts/ideas (no `location`) are unchanged.
+
+**Tests:** Extended `tests/test_unified_generation.py` (`TestSystemPrompt` location assertion + new `TestLocationGroundingPrompt` verifying the user-prompt directive appears only when a city is set). New `tests/test_idea_generation.py` (prompt-content + conditional directive) and `tests/test_url_resolution.py` (the localization helper: appends when missing, no double-append, case-insensitive, no-op without a city/location). All three files pass (54/54).
+
+### Step 18.53 ✅ Recommendations — Fix Raw Tag Leakage & Mid-Word Truncation in Prose
+**Date:** 2026-06-24
+**Status:** Complete
+
+**Goal:** A gift card's "Why Knot picked this" note showed two visible defects: raw snake_case tags in the prose ("…honoring their quiet_luxury and street_urban aesthetic…") and a mid-word cut ("…Pair wit"). The tags leaked because the model is given the canonical vibe/love-language keys and echoed them verbatim; the cut was the hard `[:500]` slice on an over-long note.
+
+**What changed:**
+- **`app/services/text_cleanup.py` (new):** Two reusable helpers. `humanize_tags(text, tags)` deterministically rewrites the *provided* snake_case tags (the partner's vibes + love languages) to readable words, word-bounded and case-insensitive (e.g. `quiet_luxury` → "quiet luxury"); it only touches tags it was given, so legitimate prose is untouched and the `matched_*` arrays (which feed the chips) keep their exact tag values. `truncate_prose(text, limit)` trims at a sentence boundary when one falls late enough, otherwise at the last word boundary with an ellipsis — never mid-word.
+- **`app/services/unified_generation.py`:** `_normalize_recommendation` now humanizes + `truncate_prose`-trims `description` and `personalization_note` (cap raised 500 → 600 with graceful trimming) and humanizes `content_sections` body/items. Added system-prompt **Rule 10 (NATURAL PROSE)** forbidding raw tag identifiers/underscores in prose (arrays excepted), and tightened the note spec to "2-3 sentences, under ~400 characters … do not run long."
+- **`app/services/idea_generation.py`:** Same NATURAL PROSE instruction in `IDEA_SYSTEM_PROMPT`; `_normalize_idea` now takes `vault_data` and humanizes content-section body/items and the description.
+
+**Tests:** New `tests/test_text_cleanup.py` unit-tests both helpers (tag rewrite scope/word-boundary/case; sentence-vs-word truncation; ellipsis). Extended `tests/test_unified_generation.py` with humanize + word-boundary-truncation normalization tests and a NATURAL PROSE prompt assertion; updated the old 500-cap test to the new graceful 600 behavior. Affected files pass (69/69) and `test_pipeline.py` stays green (19/19).
+
+**iOS bulletproof follow-up (same day):** The backend cleanup only applies at generation time, so already-generated / cached recommendations still rendered raw tags in the app. Added a client-side safety net so the UI never shows them regardless of backend version: `String.humanizingTagTokens` (in `iOS/Knot/Models/DTOs.swift`) rewrites snake_case tokens *between word characters* to spaces via regex, and the recommendation DTOs now sanitize at the model layer — `RecommendationItemResponse.description` / `.personalizationNote`, `IdeaContentSection.body` / `.items`, and `IdeaItemResponse.description` are computed accessors over private `raw…` decoded properties (CodingKeys map the raw props to the same JSON keys). Because every view reads those same property names, all render sites (detail "Why Knot picked this", About, carousel cards, idea content sections) are covered with no view changes. `IdeaItemResponse` got an explicit memberwise `init` (preserving the `description:` label) for the one manual construction in `RecommendationsViewModel.openIdeaFromTrio`. `xcodebuild -scheme Knot` BUILD SUCCEEDED. (Already-saved SwiftData library snapshots captured before this fix keep their stored text.) Covered by new `KnotTests/RecommendationDTOTests` cases (`testRecommendationItemHumanizesLeakedTagTokens`, `testHumanizingTagTokensScope`) — 17/17 pass.
+
+**Review fixes (same day):** A `/ship` review surfaced and fixed: (a) `url_resolution._localize_search_query` now matches the full "City State" locale instead of a bare city substring, so a city that is also a common word (Reading, Mobile, Bend) is no longer falsely detected in unrelated prose and localization isn't silently skipped (new `test_homonym_city_not_falsely_suppressed`); (b) `idea_generation._normalize_idea` now applies `truncate_prose` to the description (parity with unified — no mid-word cuts on idea copy).
+
 ---
 
 ## Next Steps

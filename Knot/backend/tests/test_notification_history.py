@@ -343,8 +343,8 @@ class TestNotificationHistoryEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.notifications.get_service_client", return_value=mock_client):
@@ -356,7 +356,7 @@ class TestNotificationHistoryEndpoint:
             assert data["total"] == 0
             print("  Empty history returns 200 with empty list")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_history_returns_sent_notifications(self, client):
         """History returns sent notifications with milestone metadata."""
@@ -416,8 +416,8 @@ class TestNotificationHistoryEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.notifications.get_service_client", return_value=mock_client):
@@ -438,7 +438,7 @@ class TestNotificationHistoryEndpoint:
             assert notif["viewed_at"] is None
             print("  History returns sent notifications with milestone metadata")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_history_handles_deleted_milestone(self, client):
         """History handles missing milestones gracefully with 'Deleted Milestone'."""
@@ -478,8 +478,8 @@ class TestNotificationHistoryEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.notifications.get_service_client", return_value=mock_client):
@@ -491,7 +491,7 @@ class TestNotificationHistoryEndpoint:
             assert data["notifications"][0]["milestone_name"] == "Deleted Milestone"
             print("  History handles deleted milestones gracefully")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_auth_required_for_history(self, client):
         """History endpoint returns 401 without authentication."""
@@ -520,8 +520,8 @@ class TestMarkViewedEndpoint:
             data=[{"id": notification_id, "viewed_at": datetime.now(timezone.utc).isoformat()}]
         )
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.notifications.get_service_client", return_value=mock_client):
@@ -533,7 +533,7 @@ class TestMarkViewedEndpoint:
             assert data["notification_id"] == notification_id
             print("  Mark viewed sets timestamp and returns 200")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_mark_viewed_returns_404_for_nonexistent(self, client):
         """PATCH /viewed should return 404 for non-existent notification."""
@@ -544,8 +544,8 @@ class TestMarkViewedEndpoint:
             data=[]
         )
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.notifications.get_service_client", return_value=mock_client):
@@ -554,7 +554,7 @@ class TestMarkViewedEndpoint:
             assert resp.status_code == 404
             print("  Mark viewed returns 404 for non-existent notification")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_auth_required_for_mark_viewed(self, client):
         """Mark viewed endpoint returns 401 without authentication."""
@@ -617,8 +617,8 @@ class TestMilestoneRecommendationsEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.recommendations.get_service_client", return_value=mock_client):
@@ -633,7 +633,7 @@ class TestMilestoneRecommendationsEndpoint:
             assert data["recommendations"][1]["title"] == "Test Experience"
             print("  Returns stored recommendations for milestone")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_returns_empty_for_no_recommendations(self, client):
         """Should return empty list when no recommendations exist."""
@@ -656,8 +656,8 @@ class TestMilestoneRecommendationsEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.recommendations.get_service_client", return_value=mock_client):
@@ -669,7 +669,7 @@ class TestMilestoneRecommendationsEndpoint:
             assert data["recommendations"] == []
             print("  Returns empty list for milestone with no recommendations")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_returns_404_for_no_vault(self, client):
         """Should return 404 if user has no vault."""
@@ -687,8 +687,8 @@ class TestMilestoneRecommendationsEndpoint:
 
         mock_client.table.side_effect = table_side_effect
 
-        from app.core.security import get_current_user_id
-        app.dependency_overrides[get_current_user_id] = self._mock_auth
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
 
         try:
             with patch("app.api.recommendations.get_service_client", return_value=mock_client):
@@ -697,7 +697,7 @@ class TestMilestoneRecommendationsEndpoint:
             assert resp.status_code == 404
             print("  Returns 404 for user with no vault")
         finally:
-            app.dependency_overrides.pop(get_current_user_id, None)
+            app.dependency_overrides.pop(get_active_user_id, None)
 
     def test_auth_required_for_milestone_recommendations(self, client):
         """Milestone recommendations endpoint returns 401 without authentication."""

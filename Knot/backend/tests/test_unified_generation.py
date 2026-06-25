@@ -26,6 +26,7 @@ from app.agents.state import (
     VaultData,
 )
 from app.services.unified_generation import (
+    UNIFIED_SYSTEM_PROMPT,
     _build_user_prompt,
     _normalize_recommendation,
     _validate_recommendation,
@@ -283,6 +284,65 @@ class TestBuildUserPrompt:
 
 
 # ======================================================================
+# System prompt content tests
+# ======================================================================
+
+class TestSystemPrompt:
+    """The system prompt must steer Claude toward richer date/experience content."""
+
+    def test_prompt_requests_fuller_date_experience_descriptions(self):
+        """Dates/experiences should get a fuller 3-4 sentence description."""
+        assert "3-4 sentence" in UNIFIED_SYSTEM_PROMPT
+        assert '"date" and "experience"' in UNIFIED_SYSTEM_PROMPT
+
+    def test_prompt_requests_stronger_personalization_note(self):
+        """The personalization note should be 2-3 sentences tied to the partner."""
+        assert "2-3 sentences" in UNIFIED_SYSTEM_PROMPT
+        assert "love language" in UNIFIED_SYSTEM_PROMPT
+
+    def test_prompt_separates_description_from_partner_relevance(self):
+        """The description (what/why-good) must be distinct from the note (why-fits)."""
+        assert "SEPARATE from the personalization_note" in UNIFIED_SYSTEM_PROMPT
+
+    def test_prompt_requests_location_grounding(self):
+        """Date/experience/plan suggestions must be grounded in the partner's city."""
+        assert "LOCATION GROUNDING" in UNIFIED_SYSTEM_PROMPT
+        assert "neighborhood" in UNIFIED_SYSTEM_PROMPT
+        # The search_query spec must steer location-bound experiences to be local.
+        assert "include the partner's city and state" in UNIFIED_SYSTEM_PROMPT
+
+    def test_prompt_requests_natural_prose(self):
+        """Prose must avoid raw tag identifiers / underscores."""
+        assert "NATURAL PROSE" in UNIFIED_SYSTEM_PROMPT
+        assert "quiet_luxury" in UNIFIED_SYSTEM_PROMPT  # cited as the anti-example
+
+
+class TestLocationGroundingPrompt:
+    """The user prompt must reinforce city grounding only when a city is set."""
+
+    def test_directive_present_when_city_set(self):
+        vault = _sample_vault_data(location_city="Austin", location_state="TX")
+        prompt = _build_user_prompt(
+            vault_data=vault,
+            hints=[],
+            occasion_type="just_because",
+            budget_range=_sample_budget_range(),
+        )
+        assert "Austin" in prompt
+        assert "Ground every date/experience/plan in this city" in prompt
+
+    def test_directive_absent_when_no_city(self):
+        vault = _sample_vault_data(location_city=None, location_state=None)
+        prompt = _build_user_prompt(
+            vault_data=vault,
+            hints=[],
+            occasion_type="just_because",
+            budget_range=_sample_budget_range(),
+        )
+        assert "Ground every date/experience/plan in this city" not in prompt
+
+
+# ======================================================================
 # Validation tests
 # ======================================================================
 
@@ -472,15 +532,139 @@ class TestNormalizeRecommendation:
         assert len(candidate.title) <= 100
 
     def test_normalize_truncates_long_personalization_note(self):
+        """A very long note is trimmed to the ~600 cap (plus the ellipsis)."""
         rec = {
             "title": "Gift",
             "description": "A gift",
             "recommendation_type": "gift",
-            "personalization_note": "X" * 500,
+            "personalization_note": "X" * 800,
         }
         vault = _sample_vault_data()
         candidate = _normalize_recommendation(rec, vault)
-        assert len(candidate.personalization_note) <= 300
+        assert len(candidate.personalization_note) <= 601
+
+    def test_normalize_trims_note_on_word_boundary(self):
+        """An over-long note is cut at a word boundary, not mid-word, with an ellipsis."""
+        rec = {
+            "title": "Gift",
+            "description": "A gift",
+            "recommendation_type": "gift",
+            "personalization_note": "lovely " * 200,  # ~1400 chars, no sentence ends
+        }
+        vault = _sample_vault_data()
+        candidate = _normalize_recommendation(rec, vault)
+        note = candidate.personalization_note
+        assert note.endswith("…")
+        assert "lovel…" not in note  # never cut mid-word
+
+    def test_normalize_humanizes_leaked_love_language_tags_on_plan(self):
+        """Reproduces the 'Dinner & Film' plan: love-language tags + mid-word cut."""
+        long_note = (
+            "This plan weaves together three of Ronnie's core loves — cooking, movies, "
+            "and travel — while delivering acts_of_service (you're planning the entire "
+            "evening structure and choosing the pairing) and words_of_affirmation (you "
+            "can share why you think they'll love each specific element). The quiet, "
+            "intimate setting plays directly into their love of slow, considered evenings "
+            "at home together, far from any crowd or noise or rush of the outside world."
+        )
+        rec = {
+            "title": "Dinner & Film Pairing Evening",
+            "description": "An intimate at-home date combining cooking and movies.",
+            "recommendation_type": "plan",
+            "is_purchasable": False,
+            "personalization_note": long_note,
+            "content_sections": [
+                {"type": "overview", "heading": "Overview", "body": "An at-home evening."},
+                {"type": "steps", "heading": "Steps", "items": ["Cook together", "Watch the film"]},
+            ],
+        }
+        vault = _sample_vault_data(
+            primary_love_language="acts_of_service",
+            secondary_love_language="words_of_affirmation",
+        )
+        candidate = _normalize_recommendation(rec, vault)
+        note = candidate.personalization_note
+        assert "acts_of_service" not in note
+        assert "words_of_affirmation" not in note
+        assert "acts of service" in note
+        # If trimmed, it must end cleanly (ellipsis), never mid-word like "intimate s".
+        if len(long_note) > 600:
+            assert note.endswith("…")
+        assert "intimate s" not in note or "intimate setting" in note
+
+    def test_normalize_humanizes_leaked_vibe_tags_in_note(self):
+        """Raw snake_case vibe/love-language tags echoed into prose are humanized."""
+        rec = {
+            "title": "Vinyl Record",
+            "description": "A record honoring their quiet_luxury and street_urban aesthetic.",
+            "recommendation_type": "gift",
+            "personalization_note": (
+                "Ronnie loves music while honoring their quiet_luxury and "
+                "street_urban aesthetic and quality_time love language."
+            ),
+        }
+        vault = _sample_vault_data(
+            vibes=["quiet_luxury", "street_urban"],
+            primary_love_language="quality_time",
+        )
+        candidate = _normalize_recommendation(rec, vault)
+        for field in (candidate.personalization_note, candidate.description):
+            assert "quiet_luxury" not in field
+            assert "street_urban" not in field
+            assert "quality_time" not in field
+            assert "quiet luxury" in field
+
+    def test_normalize_preserves_rich_personalization_note(self):
+        """A ~400-char note (2-3 sentences) survives intact — would have been
+        truncated under the old 300-char cap."""
+        rich_note = (
+            "Alex's love of pottery and quiet weekends makes this a perfect fit. "
+            "You mentioned she's been wanting to slow down lately, and this gives her "
+            "exactly that kind of unhurried, hands-on afternoon away from the noise. "
+            "It speaks straight to her quality-time love language and the calm, "
+            "quiet-luxury vibe she always gravitates toward on a lazy Sunday together."
+        )
+        # Longer than the old 300-char cap, within the new 500-char cap.
+        assert 300 < len(rich_note) <= 500
+        rec = {
+            "title": "Pottery Afternoon for Two",
+            "description": "A class for two.",
+            "recommendation_type": "date",
+            "personalization_note": rich_note,
+        }
+        vault = _sample_vault_data()
+        candidate = _normalize_recommendation(rec, vault)
+        assert candidate.personalization_note == rich_note
+
+    def test_normalize_date_keeps_long_description_and_note(self):
+        """A date with a fuller 3-4 sentence description + rich note normalizes
+        with both fields intact (description cap is 500)."""
+        long_desc = (
+            "A sunset sail around the harbor aboard a small wooden boat, just the two "
+            "of you. You'll cast off at golden hour with a bottle of wine, drift past "
+            "the lighthouse as the sky turns, and toast on deck as the sun dips below "
+            "the water. It's a slow, romantic evening with nothing to do but be together."
+        )
+        rich_note = (
+            "Alex's love of the ocean and your note about wanting more slow weekends "
+            "make this a quiet-luxury escape she'll adore. It leans right into her "
+            "quality-time love language."
+        )
+        rec = {
+            "title": "Sunset Harbor Sail for Two",
+            "description": long_desc,
+            "recommendation_type": "date",
+            "is_purchasable": True,
+            "merchant_name": "Harbor Sails Co.",
+            "price_cents": 12000,
+            "search_query": "Harbor Sails Co sunset sail for two booking",
+            "personalization_note": rich_note,
+        }
+        vault = _sample_vault_data()
+        candidate = _normalize_recommendation(rec, vault)
+        assert candidate.type == "date"
+        assert candidate.description == long_desc
+        assert candidate.personalization_note == rich_note
 
     def test_normalize_filters_invalid_section_types(self):
         rec = {
