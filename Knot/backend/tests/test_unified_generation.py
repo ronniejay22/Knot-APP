@@ -311,6 +311,17 @@ class TestSystemPrompt:
         # The search_query spec must steer location-bound experiences to be local.
         assert "include the partner's city and state" in UNIFIED_SYSTEM_PROMPT
 
+    def test_prompt_strongly_favors_local_recommendations(self):
+        """When a city is known, the mix should lean toward locally-grounded options."""
+        assert "STRONGLY FAVOR" in UNIFIED_SYSTEM_PROMPT
+        assert "locally-grounded experiences, dates, and ideas" in UNIFIED_SYSTEM_PROMPT
+
+    def test_prompt_requires_specific_local_store(self):
+        """At-home supply runs must name a specific local store, not a placeholder."""
+        assert "a SPECIFIC real store" in UNIFIED_SYSTEM_PROMPT
+        # The generic placeholder must be cited as the anti-pattern.
+        assert '"a local grocery store"' in UNIFIED_SYSTEM_PROMPT
+
     def test_prompt_requests_natural_prose(self):
         """Prose must avoid raw tag identifiers / underscores."""
         assert "NATURAL PROSE" in UNIFIED_SYSTEM_PROMPT
@@ -329,7 +340,10 @@ class TestLocationGroundingPrompt:
             budget_range=_sample_budget_range(),
         )
         assert "Austin" in prompt
-        assert "Ground every date/experience/plan in this city" in prompt
+        assert "Strongly favor experiences, dates, and ideas grounded in Austin" in prompt
+        # At-home supply runs must name a specific local store, not a placeholder.
+        assert "specific local store in Austin" in prompt
+        assert 'never "a local grocery store"' in prompt
 
     def test_directive_absent_when_no_city(self):
         vault = _sample_vault_data(location_city=None, location_state=None)
@@ -339,7 +353,8 @@ class TestLocationGroundingPrompt:
             occasion_type="just_because",
             budget_range=_sample_budget_range(),
         )
-        assert "Ground every date/experience/plan in this city" not in prompt
+        assert "Strongly favor experiences, dates, and ideas grounded in" not in prompt
+        assert "specific local store" not in prompt
 
 
 # ======================================================================

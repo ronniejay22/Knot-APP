@@ -6664,6 +6664,22 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Review fixes (same day):** A `/ship` review surfaced and fixed: (a) `url_resolution._localize_search_query` now matches the full "City State" locale instead of a bare city substring, so a city that is also a common word (Reading, Mobile, Bend) is no longer falsely detected in unrelated prose and localization isn't silently skipped (new `test_homonym_city_not_falsely_suppressed`); (b) `idea_generation._normalize_idea` now applies `truncate_prose` to the description (parity with unified — no mid-word cuts on idea copy).
 
+### Step 18.54 ✅ Recommendations — Bias Toward Local + Name Specific Local Stores for Supplies
+**Date:** 2026-06-24
+**Status:** Complete
+
+**Goal:** Two related gaps remained after Step 18.52's grounding. (1) Frequency — even with a city on file, the model still leaned on generic city-agnostic indoor/at-home filler; the user wanted *more* of the 3 cards to actually be local experiences/dates/ideas. (2) Supply specificity — at-home dates/ideas that require picking something up said "go to a local grocery store" instead of naming a real, specific store in the partner's city. The mix and localness are 100% prompt-driven (Step 13.1 collapsed all generation into one Claude call), so the fix is prompt-level.
+
+**Approach:** Backend-only, prompt-only (no schema/API/iOS change — the data model already carries `location` and `content_sections` with `setup`/`steps`). Per the user's choices: a **strong soft bias** toward local (no hard count — a great non-local gift can still appear) and **named store + neighborhood/street** specificity. All directives stay conditional on a city being present, preserving location-flexible behavior when no city is set. `OCCASION_GUIDANCE` was intentionally left untouched (it nudges toward at-home filler but is the wrong lever to disturb budget/occasion behavior).
+
+**What changed (`app/services/unified_generation.py`):**
+- **Rule 9 (LOCATION GROUNDING)** now opens with "STRONGLY FAVOR experiences, dates, and ideas grounded in that city, and default to local," and adds a clause requiring at-home/indoor dates and ideas whose setup/steps need supplies (ingredients, craft/hobby materials, decor, flowers) to name **a SPECIFIC real store in that city — with neighborhood or street when known** (e.g. "Central Market on N. Lamar", "Michaels in the Domain"), explicitly forbidding "a local grocery store" / "a craft store" placeholders.
+- **Rule 4 (DIVERSITY)** gained a one-line nudge at the mix-decision point: "When a city is known, lean the mix toward locally-grounded experiences, dates, and ideas … rather than city-agnostic indoor filler."
+- **Content-section spec** now instructs that when a `setup`/`steps` item involves picking up supplies and a city is known, name the specific local store (city + neighborhood/street), never a generic store type.
+- **`_build_user_prompt`** location block (only when a city is set) was expanded to interpolate the actual city: "Strongly favor experiences, dates, and ideas grounded in {city} …" plus "For at-home dates or ideas that need supplies, name the specific local store in {city} (neighborhood or street when known), never 'a local grocery store'."
+
+**Tests:** Extended `tests/test_unified_generation.py` — two new `TestSystemPrompt` assertions (`test_prompt_strongly_favors_local_recommendations`, `test_prompt_requires_specific_local_store`) and updated `TestLocationGroundingPrompt` to assert the new city-interpolated directive + store-specificity language appear only when a city is set. Full file passes (53/53); full backend suite green.
+
 ---
 
 ## Next Steps

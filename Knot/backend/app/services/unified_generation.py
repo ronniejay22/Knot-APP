@@ -107,7 +107,9 @@ Reference their actual interests, hints, and preferences.
 3. NEVER repeat anything from the excluded list.
 4. Ensure DIVERSITY across the 3 cards — vary the type (gift/experience/date/idea/plan), \
 price range, and nature of the recommendation. When a milestone is approaching, \
-strongly consider including at least one "plan" type that combines activities.
+strongly consider including at least one "plan" type that combines activities. \
+When a city is known, lean the mix toward locally-grounded experiences, dates, and \
+ideas anchored in that city rather than city-agnostic indoor filler.
 5. For purchasable items: Name a SPECIFIC real product, restaurant, or experience. \
 Include the actual merchant/brand name and a realistic price estimate. \
 Provide a search_query that would find this exact item online for purchase/booking.
@@ -118,12 +120,18 @@ listicles, or review roundups.
 is this date and why is it a great one" — paint the setting, the activity, and the \
 feel of it. This is SEPARATE from the personalization_note, which explains why it \
 fits THIS partner. Don't let the two repeat each other.
-9. LOCATION GROUNDING — when the partner's city is provided, ground every \
-location-bound recommendation in it. For "date", "experience", and "plan", name real \
-neighborhoods, districts, and well-known local venues or landmarks in that city and \
-reflect its regional character — never a generic "a cozy restaurant" or "a local park". \
-For purchasable restaurants, venues, classes, and ticketed experiences, name a real \
-establishment IN that city. If no city is provided, keep suggestions location-flexible.
+9. LOCATION GROUNDING — when the partner's city is provided, STRONGLY FAVOR \
+experiences, dates, and ideas that are grounded in that city, and default to local. \
+For "date", "experience", and "plan", name real neighborhoods, districts, and \
+well-known local venues or landmarks in that city and reflect its regional character \
+— never a generic "a cozy restaurant" or "a local park". For purchasable restaurants, \
+venues, classes, and ticketed experiences, name a real establishment IN that city. \
+For at-home or indoor dates and ideas whose setup/steps require buying supplies \
+(ingredients, craft or hobby materials, decor, flowers), name a SPECIFIC real store \
+in that city — with the neighborhood or street when you know it (e.g. "Central Market \
+on N. Lamar", "Michaels in the Domain"). NEVER write "a local grocery store", "a craft \
+store", or any generic store placeholder. If no city is provided, keep suggestions \
+location-flexible.
 10. NATURAL PROSE — write the title, description, personalization_note, and all \
 content_sections in natural, human language. NEVER print raw tag identifiers or \
 underscores in prose: write "quiet luxury", not "quiet_luxury"; "quality time", not \
@@ -165,7 +173,11 @@ Each section is a JSON object with:
 Use either "body" or "items" per section, not both.
 Ideas and plans MUST include "overview" and "steps" sections at minimum. \
 For plans, the "steps" section should outline the activities in chronological \
-order (e.g., "6:00 PM — Start baking lemon bars together", "7:30 PM — Queue up Scream 7").
+order (e.g., "6:00 PM — Start baking lemon bars together", "7:30 PM — Queue up Scream 7"). \
+When a "setup" or "steps" item involves picking up supplies and a city is known, name \
+the SPECIFIC local store to get them from (city plus neighborhood or street when known), \
+e.g. "Pick up baking supplies at Central Market on N. Lamar" — never a generic "a local \
+grocery store" or "a craft store".
 
 Return ONLY a JSON array of 3 objects. No markdown, no code fences, no explanation."""
 
@@ -198,8 +210,10 @@ def _build_user_prompt(
         location_parts = [p for p in (vault_data.location_city, vault_data.location_state) if p]
         parts.append(f"Location: {', '.join(location_parts)}")
         parts.append(
-            "Ground every date/experience/plan in this city — name real neighborhoods "
-            "and local venues, not generic placeholders."
+            f"Strongly favor experiences, dates, and ideas grounded in {vault_data.location_city} "
+            "— name real neighborhoods and local venues, not generic placeholders. "
+            f"For at-home dates or ideas that need supplies, name the specific local store in "
+            f"{vault_data.location_city} (neighborhood or street when known), never \"a local grocery store\"."
         )
 
     parts.append(f"Interests (LOVES): {', '.join(vault_data.interests)}")
