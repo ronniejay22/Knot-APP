@@ -44,6 +44,7 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Typography.sm
         _ = Theme.Typography.base
         _ = Theme.Typography.body
+        _ = Theme.Typography.bodySmall
         _ = Theme.Typography.lg
         _ = Theme.Typography.xl
         _ = Theme.Typography.xxl

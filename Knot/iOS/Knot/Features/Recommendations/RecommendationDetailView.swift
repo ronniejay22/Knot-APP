@@ -249,13 +249,8 @@ struct RecommendationDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if !metaParts.isEmpty {
-                HStack(spacing: 8) {
-                    ForEach(Array(metaParts.enumerated()), id: \.offset) { index, part in
-                        if index > 0 {
-                            Circle()
-                                .fill(Theme.textTertiary)
-                                .frame(width: 3, height: 3)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(metaParts.enumerated()), id: \.offset) { _, part in
                         HStack(spacing: 5) {
                             Image(uiImage: part.icon)
                                 .renderingMode(.template)
@@ -263,12 +258,11 @@ struct RecommendationDetailView: View {
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 13, height: 13)
                             Text(part.text)
-                                .knotFont(Theme.Typography.cta)
+                                .knotFont(Theme.Typography.bodySmall)
                                 .lineLimit(1)
                         }
                         .foregroundStyle(Theme.textSecondary)
                     }
-                    Spacer(minLength: 0)
                 }
             }
         }
@@ -325,7 +319,7 @@ struct RecommendationDetailView: View {
 
                 if let note, !note.isEmpty {
                     Text("\"\(note)\"")
-                        .knotFont(Theme.Typography.italicQuote)
+                        .knotFont(Theme.Typography.bodySmall)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

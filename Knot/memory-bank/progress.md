@@ -6680,6 +6680,21 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** Extended `tests/test_unified_generation.py` — two new `TestSystemPrompt` assertions (`test_prompt_strongly_favors_local_recommendations`, `test_prompt_requires_specific_local_store`) and updated `TestLocationGroundingPrompt` to assert the new city-interpolated directive + store-specificity language appear only when a city is set. Full file passes (53/53); full backend suite green.
 
+### Step 18.55 ✅ Recommendations — Stack the Detail Meta Row & Restyle the "Why" Note Font
+**Date:** 2026-06-26
+**Status:** Complete
+
+**Goal:** Match the recommendation **detail** screen to an updated Figma mock (node 157-189 in *Knot — Build Your Partner Vault*). Two type/layout tweaks: (1) the meta row (merchant · price · location) was a single horizontal row with 3px dot separators in DM Sans **SemiBold 17** — the mock stacks the three items **vertically**, **regular weight**, **16pt**; (2) the "Why Knot picked this" personalization note was **Fraunces Light Italic 17** (`Theme.Typography.italicQuote`) — the mock renders it upright in **DM Sans Regular 16** (`textSecondary`, black @ 55%).
+
+**Approach:** iOS-only, scoped to `RecommendationDetailView`. Both restyled elements share the exact same spec (DM Sans Regular 16), so one new token covers both. `italicQuote` is shared by `SignInView`, `RecommendationCard` (carousel), and `IdeaContentSectionsView`, so the token was left intact and only the detail-view call site was changed — those other surfaces keep the italic-serif quote.
+
+**What changed:**
+- **`iOS/Knot/Core/Theme.swift`:** Added `Theme.Typography.bodySmall` — `DMSans-Regular @ 16pt, relativeTo: .body` — sitting in the ramp between `label` (13) and `body` (17).
+- **`iOS/Knot/Features/Recommendations/RecommendationDetailView.swift`:** In `titleBlock`, replaced the `HStack(spacing: 8)` + dot-`Circle()` separators + trailing `Spacer` with a `VStack(alignment: .leading, spacing: 6)` of icon + `Text` rows, switching the value font from `cta` → `bodySmall`. In `whyBlock`, changed only the note's `.knotFont(Theme.Typography.italicQuote)` → `.knotFont(Theme.Typography.bodySmall)`. `metaParts`, `MetaPart`, the Lucide icons, and the `textSecondary` color are unchanged.
+- **`iOS/KnotTests/Components/UI/ThemeTokensTests.swift`:** Added `bodySmall` to the `testTypographyTokensExist` existence check.
+
+**Tests:** `xcodebuild build` succeeds; full `KnotTests` suite green (315/315, incl. the extended token test). Change is otherwise presentation-only (no logic), covered by the existing detail-view render tests.
+
 ---
 
 ## Next Steps

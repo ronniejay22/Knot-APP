@@ -335,6 +335,10 @@ extension Theme {
         /// Scales relative to `.body`.
         static let body: Font = .custom(FontFamily.DMSans.regular, size: 17, relativeTo: .body)
 
+        /// DMSans-Regular @ 16pt. Detail meta values + the "why" personalization note.
+        /// Scales relative to `.body`.
+        static let bodySmall: Font = .custom(FontFamily.DMSans.regular, size: 16, relativeTo: .body)
+
         /// DMSans-Medium @ 13pt. Labels, captions, fine print.
         /// Scales relative to `.caption`.
         static let label: Font = .custom(FontFamily.DMSans.medium, size: 13, relativeTo: .caption)
