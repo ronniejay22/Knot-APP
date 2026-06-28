@@ -13,7 +13,7 @@ Two problems these fix, both visible to the user on the recommendation detail pa
 
 import re
 
-__all__ = ["humanize_tags", "truncate_prose"]
+__all__ = ["humanize_tags", "truncate_prose", "normalize_whitespace"]
 
 
 def humanize_tags(text: str, tags: list[str]) -> str:
@@ -61,3 +61,15 @@ def truncate_prose(text: str, limit: int) -> str:
     if last_space > 0:
         window = window[:last_space]
     return window.rstrip(" ,;:.—-") + "…"
+
+
+def normalize_whitespace(text: str) -> str:
+    """
+    Collapse runs of whitespace into single spaces and trim the ends.
+
+    Useful for tidying AI-generated copy before display, e.g.
+    "  too   many\n spaces " -> "too many spaces".
+    """
+    if not text:
+        return text
+    return re.sub(r"\s+", " ", text).strip()
