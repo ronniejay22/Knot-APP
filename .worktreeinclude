@@ -1,0 +1,6 @@
+# Gitignored files copied into each new worktree (created at this repo root by
+# EnterWorktree / `claude --worktree`) so parallel agent sessions can build and
+# test. Uses .gitignore syntax; only files that are both matched here AND
+# gitignored are copied. Paths are relative to this repo root, so Knot's backend
+# env lives under Knot/.
+Knot/backend/.env

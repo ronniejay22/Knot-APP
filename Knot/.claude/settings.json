@@ -10,6 +10,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/autoship-reminder.sh\"",
+            "statusMessage": "Loading autonomous feature workflow rule"
+          }
+        ]
+      }
     ]
   }
 }
