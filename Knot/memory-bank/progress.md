@@ -6697,6 +6697,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.0 ✅ Dev Tooling — Auto-Detect Mac LAN IP So Phone & Simulator Both Reach the Backend
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Kill the recurring "Unable to reach the server" failure on a physical iPhone. The DEBUG build hardcoded `http://127.0.0.1:8000` ([Constants.swift]), which is the Mac on the simulator but the *phone itself* on a real device — so on-device builds always failed with `URLError.cannotConnectToHost`. The only prior workaround was the manual hoop noted in the code ("run `ipconfig getifaddr en0` and update"), which also risked committing a network-specific LAN IP. Make simulator and device both work with **zero manual edits** and **nothing network-specific committed**.
+
+**Approach:** Auto-detect the Mac's current private LAN IP at build time and feed it to the DEBUG app via a bundled `DevServer.plist`; bind the local backend to `0.0.0.0` so the phone can actually reach it. (CORS is irrelevant — native `URLSession` is not subject to it.) Source keeps `127.0.0.1` only as a fallback, honoring the "never commit a LAN IP" rule.
+
+**What changed:**
+- **`backend/scripts/dev.sh` (new):** One-command dev launcher — activates `venv`, prints the detected LAN URL + `/health` check, and runs `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`. No change to `app/main.py` (host is a CLI arg).
+- **`iOS/scripts/inject-dev-host.sh` (new):** Debug-only postBuild script. Iterates `en0…en8`, picks the first private address (192.168/10/172.16-31), and writes `DevAPIBaseURL` into `${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/DevServer.plist`. Falls back to `127.0.0.1` when offline so the build never breaks. Detection logic mirrors `dev.sh`.
+- **`iOS/project.yml`:** Added the script as a `postBuildScript` on the `Knot` target with `inputFiles` (the script path — required so `ENABLE_USER_SCRIPT_SANDBOXING` permits reading it) and `outputFiles` (`DevServer.plist` — a *separate* file from `Info.plist` to avoid a "multiple commands produce" conflict while keeping the sandbox satisfied). Regenerate with `cd iOS && xcodegen generate`.
+- **`iOS/Knot/Core/Constants.swift`:** `API.baseURL` (DEBUG) now resolves via testable `resolveDebugBaseURL(override:injected:)` in priority order — `UserDefaults["KnotDevAPIBaseURL"]` override → `DevServer.plist` injected value → `http://127.0.0.1:8000` fallback. Release path (`https://api.knot-app.com`) unchanged.
+- **`iOS/Knot/Services/RecommendationService.swift`:** DEBUG-only — the `cannotConnectToHost` message now appends `(tried <baseURL>)` so a future failure shows exactly what it reached for.
+- **`iOS/KnotTests/DevAPIBaseURLResolutionTests.swift` (new):** 4 tests covering the resolution precedence (override wins, injected used, loopback fallback, blank values ignored).
+
+**Tests:** New iOS suite green (4/4 via `xcodebuild test`); backend `pytest` green. Verified end-to-end: a Debug simulator build runs the script (`inject-dev-host: DevAPIBaseURL = http://192.168.1.239:8000`), `Knot.app/DevServer.plist` carries the IP, and `Info.plist` has no leak. **Note:** building into the iCloud-synced project folder triggers an unrelated codesign "resource fork / Finder information detritus" failure on SPM bundles (`com.apple.fileprovider.fpfs#P` xattrs); build to a DerivedData path outside the synced folder (e.g. `-derivedDataPath /tmp/KnotDD`) to avoid it.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

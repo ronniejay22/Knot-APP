@@ -11,11 +11,51 @@ import Foundation
 enum Constants {
     /// API Configuration
     ///
-    /// During development, the backend runs locally via `uvicorn`.
-    /// Change `baseURL` to the production Vercel URL before deployment.
+    /// Release builds use the production server. DEBUG builds target the local
+    /// backend: the Mac's current LAN IP is auto-detected and written into a
+    /// bundled `DevServer.plist` (`DevAPIBaseURL`) at build time by
+    /// `scripts/inject-dev-host.sh`, so the simulator AND a physical iPhone on
+    /// the same Wi-Fi both connect with no manual edits. Run the backend with
+    /// `backend/scripts/dev.sh` (binds 0.0.0.0).
     enum API {
         #if DEBUG
-        static let baseURL = "http://127.0.0.1:8000"
+        static let baseURL = resolveDebugBaseURL()
+
+        /// The hardcoded fallback when no injected/override value is present.
+        /// Stays loopback — never commit a LAN IP here.
+        static let debugFallbackBaseURL = "http://127.0.0.1:8000"
+
+        /// UserDefaults key for a manual override that wins over auto-detection
+        /// (e.g. `defaults write … KnotDevAPIBaseURL http://10.0.0.5:8000`).
+        static let debugOverrideKey = "KnotDevAPIBaseURL"
+
+        /// Reads the build-time auto-detected host from the bundled DevServer.plist.
+        static func injectedDevBaseURL() -> String? {
+            guard let url = Bundle.main.url(forResource: "DevServer", withExtension: "plist"),
+                  let dict = NSDictionary(contentsOf: url) as? [String: Any] else {
+                return nil
+            }
+            return dict["DevAPIBaseURL"] as? String
+        }
+
+        /// Resolves the DEBUG base URL in priority order:
+        /// 1. `UserDefaults[KnotDevAPIBaseURL]` — manual override escape hatch.
+        /// 2. `DevServer.plist[DevAPIBaseURL]` — build-time auto-detected Mac LAN IP.
+        /// 3. `http://127.0.0.1:8000` — loopback fallback.
+        ///
+        /// Inputs are injected for testability.
+        static func resolveDebugBaseURL(
+            override: String? = UserDefaults.standard.string(forKey: debugOverrideKey),
+            injected: String? = injectedDevBaseURL()
+        ) -> String {
+            if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty {
+                return override
+            }
+            if let injected, !injected.trimmingCharacters(in: .whitespaces).isEmpty {
+                return injected
+            }
+            return debugFallbackBaseURL
+        }
         #else
         static let baseURL = "https://api.knot-app.com"
         #endif

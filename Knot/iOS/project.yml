@@ -66,7 +66,21 @@ targets:
         product: Supabase
       - package: GoogleSignIn
     preBuildScripts: []
-    postBuildScripts: []
+    postBuildScripts:
+      # Inject the Mac's current LAN IP into the DEBUG Info.plist so the
+      # simulator AND a physical device reach the local backend with no manual
+      # edits. No-op for Release. See iOS/scripts/inject-dev-host.sh.
+      - script: '"${SRCROOT}/scripts/inject-dev-host.sh"'
+        name: "Inject Dev API Host (Debug)"
+        # Always run: the output depends on the current Wi-Fi IP, not on any
+        # input file, so dependency-analysis up-to-date skipping would bake a
+        # stale IP after a network change. outputFiles stays declared so the
+        # sandbox permits the DevServer.plist write.
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "${SRCROOT}/scripts/inject-dev-host.sh"
+        outputFiles:
+          - "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/DevServer.plist"
 
   KnotTests:
     type: bundle.unit-test

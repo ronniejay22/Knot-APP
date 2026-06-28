@@ -423,7 +423,13 @@ final class RecommendationService: Sendable {
         case .timedOut:
             return "The request timed out. Please try again."
         case .cannotConnectToHost, .cannotFindHost:
+            #if DEBUG
+            // Surface the URL we tried so a dev sees whether the LAN IP / backend
+            // is the problem (e.g. backend not running, or not on the same Wi-Fi).
+            return "Unable to reach the server. Please try again later. (tried \(baseURL))"
+            #else
             return "Unable to reach the server. Please try again later."
+            #endif
         default:
             return error.localizedDescription
         }
