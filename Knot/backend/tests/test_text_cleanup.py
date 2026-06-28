@@ -4,7 +4,11 @@ Tests for prose cleanup helpers used on AI-generated recommendation copy.
 Run with: pytest tests/test_text_cleanup.py -v
 """
 
-from app.services.text_cleanup import humanize_tags, truncate_prose
+from app.services.text_cleanup import (
+    humanize_tags,
+    normalize_whitespace,
+    truncate_prose,
+)
 
 
 class TestHumanizeTags:
@@ -69,3 +73,18 @@ class TestTruncateProse:
 
     def test_empty(self):
         assert truncate_prose("", 10) == ""
+
+
+class TestNormalizeWhitespace:
+    def test_collapses_internal_runs(self):
+        out = normalize_whitespace("too   many\t\nspaces")
+        assert out == "too many spaces"
+
+    def test_trims_ends(self):
+        assert normalize_whitespace("  hello world  ") == "hello world"
+
+    def test_already_clean_unchanged(self):
+        assert normalize_whitespace("clean text") == "clean text"
+
+    def test_empty_text(self):
+        assert normalize_whitespace("") == ""
