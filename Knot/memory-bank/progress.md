@@ -6732,6 +6732,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 18.56 ✅ Recommendations — Stop the "Why" Note from Ending Mid-Sentence
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** A recommendation's `personalization_note` (the "Why Knot picked this for {partner}" copy) was rendering cut off mid-sentence on the detail page — e.g. *"...It's intimate, low-pressure, and works perfectly for a"* (trailing off after the article "a"). Tracing confirmed the iOS view (no `lineLimit`, `fixedSize` grows), the `TEXT` DB column, and `truncate_prose(…, 600)` were all innocent (the visible note was only ~295 chars). The bad value originated at the single Claude call in `unified_generation.py`: either the 3-recommendation JSON was truncated by the `max_tokens=4096` cap, or Haiku emitted a grammatically-incomplete note inside otherwise-valid JSON. The code never checked `response.stop_reason`, so a `max_tokens` stop was silently treated as success.
+
+**Approach:** Backend-only, defense-in-depth across generation and serialization so a half-finished thought can never reach the UI — plus a read-time net that also cleans the already-served/stored copy a user is looking at on their next reveal.
+
+**What changed:**
+- **`backend/app/services/text_cleanup.py`:** Added two helpers (exported in `__all__`). `is_incomplete_sentence(text)` returns True when copy ends without sentence-ending punctuation, or ends on an ellipsis trailing a dangling article/conjunction/preposition (`_DANGLING_WORDS`) — but treats a model-written `.`/`!`/`?` as complete even when the last word is "in"/"this"/etc. `trim_to_complete_sentence(text)` returns complete text unchanged (fast path), else walks sentence boundaries (`_SENTENCE_BOUNDARY`) backward to the last *complete* one, falling back to repeatedly stripping trailing dangling words; never returns empty for non-empty input. It composes after `truncate_prose` (length first, completeness second).
+- **`backend/app/services/unified_generation.py`:** Raised `CLAUDE_MAX_TOKENS` 4096 → 8192 (a ceiling, not a target; Haiku 4.5 allows 64K, so latency is unchanged). Added a `response.stop_reason == "max_tokens"` guard that logs and retries instead of parsing a truncated body. `_validate_recommendation` now rejects empty or `is_incomplete_sentence` notes (forcing a retry). `_normalize_recommendation` wraps both `description` and `personalization_note` with `trim_to_complete_sentence(truncate_prose(...))` as the last-resort guard.
+- **`backend/app/api/recommendations.py`:** `_build_response_items` (the single boundary that serves notes to the app, used by both generate and refresh) now passes `description` and `personalization_note` through `trim_to_complete_sentence` as a read-time safety net, so any candidate — however produced — is clean on the wire.
+- **`backend/tests/test_text_cleanup.py` / `backend/tests/test_unified_generation.py`:** Added `TestIsIncompleteSentence` and `TestTrimToCompleteSentence` (incl. the exact reported string), and extended the validation/normalization/generation suites (rejects incomplete/empty notes, repairs short dangling copy, discards a `max_tokens` attempt and retries, returns empty when all attempts truncate, and asserts no returned note ends mid-sentence).
+
+**Tests:** `pytest tests/test_text_cleanup.py tests/test_unified_generation.py` green (90 passed); full backend suite green. No iOS changes.
+
+**Notes:** No DB backfill — stored notes are never read back for display (the GET-by-id / by-milestone endpoints return `MilestoneRecommendationItem`, which omits the note), and recommendations cycle on refresh; the read-time net covers everything served going forward.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
