@@ -6715,6 +6715,21 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** New iOS suite green (4/4 via `xcodebuild test`); backend `pytest` green. Verified end-to-end: a Debug simulator build runs the script (`inject-dev-host: DevAPIBaseURL = http://192.168.1.239:8000`), `Knot.app/DevServer.plist` carries the IP, and `Info.plist` has no leak. **Note:** building into the iCloud-synced project folder triggers an unrelated codesign "resource fork / Finder information detritus" failure on SPM bundles (`com.apple.fileprovider.fpfs#P` xattrs); build to a DerivedData path outside the synced folder (e.g. `-derivedDataPath /tmp/KnotDD`) to avoid it.
 
+### Step 19.1 ✅ Security — Replace Regex HTML Filtering in Availability Node with a Real Parser
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Resolve a GitHub CodeQL **High**-severity alert (`py/bad-tag-filter`, CWE-20/116/185/186), "Bad HTML filtering regexp," on [backend/app/agents/availability.py]. The `_extract_text_from_html()` helper stripped `<script>`/`<style>` blocks from fetched product-page HTML with regular expressions before extracting price-relevant text. Regex-based HTML filtering is unreliable: the script-stripping pattern did not match malformed end tags (e.g. `</script foo="bar">`, `</script\n>`), so script bodies could slip through into the text sent to Claude for price extraction — polluting the LLM input. (No browser rendering occurs, so classic stored-XSS did not apply, but the leak degraded extraction quality.) The only reliable way to clear `py/bad-tag-filter` is to stop filtering HTML with regex.
+
+**Approach:** Rewrote **only** `_extract_text_from_html()` to parse with BeautifulSoup (pure-Python `html.parser` backend — no lxml). The function's signature and exact output format (`Title:` / `Meta:` / `Structured Data:` / `Page Text:` parts, the 4000-char body slice, and the `MAX_PAGE_CONTENT_CHARS` cap) are preserved, so the existing `TestExtractTextFromHtml` contract still holds. The rest of the file (fetching, replacement, Claude price verification) is untouched.
+
+**What changed:**
+- **`backend/app/agents/availability.py`:** Added `from bs4 import BeautifulSoup`. `_extract_text_from_html` now parses once (`BeautifulSoup(html, "html.parser")`), then: extracts up to 3 JSON-LD `<script type="application/ld+json">` blocks via `find_all` (a case-insensitive `_is_jsonld` helper), reads the title via `soup.title`, the meta description via `soup.find("meta", attrs={"name": "description"})` (one call covers both attribute orders the old paired regexes handled), `.decompose()`s all `<script>`/`<style>` tags except JSON-LD, and collapses `soup.get_text(" ")` whitespace with the retained `re.sub(r"\s+", " ", ...)`. The three tag-matching regexes are gone; `re` is still used for whitespace only.
+- **`backend/requirements.txt`:** Added `beautifulsoup4` under a new "HTML Parsing (product-page price extraction)" section.
+- **`backend/tests/test_availability_node.py`:** Added two regression tests to `TestExtractTextFromHtml` — `test_strips_script_with_malformed_end_tag` (`</script foo="bar">` no longer leaks `alert(1)`) and `test_strips_uppercase_script_tags` (uppercase `<SCRIPT>` stripped). The 8 original extraction tests pass unchanged.
+
+**Tests:** `tests/test_availability_node.py` green (60 passed, incl. the 2 new cases). Manual sanity check: `_extract_text_from_html('<script>alert(1)</script foo="bar"><body>$49.99</body>')` returns `Page Text: $49.99` with no `alert(1)`. Once merged to `main`, CodeQL re-scans and the alert auto-resolves (no regex HTML filter remains).
+
 ---
 
 ## Next Steps
