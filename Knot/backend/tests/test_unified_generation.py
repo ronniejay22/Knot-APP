@@ -25,6 +25,7 @@ from app.agents.state import (
     RelevantHint,
     VaultData,
 )
+from app.services.text_cleanup import is_incomplete_sentence
 from app.services.unified_generation import (
     UNIFIED_SYSTEM_PROMPT,
     _build_user_prompt,
@@ -450,6 +451,35 @@ class TestValidateRecommendation:
         assert _validate_recommendation(None) is False
         assert _validate_recommendation(42) is False
 
+    def test_rejects_incomplete_personalization_note(self):
+        """A note that trails off mid-sentence must fail validation (forces a retry)."""
+        rec = {
+            "title": "Cozy Movie Night",
+            "description": "An intimate evening in.",
+            "recommendation_type": "gift",
+            "personalization_note": "It's intimate, low-pressure, and works perfectly for a",
+        }
+        assert _validate_recommendation(rec) is False
+
+    def test_rejects_empty_personalization_note(self):
+        rec = {
+            "title": "Cozy Movie Night",
+            "description": "An intimate evening in.",
+            "recommendation_type": "gift",
+            "personalization_note": "   ",
+        }
+        assert _validate_recommendation(rec) is False
+
+    def test_accepts_complete_personalization_note(self):
+        """A complete note on the same rec passes — guards against false positives."""
+        rec = {
+            "title": "Cozy Movie Night",
+            "description": "An intimate evening in.",
+            "recommendation_type": "gift",
+            "personalization_note": "It's intimate, low-pressure, and works perfectly for a quiet night in.",
+        }
+        assert _validate_recommendation(rec) is True
+
 
 # ======================================================================
 # Normalization tests
@@ -680,6 +710,20 @@ class TestNormalizeRecommendation:
         assert candidate.type == "date"
         assert candidate.description == long_desc
         assert candidate.personalization_note == rich_note
+
+    def test_normalize_repairs_incomplete_note_and_description(self):
+        """A short (sub-600) note/description ending mid-sentence is repaired by the
+        trim_to_complete_sentence safety net (truncate_prose is a no-op here)."""
+        rec = {
+            "title": "Cozy Movie Night",
+            "description": "An intimate evening. It's low-pressure and works perfectly for a",
+            "recommendation_type": "gift",
+            "personalization_note": "You'll love this. It's intimate, low-pressure, and works perfectly for a",
+        }
+        vault = _sample_vault_data()
+        candidate = _normalize_recommendation(rec, vault)
+        assert candidate.personalization_note == "You'll love this."
+        assert candidate.description == "An intimate evening."
 
     def test_normalize_filters_invalid_section_types(self):
         rec = {
@@ -962,6 +1006,20 @@ class TestGenerateUnifiedRecommendations:
         mock_client.messages.create = AsyncMock(
             side_effect=[short_response, full_response]
         )
+    async def test_discards_max_tokens_truncated_attempt(self):
+        """A max_tokens stop is discarded (even with parseable text) and retried."""
+        truncated = MagicMock()
+        truncated.content = [MagicMock()]
+        truncated.content[0].text = json.dumps(_sample_claude_response())
+        truncated.stop_reason = "max_tokens"
+
+        clean = MagicMock()
+        clean.content = [MagicMock()]
+        clean.content[0].text = json.dumps(_sample_claude_response())
+        clean.stop_reason = "end_turn"
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(side_effect=[truncated, clean])
 
         with patch(
             "app.services.unified_generation.AsyncAnthropic",
@@ -980,17 +1038,15 @@ class TestGenerateUnifiedRecommendations:
             assert len(results) == 3
             assert mock_client.messages.create.call_count == 2
 
-    async def test_returns_best_partial_when_never_reaches_three(self):
-        """
-        If every attempt falls short of 3, generation returns the best partial
-        set it saw rather than an empty list — the screen still shows what we have.
-        """
-        short_response = MagicMock()
-        short_response.content = [MagicMock()]
-        short_response.content[0].text = json.dumps(_sample_claude_response()[:2])
+    async def test_all_attempts_truncated_returns_empty(self):
+        """If every attempt stops at max_tokens, no partial recs are returned."""
+        truncated = MagicMock()
+        truncated.content = [MagicMock()]
+        truncated.content[0].text = json.dumps(_sample_claude_response())
+        truncated.stop_reason = "max_tokens"
 
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=short_response)
+        mock_client.messages.create = AsyncMock(return_value=truncated)
 
         with patch(
             "app.services.unified_generation.AsyncAnthropic",
@@ -1006,6 +1062,41 @@ class TestGenerateUnifiedRecommendations:
                 occasion_type="just_because",
                 budget_range=_sample_budget_range(),
             )
-            assert len(results) == 2
-            # Exhausted the retry budget trying for a third.
+            assert results == []
             assert mock_client.messages.create.call_count == 3
+
+    async def test_end_to_end_no_returned_note_ends_mid_sentence(self):
+        """If the model emits one mid-sentence note inside valid JSON, that rec is
+        dropped by validation and every surviving note ends on a complete thought."""
+        recs = _sample_claude_response()
+        recs[0]["personalization_note"] = (
+            "She mentioned wanting to learn pottery. "
+            "It's intimate, low-pressure, and works perfectly for a"
+        )
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock()]
+        mock_response.content[0].text = json.dumps(recs)
+        mock_response.stop_reason = "end_turn"
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "app.services.unified_generation.AsyncAnthropic",
+            return_value=mock_client,
+        ), patch(
+            "app.services.unified_generation.is_anthropic_configured",
+            return_value=True,
+        ):
+            vault = _sample_vault_data()
+            results = await generate_unified_recommendations(
+                vault_data=vault,
+                hints=_sample_hints(),
+                occasion_type="just_because",
+                budget_range=_sample_budget_range(),
+            )
+            # The mid-sentence rec is filtered out; the other two survive intact.
+            assert len(results) == 2
+            for rec in results:
+                assert not is_incomplete_sentence(rec.personalization_note)

@@ -6715,6 +6715,41 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** New iOS suite green (4/4 via `xcodebuild test`); backend `pytest` green. Verified end-to-end: a Debug simulator build runs the script (`inject-dev-host: DevAPIBaseURL = http://192.168.1.239:8000`), `Knot.app/DevServer.plist` carries the IP, and `Info.plist` has no leak. **Note:** building into the iCloud-synced project folder triggers an unrelated codesign "resource fork / Finder information detritus" failure on SPM bundles (`com.apple.fileprovider.fpfs#P` xattrs); build to a DerivedData path outside the synced folder (e.g. `-derivedDataPath /tmp/KnotDD`) to avoid it.
 
+### Step 19.1 ✅ Security — Replace Regex HTML Filtering in Availability Node with a Real Parser
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Resolve a GitHub CodeQL **High**-severity alert (`py/bad-tag-filter`, CWE-20/116/185/186), "Bad HTML filtering regexp," on [backend/app/agents/availability.py]. The `_extract_text_from_html()` helper stripped `<script>`/`<style>` blocks from fetched product-page HTML with regular expressions before extracting price-relevant text. Regex-based HTML filtering is unreliable: the script-stripping pattern did not match malformed end tags (e.g. `</script foo="bar">`, `</script\n>`), so script bodies could slip through into the text sent to Claude for price extraction — polluting the LLM input. (No browser rendering occurs, so classic stored-XSS did not apply, but the leak degraded extraction quality.) The only reliable way to clear `py/bad-tag-filter` is to stop filtering HTML with regex.
+
+**Approach:** Rewrote **only** `_extract_text_from_html()` to parse with BeautifulSoup (pure-Python `html.parser` backend — no lxml). The function's signature and exact output format (`Title:` / `Meta:` / `Structured Data:` / `Page Text:` parts, the 4000-char body slice, and the `MAX_PAGE_CONTENT_CHARS` cap) are preserved, so the existing `TestExtractTextFromHtml` contract still holds. The rest of the file (fetching, replacement, Claude price verification) is untouched.
+
+**What changed:**
+- **`backend/app/agents/availability.py`:** Added `from bs4 import BeautifulSoup`. `_extract_text_from_html` now parses once (`BeautifulSoup(html, "html.parser")`), then: extracts up to 3 JSON-LD `<script type="application/ld+json">` blocks via `find_all` (a case-insensitive `_is_jsonld` helper), reads the title via `soup.title`, the meta description via `soup.find("meta", attrs={"name": "description"})` (one call covers both attribute orders the old paired regexes handled), `.decompose()`s all `<script>`/`<style>` tags except JSON-LD, and collapses `soup.get_text(" ")` whitespace with the retained `re.sub(r"\s+", " ", ...)`. The three tag-matching regexes are gone; `re` is still used for whitespace only.
+- **`backend/requirements.txt`:** Added `beautifulsoup4` under a new "HTML Parsing (product-page price extraction)" section.
+- **`backend/tests/test_availability_node.py`:** Added two regression tests to `TestExtractTextFromHtml` — `test_strips_script_with_malformed_end_tag` (`</script foo="bar">` no longer leaks `alert(1)`) and `test_strips_uppercase_script_tags` (uppercase `<SCRIPT>` stripped). The 8 original extraction tests pass unchanged.
+
+**Tests:** `tests/test_availability_node.py` green (60 passed, incl. the 2 new cases). Manual sanity check: `_extract_text_from_html('<script>alert(1)</script foo="bar"><body>$49.99</body>')` returns `Page Text: $49.99` with no `alert(1)`. Once merged to `main`, CodeQL re-scans and the alert auto-resolves (no regex HTML filter remains).
+
+---
+
+### Step 18.56 ✅ Recommendations — Stop the "Why" Note from Ending Mid-Sentence
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** A recommendation's `personalization_note` (the "Why Knot picked this for {partner}" copy) was rendering cut off mid-sentence on the detail page — e.g. *"...It's intimate, low-pressure, and works perfectly for a"* (trailing off after the article "a"). Tracing confirmed the iOS view (no `lineLimit`, `fixedSize` grows), the `TEXT` DB column, and `truncate_prose(…, 600)` were all innocent (the visible note was only ~295 chars). The bad value originated at the single Claude call in `unified_generation.py`: either the 3-recommendation JSON was truncated by the `max_tokens=4096` cap, or Haiku emitted a grammatically-incomplete note inside otherwise-valid JSON. The code never checked `response.stop_reason`, so a `max_tokens` stop was silently treated as success.
+
+**Approach:** Backend-only, defense-in-depth across generation and serialization so a half-finished thought can never reach the UI — plus a read-time net that also cleans the already-served/stored copy a user is looking at on their next reveal.
+
+**What changed:**
+- **`backend/app/services/text_cleanup.py`:** Added two helpers (exported in `__all__`). `is_incomplete_sentence(text)` returns True when copy ends without sentence-ending punctuation, or ends on an ellipsis trailing a dangling article/conjunction/preposition (`_DANGLING_WORDS`) — but treats a model-written `.`/`!`/`?` as complete even when the last word is "in"/"this"/etc. `trim_to_complete_sentence(text)` returns complete text unchanged (fast path), else walks sentence boundaries (`_SENTENCE_BOUNDARY`) backward to the last *complete* one, falling back to repeatedly stripping trailing dangling words; never returns empty for non-empty input. It composes after `truncate_prose` (length first, completeness second).
+- **`backend/app/services/unified_generation.py`:** Raised `CLAUDE_MAX_TOKENS` 4096 → 8192 (a ceiling, not a target; Haiku 4.5 allows 64K, so latency is unchanged). Added a `response.stop_reason == "max_tokens"` guard that logs and retries instead of parsing a truncated body. `_validate_recommendation` now rejects empty or `is_incomplete_sentence` notes (forcing a retry). `_normalize_recommendation` wraps both `description` and `personalization_note` with `trim_to_complete_sentence(truncate_prose(...))` as the last-resort guard.
+- **`backend/app/api/recommendations.py`:** `_build_response_items` (the single boundary that serves notes to the app, used by both generate and refresh) now passes `description` and `personalization_note` through `trim_to_complete_sentence` as a read-time safety net, so any candidate — however produced — is clean on the wire.
+- **`backend/tests/test_text_cleanup.py` / `backend/tests/test_unified_generation.py`:** Added `TestIsIncompleteSentence` and `TestTrimToCompleteSentence` (incl. the exact reported string), and extended the validation/normalization/generation suites (rejects incomplete/empty notes, repairs short dangling copy, discards a `max_tokens` attempt and retries, returns empty when all attempts truncate, and asserts no returned note ends mid-sentence).
+
+**Tests:** `pytest tests/test_text_cleanup.py tests/test_unified_generation.py` green (90 passed); full backend suite green. No iOS changes.
+
+**Notes:** No DB backfill — stored notes are never read back for display (the GET-by-id / by-milestone endpoints return `MilestoneRecommendationItem`, which omits the note), and recommendations cycle on refresh; the read-time net covers everything served going forward.
+
 ---
 
 ### Step 19.1 ✅ Recommendations — Guarantee 3 Cards (Stop the Pipeline Dropping One)

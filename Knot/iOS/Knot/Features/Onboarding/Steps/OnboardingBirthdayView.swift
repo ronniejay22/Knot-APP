@@ -41,12 +41,8 @@ struct OnboardingBirthdayView: View {
 
     private var birthdaySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("Birthday")
-                    .knotFont(Theme.Typography.cardTitle)
-
-                KnotBadge("Required", variant: .accent, size: .sm)
-            }
+            Text("Birthday")
+                .knotFont(Theme.Typography.cardTitle)
 
             MilestoneDateField(
                 month: Binding(

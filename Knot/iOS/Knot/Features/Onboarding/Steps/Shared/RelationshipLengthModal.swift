@@ -49,9 +49,6 @@ struct RelationshipLengthField: View {
     /// to match the imported design.
     var label: String = "Relationship Length"
 
-    /// When true, a "Required" badge is shown beside the label.
-    var required: Bool = false
-
     /// Whether the user has explicitly chosen a length. When provided and
     /// `false`, the field shows `placeholder` and the modal opens at the
     /// current `months` default without committing it until Save. When `nil`
@@ -71,14 +68,8 @@ struct RelationshipLengthField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(label)
-                    .knotFont(Theme.Typography.cta)
-
-                if required {
-                    KnotBadge("Required", variant: .accent, size: .sm)
-                }
-            }
+            Text(label)
+                .knotFont(Theme.Typography.cta)
 
             Button {
                 present()

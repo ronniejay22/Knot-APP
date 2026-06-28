@@ -26,6 +26,7 @@ import re
 from typing import Any
 
 import httpx
+from bs4 import BeautifulSoup
 
 from app.agents.state import CandidateRecommendation, RecommendationState
 from app.agents.url_resolution import _build_merchant_search_url
@@ -68,45 +69,34 @@ def _extract_text_from_html(html: str) -> str:
         A text string containing title, meta description, JSON-LD data,
         and visible body text, capped at MAX_PAGE_CONTENT_CHARS.
     """
-    # Remove script and style blocks (except JSON-LD scripts)
-    cleaned = re.sub(
-        r"<script(?![^>]*type=[\"']application/ld\+json[\"'])[^>]*>.*?</script>",
-        "", html, flags=re.DOTALL | re.IGNORECASE,
-    )
-    cleaned = re.sub(
-        r"<style[^>]*>.*?</style>",
-        "", cleaned, flags=re.DOTALL | re.IGNORECASE,
-    )
+    # Parse with a real HTML parser rather than regex — regex-based tag
+    # filtering is unreliable against malformed markup (e.g. </script foo="bar">)
+    # and lets script bodies leak into the extracted text (CodeQL py/bad-tag-filter).
+    soup = BeautifulSoup(html, "html.parser")
 
-    # Extract title
-    title_match = re.search(
-        r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL,
-    )
-    title = title_match.group(1).strip() if title_match else ""
+    def _is_jsonld(tag: Any) -> bool:
+        return (tag.get("type") or "").strip().lower() == "application/ld+json"
 
-    # Extract meta description
-    meta_match = re.search(
-        r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\']',
-        html, re.IGNORECASE,
-    )
-    if not meta_match:
-        # Try reversed attribute order
-        meta_match = re.search(
-            r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*name=["\']description["\']',
-            html, re.IGNORECASE,
-        )
-    meta_desc = meta_match.group(1).strip() if meta_match else ""
+    # Extract JSON-LD structured data (often contains exact prices) before
+    # decomposing any scripts, so it survives the script/style stripping below.
+    jsonld_matches = [
+        s.get_text() for s in soup.find_all("script") if _is_jsonld(s)
+    ]
+    jsonld_text = "\n".join(jsonld_matches[:3]).strip()
 
-    # Extract JSON-LD structured data (often contains exact prices)
-    jsonld_matches = re.findall(
-        r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
-        html, re.DOTALL | re.IGNORECASE,
-    )
-    jsonld_text = "\n".join(jsonld_matches[:3])
+    # Extract title and meta description before stripping body content.
+    title = soup.title.get_text().strip() if soup.title else ""
 
-    # Strip remaining HTML tags for body text
-    body_text = re.sub(r"<[^>]+>", " ", cleaned)
-    body_text = re.sub(r"\s+", " ", body_text).strip()
+    meta_tag = soup.find("meta", attrs={"name": re.compile(r"^description$", re.IGNORECASE)})
+    meta_desc = (meta_tag.get("content") or "").strip() if meta_tag else ""
+
+    # Remove script and style blocks (except JSON-LD scripts) for body text.
+    for tag in soup.find_all(["script", "style"]):
+        if tag.name == "script" and _is_jsonld(tag):
+            continue
+        tag.decompose()
+
+    body_text = re.sub(r"\s+", " ", soup.get_text(" ")).strip()
 
     parts = []
     if title:
