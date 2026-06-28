@@ -988,6 +988,24 @@ class TestGenerateUnifiedRecommendations:
             )
             assert len(results) == 2  # only 2 valid recs
 
+    async def test_retries_when_fewer_than_three_valid(self):
+        """
+        If Claude returns only 2 valid recs on the first attempt, generation
+        re-rolls and returns the full set of 3 on the retry (PRD F2: exactly
+        three cards). Guards against the onboarding screen showing only 2.
+        """
+        short_response = MagicMock()
+        short_response.content = [MagicMock()]
+        short_response.content[0].text = json.dumps(_sample_claude_response()[:2])
+
+        full_response = MagicMock()
+        full_response.content = [MagicMock()]
+        full_response.content[0].text = json.dumps(_sample_claude_response())
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            side_effect=[short_response, full_response]
+        )
     async def test_discards_max_tokens_truncated_attempt(self):
         """A max_tokens stop is discarded (even with parseable text) and retried."""
         truncated = MagicMock()

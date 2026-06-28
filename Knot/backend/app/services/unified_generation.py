@@ -486,6 +486,10 @@ async def generate_unified_recommendations(
         vault_data.vault_id, occasion_type, len(excluded_titles or []),
     )
 
+    # Track the largest valid set seen across attempts so a short result can be
+    # re-rolled (within the retry budget) without losing a usable fallback.
+    best_recs: list[CandidateRecommendation] = []
+
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = await client.messages.create(
@@ -540,7 +544,10 @@ async def generate_unified_recommendations(
                         raw_rec.get("title", "?"),
                     )
 
-            if valid_recs:
+            if len(valid_recs) > len(best_recs):
+                best_recs = valid_recs
+
+            if len(valid_recs) >= 3:
                 logger.info(
                     "Generated %d valid recommendations for vault %s: %s",
                     len(valid_recs), vault_data.vault_id,
@@ -548,9 +555,12 @@ async def generate_unified_recommendations(
                 )
                 return valid_recs[:3]
 
+            # Fewer than 3 valid items — re-roll if we still have attempts left,
+            # so the screen reliably shows 3 cards (PRD F2).
             logger.warning(
-                "No valid recommendations in Claude response (attempt %d/%d)",
-                attempt + 1, MAX_RETRIES + 1,
+                "Only %d valid recommendations in Claude response (attempt %d/%d) — "
+                "retrying for a full set of 3",
+                len(valid_recs), attempt + 1, MAX_RETRIES + 1,
             )
 
         except json.JSONDecodeError as exc:
@@ -563,6 +573,15 @@ async def generate_unified_recommendations(
                 "Unified generation failed (attempt %d/%d): %s",
                 attempt + 1, MAX_RETRIES + 1, exc,
             )
+
+    if best_recs:
+        # Every attempt fell short of 3, but we have at least one usable card —
+        # return the best partial set rather than nothing.
+        logger.warning(
+            "Unified generation never reached 3 for vault %s — returning best %d",
+            vault_data.vault_id, len(best_recs),
+        )
+        return best_recs[:3]
 
     logger.error(
         "Unified generation exhausted all retries for vault %s",
