@@ -358,6 +358,24 @@ class TestExtractTextFromHtml:
         result = _extract_text_from_html("")
         assert isinstance(result, str)
 
+    def test_strips_script_with_malformed_end_tag(self):
+        """A malformed/attributed end tag must not let script JS leak through.
+
+        The old regex sanitizer missed end tags like </script foo="bar">, so the
+        JS body slipped into the extracted page text (CodeQL py/bad-tag-filter).
+        """
+        html = '<html><script>alert(1)</script foo="bar"><body>$49.99</body></html>'
+        result = _extract_text_from_html(html)
+        assert "alert(1)" not in result
+        assert "$49.99" in result
+
+    def test_strips_uppercase_script_tags(self):
+        """Tag names are case-insensitive; uppercase SCRIPT must be stripped."""
+        html = "<html><SCRIPT>var x = 1;</SCRIPT><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "var x = 1" not in result
+        assert "$49.99" in result
+
 
 # ======================================================================
 # 4. Claude price verification
