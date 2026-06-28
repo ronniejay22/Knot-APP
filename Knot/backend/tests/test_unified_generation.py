@@ -943,3 +943,69 @@ class TestGenerateUnifiedRecommendations:
                 budget_range=_sample_budget_range(),
             )
             assert len(results) == 2  # only 2 valid recs
+
+    async def test_retries_when_fewer_than_three_valid(self):
+        """
+        If Claude returns only 2 valid recs on the first attempt, generation
+        re-rolls and returns the full set of 3 on the retry (PRD F2: exactly
+        three cards). Guards against the onboarding screen showing only 2.
+        """
+        short_response = MagicMock()
+        short_response.content = [MagicMock()]
+        short_response.content[0].text = json.dumps(_sample_claude_response()[:2])
+
+        full_response = MagicMock()
+        full_response.content = [MagicMock()]
+        full_response.content[0].text = json.dumps(_sample_claude_response())
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            side_effect=[short_response, full_response]
+        )
+
+        with patch(
+            "app.services.unified_generation.AsyncAnthropic",
+            return_value=mock_client,
+        ), patch(
+            "app.services.unified_generation.is_anthropic_configured",
+            return_value=True,
+        ):
+            vault = _sample_vault_data()
+            results = await generate_unified_recommendations(
+                vault_data=vault,
+                hints=[],
+                occasion_type="just_because",
+                budget_range=_sample_budget_range(),
+            )
+            assert len(results) == 3
+            assert mock_client.messages.create.call_count == 2
+
+    async def test_returns_best_partial_when_never_reaches_three(self):
+        """
+        If every attempt falls short of 3, generation returns the best partial
+        set it saw rather than an empty list — the screen still shows what we have.
+        """
+        short_response = MagicMock()
+        short_response.content = [MagicMock()]
+        short_response.content[0].text = json.dumps(_sample_claude_response()[:2])
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=short_response)
+
+        with patch(
+            "app.services.unified_generation.AsyncAnthropic",
+            return_value=mock_client,
+        ), patch(
+            "app.services.unified_generation.is_anthropic_configured",
+            return_value=True,
+        ):
+            vault = _sample_vault_data()
+            results = await generate_unified_recommendations(
+                vault_data=vault,
+                hints=[],
+                occasion_type="just_because",
+                budget_range=_sample_budget_range(),
+            )
+            assert len(results) == 2
+            # Exhausted the retry budget trying for a third.
+            assert mock_client.messages.create.call_count == 3

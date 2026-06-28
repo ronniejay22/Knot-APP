@@ -6717,6 +6717,30 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.1 ✅ Recommendations — Guarantee 3 Cards (Stop the Pipeline Dropping One)
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** The onboarding "Here are your recommendations" reveal was rendering only **2** cards (two page dots) when the product spec requires **exactly 3** (PRD **F2**: "Every trigger must generate exactly three distinct cards"). This was never a hardcoded `2` — every layer already targets 3 (Claude prompt says "Generate exactly 3", generation returns `valid_recs[:3]`, and the iOS `SpotlightCarouselView` cards/page-dots are fully data-driven). The screen showed 2 because the recommendation **pipeline silently dropped a card** before the response.
+
+**Root cause:** Two drop points, neither of which backfilled.
+- **Primary — dead URL with no backup pool.** The `verify_urls` node (`verify_availability`) GETs each card's URL and, on failure, tries to replace it from `state.filtered_recommendations`. But the simplified unified pipeline (`build_recommendation_graph`: `retrieve_hints → generate_unified → generate_briefing → resolve_urls → verify_urls`) **never populates that backup pool**, so it is always empty. When no replacement was found the card was simply not appended to `verified` — 3 collapsed to 2.
+- **Secondary (rarer) — under-generation.** `generate_unified_recommendations` returned on the first attempt yielding *any* valid recs, so if Claude omitted one or one failed validation, 2 items passed straight through with no re-roll.
+
+**Approach (chosen by user — "never drop a card; no extra latency"):** Preserve the card count without adding a network round-trip.
+
+**What changed:**
+- **`backend/app/agents/availability.py`:** In `verify_availability`, the `if not replaced:` branch now **keeps the original card** with its dead URL downgraded to a fallback search link (`candidate.model_copy(update={"external_url": _build_merchant_search_url(candidate)})`) instead of dropping it. Reuses the existing `_build_merchant_search_url` helper imported from `app/agents/url_resolution.py` (same Google-Shopping fallback already used during URL resolution). Net effect: `len(verified) == len(selected)` always. Docstrings updated to match.
+- **`backend/app/services/unified_generation.py`:** `generate_unified_recommendations` now tracks the best (largest) valid set across attempts. It returns immediately only when `len(valid_recs) >= 3`; a short result re-rolls within the existing `MAX_RETRIES` budget, and after the loop it returns the best partial set (`best_recs[:3]`) rather than `[]` when at least one card exists. Adds latency only in the rare short-generation case, never beyond the current retry ceiling.
+- **iOS:** No change required — `OnboardingCompletionView` passes `viewModel.recommendations` straight into `SpotlightCarouselView`, whose `ForEach(0..<items.count)` cards and page dots already adapt to 3 (dots show when `items.count > 1`).
+
+**Tests:**
+- `backend/tests/test_availability_node.py` — added `test_dead_url_kept_with_fallback_when_pool_empty` (the direct regression: 3 cards, one dead URL, empty pool → returns 3 with a fallback URL on the dead card). Updated four existing tests that encoded the old "drop the card" behavior (`test_max_replacement_attempts_respected`, `test_all_unavailable_no_backups`, `test_partial_results_when_some_fail`, `test_empty_backup_pool`) to assert the card is kept with a fallback search URL.
+- `backend/tests/test_unified_generation.py` — added `test_retries_when_fewer_than_three_valid` (2 valid → retry → 3) and `test_returns_best_partial_when_never_reaches_three` (exhausts retries, returns best partial).
+- Full backend `pytest` suite green.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
