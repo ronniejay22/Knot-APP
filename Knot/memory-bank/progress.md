@@ -6732,6 +6732,21 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.2 ✅ Security — Stop Cleartext Logging of Email/Token in AuthViewModel
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Resolve five GitHub CodeQL **High**-severity "Cleartext logging of sensitive information" alerts (#9–#13) against `main`, all on [iOS/Knot/Features/Auth/AuthViewModel.swift]. Each flagged a leftover sign-in diagnostic `print()` that interpolated the user's **email address** into the device console — lines 107, 224, 277, 326, and 356 (session restore, Apple Sign-In, Supabase sign-in, Google sign-in, and magic-link). Because the app logs with plain `print()` (no `os.Logger`, no `#if DEBUG` fence), these ran in release builds too, writing PII to the console where any connected tool could read it.
+
+**Approach:** Following the Step 19.1 precedent (the only reliable way to clear a taint-based CodeQL alert is to stop the flagged flow, not to mask it), the sensitive values were removed from the log strings entirely so email no longer reaches the `print` sink. Non-sensitive confirmation logs ("succeeded" / "sent") and the opaque user-ID logs were kept for debugging. The egregious access-token leak two lines below the Supabase email log (line 278 — logged the first 20 chars of `session.accessToken`) was redacted in the same pass even though CodeQL hadn't flagged it, since it is strictly more sensitive than an email.
+
+**What changed:**
+- **`iOS/Knot/Features/Auth/AuthViewModel.swift`:** Deleted the four `print("[Knot] Email: …")` lines in `listenForAuthChanges` (session restore), `signInWithSupabase`, and `signInWithGoogle`; removed the whole `if let email = credential.email { print(…) }` block in the Apple Sign-In handler (`email` was used only by that log); changed the magic-link log to `print("[Knot] Magic link sent")` (dropped `to \(email)` — the `email` value is still passed to `signInWithOTP`); and changed the access-token log to `print("[Knot] Access token received")` (dropped the `session.accessToken.prefix(20))...` interpolation). Net: 2 insertions, 8 deletions.
+
+**Tests:** No new unit test is meaningful — the change only removes `print` output, which has no observable behavior. `grep -nE 'print\(.*(email|Email|accessToken)' AuthViewModel.swift` returns nothing; the only remaining token/email matches are the static "Auth state: token refreshed" string and the redacted "Access token received". Non-visual / Auth-logic change, so no PR screenshot. Once merged to `main`, CodeQL re-scans and alerts #9–#13 auto-resolve (no email taint path to a log sink remains).
+
+---
+
 ### Step 18.56 ✅ Recommendations — Stop the "Why" Note from Ending Mid-Sentence
 **Date:** 2026-06-28
 **Status:** Complete

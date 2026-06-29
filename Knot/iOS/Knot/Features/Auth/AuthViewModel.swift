@@ -104,7 +104,6 @@ final class AuthViewModel {
                     isAuthenticated = true
                     print("[Knot] Session restored from Keychain")
                     print("[Knot] User ID: \(session.user.id)")
-                    print("[Knot] Email: \(session.user.email ?? "hidden")")
 
                     // Pending-deletion check (Step 15.5) — runs before vault check
                     // so a pending user never sees a flash of Home/Onboarding.
@@ -220,9 +219,6 @@ final class AuthViewModel {
             }
 
             print("[Knot] Apple Sign-In succeeded — forwarding to Supabase")
-            if let email = credential.email {
-                print("[Knot] Email: \(email)")
-            }
 
             await signInWithSupabase(idToken: idToken)
 
@@ -274,8 +270,7 @@ final class AuthViewModel {
 
             print("[Knot] Supabase sign-in succeeded")
             print("[Knot] Supabase User ID: \(session.user.id)")
-            print("[Knot] Email: \(session.user.email ?? "hidden (Apple Private Relay)")")
-            print("[Knot] Access token: \(session.accessToken.prefix(20))...")
+            print("[Knot] Access token received")
 
         } catch {
             currentNonce = nil
@@ -323,7 +318,6 @@ final class AuthViewModel {
 
             print("[Knot] Google native sign-in succeeded")
             print("[Knot] Supabase User ID: \(session.user.id)")
-            print("[Knot] Email: \(session.user.email ?? "hidden")")
 
         } catch let error as GIDSignInError where error.code == .canceled {
             print("[Knot] Google sign-in cancelled by user")
@@ -353,7 +347,7 @@ final class AuthViewModel {
                 redirectTo: Constants.Supabase.redirectURL,
                 shouldCreateUser: true
             )
-            print("[Knot] Magic link sent to \(email)")
+            print("[Knot] Magic link sent")
         } catch {
             signInError = "Failed to send magic link. Please try again."
             showError = true
