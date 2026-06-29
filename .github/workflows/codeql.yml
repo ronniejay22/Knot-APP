@@ -45,6 +45,20 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      # Regenerate the project from project.yml BEFORE CodeQL init. The CodeQL
+      # manual-build tracer wraps the build step under x86_64 emulation, and
+      # Homebrew refuses to install into the arm64 prefix from a Rosetta process
+      # ("Cannot install under Rosetta 2 in ARM default prefix"). Installing
+      # xcodegen here, in the untraced native-arm64 environment, sidesteps that;
+      # the traced step below then only runs xcodebuild, which is all CodeQL
+      # needs to observe.
+      - name: Generate Xcode project
+        if: matrix.language == 'swift'
+        working-directory: Knot/iOS
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -53,14 +67,12 @@ jobs:
 
       # Default-setup autobuild ran a bare `xcodebuild -target Knot` with no
       # scheme/destination and failed. Build the way the project actually
-      # builds: regenerate from project.yml, Release config (skips the Debug-only
-      # inject-dev-host post-build script), generic iOS device SDK, unsigned.
+      # builds: Release config (skips the Debug-only inject-dev-host post-build
+      # script), generic iOS device SDK, unsigned.
       - name: Build Swift
         if: matrix.language == 'swift'
         working-directory: Knot/iOS
         run: |
-          brew install xcodegen
-          xcodegen generate
           xcodebuild build \
             -project Knot.xcodeproj \
             -scheme Knot \
