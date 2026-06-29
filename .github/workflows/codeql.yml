@@ -1,0 +1,89 @@
+name: "CodeQL"
+
+# Advanced CodeQL setup. This replaces GitHub's default setup (the two cannot
+# coexist), so it must cover every scanned language: Python via build-mode
+# "none", and Swift via an explicit manual build. After merging, switch the repo
+# from Default to Advanced under Settings -> Code security -> CodeQL analysis.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 5 * * 1" # weekly, Mondays 05:30 UTC
+
+jobs:
+  analyze:
+    name: "Analyze (${{ matrix.language }})"
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+            runner: ubuntu-latest
+          - language: swift
+            build-mode: manual
+            runner: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Swift 6 / strict concurrency needs a recent Xcode; pin to whatever
+      # stable Xcode the runner ships rather than hard-coding a version.
+      - name: Select Xcode
+        if: matrix.language == 'swift'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # Regenerate the project from project.yml BEFORE CodeQL init. The CodeQL
+      # manual-build tracer wraps the build step under x86_64 emulation, and
+      # Homebrew refuses to install into the arm64 prefix from a Rosetta process
+      # ("Cannot install under Rosetta 2 in ARM default prefix"). Installing
+      # xcodegen here, in the untraced native-arm64 environment, sidesteps that;
+      # the traced step below then only runs xcodebuild, which is all CodeQL
+      # needs to observe.
+      - name: Generate Xcode project
+        if: matrix.language == 'swift'
+        working-directory: Knot/iOS
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # Default-setup autobuild ran a bare `xcodebuild -target Knot` with no
+      # scheme/destination and failed. Build the way the project actually
+      # builds: Release config (skips the Debug-only inject-dev-host post-build
+      # script), generic iOS device SDK, unsigned.
+      - name: Build Swift
+        if: matrix.language == 'swift'
+        working-directory: Knot/iOS
+        run: |
+          xcodebuild build \
+            -project Knot.xcodeproj \
+            -scheme Knot \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
