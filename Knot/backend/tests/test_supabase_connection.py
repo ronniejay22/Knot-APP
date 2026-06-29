@@ -40,6 +40,7 @@ requires_supabase = pytest.mark.skipif(
 # 1. Environment variable loading
 # ---------------------------------------------------------------------------
 
+@requires_supabase
 class TestEnvironmentConfig:
     """Verify that .env file exists and Supabase credentials are loaded."""
 

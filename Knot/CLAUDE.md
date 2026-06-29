@@ -22,6 +22,16 @@ workflow end-to-end on your own — the user should not have to type any slash c
      ```
      (Verified: packages come from the main venv, tests/code from the worktree.) iOS tests run
      via `xcodebuild test` as usual.
+   - **Offline mode (skip live-service integration tests):** `.worktreeinclude` copies the real
+     `backend/.env`, so a plain `pytest` runs the credential-gated integration tests against live
+     Supabase / Claude / Firecrawl / QStash and can hang on network calls. To run only the fast,
+     network-free unit tests, pass `--offline` (or export `KNOT_OFFLINE_TESTS=1`):
+     ```bash
+     "$MAIN/Knot/backend/venv/bin/python" -m pytest --offline
+     ```
+     This blanks the external credentials (see `backend/conftest.py`) so every `requires_*`
+     guard skips its integration tests. Prefer this for quick iteration; run the full live suite
+     before shipping when your change touches an integration path.
 3. **Ship automatically.** When the change works, invoke the **`/ship-pr`** skill *without being
    asked*. It runs the test suite, runs `/code-review` and auto-fixes safe findings, commits with
    the project's message conventions, pushes the branch, and opens a PR.
