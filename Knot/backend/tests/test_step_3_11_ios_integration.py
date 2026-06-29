@@ -40,6 +40,21 @@ pytestmark = pytest.mark.skipif(
 
 
 # ======================================================================
+# Skip guard — these tests hit live Supabase
+# ======================================================================
+
+def _supabase_configured() -> bool:
+    """Return True if all Supabase credentials are present."""
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
+
+
+requires_supabase = pytest.mark.skipif(
+    not _supabase_configured(),
+    reason="Supabase credentials not configured (set creds, or unset for offline mode)",
+)
+
+
+# ======================================================================
 # Fixtures
 # ======================================================================
 
@@ -201,6 +216,7 @@ def _query_table(table: str, column: str, value: str) -> list:
 # Test 1: iOS onboarding payload → 201 success
 # ======================================================================
 
+@requires_supabase
 class TestiOSOnboardingSubmission:
     """Simulates the complete iOS onboarding → backend submission flow."""
 
@@ -311,6 +327,7 @@ class TestiOSOnboardingSubmission:
 # Test 2: Vault existence check (simulates VaultService.vaultExists())
 # ======================================================================
 
+@requires_supabase
 class TestVaultExistenceCheck:
     """
     Simulates VaultService.vaultExists() — the PostgREST query
@@ -359,6 +376,7 @@ class TestVaultExistenceCheck:
 # Test 3: Error handling (simulates iOS error scenarios)
 # ======================================================================
 
+@requires_supabase
 class TestiOSErrorHandling:
     """Simulates error conditions the iOS app must handle."""
 
@@ -405,6 +423,7 @@ class TestiOSErrorHandling:
 # Test 4: Returning user flow (sign out → sign in → vault still there)
 # ======================================================================
 
+@requires_supabase
 class TestReturningUserFlow:
     """
     Simulates the returning user scenario:
