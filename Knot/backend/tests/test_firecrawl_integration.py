@@ -180,6 +180,17 @@ class TestVenueExtraction:
         assert "Skyline Gallery" in names
         assert "Midnight Rooftop Bar" in names
 
+    def test_header_parsing_handles_many_blank_lines_quickly(self):
+        """Regression guard for ReDoS: a header block padded with many blank
+        lines must still parse and must complete near-instantly (no catastrophic
+        backtracking in the header pattern)."""
+        markdown = "## The Blue Room" + ("\n" * 5000) + "A cozy Italian spot.\n"
+        start = time.monotonic()
+        venues = _extract_venues_from_markdown(markdown)
+        elapsed = time.monotonic() - start
+        assert elapsed < 1.0
+        assert any(v["name"] == "The Blue Room" for v in venues)
+
     def test_extracts_bold_venues(self):
         """Should extract venues from bold-formatted names."""
         venues = _extract_venues_from_markdown(SAMPLE_MARKDOWN_CITY_GUIDE)

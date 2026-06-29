@@ -342,6 +342,19 @@ class TestExtractTextFromHtml:
         assert "color: red" not in result
         assert "$49.99" in result
 
+    def test_strips_script_tags_with_spaced_close_tag(self):
+        """Closing tags with whitespace (</script >, </script\\n>) must still be stripped."""
+        html = "<html><script>var x = 1;</script ><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "var x = 1" not in result
+        assert "$49.99" in result
+
+    def test_strips_style_tags_with_newline_close_tag(self):
+        html = "<html><style>.price { color: red; }</style\n><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "color: red" not in result
+        assert "$49.99" in result
+
     def test_preserves_jsonld_scripts(self):
         """JSON-LD scripts should NOT be stripped (they contain price data)."""
         jsonld = '{"@type": "Product", "offers": {"price": "50.00"}}'
