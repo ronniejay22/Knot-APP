@@ -169,7 +169,7 @@ def _extract_venues_from_markdown(
     # Pattern 1: Markdown headers followed by description text
     # Matches: ## Venue Name\nDescription text...
     header_pattern = re.compile(
-        r"^#{2,4}\s+(.+?)(?:\s*\n)+(.+?)(?=\n#{2,4}\s|\n\n\n|\Z)",
+        r"^#{2,4}\s+(.+?)(?:[^\S\n]*\n)+(.+?)(?=\n#{2,4}\s|\n\n\n|\Z)",
         re.MULTILINE | re.DOTALL,
     )
 

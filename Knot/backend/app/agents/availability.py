@@ -67,11 +67,11 @@ def _extract_text_from_html(html: str) -> str:
     """
     # Remove script and style blocks (except JSON-LD scripts)
     cleaned = re.sub(
-        r"<script(?![^>]*type=[\"']application/ld\+json[\"'])[^>]*>.*?</script>",
+        r"<script(?![^>]*type=[\"']application/ld\+json[\"'])[^>]*>.*?</script\s*>",
         "", html, flags=re.DOTALL | re.IGNORECASE,
     )
     cleaned = re.sub(
-        r"<style[^>]*>.*?</style>",
+        r"<style[^>]*>.*?</style\s*>",
         "", cleaned, flags=re.DOTALL | re.IGNORECASE,
     )
 
