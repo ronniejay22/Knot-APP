@@ -577,10 +577,14 @@ This pattern ensures user data isolation by default while allowing privileged op
 ### 10. SQL Migrations Strategy
 Database schema changes are stored as numbered SQL files in `backend/supabase/migrations/` (e.g., `00001_enable_pgvector.sql`). These can be run manually via the Supabase SQL Editor or via the Supabase CLI (`supabase db push`). Migrations are sequential and should never be modified after being applied — always create a new migration file for changes.
 
-### 11. Test Configuration (`pyproject.toml`)
+### 11. Test Configuration (`pyproject.toml` + `conftest.py`)
 Pytest is configured with:
 - `asyncio_mode = "auto"` — async test functions are detected and run automatically without `@pytest.mark.asyncio`
 - `filterwarnings` — suppresses known deprecation warnings from `pyiceberg` (a transitive dependency of `supabase`). Only third-party warnings are suppressed; warnings from our code still surface.
+- `timeout = 120`, `timeout_method = "thread"` (via `pytest-timeout`) — a per-test hang safety net. The `thread` method fires even on blocking C-level socket I/O (e.g. an `httpx` call with no `timeout=`), which the default `signal` method cannot reliably interrupt. Any test exceeding 120s is killed with a traceback rather than blocking the whole run; long live-LLM tests can override with `@pytest.mark.timeout(...)`.
+- `addopts = "--strict-markers"` and a registered `integration` marker — catches typo'd markers and gates the live-service tests (below).
+
+**Offline-by-default test tiering (`backend/conftest.py`).** `backend/.env` carries real credentials for every external service, so tests guarded by `@pytest.mark.skipif(not <service>_configured(), reason="… not configured in .env")` would otherwise fire real network calls (live Supabase auth users, DB-trigger sleeps, live Yelp/Amazon/Ticketmaster/Claude) on a bare `pytest` run — slow, flaky, and prone to hanging. The root `conftest.py` keeps the default suite fast and deterministic: in `pytest_collection_modifyitems` it gates at the **item** level — any test carrying a `skipif` whose reason contains "not configured" (the convention every service guard shares: Supabase, Yelp, Amazon, Ticketmaster, Firecrawl, Shopify, Vertex AI) is tagged `integration` and skipped unless the run opts in via `--integration` (CLI) or `KNOT_RUN_INTEGRATION=1` (env, used by the agent /ship-pr workflow). Item-level (not module-level) gating is deliberate: live modules also hold offline/mocked unit tests with no such guard, and those keep running by default. New live tests following the convention are covered automatically. Default `pytest` ≈ 1250 passed / 617 skipped, offline; `pytest --integration` runs the live suite. (`test_step_3_11_ios_integration.py` was brought into the convention with a module-level `pytestmark` guard, since it made live Supabase calls without one.)
 
 ### 12. Test Organization
 Tests are organized by scope in `backend/tests/`:

@@ -24,6 +24,21 @@ from app.db.supabase_client import get_service_client
 from app.main import app
 
 
+def _supabase_configured() -> bool:
+    """True only when live Supabase creds are present."""
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
+
+
+# Every test here creates/signs-in/deletes real Supabase auth users and queries
+# live PostgREST, so the whole module is a live-integration test. The module-level
+# guard skips it when creds are absent and lets the offline-by-default tiering in
+# conftest.py gate it (see that file's docstring).
+pytestmark = pytest.mark.skipif(
+    not _supabase_configured(),
+    reason="Supabase credentials not configured in .env",
+)
+
+
 # ======================================================================
 # Fixtures
 # ======================================================================
