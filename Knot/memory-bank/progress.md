@@ -6796,6 +6796,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.1 ✅ Dev Tooling — Auto-Attach a UI Screenshot to Every PR That Changes the UI
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** A reviewer reading an agent-opened PR for a UI change had no way to see what the change looked like without checking out the branch and running the app. Make the autonomous workflow capture a screenshot of the affected screen and embed it directly in the PR.
+
+**Approach:** Reuse the existing XCUITest screenshot pattern (`XCTAttachment(screenshot:)`), drive it headless via `xcodebuild test`, extract the PNG with `xcrun xcresulttool export attachments`, commit it into the branch, and embed it inline in the PR body via a `raw.githubusercontent.com` URL (the repo is public, so GitHub renders it). If capture fails after a `simctl` fallback, the workflow ships the PR anyway with a note rather than blocking on a flaky simulator.
+
+**What changed:**
+- **`iOS/scripts/capture-ui-screenshot.sh` (new):** One-call capture helper. Regenerates the project (`xcodegen generate`) so new test files are included, picks an available simulator (prefers iPhone 17 Pro), runs the `PRScreenshotTests` UI test to a result bundle, extracts the attachment named "PR Screenshot" via `xcresulttool` (manifest lookup with a largest-PNG fallback), and writes `docs/pr-screenshots/<branch>.png`. Falls back to `xcrun simctl io booted screenshot`; exits non-zero with a reason if both paths fail.
+- **`iOS/KnotUITests/PRScreenshotTests.swift` (new):** UI test mirroring `KnotUITestsLaunchTests` with a clearly-marked navigation slot the agent edits per change; the attachment MUST stay named "PR Screenshot" (the script looks it up by that name). Default (no edits) captures the first screen.
+- **`docs/pr-screenshots/` (new):** Committed output directory (`.gitkeep`) for captured screenshots.
+- **`CLAUDE.md`:** Added a "Screenshot any UI change" step to the Autonomous Feature Workflow defining what counts as a UI change and when to skip it.
+- **`~/.claude/skills/ship-pr/SKILL.md` (global, not in repo):** Phase 3 now embeds the screenshot (or a "no screenshot" note) in the PR body.
+
+**Tests:** Full iOS suite green (319 unit + 5 UI tests via `xcodebuild test`, including the new `PRScreenshotTests`). Verified the capture script end-to-end — `docs/pr-screenshots/test.png` produced a valid 1206×2622 render of the "For You" home screen, then removed as a smoke artifact. This PR touches no app view code, so it is the negative case (no screenshot section in its own PR).
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
