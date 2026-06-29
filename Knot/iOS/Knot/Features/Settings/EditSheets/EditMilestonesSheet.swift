@@ -113,8 +113,6 @@ struct EditMilestonesSheet: View {
 
                 Text("Birthday")
                     .knotFont(Theme.Typography.cardTitle)
-
-                KnotBadge("Required", variant: .accent, size: .sm)
             }
 
             // Month + Day pickers

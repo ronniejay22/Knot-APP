@@ -21,7 +21,12 @@ from typing import Any, Optional
 from anthropic import AsyncAnthropic
 
 from app.services.llm_tuning import fast_generation_params
-from app.services.text_cleanup import humanize_tags, truncate_prose
+from app.services.text_cleanup import (
+    humanize_tags,
+    is_incomplete_sentence,
+    trim_to_complete_sentence,
+    truncate_prose,
+)
 
 from app.agents.state import (
     UNLIMITED_BUDGET_MAX_CENTS,
@@ -47,7 +52,12 @@ logger = logging.getLogger(__name__)
 # (Haiku does not accept output_config.effort — fast_generation_params handles
 # that automatically.)
 CLAUDE_MODEL = "claude-haiku-4-5"
-CLAUDE_MAX_TOKENS = 4096
+# 8192 gives the 3-recommendation JSON (each with rich content_sections) ample
+# headroom so the array is never cut mid-stream — the old 4096 cap could truncate
+# the response, leaving a personalization_note ending mid-sentence. It is a
+# ceiling, not a target (Haiku 4.5 allows up to 64K), so typical latency is
+# unchanged. A max_tokens stop is now also detected explicitly below and retried.
+CLAUDE_MAX_TOKENS = 8192
 MAX_RETRIES = 2
 
 # Valid content section types (same as idea_generation.py)
@@ -318,6 +328,15 @@ def _validate_recommendation(rec: dict[str, Any]) -> bool:
     if rec_type not in ("gift", "experience", "date", "idea", "plan"):
         return False
 
+    # The personalization_note is the emotional centerpiece shown on the detail
+    # page — reject empty or mid-sentence notes so the generation loop retries
+    # rather than surfacing a half-finished thought.
+    note = rec.get("personalization_note")
+    if not isinstance(note, str) or not note.strip():
+        return False
+    if is_incomplete_sentence(note):
+        return False
+
     # Ideas and plans must have content_sections with overview + steps
     if rec_type in ("idea", "plan"):
         sections = rec.get("content_sections")
@@ -383,7 +402,9 @@ def _normalize_recommendation(
         source="unified",
         type=rec_type,
         title=str(rec["title"])[:100],
-        description=truncate_prose(humanize_tags(str(rec.get("description", "")), tag_vocab), 600),
+        description=trim_to_complete_sentence(
+            truncate_prose(humanize_tags(str(rec.get("description", "")), tag_vocab), 600)
+        ),
         price_cents=rec.get("price_cents") if is_purchasable else None,
         currency=vault_data.budgets[0].currency if vault_data.budgets else "USD",
         price_confidence="estimated" if rec.get("price_cents") and is_purchasable else "unknown",
@@ -394,8 +415,10 @@ def _normalize_recommendation(
         metadata={"generation_model": CLAUDE_MODEL},
         is_idea=is_idea,
         content_sections=content_sections,
-        personalization_note=truncate_prose(
-            humanize_tags(str(rec.get("personalization_note", "")), tag_vocab), 600
+        personalization_note=trim_to_complete_sentence(
+            truncate_prose(
+                humanize_tags(str(rec.get("personalization_note", "")), tag_vocab), 600
+            )
         ),
         search_query=rec.get("search_query") if is_purchasable else None,
         matched_interests=rec.get("matched_interests", []),
@@ -463,6 +486,10 @@ async def generate_unified_recommendations(
         vault_data.vault_id, occasion_type, len(excluded_titles or []),
     )
 
+    # Track the largest valid set seen across attempts so a short result can be
+    # re-rolled (within the retry budget) without losing a usable fallback.
+    best_recs: list[CandidateRecommendation] = []
+
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = await client.messages.create(
@@ -473,6 +500,18 @@ async def generate_unified_recommendations(
                 # Keep generation fast — see app/services/llm_tuning.py.
                 **fast_generation_params(CLAUDE_MODEL),
             )
+
+            # A max_tokens stop means the JSON was cut off mid-stream; parsing it
+            # would either fail or silently keep a truncated personalization_note.
+            # Discard the attempt and retry rather than trust a partial body.
+            if getattr(response, "stop_reason", None) == "max_tokens":
+                logger.warning(
+                    "Claude response truncated at max_tokens=%d (attempt %d/%d) — "
+                    "discarding partial JSON for vault %s",
+                    CLAUDE_MAX_TOKENS, attempt + 1, MAX_RETRIES + 1,
+                    vault_data.vault_id,
+                )
+                continue
 
             text = response.content[0].text.strip()
 
@@ -505,7 +544,10 @@ async def generate_unified_recommendations(
                         raw_rec.get("title", "?"),
                     )
 
-            if valid_recs:
+            if len(valid_recs) > len(best_recs):
+                best_recs = valid_recs
+
+            if len(valid_recs) >= 3:
                 logger.info(
                     "Generated %d valid recommendations for vault %s: %s",
                     len(valid_recs), vault_data.vault_id,
@@ -513,9 +555,12 @@ async def generate_unified_recommendations(
                 )
                 return valid_recs[:3]
 
+            # Fewer than 3 valid items — re-roll if we still have attempts left,
+            # so the screen reliably shows 3 cards (PRD F2).
             logger.warning(
-                "No valid recommendations in Claude response (attempt %d/%d)",
-                attempt + 1, MAX_RETRIES + 1,
+                "Only %d valid recommendations in Claude response (attempt %d/%d) — "
+                "retrying for a full set of 3",
+                len(valid_recs), attempt + 1, MAX_RETRIES + 1,
             )
 
         except json.JSONDecodeError as exc:
@@ -528,6 +573,15 @@ async def generate_unified_recommendations(
                 "Unified generation failed (attempt %d/%d): %s",
                 attempt + 1, MAX_RETRIES + 1, exc,
             )
+
+    if best_recs:
+        # Every attempt fell short of 3, but we have at least one usable card —
+        # return the best partial set rather than nothing.
+        logger.warning(
+            "Unified generation never reached 3 for vault %s — returning best %d",
+            vault_data.vault_id, len(best_recs),
+        )
+        return best_recs[:3]
 
     logger.error(
         "Unified generation exhausted all retries for vault %s",

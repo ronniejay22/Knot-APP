@@ -342,6 +342,19 @@ class TestExtractTextFromHtml:
         assert "color: red" not in result
         assert "$49.99" in result
 
+    def test_strips_script_tags_with_spaced_close_tag(self):
+        """Closing tags with whitespace (</script >, </script\\n>) must still be stripped."""
+        html = "<html><script>var x = 1;</script ><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "var x = 1" not in result
+        assert "$49.99" in result
+
+    def test_strips_style_tags_with_newline_close_tag(self):
+        html = "<html><style>.price { color: red; }</style\n><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "color: red" not in result
+        assert "$49.99" in result
+
     def test_preserves_jsonld_scripts(self):
         """JSON-LD scripts should NOT be stripped (they contain price data)."""
         jsonld = '{"@type": "Product", "offers": {"price": "50.00"}}'
@@ -357,6 +370,24 @@ class TestExtractTextFromHtml:
     def test_handles_empty_html(self):
         result = _extract_text_from_html("")
         assert isinstance(result, str)
+
+    def test_strips_script_with_malformed_end_tag(self):
+        """A malformed/attributed end tag must not let script JS leak through.
+
+        The old regex sanitizer missed end tags like </script foo="bar">, so the
+        JS body slipped into the extracted page text (CodeQL py/bad-tag-filter).
+        """
+        html = '<html><script>alert(1)</script foo="bar"><body>$49.99</body></html>'
+        result = _extract_text_from_html(html)
+        assert "alert(1)" not in result
+        assert "$49.99" in result
+
+    def test_strips_uppercase_script_tags(self):
+        """Tag names are case-insensitive; uppercase SCRIPT must be stripped."""
+        html = "<html><SCRIPT>var x = 1;</SCRIPT><body>$49.99</body></html>"
+        result = _extract_text_from_html(html)
+        assert "var x = 1" not in result
+        assert "$49.99" in result
 
 
 # ======================================================================
@@ -581,6 +612,41 @@ class TestVerifyAvailability:
         assert "Bad B" not in titles
         assert "Backup D" in titles
 
+    async def test_dead_url_kept_with_fallback_when_pool_empty(self):
+        """
+        Regression: the onboarding pipeline never populates filtered_recommendations,
+        so a single dead URL used to collapse 3 cards to 2 on screen. The card whose
+        URL is dead must now be KEPT (with a fallback search URL), preserving the
+        count at 3 (PRD F2: exactly three cards).
+        """
+        selected = [
+            _make_candidate(title="Gift A", candidate_id="a", final_score=5.0),
+            _make_candidate(
+                title="Dead Date B", candidate_id="b", rec_type="date",
+                merchant_name="Yelp", final_score=4.0,
+                external_url="https://yelp.com/biz/closed",
+            ),
+            _make_candidate(title="Plan C", candidate_id="c", rec_type="experience", final_score=3.0),
+        ]
+        # Empty backup pool — exactly the onboarding pipeline's state.
+        state = _make_state(final_three=selected, filtered=[])
+
+        async def mock_fetch(url, client):
+            if "closed" in url:
+                return (False, "")
+            return (True, "")
+
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 3
+        titles = [c.title for c in result["final_three"]]
+        assert titles == ["Gift A", "Dead Date B", "Plan C"]
+        dead = next(c for c in result["final_three"] if c.title == "Dead Date B")
+        assert "google.com/search?tbm=shop" in dead.external_url
+
     async def test_price_verified_from_page_content(self):
         """Prices are updated when Claude verifies them from page content."""
         candidates = [
@@ -727,7 +793,10 @@ class TestVerifyAvailability:
         assert "d" in ids
 
     async def test_max_replacement_attempts_respected(self):
-        """Stops trying replacements after MAX_REPLACEMENT_ATTEMPTS failures."""
+        """
+        Stops trying replacements after MAX_REPLACEMENT_ATTEMPTS failures, then
+        keeps the card with a fallback search URL rather than dropping it (PRD F2).
+        """
         selected = [
             _make_candidate(title="Bad A", candidate_id="a", final_score=5.0),
         ]
@@ -751,7 +820,9 @@ class TestVerifyAvailability:
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        assert len(result["final_three"]) == 0
+        # Card is kept (not dropped) with a fallback search URL.
+        assert len(result["final_three"]) == 1
+        assert "google.com/search?tbm=shop" in result["final_three"][0].external_url
         assert mock_check.call_count == MAX_REPLACEMENT_ATTEMPTS
 
     async def test_returns_final_three_key(self):
@@ -897,7 +968,10 @@ class TestEdgeCases:
         assert result["final_three"] == []
 
     async def test_all_unavailable_no_backups(self):
-        """When all URLs fail and no backups exist, returns empty."""
+        """
+        When all URLs fail and no live backups exist, every card is still kept
+        (with a fallback search URL) so the count is preserved (PRD F2).
+        """
         candidates = [
             _make_candidate(title="Bad A", candidate_id="a"),
             _make_candidate(title="Bad B", candidate_id="b"),
@@ -912,7 +986,9 @@ class TestEdgeCases:
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        assert result["final_three"] == []
+        assert len(result["final_three"]) == 2
+        for candidate in result["final_three"]:
+            assert "google.com/search?tbm=shop" in candidate.external_url
 
     async def test_single_candidate_verified(self):
         """Node works with just 1 recommendation."""
@@ -929,7 +1005,10 @@ class TestEdgeCases:
         assert result["final_three"][0].title == "Solo"
 
     async def test_partial_results_when_some_fail(self):
-        """Returns partial results when some slots cannot be filled."""
+        """
+        Every slot is filled: live cards keep their URL, and a card whose URL
+        can't be filled is kept with a fallback search URL (count preserved).
+        """
         candidates = [
             _make_candidate(title="Good", candidate_id="good", final_score=5.0),
             _make_candidate(title="Bad", candidate_id="bad", final_score=4.0),
@@ -948,11 +1027,17 @@ class TestEdgeCases:
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        assert len(result["final_three"]) == 1
-        assert result["final_three"][0].title == "Good"
+        assert len(result["final_three"]) == 2
+        titles = [c.title for c in result["final_three"]]
+        assert "Good" in titles and "Bad" in titles
+        bad = next(c for c in result["final_three"] if c.title == "Bad")
+        assert "google.com/search?tbm=shop" in bad.external_url
 
     async def test_empty_backup_pool(self):
-        """When filtered pool is empty, unavailable items are just dropped."""
+        """
+        When the filtered pool is empty, an unavailable item is kept with a
+        fallback search URL instead of being dropped (PRD F2).
+        """
         candidates = [
             _make_candidate(title="Bad", candidate_id="bad"),
         ]
@@ -964,7 +1049,8 @@ class TestEdgeCases:
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        assert result["final_three"] == []
+        assert len(result["final_three"]) == 1
+        assert "google.com/search?tbm=shop" in result["final_three"][0].external_url
 
     async def test_does_not_mutate_input_state(self):
         """Node does not mutate the input state."""

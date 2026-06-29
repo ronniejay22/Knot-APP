@@ -1,0 +1,5 @@
+# PR screenshots
+
+UI screenshots captured by `iOS/scripts/capture-ui-screenshot.sh` land here as
+`<branch>.png` and are embedded inline in the PR body by the `/ship-pr` skill.
+The repo is public, so GitHub renders them via their raw.githubusercontent.com URL.

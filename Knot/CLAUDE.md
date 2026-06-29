@@ -22,20 +22,22 @@ workflow end-to-end on your own — the user should not have to type any slash c
      ```
      (Verified: packages come from the main venv, tests/code from the worktree.) iOS tests run
      via `xcodebuild test` as usual.
-   - **Offline mode (skip live-service integration tests):** `.worktreeinclude` copies the real
-     `backend/.env`, so a plain `pytest` runs the credential-gated integration tests against live
-     Supabase / Claude / Firecrawl / QStash and can hang on network calls. To run only the fast,
-     network-free unit tests, pass `--offline` (or export `KNOT_OFFLINE_TESTS=1`):
-     ```bash
-     "$MAIN/Knot/backend/venv/bin/python" -m pytest --offline
-     ```
-     This blanks the external credentials (see `backend/conftest.py`) so every `requires_*`
-     guard skips its integration tests. Prefer this for quick iteration; run the full live suite
-     before shipping when your change touches an integration path.
-3. **Ship automatically.** When the change works, invoke the **`/ship-pr`** skill *without being
+3. **Screenshot any UI change.** If the change touches iOS view code (anything under
+   `iOS/Knot/**` that renders UI — *not* test files, `project.yml`, scripts, or Info.plists,
+   and *not* a backend-only change), you MUST produce a screenshot so the reviewer can see it:
+   - Edit the navigation slot in `iOS/KnotUITests/PRScreenshotTests.swift` (the
+     `// >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<` block) to drive the app to the affected
+     screen, then run **`iOS/scripts/capture-ui-screenshot.sh`** from the `Knot/` directory.
+   - That writes `docs/pr-screenshots/<branch>.png` (and regenerates the Xcode project so the
+     test is included). The PNG is part of the change — `/ship` commits it like any other file.
+   - If capture genuinely fails after the script's fallback, note the reason; `/ship-pr` will
+     record it in the PR instead of an image. Do not block shipping on a flaky simulator.
+   - Backend-only or non-visual changes skip this step entirely.
+4. **Ship automatically.** When the change works, invoke the **`/ship-pr`** skill *without being
    asked*. It runs the test suite, runs `/code-review` and auto-fixes safe findings, commits with
-   the project's message conventions, pushes the branch, and opens a PR.
-4. **Report the PR URL** and stop. **Never merge** — the user is the final reviewer/merger.
+   the project's message conventions, pushes the branch, embeds the screenshot in the PR body
+   (for UI changes), and opens a PR.
+5. **Report the PR URL** and stop. **Never merge** — the user is the final reviewer/merger.
 
 **Do NOT apply this workflow to read-only or question-only chats** (e.g. "how does X work?",
 "explain this module"). Those need no worktree, no commit, and no PR — answer normally.

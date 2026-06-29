@@ -466,7 +466,7 @@ async def generate_ideas_background(
             "Background idea generation failed for vault %s: %s",
             vault_id, exc, exc_info=True,
         )
-        return {"status": "error", "reason": str(exc)}
+        return {"status": "error", "reason": "generation_failed"}
 
     if not raw_ideas:
         return {"status": "completed", "ideas_generated": 0}
@@ -491,8 +491,8 @@ async def generate_ideas_background(
     try:
         client.table("recommendations").insert(rec_rows).execute()
     except Exception as exc:
-        logger.error("Failed to store background ideas: %s", exc)
-        return {"status": "error", "reason": f"db_insert_failed: {exc}"}
+        logger.error("Failed to store background ideas: %s", exc, exc_info=True)
+        return {"status": "error", "reason": "db_insert_failed"}
 
     logger.info(
         "Background idea generation complete: %d ideas for vault %s",
