@@ -36,6 +36,7 @@ from app.models.recommendations import (
     RecommendationRefreshRequest,
     RecommendationRefreshResponse,
 )
+from app.services.text_cleanup import trim_to_complete_sentence
 from app.services.vault_loader import (
     find_budget_range,
     load_learned_weights,
@@ -975,7 +976,9 @@ def _build_response_items(
                 id=db_id,
                 recommendation_type=candidate.type,
                 title=candidate.title,
-                description=candidate.description,
+                # Read-time safety net: never serve copy that ends mid-sentence,
+                # regardless of how the candidate was produced (see text_cleanup).
+                description=trim_to_complete_sentence(candidate.description or "") or None,
                 price_cents=candidate.price_cents,
                 currency=candidate.currency,
                 price_confidence=candidate.price_confidence,
@@ -993,7 +996,9 @@ def _build_response_items(
                 matched_interests=candidate.matched_interests,
                 matched_vibes=candidate.matched_vibes,
                 matched_love_languages=candidate.matched_love_languages,
-                personalization_note=getattr(candidate, "personalization_note", None),
+                personalization_note=trim_to_complete_sentence(
+                    getattr(candidate, "personalization_note", None) or ""
+                ) or None,
             )
         )
     return response_items

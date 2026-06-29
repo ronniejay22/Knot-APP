@@ -6715,6 +6715,104 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** New iOS suite green (4/4 via `xcodebuild test`); backend `pytest` green. Verified end-to-end: a Debug simulator build runs the script (`inject-dev-host: DevAPIBaseURL = http://192.168.1.239:8000`), `Knot.app/DevServer.plist` carries the IP, and `Info.plist` has no leak. **Note:** building into the iCloud-synced project folder triggers an unrelated codesign "resource fork / Finder information detritus" failure on SPM bundles (`com.apple.fileprovider.fpfs#P` xattrs); build to a DerivedData path outside the synced folder (e.g. `-derivedDataPath /tmp/KnotDD`) to avoid it.
 
+### Step 19.1 ✅ Security — Replace Regex HTML Filtering in Availability Node with a Real Parser
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Resolve a GitHub CodeQL **High**-severity alert (`py/bad-tag-filter`, CWE-20/116/185/186), "Bad HTML filtering regexp," on [backend/app/agents/availability.py]. The `_extract_text_from_html()` helper stripped `<script>`/`<style>` blocks from fetched product-page HTML with regular expressions before extracting price-relevant text. Regex-based HTML filtering is unreliable: the script-stripping pattern did not match malformed end tags (e.g. `</script foo="bar">`, `</script\n>`), so script bodies could slip through into the text sent to Claude for price extraction — polluting the LLM input. (No browser rendering occurs, so classic stored-XSS did not apply, but the leak degraded extraction quality.) The only reliable way to clear `py/bad-tag-filter` is to stop filtering HTML with regex.
+
+**Approach:** Rewrote **only** `_extract_text_from_html()` to parse with BeautifulSoup (pure-Python `html.parser` backend — no lxml). The function's signature and exact output format (`Title:` / `Meta:` / `Structured Data:` / `Page Text:` parts, the 4000-char body slice, and the `MAX_PAGE_CONTENT_CHARS` cap) are preserved, so the existing `TestExtractTextFromHtml` contract still holds. The rest of the file (fetching, replacement, Claude price verification) is untouched.
+
+**What changed:**
+- **`backend/app/agents/availability.py`:** Added `from bs4 import BeautifulSoup`. `_extract_text_from_html` now parses once (`BeautifulSoup(html, "html.parser")`), then: extracts up to 3 JSON-LD `<script type="application/ld+json">` blocks via `find_all` (a case-insensitive `_is_jsonld` helper), reads the title via `soup.title`, the meta description via `soup.find("meta", attrs={"name": "description"})` (one call covers both attribute orders the old paired regexes handled), `.decompose()`s all `<script>`/`<style>` tags except JSON-LD, and collapses `soup.get_text(" ")` whitespace with the retained `re.sub(r"\s+", " ", ...)`. The three tag-matching regexes are gone; `re` is still used for whitespace only.
+- **`backend/requirements.txt`:** Added `beautifulsoup4` under a new "HTML Parsing (product-page price extraction)" section.
+- **`backend/tests/test_availability_node.py`:** Added two regression tests to `TestExtractTextFromHtml` — `test_strips_script_with_malformed_end_tag` (`</script foo="bar">` no longer leaks `alert(1)`) and `test_strips_uppercase_script_tags` (uppercase `<SCRIPT>` stripped). The 8 original extraction tests pass unchanged.
+
+**Tests:** `tests/test_availability_node.py` green (60 passed, incl. the 2 new cases). Manual sanity check: `_extract_text_from_html('<script>alert(1)</script foo="bar"><body>$49.99</body>')` returns `Page Text: $49.99` with no `alert(1)`. Once merged to `main`, CodeQL re-scans and the alert auto-resolves (no regex HTML filter remains).
+
+---
+
+### Step 18.56 ✅ Recommendations — Stop the "Why" Note from Ending Mid-Sentence
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** A recommendation's `personalization_note` (the "Why Knot picked this for {partner}" copy) was rendering cut off mid-sentence on the detail page — e.g. *"...It's intimate, low-pressure, and works perfectly for a"* (trailing off after the article "a"). Tracing confirmed the iOS view (no `lineLimit`, `fixedSize` grows), the `TEXT` DB column, and `truncate_prose(…, 600)` were all innocent (the visible note was only ~295 chars). The bad value originated at the single Claude call in `unified_generation.py`: either the 3-recommendation JSON was truncated by the `max_tokens=4096` cap, or Haiku emitted a grammatically-incomplete note inside otherwise-valid JSON. The code never checked `response.stop_reason`, so a `max_tokens` stop was silently treated as success.
+
+**Approach:** Backend-only, defense-in-depth across generation and serialization so a half-finished thought can never reach the UI — plus a read-time net that also cleans the already-served/stored copy a user is looking at on their next reveal.
+
+**What changed:**
+- **`backend/app/services/text_cleanup.py`:** Added two helpers (exported in `__all__`). `is_incomplete_sentence(text)` returns True when copy ends without sentence-ending punctuation, or ends on an ellipsis trailing a dangling article/conjunction/preposition (`_DANGLING_WORDS`) — but treats a model-written `.`/`!`/`?` as complete even when the last word is "in"/"this"/etc. `trim_to_complete_sentence(text)` returns complete text unchanged (fast path), else walks sentence boundaries (`_SENTENCE_BOUNDARY`) backward to the last *complete* one, falling back to repeatedly stripping trailing dangling words; never returns empty for non-empty input. It composes after `truncate_prose` (length first, completeness second).
+- **`backend/app/services/unified_generation.py`:** Raised `CLAUDE_MAX_TOKENS` 4096 → 8192 (a ceiling, not a target; Haiku 4.5 allows 64K, so latency is unchanged). Added a `response.stop_reason == "max_tokens"` guard that logs and retries instead of parsing a truncated body. `_validate_recommendation` now rejects empty or `is_incomplete_sentence` notes (forcing a retry). `_normalize_recommendation` wraps both `description` and `personalization_note` with `trim_to_complete_sentence(truncate_prose(...))` as the last-resort guard.
+- **`backend/app/api/recommendations.py`:** `_build_response_items` (the single boundary that serves notes to the app, used by both generate and refresh) now passes `description` and `personalization_note` through `trim_to_complete_sentence` as a read-time safety net, so any candidate — however produced — is clean on the wire.
+- **`backend/tests/test_text_cleanup.py` / `backend/tests/test_unified_generation.py`:** Added `TestIsIncompleteSentence` and `TestTrimToCompleteSentence` (incl. the exact reported string), and extended the validation/normalization/generation suites (rejects incomplete/empty notes, repairs short dangling copy, discards a `max_tokens` attempt and retries, returns empty when all attempts truncate, and asserts no returned note ends mid-sentence).
+
+**Tests:** `pytest tests/test_text_cleanup.py tests/test_unified_generation.py` green (90 passed); full backend suite green. No iOS changes.
+
+**Notes:** No DB backfill — stored notes are never read back for display (the GET-by-id / by-milestone endpoints return `MilestoneRecommendationItem`, which omits the note), and recommendations cycle on refresh; the read-time net covers everything served going forward.
+
+---
+
+### Step 19.1 ✅ Recommendations — Guarantee 3 Cards (Stop the Pipeline Dropping One)
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** The onboarding "Here are your recommendations" reveal was rendering only **2** cards (two page dots) when the product spec requires **exactly 3** (PRD **F2**: "Every trigger must generate exactly three distinct cards"). This was never a hardcoded `2` — every layer already targets 3 (Claude prompt says "Generate exactly 3", generation returns `valid_recs[:3]`, and the iOS `SpotlightCarouselView` cards/page-dots are fully data-driven). The screen showed 2 because the recommendation **pipeline silently dropped a card** before the response.
+
+**Root cause:** Two drop points, neither of which backfilled.
+- **Primary — dead URL with no backup pool.** The `verify_urls` node (`verify_availability`) GETs each card's URL and, on failure, tries to replace it from `state.filtered_recommendations`. But the simplified unified pipeline (`build_recommendation_graph`: `retrieve_hints → generate_unified → generate_briefing → resolve_urls → verify_urls`) **never populates that backup pool**, so it is always empty. When no replacement was found the card was simply not appended to `verified` — 3 collapsed to 2.
+- **Secondary (rarer) — under-generation.** `generate_unified_recommendations` returned on the first attempt yielding *any* valid recs, so if Claude omitted one or one failed validation, 2 items passed straight through with no re-roll.
+
+**Approach (chosen by user — "never drop a card; no extra latency"):** Preserve the card count without adding a network round-trip.
+
+**What changed:**
+- **`backend/app/agents/availability.py`:** In `verify_availability`, the `if not replaced:` branch now **keeps the original card** with its dead URL downgraded to a fallback search link (`candidate.model_copy(update={"external_url": _build_merchant_search_url(candidate)})`) instead of dropping it. Reuses the existing `_build_merchant_search_url` helper imported from `app/agents/url_resolution.py` (same Google-Shopping fallback already used during URL resolution). Net effect: `len(verified) == len(selected)` always. Docstrings updated to match.
+- **`backend/app/services/unified_generation.py`:** `generate_unified_recommendations` now tracks the best (largest) valid set across attempts. It returns immediately only when `len(valid_recs) >= 3`; a short result re-rolls within the existing `MAX_RETRIES` budget, and after the loop it returns the best partial set (`best_recs[:3]`) rather than `[]` when at least one card exists. Adds latency only in the rare short-generation case, never beyond the current retry ceiling.
+- **iOS:** No change required — `OnboardingCompletionView` passes `viewModel.recommendations` straight into `SpotlightCarouselView`, whose `ForEach(0..<items.count)` cards and page dots already adapt to 3 (dots show when `items.count > 1`).
+
+**Tests:**
+- `backend/tests/test_availability_node.py` — added `test_dead_url_kept_with_fallback_when_pool_empty` (the direct regression: 3 cards, one dead URL, empty pool → returns 3 with a fallback URL on the dead card). Updated four existing tests that encoded the old "drop the card" behavior (`test_max_replacement_attempts_respected`, `test_all_unavailable_no_backups`, `test_partial_results_when_some_fail`, `test_empty_backup_pool`) to assert the card is kept with a fallback search URL.
+- `backend/tests/test_unified_generation.py` — added `test_retries_when_fewer_than_three_valid` (2 valid → retry → 3) and `test_returns_best_partial_when_never_reaches_three` (exhausts retries, returns best partial).
+- Full backend `pytest` suite green.
+
+---
+
+### Step 19.1 ✅ Backend Tooling — Stop the Full Pytest Suite From Hanging (Offline-by-Default Tiering + Timeout Safety Net)
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Make the full backend suite (`cd backend && python -m pytest`) fast, reliable, and impossible to hang. Test collection was already healthy (1867 tests in ~1s), but a bare `pytest` run would hang or fail intermittently. Root cause: `backend/.env` carries **real credentials for every external service** (Supabase, Anthropic, Brave, Firecrawl, Yelp, Amazon, Ticketmaster, Shopify, Vertex AI, QStash), so the tests guarded by `@pytest.mark.skipif(not <service>_configured(), reason="… not configured in .env")` were **not** skipped — they fired real HTTP calls (creating/deleting live Supabase auth users, `time.sleep`-waiting on DB triggers, live Yelp/Amazon/Ticketmaster/Claude calls). None of the ~465 `httpx` calls in tests set a timeout and `pytest-timeout` was not installed, so a single slow/blocked request could block the entire run forever.
+
+**Approach:** Two pieces, gating on the existing `skipif` guard convention (only one test file needed a consistency fix — see below).
+- **Offline-by-default, integration opt-in.** New `backend/conftest.py` adds a `--integration` CLI flag (and honors `KNOT_RUN_INTEGRATION=1` for the agent /ship-pr workflow). In `pytest_collection_modifyitems` it gates at the **item** level: any test carrying a `skipif` guard whose reason says "… not configured …" (the convention shared by *every* service guard — Supabase, Yelp, Amazon, Ticketmaster, Firecrawl, Shopify, Vertex AI) is tagged `integration` and, unless opted in, skipped with a clear reason. Item-level (not module-level) gating is deliberate: the live modules also hold pure offline/mocked unit tests (Pydantic models, helpers) with no such guard, and those keep running on the default suite. The live suite runs explicitly via `pytest --integration`.
+- **Timeout safety net.** Added `pytest-timeout` to `requirements.txt`, plus `timeout = 120` and `timeout_method = "thread"` in `pyproject.toml` (the `thread` method fires even on blocking C-level socket I/O, which the default `signal` method cannot reliably interrupt). Any test exceeding 120s is killed with a traceback pinpointing the hang instead of blocking the run; long live-LLM tests can override per-test with `@pytest.mark.timeout(...)`. Also registered the `integration` marker and added `--strict-markers` to `addopts` to catch typo'd markers.
+
+**What changed:**
+- **`backend/conftest.py` (new):** `pytest_addoption` (`--integration`), `_integration_enabled` (flag or `KNOT_RUN_INTEGRATION` env), `_is_live_item` (detects a `skipif` guard whose reason contains "not configured"), and `pytest_collection_modifyitems` (per-item mark + skip). Docstring documents the convention.
+- **`backend/pyproject.toml`:** added `timeout = 120`, `timeout_method = "thread"`, `addopts = "--strict-markers"`, and the `integration` marker.
+- **`backend/requirements.txt`:** added `pytest-timeout` under `# --- Testing ---`.
+- **`backend/tests/test_step_3_11_ios_integration.py`:** added the standard module-level `_supabase_configured()` + `pytestmark = pytest.mark.skipif(not _supabase_configured(), reason="… not configured in .env")` guard. This file makes live Supabase calls (creates/signs-in/deletes real auth users) but had never adopted the convention, so it both failed when creds were absent and slipped past the gate — the only test file changed.
+
+**Tests:** Default run now green, offline, and bounded — **1250 passed, 617 skipped, 0 failed in ~109s** (no network, no hang). Collection unchanged (1867); `-m integration` resolves to the 617 live tests. `pytest --integration` re-selects and runs them. Verified the safety net by running a scratch `time.sleep(30)` test under `--timeout=3 --timeout-method=thread` — pytest-timeout (2.4.0) killed it with a `Timeout` traceback.
+
+---
+
+### Step 19.1 ✅ Dev Tooling — Auto-Attach a UI Screenshot to Every PR That Changes the UI
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** A reviewer reading an agent-opened PR for a UI change had no way to see what the change looked like without checking out the branch and running the app. Make the autonomous workflow capture a screenshot of the affected screen and embed it directly in the PR.
+
+**Approach:** Reuse the existing XCUITest screenshot pattern (`XCTAttachment(screenshot:)`), drive it headless via `xcodebuild test`, extract the PNG with `xcrun xcresulttool export attachments`, commit it into the branch, and embed it inline in the PR body via a `raw.githubusercontent.com` URL (the repo is public, so GitHub renders it). If capture fails after a `simctl` fallback, the workflow ships the PR anyway with a note rather than blocking on a flaky simulator.
+
+**What changed:**
+- **`iOS/scripts/capture-ui-screenshot.sh` (new):** One-call capture helper. Regenerates the project (`xcodegen generate`) so new test files are included, picks an available simulator (prefers iPhone 17 Pro), runs the `PRScreenshotTests` UI test to a result bundle, extracts the attachment named "PR Screenshot" via `xcresulttool` (manifest lookup with a largest-PNG fallback), and writes `docs/pr-screenshots/<branch>.png`. Falls back to `xcrun simctl io booted screenshot`; exits non-zero with a reason if both paths fail.
+- **`iOS/KnotUITests/PRScreenshotTests.swift` (new):** UI test mirroring `KnotUITestsLaunchTests` with a clearly-marked navigation slot the agent edits per change; the attachment MUST stay named "PR Screenshot" (the script looks it up by that name). Default (no edits) captures the first screen.
+- **`docs/pr-screenshots/` (new):** Committed output directory (`.gitkeep`) for captured screenshots.
+- **`CLAUDE.md`:** Added a "Screenshot any UI change" step to the Autonomous Feature Workflow defining what counts as a UI change and when to skip it.
+- **`~/.claude/skills/ship-pr/SKILL.md` (global, not in repo):** Phase 3 now embeds the screenshot (or a "no screenshot" note) in the PR body.
+
+**Tests:** Full iOS suite green (319 unit + 5 UI tests via `xcodebuild test`, including the new `PRScreenshotTests`). Verified the capture script end-to-end — `docs/pr-screenshots/test.png` produced a valid 1206×2622 render of the "For You" home screen, then removed as a smoke artifact. This PR touches no app view code, so it is the negative case (no screenshot section in its own PR).
+
 ---
 
 ## Next Steps

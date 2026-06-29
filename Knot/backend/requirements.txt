@@ -27,6 +27,9 @@ pgvector
 # --- Async HTTP Client (external API integrations + HTTP/2 for APNs) ---
 httpx[http2]
 
+# --- HTML Parsing (product-page price extraction) ---
+beautifulsoup4
+
 # --- JWT Verification (QStash webhook signatures + APNs ES256 tokens) ---
 PyJWT
 cryptography
@@ -37,3 +40,4 @@ python-dotenv
 # --- Testing ---
 pytest
 pytest-asyncio
+pytest-timeout

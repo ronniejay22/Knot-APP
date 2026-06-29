@@ -1,5 +1,16 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Safety net: no single test may hang the whole run. "thread" fires even on
+# blocking C-level socket I/O (e.g. an httpx call with no timeout), which the
+# default "signal" method cannot reliably interrupt. Long live-LLM tests can
+# override per-test with @pytest.mark.timeout(...).
+timeout = 120
+timeout_method = "thread"
+# Catch typo'd markers; integration tests are auto-skipped unless opted in (see conftest.py).
+addopts = "--strict-markers"
+markers = [
+    "integration: hits live external services (Supabase/Claude/etc.); skipped unless --integration or KNOT_RUN_INTEGRATION=1",
+]
 filterwarnings = [
     # Suppress deprecation warnings from pyiceberg (transitive dep of supabase)
     # These are in third-party code we don't control — will resolve when pyiceberg updates
