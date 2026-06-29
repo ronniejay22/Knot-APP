@@ -6776,6 +6776,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.1 ✅ Backend Tooling — Stop the Full Pytest Suite From Hanging (Offline-by-Default Tiering + Timeout Safety Net)
+**Date:** 2026-06-28
+**Status:** Complete
+
+**Goal:** Make the full backend suite (`cd backend && python -m pytest`) fast, reliable, and impossible to hang. Test collection was already healthy (1867 tests in ~1s), but a bare `pytest` run would hang or fail intermittently. Root cause: `backend/.env` carries **real credentials for every external service** (Supabase, Anthropic, Brave, Firecrawl, Yelp, Amazon, Ticketmaster, Shopify, Vertex AI, QStash), so the tests guarded by `@pytest.mark.skipif(not <service>_configured(), reason="… not configured in .env")` were **not** skipped — they fired real HTTP calls (creating/deleting live Supabase auth users, `time.sleep`-waiting on DB triggers, live Yelp/Amazon/Ticketmaster/Claude calls). None of the ~465 `httpx` calls in tests set a timeout and `pytest-timeout` was not installed, so a single slow/blocked request could block the entire run forever.
+
+**Approach:** Two pieces, gating on the existing `skipif` guard convention (only one test file needed a consistency fix — see below).
+- **Offline-by-default, integration opt-in.** New `backend/conftest.py` adds a `--integration` CLI flag (and honors `KNOT_RUN_INTEGRATION=1` for the agent /ship-pr workflow). In `pytest_collection_modifyitems` it gates at the **item** level: any test carrying a `skipif` guard whose reason says "… not configured …" (the convention shared by *every* service guard — Supabase, Yelp, Amazon, Ticketmaster, Firecrawl, Shopify, Vertex AI) is tagged `integration` and, unless opted in, skipped with a clear reason. Item-level (not module-level) gating is deliberate: the live modules also hold pure offline/mocked unit tests (Pydantic models, helpers) with no such guard, and those keep running on the default suite. The live suite runs explicitly via `pytest --integration`.
+- **Timeout safety net.** Added `pytest-timeout` to `requirements.txt`, plus `timeout = 120` and `timeout_method = "thread"` in `pyproject.toml` (the `thread` method fires even on blocking C-level socket I/O, which the default `signal` method cannot reliably interrupt). Any test exceeding 120s is killed with a traceback pinpointing the hang instead of blocking the run; long live-LLM tests can override per-test with `@pytest.mark.timeout(...)`. Also registered the `integration` marker and added `--strict-markers` to `addopts` to catch typo'd markers.
+
+**What changed:**
+- **`backend/conftest.py` (new):** `pytest_addoption` (`--integration`), `_integration_enabled` (flag or `KNOT_RUN_INTEGRATION` env), `_is_live_item` (detects a `skipif` guard whose reason contains "not configured"), and `pytest_collection_modifyitems` (per-item mark + skip). Docstring documents the convention.
+- **`backend/pyproject.toml`:** added `timeout = 120`, `timeout_method = "thread"`, `addopts = "--strict-markers"`, and the `integration` marker.
+- **`backend/requirements.txt`:** added `pytest-timeout` under `# --- Testing ---`.
+- **`backend/tests/test_step_3_11_ios_integration.py`:** added the standard module-level `_supabase_configured()` + `pytestmark = pytest.mark.skipif(not _supabase_configured(), reason="… not configured in .env")` guard. This file makes live Supabase calls (creates/signs-in/deletes real auth users) but had never adopted the convention, so it both failed when creds were absent and slipped past the gate — the only test file changed.
+
+**Tests:** Default run now green, offline, and bounded — **1250 passed, 617 skipped, 0 failed in ~109s** (no network, no hang). Collection unchanged (1867); `-m integration` resolves to the 617 live tests. `pytest --integration` re-selects and runs them. Verified the safety net by running a scratch `time.sleep(30)` test under `--timeout=3 --timeout-method=thread` — pytest-timeout (2.4.0) killed it with a `Timeout` traceback.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

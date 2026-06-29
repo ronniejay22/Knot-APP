@@ -40,3 +40,4 @@ python-dotenv
 # --- Testing ---
 pytest
 pytest-asyncio
+pytest-timeout
