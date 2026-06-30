@@ -35,12 +35,12 @@ LAN_IP="$(detect_lan_ip || true)"
 echo "──────────────────────────────────────────────────────────"
 if [ -n "${LAN_IP}" ]; then
     echo "  Backend dev server"
-    echo "  Simulator / Mac : http://127.0.0.1:8000"
-    echo "  Physical device : http://${LAN_IP}:8000   (same Wi-Fi)"
-    echo "  Health check    : http://${LAN_IP}:8000/health"
+    echo "  Simulator / Mac : http://127.0.0.1:8420"
+    echo "  Physical device : http://${LAN_IP}:8420   (same Wi-Fi)"
+    echo "  Health check    : http://${LAN_IP}:8420/health"
 else
     echo "  Backend dev server (no LAN IP detected — offline?)"
-    echo "  Simulator / Mac : http://127.0.0.1:8000"
+    echo "  Simulator / Mac : http://127.0.0.1:8420"
 fi
 echo "──────────────────────────────────────────────────────────"
 echo "  If the device can't connect, allow Python/uvicorn through"
@@ -55,4 +55,4 @@ if [ -f "venv/bin/activate" ]; then
     source venv/bin/activate
 fi
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+exec uvicorn app.main:app --host 0.0.0.0 --port 8420 --reload
