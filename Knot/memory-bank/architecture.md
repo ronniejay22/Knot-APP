@@ -297,7 +297,7 @@ backend/
 │   │   ├── hint_retrieval.py # Semantic hint retrieval node (Step 5.2) — pgvector search + chronological fallback
 │   │   ├── unified_generation_node.py  # Unified generation LangGraph node (Step 15.1) — wraps unified_generation service
 │   │   ├── briefing_node.py           # Briefing generation LangGraph node (Step 17.1) — generates milestone briefing via Claude
-│   │   ├── url_resolution.py          # URL resolution node (Step 15.1) — Brave Search for real purchase URLs; localizes the query with the vault city for date/experience candidates (Step 18.52)
+│   │   ├── url_resolution.py          # URL resolution node (Step 15.1) — Brave Search for real purchase URLs; localizes the query with the vault city for date/experience candidates (Step 18.52). When Brave finds nothing, `_build_search_fallback_url` builds a plain Google *web* search from the localized query (not Shopping) and sets `external_url_is_search=True` so the iOS CTA reads "Find it online" (Step 19.3)
 │   │   ├── availability.py   # Availability verification node (Step 5.7) — URL checking + price enrichment
 │   │   ├── pipeline.py       # Full LangGraph pipeline (Step 15.1, updated 17.1) — 5-node unified pipeline (hints → generate → briefing → resolve → verify)
 │   │   ├── aggregation.py    # LEGACY (Step 5.3) — stub catalogs, no longer in pipeline

@@ -13,6 +13,7 @@ Step 15.1: Unified AI Recommendation System
 import asyncio
 import logging
 from typing import Any
+from urllib.parse import quote_plus
 
 import httpx
 
@@ -106,14 +107,26 @@ async def _search_for_purchase_url(
         return None
 
 
-def _build_merchant_search_url(candidate: CandidateRecommendation) -> str:
-    """Build a Google Shopping search fallback URL for a candidate."""
-    query_parts = []
-    if candidate.merchant_name:
-        query_parts.append(candidate.merchant_name)
-    query_parts.append(candidate.title)
-    query = "+".join(query_parts[0].split()[:5]) if query_parts else candidate.title
-    return f"https://www.google.com/search?tbm=shop&q={query}"
+def _build_search_fallback_url(
+    candidate: CandidateRecommendation,
+    localized_query: str | None = None,
+) -> str:
+    """
+    Build a Google *web* search fallback URL when no direct purchase page resolves.
+
+    Prefers Claude's own (localized) search_query — which already carries the
+    product/venue and city — so the top organic result is the real booking/ticket
+    page rather than a listicle. Falls back to merchant_name + title only when no
+    query is available. A plain web search is used (NOT Google Shopping / tbm=shop),
+    because most Knot items — tickets, restaurants, tours, experiences — aren't
+    retail products and return nothing on the Shopping surface.
+    """
+    query = (localized_query or candidate.search_query or "").strip()
+    if not query:
+        # title is always present (required field), so this is never empty.
+        parts = [p for p in (candidate.merchant_name, candidate.title) if p]
+        query = " ".join(parts)
+    return f"https://www.google.com/search?q={quote_plus(query)}"
 
 
 # ======================================================================
@@ -159,7 +172,8 @@ async def resolve_purchase_urls(
     performs a targeted Brave Search to find the actual purchase URL.
     Ideas (is_idea=True) are skipped.
 
-    If URL resolution fails for an item, assigns a Google Shopping fallback.
+    If URL resolution fails for an item, assigns a Google web-search fallback
+    and flags it with external_url_is_search=True.
 
     Args:
         state: The current RecommendationState with final_three populated
@@ -199,15 +213,20 @@ async def resolve_purchase_urls(
                 "Resolved URL for '%s': %s",
                 candidate.title, url,
             )
-            return candidate.model_copy(update={"external_url": url})
+            return candidate.model_copy(
+                update={"external_url": url, "external_url_is_search": False},
+            )
         else:
-            # Fallback to Google Shopping search
-            fallback_url = _build_merchant_search_url(candidate)
+            # No direct purchase page — fall back to a Google web search built from
+            # Claude's localized query, and flag it so the UI can label it honestly.
+            fallback_url = _build_search_fallback_url(candidate, localized_query=query)
             logger.info(
                 "Using fallback search URL for '%s': %s",
                 candidate.title, fallback_url,
             )
-            return candidate.model_copy(update={"external_url": fallback_url})
+            return candidate.model_copy(
+                update={"external_url": fallback_url, "external_url_is_search": True},
+            )
 
     resolved = await asyncio.gather(
         *[_resolve_single(c) for c in selected],

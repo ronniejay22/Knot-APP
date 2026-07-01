@@ -983,6 +983,7 @@ def _build_response_items(
                 currency=candidate.currency,
                 price_confidence=candidate.price_confidence,
                 external_url=candidate.external_url,
+                external_url_is_search=candidate.external_url_is_search,
                 image_url=image_url,
                 merchant_name=candidate.merchant_name,
                 source=candidate.source,

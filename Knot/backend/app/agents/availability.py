@@ -29,7 +29,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.agents.state import CandidateRecommendation, RecommendationState
-from app.agents.url_resolution import _build_merchant_search_url
+from app.agents.url_resolution import _build_search_fallback_url
 from app.services.llm_tuning import fast_generation_params
 
 logger = logging.getLogger(__name__)
@@ -444,7 +444,10 @@ async def verify_availability(
                     i + 1, MAX_REPLACEMENT_ATTEMPTS,
                 )
                 verified.append(candidate.model_copy(
-                    update={"external_url": _build_merchant_search_url(candidate)},
+                    update={
+                        "external_url": _build_search_fallback_url(candidate),
+                        "external_url_is_search": True,
+                    },
                 ))
 
     # --- Price verification pass ---

@@ -477,6 +477,12 @@ struct RecommendationDetailView: View {
     }
 
     private var openLabel: String {
+        // When the link is only a search fallback (no direct merchant page
+        // resolved), don't promise "Open in <merchant>" — it would land the user
+        // on a generic results page. Say what it actually does.
+        if item.externalUrlIsSearch == true {
+            return "Find it online"
+        }
         if let merchant = item.merchantName, !merchant.isEmpty {
             return "Open in \(merchant)"
         }
@@ -560,6 +566,30 @@ enum PreviewRecommendations {
     static let gift = decode(type: "gift", isIdea: false)
     static let experience = decode(type: "experience", isIdea: false)
     static let idea = decode(type: "idea", isIdea: true)
+
+    /// A purchasable item whose link is a search fallback — the CTA should read
+    /// "Find it online" instead of "Open in <merchant>". Used by the PR screenshot
+    /// harness (see KnotApp.rootView).
+    static let searchFallback: RecommendationItemResponse = {
+        let json = """
+        {
+            "id": "date-fonda", "recommendation_type": "date",
+            "title": "Sunset Dinner & Live Jazz at The Fonda Theatre",
+            "description": "Spend an evening at this iconic Hollywood Boulevard venue catching a live jazz performance, then grab dinner at a nearby quiet-luxury spot.",
+            "price_cents": 8000, "currency": "USD", "price_confidence": "estimated",
+            "external_url": "https://www.google.com/search?q=The+Fonda+Theatre+Ticketmaster+Los+Angeles+CA",
+            "external_url_is_search": true,
+            "image_url": null, "merchant_name": "The Fonda Theatre / Ticketmaster", "source": "unified",
+            "location": {"city": "Los Angeles", "state": "CA", "country": "US", "address": null},
+            "is_idea": false,
+            "interest_score": 0.9, "vibe_score": 0.8, "love_language_score": 0.7, "final_score": 0.82,
+            "matched_interests": ["Music", "Travel"], "matched_vibes": ["quiet_luxury", "street_urban"],
+            "matched_love_languages": ["words_of_affirmation", "acts_of_service"],
+            "personalization_note": "You know how much Ronnie loves music and the energy of live performance—this hits that directly."
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }()
 
     static func decode(type: String, isIdea: Bool) -> RecommendationItemResponse {
         let sections = isIdea

@@ -22,12 +22,18 @@ final class PRScreenshotTests: XCTestCase {
 
     func testCaptureChangedScreen() throws {
         let app = XCUIApplication()
-        app.launch()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // e.g. app.tabBars.buttons["Recs"].tap()
-        //      app.buttons["Add intention"].tap()
-        // Leave empty to capture the first screen.
+        // This change touches the recommendation detail CTA: when the link is only a
+        // search fallback, the button now reads "Find it online" instead of
+        // "Open in <merchant>". The detail screen requires auth + a live backend to
+        // reach normally, so launch straight into it via the DEBUG screenshot harness
+        // (KnotApp.rootView) with a search-fallback item.
+        app.launchArguments += ["recDetailSearchFallback"]
+        app.launch()
+
+        // Give the view a moment to render (fonts, gradient, async layout).
+        _ = app.wait(for: .runningForeground, timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

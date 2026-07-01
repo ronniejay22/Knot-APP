@@ -645,7 +645,7 @@ class TestVerifyAvailability:
         titles = [c.title for c in result["final_three"]]
         assert titles == ["Gift A", "Dead Date B", "Plan C"]
         dead = next(c for c in result["final_three"] if c.title == "Dead Date B")
-        assert "google.com/search?tbm=shop" in dead.external_url
+        assert "google.com/search?q=" in dead.external_url
 
     async def test_price_verified_from_page_content(self):
         """Prices are updated when Claude verifies them from page content."""
@@ -822,7 +822,7 @@ class TestVerifyAvailability:
 
         # Card is kept (not dropped) with a fallback search URL.
         assert len(result["final_three"]) == 1
-        assert "google.com/search?tbm=shop" in result["final_three"][0].external_url
+        assert "google.com/search?q=" in result["final_three"][0].external_url
         assert mock_check.call_count == MAX_REPLACEMENT_ATTEMPTS
 
     async def test_returns_final_three_key(self):
@@ -988,7 +988,7 @@ class TestEdgeCases:
 
         assert len(result["final_three"]) == 2
         for candidate in result["final_three"]:
-            assert "google.com/search?tbm=shop" in candidate.external_url
+            assert "google.com/search?q=" in candidate.external_url
 
     async def test_single_candidate_verified(self):
         """Node works with just 1 recommendation."""
@@ -1031,7 +1031,7 @@ class TestEdgeCases:
         titles = [c.title for c in result["final_three"]]
         assert "Good" in titles and "Bad" in titles
         bad = next(c for c in result["final_three"] if c.title == "Bad")
-        assert "google.com/search?tbm=shop" in bad.external_url
+        assert "google.com/search?q=" in bad.external_url
 
     async def test_empty_backup_pool(self):
         """
@@ -1050,7 +1050,7 @@ class TestEdgeCases:
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 1
-        assert "google.com/search?tbm=shop" in result["final_three"][0].external_url
+        assert "google.com/search?q=" in result["final_three"][0].external_url
 
     async def test_does_not_mutate_input_state(self):
         """Node does not mutate the input state."""

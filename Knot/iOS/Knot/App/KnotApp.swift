@@ -40,7 +40,7 @@ struct KnotApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootView
                 .preferredColorScheme(themeMode == "dark" ? .dark : .light)
                 .environment(deepLinkHandler)
                 .onOpenURL { url in
@@ -59,5 +59,29 @@ struct KnotApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+        // PR screenshot harness: launch with the `recDetailSearchFallback` argument to
+        // render the recommendation detail with a search-fallback CTA deterministically,
+        // without needing auth or a live backend. See KnotUITests/PRScreenshotTests.
+        if ProcessInfo.processInfo.arguments.contains("recDetailSearchFallback") {
+            RecommendationDetailView(
+                item: PreviewRecommendations.searchFallback,
+                partnerName: "Ronnie",
+                isSaved: false,
+                onOpenMerchant: {},
+                onSave: {},
+                onShare: {},
+                onDismiss: {}
+            )
+        } else {
+            ContentView()
+        }
+        #else
+        ContentView()
+        #endif
     }
 }

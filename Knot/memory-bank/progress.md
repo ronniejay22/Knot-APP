@@ -6830,6 +6830,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.3 ✅ Recommendations — Fix the "Open in <merchant>" Button Landing on a Useless Google Shopping Page
+**Date:** 2026-06-30
+**Status:** Complete
+
+**Goal:** Tapping the recommendation detail CTA ("Open in The Fonda…") sent users to a Google Shopping results page for the raw merchant string ("The Fonda Theatre / Ticketmaster") — a dead end with no tickets and no product, while the button had promised the merchant. Fix the destination and stop the button from lying.
+
+**Root cause:** Recommendations don't get URLs from the LLM; Claude emits a `search_query` that the backend resolves to a real URL via Brave Search. When Brave finds nothing suitable (or isn't configured), `url_resolution._build_merchant_search_url()` built a **Google Shopping** (`tbm=shop`) URL from the first five words of `merchant_name` — the wrong surface for tickets/experiences, ignoring Claude's real query, and injecting the merchant string's "/" unencoded.
+
+**What changed:**
+- **`backend/app/agents/url_resolution.py`:** Renamed `_build_merchant_search_url` → `_build_search_fallback_url`. It now builds a plain Google **web** search (`?q=`, no `tbm=shop`) from Claude's already-localized `search_query` (falling back to `merchant_name` + `title`), URL-encoded with `urllib.parse.quote_plus`. `resolve_purchase_urls` sets a new `external_url_is_search` flag: `False` on resolved URLs, `True` on the fallback.
+- **`backend/app/agents/availability.py`:** The dead-URL downgrade path uses the renamed helper and also sets `external_url_is_search=True`.
+- **`backend/app/agents/state.py` + `backend/app/models/recommendations.py`:** Added `external_url_is_search: bool = False` to `CandidateRecommendation` and `RecommendationItemResponse`; `api/recommendations.py` copies it into the response.
+- **`iOS/Knot/Models/DTOs.swift`:** Added optional `externalUrlIsSearch` (`external_url_is_search`) — optional so older/cached payloads decode.
+- **`iOS/Knot/Features/Recommendations/RecommendationDetailView.swift`:** `openLabel` returns the honest **"Find it online"** when `externalUrlIsSearch == true` instead of "Open in <merchant>". Added a `PreviewRecommendations.searchFallback` sample.
+- **`iOS/Knot/App/KnotApp.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`:** DEBUG-only `recDetailSearchFallback` launch-argument harness renders the detail screen deterministically (no auth/backend) for the PR screenshot.
+
+**Tests:** Backend `1286 passed` (extended `test_url_resolution.py` with fallback-URL + resolve-flag cases; updated `test_availability_node.py` assertions off `tbm=shop`). iOS `RecommendationDTOTests` green (added `external_url_is_search` decode cases). PR screenshot captured showing the "Find it online" CTA.
+
+**Follow-up (out of scope):** If the fallback fires often in production, ensure `BRAVE_SEARCH_API_KEY` is configured so most items resolve to true merchant URLs — an env/ops check, not code.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

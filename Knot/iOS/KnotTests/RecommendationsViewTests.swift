@@ -31,6 +31,7 @@ final class RecommendationDTOTests: XCTestCase {
             "currency": "USD",
             "price_confidence": "verified",
             "external_url": "https://example.com/pottery",
+            "external_url_is_search": false,
             "image_url": "https://example.com/image.jpg",
             "merchant_name": "Clay Studio",
             "source": "yelp",
@@ -60,6 +61,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.currency, "USD")
         XCTAssertEqual(item.priceConfidence, "verified")
         XCTAssertEqual(item.externalUrl, "https://example.com/pottery")
+        XCTAssertEqual(item.externalUrlIsSearch, false)
         XCTAssertEqual(item.imageUrl, "https://example.com/image.jpg")
         XCTAssertEqual(item.merchantName, "Clay Studio")
         XCTAssertEqual(item.source, "yelp")
@@ -112,6 +114,36 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.matchedLoveLanguages)
         // Price confidence should be nil when not present in JSON (backward compatibility)
         XCTAssertNil(item.priceConfidence)
+        // external_url_is_search absent → nil (older payloads decode fine)
+        XCTAssertNil(item.externalUrlIsSearch)
+    }
+
+    /// `external_url_is_search` decodes true/false and defaults to nil when the
+    /// backend omits it, so the CTA can label search fallbacks honestly.
+    func testRecommendationItemDecodesExternalUrlIsSearchFlag() throws {
+        func decode(flagLine: String) throws -> RecommendationItemResponse {
+            let json = """
+            {
+                "id": "flag-1",
+                "recommendation_type": "date",
+                "title": "Jazz Night at The Fonda",
+                "currency": "USD",
+                "external_url": "https://www.google.com/search?q=The+Fonda+Theatre",
+                \(flagLine)
+                "merchant_name": "The Fonda Theatre / Ticketmaster",
+                "source": "unified",
+                "interest_score": 0.5,
+                "vibe_score": 0.5,
+                "love_language_score": 0.5,
+                "final_score": 0.5
+            }
+            """.data(using: .utf8)!
+            return try JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+        }
+
+        XCTAssertEqual(try decode(flagLine: "\"external_url_is_search\": true,").externalUrlIsSearch, true)
+        XCTAssertEqual(try decode(flagLine: "\"external_url_is_search\": false,").externalUrlIsSearch, false)
+        XCTAssertNil(try decode(flagLine: "").externalUrlIsSearch)
     }
 
     /// Raw snake_case tag tokens that leak into prose are humanized at the model

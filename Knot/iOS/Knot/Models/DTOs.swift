@@ -347,6 +347,10 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     let currency: String
     let priceConfidence: String?
     let externalUrl: String?
+    /// True when `externalUrl` is a generic search fallback (no direct merchant
+    /// page resolved), so the CTA can label the handoff honestly. Optional so
+    /// older/cached payloads without the field still decode.
+    let externalUrlIsSearch: Bool?
     let imageUrl: String?
     let merchantName: String?
     let source: String
@@ -374,6 +378,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case currency
         case priceConfidence = "price_confidence"
         case externalUrl = "external_url"
+        case externalUrlIsSearch = "external_url_is_search"
         case imageUrl = "image_url"
         case merchantName = "merchant_name"
         case source, location
