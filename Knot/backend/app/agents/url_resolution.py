@@ -30,15 +30,19 @@ BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 BRAVE_TIMEOUT = 10.0
 RESULTS_PER_QUERY = 10
 
-# General search engines — we must never hand the user a Google/Bing-style results
-# page. These are registrable hosts, matched precisely (see `_is_rejected_domain`)
-# so we DON'T reject real merchant properties on the same parent (store.google.com,
-# play.google.com) or unrelated hosts that merely contain the string (task.com).
-# A merchant's OWN on-site search (e.g. search.thefondatheatre.com) is also fine.
+# General search engines — we must never hand the user a Google/Bing-style results,
+# comparison, or cache page. These are registrable domains; `_is_rejected_domain`
+# rejects the bare domain AND any subdomain of it, so search/results/cache fronts like
+# `cse.google.com`, `shopping.google.com`, `html.duckduckgo.com`, `r.search.yahoo.com`,
+# and `webcache.googleusercontent.com` are all caught — not just the `www.` spelling.
 SEARCH_ENGINE_DOMAINS = {
     "google.com", "bing.com", "duckduckgo.com", "yahoo.com", "baidu.com",
     "ecosia.org", "startpage.com", "ask.com", "aol.com", "brave.com",
+    "googleusercontent.com",  # Google cache/proxy host — never a purchase page
 }
+# Real merchant properties that live under a search-engine domain — these ARE
+# dedicated stores and must survive the subdomain rejection above.
+SEARCH_ENGINE_COMMERCE_ALLOWLIST = {"store.google.com", "play.google.com"}
 # Articles, listicles, review/forum sites — not actual purchase pages.
 EXCLUDED_DOMAINS = {
     "reddit.com", "quora.com", "medium.com", "buzzfeed.com",
@@ -74,22 +78,24 @@ def _is_rejected_domain(domain: str) -> bool:
     """
     True for a general search engine or article/listicle host — never a purchase page.
 
-    Search engines are matched precisely (registrable host, allowing a `www.`/`news.`
-    front) so real merchant properties on the same parent (store.google.com,
-    play.google.com) and unrelated look-alikes (task.com vs ask.com) are NOT rejected,
-    nor is a merchant's own on-site search subdomain.
+    A search engine is rejected on the registrable domain OR any subdomain of it, so
+    every results/comparison/cache front is caught (cse., shopping., html., lite.,
+    r.search., cn., webcache. …) — not just the `www.` spelling. Real merchant
+    properties under a search domain (store.google.com, play.google.com) are allow-listed,
+    a merchant's own on-site search (search.thefondatheatre.com) is unaffected, and
+    unrelated look-alikes (task.com vs ask.com) are not matched.
     """
     if any(bad in domain for bad in EXCLUDED_DOMAINS):
         return True
     host = domain.removeprefix("www.")
-    if host in SEARCH_ENGINE_DOMAINS:
+    if host in SEARCH_ENGINE_COMMERCE_ALLOWLIST:
+        return False
+    # The bare engine domain OR any subdomain of it.
+    if any(host == d or host.endswith("." + d) for d in SEARCH_ENGINE_DOMAINS):
         return True
-    # Google/Bing international search live on google.<tld>/bing.<tld> (bare or www.),
-    # but store./play. subdomains stay a full label ahead and are not matched.
-    if host.startswith(("google.", "bing.")):
-        return True
-    # A search front hosted on an engine's own domain (search.yahoo.com, search.brave.com).
-    return any(host == "search." + h or host == "news." + h for h in SEARCH_ENGINE_DOMAINS)
+    # Bare international Google/Bing search domains (google.co.uk, bing.de, …) and
+    # their subdomains — the registrable set above lists only the `.com` forms.
+    return host.startswith(("google.", "bing.")) or ".google." in host or ".bing." in host
 
 
 def _score_result(url: str, rank: int) -> int:

@@ -134,9 +134,18 @@ class TestRejectDomain:
         assert _is_rejected_domain("search.thefondatheatre.com") is False
 
     def test_real_google_merchant_properties_not_rejected(self):
-        # Precise matching must NOT reject Google's actual stores (they sell real goods).
-        for host in ("store.google.com", "play.google.com", "shop.google.com"):
+        # The allow-listed Google stores (real goods) must survive subdomain rejection.
+        for host in ("store.google.com", "play.google.com", "www.store.google.com"):
             assert _is_rejected_domain(host) is False
+
+    def test_search_and_comparison_subdomains_rejected(self):
+        # Any subdomain of a search engine — results, shopping/comparison, cache — is
+        # a web-search-style page and must be rejected, not just the `www.` spelling.
+        for host in (
+            "cse.google.com", "shopping.google.com", "webcache.googleusercontent.com",
+            "html.duckduckgo.com", "lite.duckduckgo.com", "r.search.yahoo.com", "cn.bing.com",
+        ):
+            assert _is_rejected_domain(host) is True
 
     def test_lookalike_domains_not_rejected(self):
         # Unrelated hosts that merely contain a search-engine substring stay allowed.
