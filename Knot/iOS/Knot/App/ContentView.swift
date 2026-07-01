@@ -30,7 +30,10 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if authViewModel.isCheckingSession {
+            if let screen = UITestScreenshotHarness.activeScreen {
+                // MARK: - UI-test screenshot seam (no effect on normal launches)
+                UITestScreenshotHarness.rootView(for: screen)
+            } else if authViewModel.isCheckingSession {
                 // MARK: - Loading (checking Keychain for session)
                 sessionCheckView
             } else if authViewModel.isAuthenticated {

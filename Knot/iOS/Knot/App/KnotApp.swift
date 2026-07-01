@@ -61,23 +61,16 @@ struct KnotApp: App {
         .modelContainer(sharedModelContainer)
     }
 
+    /// App root. Normally `ContentView` (auth → onboarding → home router). In
+    /// DEBUG builds, the `-uiTestOnboarding` launch argument renders the
+    /// onboarding flow directly so `PRScreenshotTests` can capture onboarding
+    /// screens without a live Supabase session. Never compiled into release.
+    /// (Other screenshot targets use `UITestScreenshotHarness` via ContentView.)
     @ViewBuilder
     private var rootView: some View {
         #if DEBUG
-        // PR screenshot harness: launch with the `recDetailBookable` argument to
-        // render the recommendation detail with a real, bookable merchant CTA
-        // deterministically, without needing auth or a live backend. See
-        // KnotUITests/PRScreenshotTests.
-        if ProcessInfo.processInfo.arguments.contains("recDetailBookable") {
-            RecommendationDetailView(
-                item: PreviewRecommendations.bookablePurchasable,
-                partnerName: "Ronnie",
-                isSaved: false,
-                onOpenMerchant: {},
-                onSave: {},
-                onShare: {},
-                onDismiss: {}
-            )
+        if CommandLine.arguments.contains("-uiTestOnboarding") {
+            OnboardingContainerView(onComplete: {})
         } else {
             ContentView()
         }

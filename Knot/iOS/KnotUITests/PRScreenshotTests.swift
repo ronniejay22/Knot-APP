@@ -27,9 +27,9 @@ final class PRScreenshotTests: XCTestCase {
         // This change touches the recommendation detail CTA: purchasables now open a
         // real, dedicated merchant/booking page ("Open in <merchant>") — never a web
         // search — and unbookable items degrade to an idea instead. The detail screen
-        // needs auth + a live backend to reach normally, so launch straight into it
-        // via the DEBUG screenshot harness (KnotApp.rootView) with a bookable item.
-        app.launchArguments += ["recDetailBookable"]
+        // needs auth + a live backend to reach normally, so render it standalone via
+        // the DEBUG screenshot harness (`UITestScreenshotHarness` key "recDetail").
+        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
