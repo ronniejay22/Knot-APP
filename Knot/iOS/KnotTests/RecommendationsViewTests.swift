@@ -114,6 +114,31 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.priceConfidence)
     }
 
+    /// A purchasable the backend could not resolve to a real page arrives with a
+    /// null external_url; it must decode cleanly so the detail CTA can degrade to
+    /// the Save action instead of opening a dead link.
+    func testRecommendationItemDecodesNullExternalUrl() throws {
+        let json = """
+        {
+            "id": "no-link-1",
+            "recommendation_type": "gift",
+            "title": "Handcrafted Ceramic Mug",
+            "currency": "USD",
+            "external_url": null,
+            "merchant_name": "Local Potter",
+            "source": "unified",
+            "interest_score": 0.5,
+            "vibe_score": 0.5,
+            "love_language_score": 0.5,
+            "final_score": 0.5
+        }
+        """.data(using: .utf8)!
+
+        let item = try JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+        XCTAssertNil(item.externalUrl)
+        XCTAssertEqual(item.merchantName, "Local Potter")
+    }
+
     /// Raw snake_case tag tokens that leak into prose are humanized at the model
     /// layer (defensive net for older/cached recommendations).
     func testRecommendationItemHumanizesLeakedTagTokens() throws {

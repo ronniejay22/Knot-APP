@@ -13,6 +13,7 @@ Step 15.1: Unified AI Recommendation System
 import asyncio
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -27,30 +28,106 @@ logger = logging.getLogger(__name__)
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 BRAVE_TIMEOUT = 10.0
-RESULTS_PER_QUERY = 5
+RESULTS_PER_QUERY = 10
 
-# Domains to exclude — articles, listicles, review sites (not actual purchase pages)
+# General search engines — we must never hand the user a Google/Bing-style results,
+# comparison, or cache page. These are registrable domains; `_is_rejected_domain`
+# rejects the bare domain AND any subdomain of it, so search/results/cache fronts like
+# `cse.google.com`, `shopping.google.com`, `html.duckduckgo.com`, `r.search.yahoo.com`,
+# and `webcache.googleusercontent.com` are all caught — not just the `www.` spelling.
+SEARCH_ENGINE_DOMAINS = {
+    "google.com", "bing.com", "duckduckgo.com", "yahoo.com", "baidu.com",
+    "ecosia.org", "startpage.com", "ask.com", "aol.com", "brave.com",
+    "googleusercontent.com",  # Google cache/proxy host — never a purchase page
+}
+# Real merchant properties that live under a search-engine domain — these ARE
+# dedicated stores and must survive the subdomain rejection above.
+SEARCH_ENGINE_COMMERCE_ALLOWLIST = {"store.google.com", "play.google.com"}
+# Articles, listicles, review/forum sites — not actual purchase pages.
 EXCLUDED_DOMAINS = {
     "reddit.com", "quora.com", "medium.com", "buzzfeed.com",
     "pinterest.com", "wikihow.com", "wikipedia.org",
 }
+
+# Preferred commerce / ticketing / booking domains — a result on one of these is
+# very likely an actual dedicated purchase page, so it wins over a bare match.
+PREFERRED_COMMERCE_DOMAINS = {
+    "ticketmaster.", "livenation.", "seatgeek.", "axs.com", "stubhub.",
+    "vividseats.", "eventbrite.", "dice.fm", "opentable.", "resy.com",
+    "exploretock.", "etsy.com", "amazon.", "ebay.", "walmart.com",
+    "target.com", "bestbuy.com", "airbnb.", "viator.com", "getyourguide.",
+    "booking.com", "expedia.", "fandango.", "myshopify.com",
+}
+# URL substrings that signal a buy/book/reserve page (as opposed to a homepage).
+PURCHASE_PATH_KEYWORDS = (
+    "ticket", "event", "book", "reserv", "buy", "purchase", "product",
+    "/dp/", "checkout", "order", "shop", "class", "tour",
+)
+
+# Score weights. Kept well above the rank tiebreak (which maxes at RESULTS_PER_QUERY)
+# so a commerce-domain or buy-path match always outranks mere relevance ordering.
+COMMERCE_DOMAIN_SCORE = 100
+PURCHASE_PATH_SCORE = 10
 
 
 # ======================================================================
 # Brave Search for a single item
 # ======================================================================
 
+def _is_rejected_domain(domain: str) -> bool:
+    """
+    True for a general search engine or article/listicle host — never a purchase page.
+
+    A search engine is rejected on the registrable domain OR any subdomain of it, so
+    every results/comparison/cache front is caught (cse., shopping., html., lite.,
+    r.search., cn., webcache. …) — not just the `www.` spelling. Real merchant
+    properties under a search domain (store.google.com, play.google.com) are allow-listed,
+    a merchant's own on-site search (search.thefondatheatre.com) is unaffected, and
+    unrelated look-alikes (task.com vs ask.com) are not matched.
+    """
+    if any(bad in domain for bad in EXCLUDED_DOMAINS):
+        return True
+    host = domain.removeprefix("www.")
+    if host in SEARCH_ENGINE_COMMERCE_ALLOWLIST:
+        return False
+    # The bare engine domain OR any subdomain of it.
+    if any(host == d or host.endswith("." + d) for d in SEARCH_ENGINE_DOMAINS):
+        return True
+    # Bare international Google/Bing search domains (google.co.uk, bing.de, …) and
+    # their subdomains — the registrable set above lists only the `.com` forms.
+    return host.startswith(("google.", "bing.")) or ".google." in host or ".bing." in host
+
+
+def _score_result(url: str, rank: int) -> int:
+    """
+    Score a candidate result URL. Higher is better. Any non-rejected page is
+    acceptable (a bare score from the relevance tiebreak still qualifies); a known
+    commerce domain or a buy/book path wins over a plain homepage.
+    """
+    domain = urlparse(url).netloc.lower()
+    lower = url.lower()
+    score = 0
+    if any(pref in domain for pref in PREFERRED_COMMERCE_DOMAINS):
+        score += COMMERCE_DOMAIN_SCORE
+    if any(kw in lower for kw in PURCHASE_PATH_KEYWORDS):
+        score += PURCHASE_PATH_SCORE
+    # Preserve Brave's relevance ordering as a tiebreak (earlier == better).
+    score += max(0, RESULTS_PER_QUERY - rank)
+    return score
+
+
 async def _search_for_purchase_url(
     search_query: str,
     merchant_name: str | None = None,
 ) -> str | None:
     """
-    Search Brave for a real purchase/booking URL matching the search query.
+    Search Brave for a real, dedicated purchase/booking URL matching the query.
 
-    Filters out article/listicle domains and prioritizes results that look
-    like actual product or booking pages.
+    Hard-rejects general search engines and article/listicle domains, then returns
+    the best-scoring surviving result (preferring known commerce/ticketing domains
+    and buy/book paths). Never returns a web-search link.
 
-    Returns the best matching URL, or None if nothing suitable found.
+    Returns the best real page URL, or None if nothing suitable was found.
     """
     if not is_brave_search_configured():
         return None
@@ -84,36 +161,26 @@ async def _search_for_purchase_url(
 
             web_results = data.get("web", {}).get("results", [])
 
-            for result in web_results:
+            best_url: str | None = None
+            best_score = -1
+            for rank, result in enumerate(web_results):
                 url = result.get("url", "")
                 if not url:
                     continue
-
-                # Skip excluded domains
-                from urllib.parse import urlparse
                 domain = urlparse(url).netloc.lower()
-                if any(excluded in domain for excluded in EXCLUDED_DOMAINS):
+                if _is_rejected_domain(domain):
                     continue
+                score = _score_result(url, rank)
+                if score > best_score:
+                    best_score, best_url = score, url
 
-                # Prefer the first non-excluded result — Brave ranks by relevance
-                return url
-
-            logger.debug("No suitable purchase URL found for: %s", search_query[:60])
-            return None
+            if best_url is None:
+                logger.debug("No suitable purchase URL found for: %s", search_query[:60])
+            return best_url
 
     except (httpx.TimeoutException, httpx.HTTPError) as exc:
         logger.warning("Brave Search failed for '%s': %s", search_query[:60], exc)
         return None
-
-
-def _build_merchant_search_url(candidate: CandidateRecommendation) -> str:
-    """Build a Google Shopping search fallback URL for a candidate."""
-    query_parts = []
-    if candidate.merchant_name:
-        query_parts.append(candidate.merchant_name)
-    query_parts.append(candidate.title)
-    query = "+".join(query_parts[0].split()[:5]) if query_parts else candidate.title
-    return f"https://www.google.com/search?tbm=shop&q={query}"
 
 
 # ======================================================================
@@ -156,10 +223,12 @@ async def resolve_purchase_urls(
     LangGraph node: Resolve real purchase/booking URLs for purchasable items.
 
     For each item in final_three that has a search_query (purchasable items),
-    performs a targeted Brave Search to find the actual purchase URL.
+    performs a targeted Brave Search to find a real, dedicated purchase page.
     Ideas (is_idea=True) are skipped.
 
-    If URL resolution fails for an item, assigns a Google Shopping fallback.
+    If resolution fails, the item's external_url is left None — a signal to the
+    downstream availability node to SWAP it for a bookable spare (or an idea).
+    We never synthesize a web-search link.
 
     Args:
         state: The current RecommendationState with final_three populated
@@ -200,14 +269,13 @@ async def resolve_purchase_urls(
                 candidate.title, url,
             )
             return candidate.model_copy(update={"external_url": url})
-        else:
-            # Fallback to Google Shopping search
-            fallback_url = _build_merchant_search_url(candidate)
-            logger.info(
-                "Using fallback search URL for '%s': %s",
-                candidate.title, fallback_url,
-            )
-            return candidate.model_copy(update={"external_url": fallback_url})
+
+        # No real purchase page — leave external_url None so availability swaps it.
+        logger.info(
+            "No dedicated purchase page for '%s' — marking for replacement",
+            candidate.title,
+        )
+        return candidate.model_copy(update={"external_url": None})
 
     resolved = await asyncio.gather(
         *[_resolve_single(c) for c in selected],

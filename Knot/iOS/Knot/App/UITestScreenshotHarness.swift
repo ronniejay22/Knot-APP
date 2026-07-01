@@ -33,9 +33,29 @@ enum UITestScreenshotHarness {
         switch key {
         case "interests":
             InterestsScreenshotHarnessView()
+        case "recDetail":
+            RecDetailScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Renders the recommendation detail for a bookable purchasable, so a screenshot
+/// shows the "Open in <merchant>" CTA that opens a real, dedicated purchase page
+/// (never a web search). The detail screen normally sits behind auth + a live
+/// backend, so this bypasses both with representative sample data.
+private struct RecDetailScreenshotHarnessView: View {
+    var body: some View {
+        RecommendationDetailView(
+            item: PreviewRecommendations.bookablePurchasable,
+            partnerName: "Ronnie",
+            isSaved: false,
+            onOpenMerchant: {},
+            onSave: {},
+            onShare: {},
+            onDismiss: {}
+        )
     }
 }
 

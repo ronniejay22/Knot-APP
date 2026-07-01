@@ -40,7 +40,7 @@ final class DevAPIBaseURLResolutionTests: XCTestCase {
             isSimulator: true
         )
         XCTAssertEqual(result, Constants.API.debugFallbackBaseURL)
-        XCTAssertEqual(result, "http://127.0.0.1:8000")
+        XCTAssertEqual(result, "http://127.0.0.1:8420")
     }
 
     func testOverrideWinsEvenOnSimulator() {

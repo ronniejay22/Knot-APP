@@ -212,17 +212,21 @@ def mock_brave_search():
 
 @pytest.fixture
 def mock_url_check():
-    """Mock URL availability checks to always return True with page content."""
+    """
+    Make URL resolution + availability succeed without real HTTP: every purchasable
+    resolves to a dummy real page and every page fetch reports available. This keeps
+    purchasables on the happy path (no swap), so the graph tests exercise wiring.
+    """
     with patch(
+        "app.agents.url_resolution._search_for_purchase_url",
+        new_callable=AsyncMock,
+        return_value="https://merchant.example.com/product/123",
+    ), patch(
         "app.agents.availability._fetch_page",
         new_callable=AsyncMock,
         return_value=(True, ""),
-    ), patch(
-        "app.agents.availability._check_url",
-        new_callable=AsyncMock,
-        return_value=True,
-    ) as check_m:
-        yield check_m
+    ) as fetch_m:
+        yield fetch_m
 
 
 # ======================================================================

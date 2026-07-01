@@ -451,9 +451,17 @@ struct RecommendationDetailView: View {
         )
     }
 
+    /// A purchasable item is "openable" only when it carries a real merchant link.
+    /// The backend guarantees a resolved page or converts the card to an idea, so a
+    /// linkless purchasable is rare — but never show a dead "Open" button if it happens.
+    private var hasOpenableLink: Bool {
+        guard let url = item.externalUrl else { return false }
+        return !url.isEmpty
+    }
+
     @ViewBuilder
     private var primaryCTA: some View {
-        if isIdea {
+        if isIdea || !hasOpenableLink {
             KnotButton(
                 savedLocally ? "Saved" : "Save to Library",
                 variant: savedLocally ? .secondary : .primary,
@@ -560,6 +568,29 @@ enum PreviewRecommendations {
     static let gift = decode(type: "gift", isIdea: false)
     static let experience = decode(type: "experience", isIdea: false)
     static let idea = decode(type: "idea", isIdea: true)
+
+    /// A purchasable item with a real, resolved ticketing page — the CTA reads
+    /// "Open in <merchant>" and opens a dedicated purchase page (never a web search).
+    /// Used by the PR screenshot harness (see KnotApp.rootView).
+    static let bookablePurchasable: RecommendationItemResponse = {
+        let json = """
+        {
+            "id": "date-fonda", "recommendation_type": "date",
+            "title": "Sunset Dinner & Live Jazz at The Fonda Theatre",
+            "description": "Spend an evening at this iconic Hollywood Boulevard venue catching a live jazz performance, then grab dinner at a nearby quiet-luxury spot.",
+            "price_cents": 8000, "currency": "USD", "price_confidence": "estimated",
+            "external_url": "https://www.ticketmaster.com/the-fonda-theatre-tickets-los-angeles/venue/229121",
+            "image_url": null, "merchant_name": "The Fonda Theatre / Ticketmaster", "source": "unified",
+            "location": {"city": "Los Angeles", "state": "CA", "country": "US", "address": null},
+            "is_idea": false,
+            "interest_score": 0.9, "vibe_score": 0.8, "love_language_score": 0.7, "final_score": 0.82,
+            "matched_interests": ["Music", "Travel"], "matched_vibes": ["quiet_luxury", "street_urban"],
+            "matched_love_languages": ["words_of_affirmation", "acts_of_service"],
+            "personalization_note": "You know how much Ronnie loves music and the energy of live performance—this hits that directly."
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }()
 
     static func decode(type: String, isIdea: Bool) -> RecommendationItemResponse {
         let sections = isIdea

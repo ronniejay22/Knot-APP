@@ -6849,6 +6849,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.4 ✅ Recommendations — Guarantee Every Card Is Bookable-or-Idea (Never a Web-Search Link)
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** Tapping the recommendation detail CTA ("Open in The Fonda…") sent users to a Google Shopping results page for the raw merchant string — a dead end. The product requirement: the "Open" button must always reach a real, dedicated merchant/venue/purchase page, never a web search; if an item can't be made bookable it must be swapped for one that can (last resort: an in-app idea, which needs no link).
+
+**Root cause:** Recommendations don't get URLs from the LLM; Claude emits a `search_query` the backend resolves to a real page via Brave Search. When Brave found nothing (or wasn't configured), the old fallback fabricated a Google search URL. (An interim fix in this same PR made it a plain Google *web* search with an honest "Find it online" label — this step supersedes that with the "always a real page or a swap" approach.)
+
+**What changed:**
+- **Over-generation (`services/unified_generation.py` + `agents/unified_generation_node.py`):** The generator now produces `GENERATION_TARGET` (3 primary + 2 backups) recommendations, nudged to include ≥1 idea/plan, with `CLAUDE_MAX_TOKENS` raised to 12288 to avoid truncation. The node splits them into `final_three` (shown) and `filtered_recommendations` (the swap pool) — previously the unified graph never populated a backup pool.
+- **Scored resolution (`agents/url_resolution.py`):** `_search_for_purchase_url` now hard-rejects general search engines (`SEARCH_ENGINE_DOMAINS`, matched precisely so real Google stores and look-alike hosts survive) and article domains, then returns the **best-scoring** surviving result (`_score_result` prefers `PREFERRED_COMMERCE_DOMAINS` and buy/book path keywords), accepting any real non-search page. On failure it leaves `external_url=None` (a swap signal) — the Google-search fallback (`_build_search_fallback_url`) and the `external_url_is_search` flag were **removed**.
+- **Guarantee-bookable swap (`agents/availability.py`):** A slot with a dead OR unresolved (`external_url is None`) purchasable is swapped for a bookable spare. New `_resolve_and_verify` resolves a backup's query and live-checks it (backups arrive URL-less). Bookable purchasable backups are tried first (the user wants a card they can actually buy); an idea is used only as a last resort — the best spare idea (`_best_unused_idea`), or the original fully converted to a linkless idea card (`type="idea"`, `external_url=None`, price/merchant cleared) so the card AND detail layers agree. `_check_url` was removed (unused). Count stays 3 (PRD F2).
+- **iOS (`Models/DTOs.swift`, `Features/Recommendations/RecommendationDetailView.swift`):** Removed `externalUrlIsSearch`/"Find it online"; `primaryCTA` shows "Open in <merchant>" only when a real link exists (`hasOpenableLink`), otherwise degrades to the Save action. The screenshot is captured via a new `"recDetail"` key on the shared `UITestScreenshotHarness` (the seam added in Step 19.3), rendering `RecommendationDetailView` with a bookable sample; `PRScreenshotTests` also dismisses transient simulator system alerts.
+
+**Tests:** Backend `1290 passed` — `test_url_resolution.py` now covers domain rejection (incl. precise search-engine matching) + scoring + resolve-leaves-None; `test_availability_node.py` covers resolve-backup-before-swap, bookable-preferred-over-idea, last-resort-idea, and linkless-idea fallbacks (off the old search-URL asserts); `test_pipeline.py` fixture updated. iOS `RecommendationDTOTests` green (null-external_url decode). PR screenshot shows the bookable "Open in <merchant>" CTA.
+
+**Follow-ups (out of scope):** (1) `BRAVE_SEARCH_API_KEY` must be configured in prod, or every purchasable degrades to an idea. (2) Over-generating 5 vs 3 raises generation token cost/latency on the hot path — the deliberate tradeoff for reliable swap material.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
