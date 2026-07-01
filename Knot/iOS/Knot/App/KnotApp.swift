@@ -40,7 +40,7 @@ struct KnotApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootView
                 .preferredColorScheme(themeMode == "dark" ? .dark : .light)
                 .environment(deepLinkHandler)
                 .onOpenURL { url in
@@ -59,5 +59,23 @@ struct KnotApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    /// App root. Normally `ContentView` (auth → onboarding → home router). In
+    /// DEBUG builds, the `-uiTestOnboarding` launch argument renders the
+    /// onboarding flow directly so `PRScreenshotTests` can capture onboarding
+    /// screens without a live Supabase session. Never compiled into release.
+    /// (Other screenshot targets use `UITestScreenshotHarness` via ContentView.)
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+        if CommandLine.arguments.contains("-uiTestOnboarding") {
+            OnboardingContainerView(onComplete: {})
+        } else {
+            ContentView()
+        }
+        #else
+        ContentView()
+        #endif
     }
 }

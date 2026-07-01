@@ -50,9 +50,6 @@ struct OnboardingLocationView: View {
 
     private var locationFieldSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Location")
-                .knotFont(Theme.Typography.cta)
-
             TextField("Search city, state, or zip code", text: $locationQuery)
                 .knotFont(Theme.Typography.body)
                 .padding(.horizontal, 14)

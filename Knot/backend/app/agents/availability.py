@@ -3,9 +3,12 @@ Availability Verification & Price Enrichment Node — LangGraph node for
 verifying recommendation URLs and confirming prices from product pages.
 
 1. Verifies that the 3 selected recommendations have valid, reachable external URLs.
-2. If a URL is unavailable, replaces it with the next-best candidate from the pool;
-   if no live replacement exists, the card is kept with a fallback search URL rather
-   than dropped, so the count never falls below 3 (PRD F2).
+2. If a purchasable has no resolved URL (resolution found no real page) or its URL is
+   dead, SWAPS it for a bookable spare from the pool (resolving + live-checking the
+   spare's URL). Bookable purchasable backups are tried first (the goal is a card the
+   user can actually buy); an in-app idea is used only as a last resort — the best
+   spare idea, or, failing that, the original converted to a linkless idea card. We
+   never show a web-search link, and the count never falls below 3 (PRD F2).
 3. Fetches page content for verified candidates and extracts real prices via Claude.
 4. Updates price_cents and price_confidence based on verification results.
 
@@ -29,7 +32,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.agents.state import CandidateRecommendation, RecommendationState
-from app.agents.url_resolution import _build_merchant_search_url
+from app.agents.url_resolution import _localize_search_query, _search_for_purchase_url
 from app.services.llm_tuning import fast_generation_params
 
 logger = logging.getLogger(__name__)
@@ -112,7 +115,7 @@ def _extract_text_from_html(html: str) -> str:
 
 
 # ======================================================================
-# Page fetching (replaces _check_url for final candidates)
+# Page fetching (GET — checks availability and captures content)
 # ======================================================================
 
 async def _fetch_page(
@@ -151,29 +154,6 @@ async def _fetch_page(
     except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPError) as exc:
         logger.warning("Page fetch failed for %s: %s", url, exc)
         return False, ""
-
-
-async def _check_url(url: str, client: httpx.AsyncClient) -> bool:
-    """
-    Check if a URL is reachable (lightweight HEAD check for replacements).
-
-    Used for backup candidate URL checks where we don't need page content.
-
-    Args:
-        url: The external URL to check.
-        client: An httpx.AsyncClient instance.
-
-    Returns:
-        True if the URL is reachable with a valid status, False otherwise.
-    """
-    try:
-        response = await client.head(url, follow_redirects=True)
-        if response.status_code == 405:
-            response = await client.get(url, follow_redirects=True)
-        return response.status_code in VALID_STATUS_RANGE
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPError) as exc:
-        logger.warning("URL check failed for %s: %s", url, exc)
-        return False
 
 
 # ======================================================================
@@ -302,6 +282,42 @@ def _get_backup_candidates(
     return backups
 
 
+def _best_unused_idea(
+    filtered: list[CandidateRecommendation],
+    excluded_ids: set[str],
+) -> CandidateRecommendation | None:
+    """Highest-scoring unused in-app idea/plan (needs no URL) — last-resort filler."""
+    ideas = [c for c in filtered if c.is_idea and c.id not in excluded_ids]
+    if not ideas:
+        return None
+    return max(ideas, key=lambda c: c.final_score)
+
+
+async def _resolve_and_verify(
+    candidate: CandidateRecommendation,
+    client: httpx.AsyncClient,
+) -> tuple[CandidateRecommendation, str] | None:
+    """
+    Resolve a purchasable backup's real purchase page and confirm it is live.
+
+    Backups from the pool were never URL-resolved (only the shown 3 are), so a
+    swap must resolve the query AND live-check the result before trusting it.
+
+    Returns (candidate with a live external_url, page_content) or None if no
+    real, reachable page could be found.
+    """
+    if not candidate.search_query:
+        return None
+    query = _localize_search_query(candidate.search_query, candidate.location)
+    url = await _search_for_purchase_url(query, candidate.merchant_name)
+    if not url:
+        return None
+    is_available, content = await _fetch_page(url, client)
+    if not is_available:
+        return None
+    return candidate.model_copy(update={"external_url": url}), content
+
+
 # ======================================================================
 # LangGraph node
 # ======================================================================
@@ -315,9 +331,11 @@ async def verify_availability(
     Processing:
     1. Takes final_three from the state (3 selected recommendations)
     2. Fetches each candidate's page via GET (checks availability + captures content)
-    3. If a URL is unreachable, replaces with next-best from filtered_recommendations;
-       when no live replacement is found, keeps the card with a fallback search URL
-       (never drops it) so the returned count matches the input count
+    3. If a purchasable has no resolved URL or an unreachable one, swaps in a bookable
+       spare from filtered_recommendations — resolving+live-checking spare purchasables
+       first, then falling back to a spare idea, then to the original converted to a
+       linkless idea card. Never a web-search link; never drops below the input count
+       (PRD F2)
     4. Sends page content for all verified candidates to Claude in a single call
        for price extraction and verification
     5. Updates price_cents and price_confidence based on verification results
@@ -352,14 +370,17 @@ async def verify_availability(
 
         # ----------------------------------------------------------------
         # Phase 1: Fetch all pages in parallel (happy path)
-        # Ideas and null-URL candidates are returned immediately as no-ops.
+        # Ideas are no-ops (no URL). A purchasable with no resolved URL is NOT a
+        # no-op — it counts as unavailable so Phase 2 swaps it for a bookable spare.
         # ----------------------------------------------------------------
         async def _fetch_indexed(
             idx: int,
             candidate: CandidateRecommendation,
         ) -> tuple[int, bool, str]:
-            if candidate.is_idea or candidate.external_url is None:
+            if candidate.is_idea:
                 return idx, True, ""
+            if candidate.external_url is None:
+                return idx, False, ""
             is_avail, content = await _fetch_page(candidate.external_url, client)
             return idx, is_avail, content
 
@@ -375,7 +396,7 @@ async def verify_availability(
             i = idx  # keep variable name consistent with original logging
 
             # Skip URL verification for ideas — they have no external URL (Step 14.5)
-            if candidate.is_idea or candidate.external_url is None:
+            if candidate.is_idea:
                 logger.debug(
                     "Slot %d: '%s' is an idea — skipping URL verification",
                     i + 1, candidate.title,
@@ -393,59 +414,86 @@ async def verify_availability(
                     candidates_with_content.append((candidate, page_content))
                 continue
 
-            # URL unavailable — try to find a replacement
+            # Not bookable (no resolved URL, or a dead one) — swap for a spare that IS.
             logger.info(
-                "Slot %d: '%s' unavailable (URL: %s) — seeking replacement",
-                i + 1, candidate.title, candidate.external_url,
+                "Slot %d: '%s' not bookable (URL: %s) — seeking replacement",
+                i + 1, candidate.title, candidate.external_url or "unresolved",
             )
             used_ids.add(candidate.id)
 
+            # Prefer a real bookable replacement (the user's stated priority), so try
+            # PURCHASABLE backups first — resolving + live-checking each. Ideas are
+            # held back for the last-resort step below. Each attempt is a serial
+            # Brave call + page GET, so the loop is bounded by MAX_REPLACEMENT_ATTEMPTS
+            # to cap worst-case tail latency.
             replaced = False
             for attempt in range(MAX_REPLACEMENT_ATTEMPTS):
-                backups = _get_backup_candidates(filtered_pool, used_ids)
-                if not backups:
+                purchasable_backups = [
+                    b for b in _get_backup_candidates(filtered_pool, used_ids)
+                    if not b.is_idea
+                ]
+                if not purchasable_backups:
                     logger.warning(
-                        "Slot %d: No more backup candidates available "
-                        "(attempt %d/%d)",
+                        "Slot %d: No more purchasable backups (attempt %d/%d)",
                         i + 1, attempt + 1, MAX_REPLACEMENT_ATTEMPTS,
                     )
                     break
 
-                replacement = backups[0]
+                replacement = purchasable_backups[0]
                 used_ids.add(replacement.id)
 
-                # Use lightweight HEAD check for replacements
-                replacement_available = await _check_url(
-                    replacement.external_url, client,
-                )
-                if replacement_available:
+                # Backups arrive URL-less — resolve to a real page and live-check it.
+                result = await _resolve_and_verify(replacement, client)
+                if result is not None:
+                    live_replacement, content = result
                     logger.info(
                         "Slot %d: Replaced with '%s' (URL: %s, attempt %d)",
-                        i + 1, replacement.title, replacement.external_url,
+                        i + 1, live_replacement.title, live_replacement.external_url,
                         attempt + 1,
                     )
-                    verified.append(replacement)
+                    verified.append(live_replacement)
+                    if content:
+                        candidates_with_content.append((live_replacement, content))
                     replaced = True
                     break
                 else:
                     logger.debug(
-                        "Slot %d: Replacement '%s' also unavailable (attempt %d/%d)",
+                        "Slot %d: Replacement '%s' not bookable (attempt %d/%d)",
                         i + 1, replacement.title, attempt + 1,
                         MAX_REPLACEMENT_ATTEMPTS,
                     )
 
             if not replaced:
-                # Never drop a card: the count must stay at 3 (PRD F2). Keep the
-                # original candidate but downgrade its dead URL to a fallback
-                # search link so the link still resolves to something useful.
-                logger.warning(
-                    "Slot %d: no live replacement after %d attempts — keeping card "
-                    "with fallback search URL",
-                    i + 1, MAX_REPLACEMENT_ATTEMPTS,
-                )
-                verified.append(candidate.model_copy(
-                    update={"external_url": _build_merchant_search_url(candidate)},
-                ))
+                # Never drop a card (PRD F2) and never show a web-search link. Last
+                # resort: use the best remaining idea (needs no URL); if none exists,
+                # keep the original as a linkless idea-style card so it still renders
+                # with a Save action instead of a dead buy button.
+                idea = _best_unused_idea(filtered_pool, used_ids)
+                if idea is not None:
+                    used_ids.add(idea.id)
+                    logger.warning(
+                        "Slot %d: no bookable replacement — using idea '%s'",
+                        i + 1, idea.title,
+                    )
+                    verified.append(idea)
+                else:
+                    logger.warning(
+                        "Slot %d: no bookable replacement and no spare idea — keeping "
+                        "'%s' as a linkless idea card",
+                        i + 1, candidate.title,
+                    )
+                    # Convert fully to an idea so BOTH the detail view and the
+                    # card/deck (which branch on `type`) render it as a linkless,
+                    # saveable idea — not a purchasable with a dead price/merchant.
+                    verified.append(candidate.model_copy(
+                        update={
+                            "external_url": None,
+                            "is_idea": True,
+                            "type": "idea",
+                            "price_cents": None,
+                            "merchant_name": None,
+                        },
+                    ))
 
     # --- Price verification pass ---
     if candidates_with_content:
@@ -492,6 +540,7 @@ async def verify_availability(
         [f"{c.title} ({c.price_confidence})" for c in verified],
     )
 
-    # Count is always preserved now — dead URLs are kept with a fallback search
-    # link rather than dropped — so there is no partial-results path to warn about.
+    # Count is always preserved — an unbookable slot is swapped for a bookable spare
+    # or an idea (never dropped, never a web-search link) — so there is no
+    # partial-results path to warn about.
     return {"final_three": verified}

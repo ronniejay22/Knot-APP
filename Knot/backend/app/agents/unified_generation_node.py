@@ -11,7 +11,10 @@ import logging
 from typing import Any
 
 from app.agents.state import RecommendationState
-from app.services.unified_generation import generate_unified_recommendations
+from app.services.unified_generation import (
+    PRIMARY_RECOMMENDATION_COUNT,
+    generate_unified_recommendations,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,9 @@ async def generate_unified(
                budget_range, occasion_type, and excluded_titles populated.
 
     Returns:
-        A dict with "final_three" containing the 3 generated recommendations,
+        A dict with "final_three" (the 3 recommendations shown to the user) and
+        "filtered_recommendations" (any over-generated surplus, used by the URL
+        pipeline as a swap pool when a purchasable resolves no real booking page),
         or "error" if generation failed.
     """
     logger.info(
@@ -66,4 +71,13 @@ async def generate_unified(
         [f"{r.title} ({r.type})" for r in recommendations],
     )
 
-    return {"final_three": recommendations}
+    # First 3 are the shown cards; any surplus becomes the swap pool for the
+    # URL-resolution/availability stage (so an unbookable purchasable can be
+    # replaced by a spare that resolves a real page, or by a spare idea).
+    final_three = recommendations[:PRIMARY_RECOMMENDATION_COUNT]
+    backups = recommendations[PRIMARY_RECOMMENDATION_COUNT:]
+
+    return {
+        "final_three": final_three,
+        "filtered_recommendations": backups,
+    }

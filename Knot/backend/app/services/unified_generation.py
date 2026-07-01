@@ -52,13 +52,23 @@ logger = logging.getLogger(__name__)
 # (Haiku does not accept output_config.effort — fast_generation_params handles
 # that automatically.)
 CLAUDE_MODEL = "claude-haiku-4-5"
-# 8192 gives the 3-recommendation JSON (each with rich content_sections) ample
-# headroom so the array is never cut mid-stream — the old 4096 cap could truncate
-# the response, leaving a personalization_note ending mid-sentence. It is a
-# ceiling, not a target (Haiku 4.5 allows up to 64K), so typical latency is
-# unchanged. A max_tokens stop is now also detected explicitly below and retried.
-CLAUDE_MAX_TOKENS = 8192
+# 12288 gives the over-generated JSON (PRIMARY + BACKUP recommendations, each with
+# rich content_sections) ample headroom so the array is never cut mid-stream — the
+# old 4096 cap could truncate the response, leaving a personalization_note ending
+# mid-sentence. It is a ceiling, not a target (Haiku 4.5 allows up to 64K), so
+# typical latency scales with the tokens actually produced, not this cap. A
+# max_tokens stop is also detected explicitly below and retried.
+CLAUDE_MAX_TOKENS = 12288
 MAX_RETRIES = 2
+
+# We show exactly 3 cards (PRD F2) but over-generate a small surplus so the URL
+# pipeline can SWAP a purchasable that resolves no real booking page for a spare
+# that does (or an idea, which needs no link) — instead of ever showing a dead or
+# web-search link. PRIMARY are the 3 shown; BACKUP feed the swap pool. Keep the
+# surplus modest to bound generation latency/tokens.
+PRIMARY_RECOMMENDATION_COUNT = 3
+BACKUP_RECOMMENDATION_COUNT = 2
+GENERATION_TARGET = PRIMARY_RECOMMENDATION_COUNT + BACKUP_RECOMMENDATION_COUNT
 
 # Valid content section types (same as idea_generation.py)
 VALID_SECTION_TYPES = {
@@ -98,7 +108,9 @@ You will receive detailed information about a partner including their \
 interests, dislikes, aesthetic vibes, love languages, budget, location, \
 and personal hints their partner has captured about them.
 
-Generate exactly 3 recommendations. You decide the ideal MIX:
+Generate exactly __NREC__ recommendations. You decide the ideal MIX. At least one \
+of the __NREC__ MUST be an in-app IDEA or PLAN (type "idea" or "plan") that needs \
+no purchase, so there is always a linkless option available:
 - PURCHASABLE items: Real products you can buy, restaurants you can book, \
 experiences with tickets (concerts, spa, classes). These MUST be specific \
 real things (name the actual product, restaurant, or venue).
@@ -115,7 +127,7 @@ Rules:
 Reference their actual interests, hints, and preferences.
 2. NEVER recommend anything related to their dislikes.
 3. NEVER repeat anything from the excluded list.
-4. Ensure DIVERSITY across the 3 cards — vary the type (gift/experience/date/idea/plan), \
+4. Ensure DIVERSITY across the recommendations — vary the type (gift/experience/date/idea/plan), \
 price range, and nature of the recommendation. When a milestone is approaching, \
 strongly consider including at least one "plan" type that combines activities. \
 When a city is known, lean the mix toward locally-grounded experiences, dates, and \
@@ -189,7 +201,10 @@ the SPECIFIC local store to get them from (city plus neighborhood or street when
 e.g. "Pick up baking supplies at Central Market on N. Lamar" — never a generic "a local \
 grocery store" or "a craft store".
 
-Return ONLY a JSON array of 3 objects. No markdown, no code fences, no explanation."""
+Return ONLY a JSON array of __NREC__ objects. No markdown, no code fences, no explanation."""
+
+# Keep the prompt's stated count in sync with the generation target.
+UNIFIED_SYSTEM_PROMPT = UNIFIED_SYSTEM_PROMPT.replace("__NREC__", str(GENERATION_TARGET))
 
 
 # ======================================================================
@@ -210,7 +225,9 @@ def _build_user_prompt(
     """Build the user prompt with all personalization data and exclusion context."""
     parts: list[str] = []
 
-    parts.append("Generate exactly 3 unique, personalized recommendations.\n")
+    parts.append(
+        f"Generate exactly {GENERATION_TARGET} unique, personalized recommendations.\n"
+    )
 
     # Partner profile
     parts.append("=== PARTNER PROFILE ===")
@@ -461,8 +478,10 @@ async def generate_unified_recommendations(
         rejection_reason: Optional reason from refresh (adjusts generation).
 
     Returns:
-        A list of 3 CandidateRecommendation objects (or fewer on error).
-        Returns empty list if Claude is not configured or generation fails.
+        Up to GENERATION_TARGET CandidateRecommendation objects (the first
+        PRIMARY_RECOMMENDATION_COUNT are the shown cards, the rest are swap-pool
+        backups), or fewer on a short generation. Returns an empty list if Claude
+        is not configured or generation fails.
     """
     if not is_anthropic_configured():
         logger.warning("Anthropic API key not configured — skipping unified generation")
@@ -547,20 +566,23 @@ async def generate_unified_recommendations(
             if len(valid_recs) > len(best_recs):
                 best_recs = valid_recs
 
-            if len(valid_recs) >= 3:
+            if len(valid_recs) >= PRIMARY_RECOMMENDATION_COUNT:
                 logger.info(
                     "Generated %d valid recommendations for vault %s: %s",
                     len(valid_recs), vault_data.vault_id,
                     [r.title for r in valid_recs],
                 )
-                return valid_recs[:3]
+                # Return up to the full target: the first 3 become the shown cards,
+                # any surplus feeds the URL-resolution swap pool.
+                return valid_recs[:GENERATION_TARGET]
 
             # Fewer than 3 valid items — re-roll if we still have attempts left,
             # so the screen reliably shows 3 cards (PRD F2).
             logger.warning(
                 "Only %d valid recommendations in Claude response (attempt %d/%d) — "
-                "retrying for a full set of 3",
+                "retrying for a full set of %d",
                 len(valid_recs), attempt + 1, MAX_RETRIES + 1,
+                PRIMARY_RECOMMENDATION_COUNT,
             )
 
         except json.JSONDecodeError as exc:
@@ -581,7 +603,7 @@ async def generate_unified_recommendations(
             "Unified generation never reached 3 for vault %s — returning best %d",
             vault_data.vault_id, len(best_recs),
         )
-        return best_recs[:3]
+        return best_recs[:GENERATION_TARGET]
 
     logger.error(
         "Unified generation exhausted all retries for vault %s",

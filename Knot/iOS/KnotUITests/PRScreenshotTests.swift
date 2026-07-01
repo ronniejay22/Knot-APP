@@ -22,16 +22,38 @@ final class PRScreenshotTests: XCTestCase {
 
     func testCaptureChangedScreen() throws {
         let app = XCUIApplication()
-        app.launch()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // e.g. app.tabBars.buttons["Recs"].tap()
-        //      app.buttons["Add intention"].tap()
-        // Leave empty to capture the first screen.
+        // This change touches the recommendation detail CTA: purchasables now open a
+        // real, dedicated merchant/booking page ("Open in <merchant>") — never a web
+        // search — and unbookable items degrade to an idea instead. The detail screen
+        // needs auth + a live backend to reach normally, so render it standalone via
+        // the DEBUG screenshot harness (`UITestScreenshotHarness` key "recDetail").
+        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
+        app.launch()
+
+        // Give the view a moment to render (fonts, gradient, async layout).
+        _ = app.wait(for: .runningForeground, timeout: 10)
+
+        // Dismiss any transient SpringBoard system alert (e.g. the simulator's
+        // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
+        dismissSystemAlerts()
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// Tap the dismissive button on any SpringBoard system alert covering the app.
+    private func dismissSystemAlerts() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Not Now", "Cancel", "Dismiss", "Later", "OK"] {
+            let button = springboard.buttons[label]
+            if button.waitForExistence(timeout: 2) {
+                button.tap()
+                return
+            }
+        }
     }
 }

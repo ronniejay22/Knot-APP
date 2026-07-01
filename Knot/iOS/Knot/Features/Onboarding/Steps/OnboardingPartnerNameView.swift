@@ -22,9 +22,6 @@ struct OnboardingPartnerNameView: View {
                 headerSection
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Partner's Name")
-                        .knotFont(Theme.Typography.cta)
-
                     TextField("Their first name", text: $vm.partnerName)
                         .knotFont(Theme.Typography.body)
                         .padding(.horizontal, 14)
