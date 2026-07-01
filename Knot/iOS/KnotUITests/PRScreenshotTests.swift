@@ -24,14 +24,19 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The onboarding interests screen sits behind a real authenticated
-        // session, so drive it via the UI-test screenshot seam (see
-        // UITestScreenshotHarness) instead of navigating from a cold launch.
-        app.launchArguments += ["-uiTestScreenshot", "interests"]
+        // The onboarding flow lives behind a Supabase session, so the DEBUG-only
+        // `-uiTestOnboarding` launch argument (see KnotApp.rootView) boots straight
+        // into it. From the Welcome step, "Get Started" advances to Partner Name —
+        // the screen whose field label was removed.
+        app.launchArguments += ["-uiTestOnboarding"]
         app.launch()
 
-        // Wait for the interests screen to render before capturing.
-        _ = app.staticTexts["What does Alex love?"].waitForExistence(timeout: 15)
+        let getStarted = app.buttons["Get Started"]
+        if getStarted.waitForExistence(timeout: 10) {
+            getStarted.tap()
+        }
+        // Let the step transition settle before capturing.
+        _ = app.textFields["Their first name"].waitForExistence(timeout: 5)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

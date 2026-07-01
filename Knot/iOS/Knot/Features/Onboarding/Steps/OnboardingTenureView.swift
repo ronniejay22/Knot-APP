@@ -20,6 +20,7 @@ struct OnboardingTenureView: View {
                         get: { viewModel.relationshipTenureMonths },
                         set: { viewModel.relationshipTenureMonths = $0 }
                     ),
+                    label: "",
                     hasSelection: Binding(
                         get: { viewModel.hasSetTenure },
                         set: { viewModel.hasSetTenure = $0 }
