@@ -31,6 +31,16 @@ enum Constants {
         /// (e.g. `defaults write … KnotDevAPIBaseURL http://10.0.0.5:8420`).
         static let debugOverrideKey = "KnotDevAPIBaseURL"
 
+        /// Whether this DEBUG build is running in the iOS Simulator. The
+        /// simulator shares the Mac's loopback, so `127.0.0.1` always reaches a
+        /// local backend regardless of how uvicorn is bound; the injected LAN IP
+        /// is only needed on a physical device.
+        #if targetEnvironment(simulator)
+        static let isRunningInSimulator = true
+        #else
+        static let isRunningInSimulator = false
+        #endif
+
         /// Reads the build-time auto-detected host from the bundled DevServer.plist.
         static func injectedDevBaseURL() -> String? {
             guard let url = Bundle.main.url(forResource: "DevServer", withExtension: "plist"),
@@ -42,18 +52,25 @@ enum Constants {
 
         /// Resolves the DEBUG base URL in priority order:
         /// 1. `UserDefaults[KnotDevAPIBaseURL]` — manual override escape hatch.
-        /// 2. `DevServer.plist[DevAPIBaseURL]` — build-time auto-detected Mac LAN IP.
-        /// 3. `http://127.0.0.1:8420` — loopback fallback.
+        /// 2. `DevServer.plist[DevAPIBaseURL]` — build-time auto-detected Mac LAN
+        ///    IP — physical device only.
+        /// 3. `http://127.0.0.1:8000` — loopback (also the Simulator's default).
+        ///
+        /// On the Simulator the injected LAN IP is skipped: the simulator shares
+        /// the Mac's loopback, so `127.0.0.1` always reaches the local backend
+        /// even when uvicorn is bound to loopback only. Using the LAN IP there
+        /// fails (cannotConnectToHost) whenever the backend isn't on `0.0.0.0`.
         ///
         /// Inputs are injected for testability.
         static func resolveDebugBaseURL(
             override: String? = UserDefaults.standard.string(forKey: debugOverrideKey),
-            injected: String? = injectedDevBaseURL()
+            injected: String? = injectedDevBaseURL(),
+            isSimulator: Bool = isRunningInSimulator
         ) -> String {
             if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty {
                 return override
             }
-            if let injected, !injected.trimmingCharacters(in: .whitespaces).isEmpty {
+            if !isSimulator, let injected, !injected.trimmingCharacters(in: .whitespaces).isEmpty {
                 return injected
             }
             return debugFallbackBaseURL
