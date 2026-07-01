@@ -64,12 +64,13 @@ struct KnotApp: App {
     @ViewBuilder
     private var rootView: some View {
         #if DEBUG
-        // PR screenshot harness: launch with the `recDetailSearchFallback` argument to
-        // render the recommendation detail with a search-fallback CTA deterministically,
-        // without needing auth or a live backend. See KnotUITests/PRScreenshotTests.
-        if ProcessInfo.processInfo.arguments.contains("recDetailSearchFallback") {
+        // PR screenshot harness: launch with the `recDetailBookable` argument to
+        // render the recommendation detail with a real, bookable merchant CTA
+        // deterministically, without needing auth or a live backend. See
+        // KnotUITests/PRScreenshotTests.
+        if ProcessInfo.processInfo.arguments.contains("recDetailBookable") {
             RecommendationDetailView(
-                item: PreviewRecommendations.searchFallback,
+                item: PreviewRecommendations.bookablePurchasable,
                 partnerName: "Ronnie",
                 isSaved: false,
                 onOpenMerchant: {},

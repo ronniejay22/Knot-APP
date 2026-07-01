@@ -9,7 +9,6 @@ Tests that the verify_availability LangGraph node:
 5. Returns result compatible with RecommendationState update
 
 Test categories:
-- URL checking: Verify _check_url handles various HTTP responses (for replacements)
 - Page fetching: Verify _fetch_page returns availability + page content
 - HTML extraction: Verify _extract_text_from_html extracts relevant content
 - Price verification: Verify _verify_prices_with_claude extracts prices
@@ -42,7 +41,6 @@ from app.agents.availability import (
     MAX_REPLACEMENT_ATTEMPTS,
     REQUEST_TIMEOUT,
     VALID_STATUS_RANGE,
-    _check_url,
     _extract_text_from_html,
     _fetch_page,
     _get_backup_candidates,
@@ -153,98 +151,6 @@ def _make_candidate(
     }
     data.update(overrides)
     return CandidateRecommendation(**data)
-
-
-def _mock_response(status_code: int = 200):
-    """Create a mock httpx.Response with the given status code."""
-    response = AsyncMock(spec=httpx.Response)
-    response.status_code = status_code
-    return response
-
-
-# ======================================================================
-# 1. URL checking (_check_url — used for replacement candidates)
-# ======================================================================
-
-class TestCheckUrl:
-    """Verify _check_url handles various HTTP responses."""
-
-    async def test_200_returns_true(self):
-        """A 200 OK response means the URL is available."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(200))
-
-        result = await _check_url("https://example.com/product", client)
-        assert result is True
-        client.head.assert_called_once()
-
-    async def test_301_redirect_returns_true(self):
-        """A 301 redirect (within valid range) is considered available."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(301))
-
-        result = await _check_url("https://example.com/old-url", client)
-        assert result is True
-
-    async def test_404_returns_false(self):
-        """A 404 Not Found means the URL is unavailable."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(404))
-
-        result = await _check_url("https://example.com/gone", client)
-        assert result is False
-
-    async def test_500_returns_false(self):
-        """A 500 Internal Server Error means the URL is unavailable."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(500))
-
-        result = await _check_url("https://example.com/error", client)
-        assert result is False
-
-    async def test_405_falls_back_to_get(self):
-        """If HEAD returns 405, falls back to GET."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(405))
-        client.get = AsyncMock(return_value=_mock_response(200))
-
-        result = await _check_url("https://example.com/no-head", client)
-        assert result is True
-        client.head.assert_called_once()
-        client.get.assert_called_once()
-
-    async def test_405_get_also_fails(self):
-        """If HEAD returns 405 and GET also fails, returns False."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(return_value=_mock_response(405))
-        client.get = AsyncMock(return_value=_mock_response(500))
-
-        result = await _check_url("https://example.com/broken", client)
-        assert result is False
-
-    async def test_timeout_returns_false(self):
-        """A timeout exception means the URL is unavailable."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
-
-        result = await _check_url("https://example.com/slow", client)
-        assert result is False
-
-    async def test_connect_error_returns_false(self):
-        """A connection error means the URL is unavailable."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
-
-        result = await _check_url("https://example.com/unreachable", client)
-        assert result is False
-
-    async def test_generic_http_error_returns_false(self):
-        """A generic HTTP error means the URL is unavailable."""
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.head = AsyncMock(side_effect=httpx.HTTPError("generic error"))
-
-        result = await _check_url("https://example.com/error", client)
-        assert result is False
 
 
 # ======================================================================
@@ -600,10 +506,13 @@ class TestVerifyAvailability:
                 return (False, "")
             return (True, "")
 
+        # A purchasable backup resolves to a live page.
+        async def mock_resolve(candidate, client):
+            return candidate.model_copy(update={"external_url": "https://live.com/x"}), ""
+
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
-            mock_check.return_value = True
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
@@ -612,12 +521,12 @@ class TestVerifyAvailability:
         assert "Bad B" not in titles
         assert "Backup D" in titles
 
-    async def test_dead_url_kept_with_fallback_when_pool_empty(self):
+    async def test_dead_url_kept_as_linkless_idea_when_pool_empty(self):
         """
-        Regression: the onboarding pipeline never populates filtered_recommendations,
-        so a single dead URL used to collapse 3 cards to 2 on screen. The card whose
-        URL is dead must now be KEPT (with a fallback search URL), preserving the
-        count at 3 (PRD F2: exactly three cards).
+        With no backup pool and no spare idea, a dead-URL purchasable is never
+        dropped (PRD F2) and never gets a web-search link — it is kept as a linkless
+        idea-style card (external_url None, is_idea True) so it renders with a Save
+        action instead of a dead buy button.
         """
         selected = [
             _make_candidate(title="Gift A", candidate_id="a", final_score=5.0),
@@ -645,7 +554,12 @@ class TestVerifyAvailability:
         titles = [c.title for c in result["final_three"]]
         assert titles == ["Gift A", "Dead Date B", "Plan C"]
         dead = next(c for c in result["final_three"] if c.title == "Dead Date B")
-        assert "google.com/search?q=" in dead.external_url
+        assert dead.external_url is None
+        assert dead.is_idea is True
+        # Fully converted so the card/deck (which branch on type) also treat it as an idea.
+        assert dead.type == "idea"
+        assert dead.merchant_name is None
+        assert dead.price_cents is None
 
     async def test_price_verified_from_page_content(self):
         """Prices are updated when Claude verifies them from page content."""
@@ -726,8 +640,8 @@ class TestVerifyAvailability:
         # Candidates still returned, just without verified prices
         assert len(result["final_three"]) == 2
 
-    async def test_replacement_also_checked(self):
-        """Replacement candidates are also URL-checked before being accepted."""
+    async def test_replacement_resolved_and_verified(self):
+        """A backup is only accepted once its URL resolves to a live page."""
         selected = [
             _make_candidate(
                 title="Bad A", candidate_id="orig-bad", final_score=5.0,
@@ -736,11 +650,9 @@ class TestVerifyAvailability:
         ]
         bad_backup = _make_candidate(
             title="Bad Backup", candidate_id="backup-bad", final_score=4.0,
-            external_url="https://shop.com/backup-bad",
         )
         good_backup = _make_candidate(
             title="Good Backup", candidate_id="backup-good", final_score=3.0,
-            external_url="https://shop.com/backup-good",
         )
         filtered = selected + [bad_backup, good_backup]
 
@@ -749,11 +661,14 @@ class TestVerifyAvailability:
         async def mock_fetch(url, client):
             return (False, "")  # Original is unavailable
 
-        async def mock_check(url, client):
-            return "backup-good" in url
+        # Only the good backup resolves to a live bookable page.
+        async def mock_resolve(candidate, client):
+            if candidate.id == "backup-good":
+                return candidate.model_copy(update={"external_url": "https://shop.com/live"}), ""
+            return None
 
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", side_effect=mock_check), \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
             mock_verify.return_value = {}
             result = await verify_availability(state)
@@ -780,10 +695,12 @@ class TestVerifyAvailability:
                 return (False, "")
             return (True, "")
 
+        async def mock_resolve(candidate, client):
+            return candidate.model_copy(update={"external_url": "https://live.com/x"}), ""
+
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
-            mock_check.return_value = True
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
@@ -794,8 +711,9 @@ class TestVerifyAvailability:
 
     async def test_max_replacement_attempts_respected(self):
         """
-        Stops trying replacements after MAX_REPLACEMENT_ATTEMPTS failures, then
-        keeps the card with a fallback search URL rather than dropping it (PRD F2).
+        Stops trying purchasable replacements after MAX_REPLACEMENT_ATTEMPTS failures.
+        With no spare idea, the card is kept as a linkless idea-style card rather than
+        dropped (PRD F2) — never a web-search link.
         """
         selected = [
             _make_candidate(title="Bad A", candidate_id="a", final_score=5.0),
@@ -812,18 +730,168 @@ class TestVerifyAvailability:
 
         state = _make_state(final_three=selected, filtered=filtered)
 
+        # No purchasable backup ever resolves to a live page.
+        mock_resolve = AsyncMock(return_value=None)
+
         with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._resolve_and_verify", mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
             mock_fetch.return_value = (False, "")
-            mock_check.return_value = False
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
-        # Card is kept (not dropped) with a fallback search URL.
+        # Card is kept (not dropped) as a linkless idea; no web-search link.
         assert len(result["final_three"]) == 1
-        assert "google.com/search?q=" in result["final_three"][0].external_url
-        assert mock_check.call_count == MAX_REPLACEMENT_ATTEMPTS
+        kept = result["final_three"][0]
+        assert kept.external_url is None
+        assert kept.is_idea is True
+        assert mock_resolve.call_count == MAX_REPLACEMENT_ATTEMPTS
+
+    async def test_backup_url_resolved_before_swap(self):
+        """
+        Backups from the pool are NOT pre-resolved, so a swap must resolve the
+        backup's search_query to a real page (and live-check it) before accepting it.
+        Exercises the real _resolve_and_verify path.
+        """
+        selected = [
+            _make_candidate(
+                title="Dead A", candidate_id="a", final_score=5.0,
+                external_url="https://shop.com/dead-a",
+            ),
+        ]
+        backup = _make_candidate(
+            title="Backup B", candidate_id="b", rec_type="experience",
+            final_score=4.0, external_url=None,  # unresolved, as pool backups are
+            search_query="couples pottery class",
+        )
+        state = _make_state(final_three=selected, filtered=selected + [backup])
+
+        async def mock_fetch(url, client):
+            # Original dead; the backup's freshly-resolved page is live.
+            return ("resolved" in url), ("content" if "resolved" in url else "")
+
+        with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
+             patch(
+                 "app.agents.availability._search_for_purchase_url",
+                 new=AsyncMock(return_value="https://resolved.com/pottery"),
+             ), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 1
+        swapped = result["final_three"][0]
+        assert swapped.title == "Backup B"
+        assert swapped.external_url == "https://resolved.com/pottery"
+
+    async def test_idea_used_when_no_purchasable_backup(self):
+        """
+        When the only spare is an idea, the slot is filled by that idea via the
+        last-resort path — no resolve/live-check is attempted (ideas need no URL).
+        """
+        selected = [
+            _make_candidate(
+                title="Dead A", candidate_id="a", final_score=5.0,
+                external_url="https://shop.com/dead-a",
+            ),
+        ]
+        idea_backup = _make_candidate(
+            title="Cozy Night In", candidate_id="idea-b", rec_type="idea",
+            final_score=4.0, external_url=None, is_idea=True,
+        )
+        state = _make_state(final_three=selected, filtered=selected + [idea_backup])
+
+        mock_resolve = AsyncMock(return_value=None)
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._resolve_and_verify", mock_resolve), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")  # original dead
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 1
+        assert result["final_three"][0].title == "Cozy Night In"
+        # No purchasable backup exists, so the resolve path is never taken.
+        mock_resolve.assert_not_called()
+
+    async def test_bookable_backup_preferred_over_higher_scored_idea(self):
+        """
+        The user's priority is a card they can buy: a bookable purchasable backup
+        wins even when a spare idea outscores it.
+        """
+        selected = [
+            _make_candidate(
+                title="Dead A", candidate_id="a", final_score=5.0,
+                external_url="https://shop.com/dead-a",
+            ),
+        ]
+        idea_backup = _make_candidate(
+            title="High Score Idea", candidate_id="idea-b", rec_type="idea",
+            final_score=4.5, external_url=None, is_idea=True,
+        )
+        purch_backup = _make_candidate(
+            title="Bookable Backup", candidate_id="pb", rec_type="experience",
+            final_score=3.0, search_query="something",
+        )
+        state = _make_state(
+            final_three=selected, filtered=selected + [idea_backup, purch_backup]
+        )
+
+        async def mock_resolve(candidate, client):
+            return candidate.model_copy(update={"external_url": "https://live.com/x"}), ""
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")  # original dead
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 1
+        # Bookable purchasable wins over the higher-scored idea.
+        assert result["final_three"][0].title == "Bookable Backup"
+
+    async def test_last_resort_uses_spare_idea(self):
+        """
+        When every purchasable backup fails to resolve, the best remaining spare
+        idea fills the slot (count preserved, no web-search link).
+        """
+        selected = [
+            _make_candidate(
+                title="Dead A", candidate_id="a", final_score=5.0,
+                external_url="https://shop.com/dead-a",
+            ),
+        ]
+        purch_backups = [
+            _make_candidate(
+                title=f"Dead Backup {i}", candidate_id=f"pb-{i}",
+                rec_type="experience", final_score=4.0 - i * 0.5,
+                search_query="something",
+            )
+            for i in range(MAX_REPLACEMENT_ATTEMPTS)
+        ]
+        idea_backup = _make_candidate(
+            title="Spare Idea", candidate_id="idea-z", rec_type="idea",
+            final_score=0.5, external_url=None, is_idea=True,
+        )
+        state = _make_state(
+            final_three=selected,
+            filtered=selected + purch_backups + [idea_backup],
+        )
+
+        with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
+             patch(
+                 "app.agents.availability._resolve_and_verify",
+                 new=AsyncMock(return_value=None),  # no purchasable backup resolves
+             ), \
+             patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
+            mock_fetch.return_value = (False, "")  # original dead
+            mock_verify.return_value = {}
+            result = await verify_availability(state)
+
+        assert len(result["final_three"]) == 1
+        assert result["final_three"][0].title == "Spare Idea"
 
     async def test_returns_final_three_key(self):
         """Node returns dict with 'final_three' key."""
@@ -900,10 +968,12 @@ class TestSpecRequirements:
                 return (False, "")
             return (True, "")
 
+        async def mock_resolve(candidate, client):
+            return candidate.model_copy(update={"external_url": "https://live.com/spa"}), ""
+
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
-            mock_check.return_value = True
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
@@ -969,8 +1039,9 @@ class TestEdgeCases:
 
     async def test_all_unavailable_no_backups(self):
         """
-        When all URLs fail and no live backups exist, every card is still kept
-        (with a fallback search URL) so the count is preserved (PRD F2).
+        When all URLs fail and no live backups or spare ideas exist, every card is
+        kept as a linkless idea-style card (never a web-search link) so the count is
+        preserved (PRD F2).
         """
         candidates = [
             _make_candidate(title="Bad A", candidate_id="a"),
@@ -979,16 +1050,15 @@ class TestEdgeCases:
         state = _make_state(final_three=candidates, filtered=candidates)
 
         with patch("app.agents.availability._fetch_page", new_callable=AsyncMock) as mock_fetch, \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
             mock_fetch.return_value = (False, "")
-            mock_check.return_value = False
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 2
         for candidate in result["final_three"]:
-            assert "google.com/search?q=" in candidate.external_url
+            assert candidate.external_url is None
+            assert candidate.is_idea is True
 
     async def test_single_candidate_verified(self):
         """Node works with just 1 recommendation."""
@@ -1006,8 +1076,8 @@ class TestEdgeCases:
 
     async def test_partial_results_when_some_fail(self):
         """
-        Every slot is filled: live cards keep their URL, and a card whose URL
-        can't be filled is kept with a fallback search URL (count preserved).
+        Every slot is filled: live cards keep their URL, and a card whose URL can't
+        be made bookable is kept as a linkless idea-style card (count preserved).
         """
         candidates = [
             _make_candidate(title="Good", candidate_id="good", final_score=5.0),
@@ -1021,9 +1091,7 @@ class TestEdgeCases:
             return (False, "")
 
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", new_callable=AsyncMock) as mock_check, \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
-            mock_check.return_value = False
             mock_verify.return_value = {}
             result = await verify_availability(state)
 
@@ -1031,12 +1099,13 @@ class TestEdgeCases:
         titles = [c.title for c in result["final_three"]]
         assert "Good" in titles and "Bad" in titles
         bad = next(c for c in result["final_three"] if c.title == "Bad")
-        assert "google.com/search?q=" in bad.external_url
+        assert bad.external_url is None
+        assert bad.is_idea is True
 
     async def test_empty_backup_pool(self):
         """
-        When the filtered pool is empty, an unavailable item is kept with a
-        fallback search URL instead of being dropped (PRD F2).
+        When the filtered pool is empty, an unavailable item is kept as a linkless
+        idea-style card instead of being dropped (PRD F2) — never a web search.
         """
         candidates = [
             _make_candidate(title="Bad", candidate_id="bad"),
@@ -1050,7 +1119,8 @@ class TestEdgeCases:
             result = await verify_availability(state)
 
         assert len(result["final_three"]) == 1
-        assert "google.com/search?q=" in result["final_three"][0].external_url
+        assert result["final_three"][0].external_url is None
+        assert result["final_three"][0].is_idea is True
 
     async def test_does_not_mutate_input_state(self):
         """Node does not mutate the input state."""
@@ -1136,11 +1206,12 @@ class TestStateCompatibility:
         async def mock_fetch(url, client):
             return (False, "")  # Original unavailable
 
-        async def mock_check(url, client):
-            return "great.com" in url
+        # The backup resolves to its live bookable page.
+        async def mock_resolve(candidate, client):
+            return candidate.model_copy(update={"external_url": "https://great.com/experience"}), ""
 
         with patch("app.agents.availability._fetch_page", side_effect=mock_fetch), \
-             patch("app.agents.availability._check_url", side_effect=mock_check), \
+             patch("app.agents.availability._resolve_and_verify", side_effect=mock_resolve), \
              patch("app.agents.availability._verify_prices_with_claude", new_callable=AsyncMock) as mock_verify:
             mock_verify.return_value = {}
             result = await verify_availability(state)

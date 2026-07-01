@@ -101,7 +101,6 @@ class RecommendationItemResponse(BaseModel):
     currency: str = "USD"
     price_confidence: str = "unknown"
     external_url: Optional[str] = None
-    external_url_is_search: bool = False
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
     source: str

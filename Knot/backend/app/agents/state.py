@@ -136,8 +136,7 @@ class CandidateRecommendation(BaseModel):
     price_cents: Optional[int] = None
     currency: str = "USD"
     price_confidence: Literal["verified", "estimated", "unknown"] = "unknown"
-    external_url: Optional[str] = None  # None for ideas
-    external_url_is_search: bool = False  # True when external_url is a search fallback, not a direct merchant page
+    external_url: Optional[str] = None  # None for ideas (and for purchasables awaiting a swap)
     image_url: Optional[str] = None
     merchant_name: Optional[str] = None
     location: Optional[LocationData] = None

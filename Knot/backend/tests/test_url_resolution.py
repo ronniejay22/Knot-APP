@@ -10,7 +10,6 @@ Run with: pytest tests/test_url_resolution.py -v
 """
 
 from unittest.mock import AsyncMock, patch
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -20,8 +19,10 @@ from app.agents.state import (
     RecommendationState,
 )
 from app.agents.url_resolution import (
-    _build_search_fallback_url,
+    _is_rejected_domain,
     _localize_search_query,
+    _score_result,
+    _search_for_purchase_url,
     resolve_purchase_urls,
 )
 
@@ -77,43 +78,126 @@ def _make_candidate(**overrides) -> CandidateRecommendation:
     return CandidateRecommendation(**data)
 
 
-def _query_of(url: str) -> str:
-    """Return the decoded value of the `q` param from a Google search URL."""
-    return parse_qs(urlparse(url).query)["q"][0]
+class _FakeBraveResponse:
+    status_code = 200
+
+    def __init__(self, results: list[dict]):
+        self._data = {"web": {"results": results}}
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
 
 
-class TestBuildSearchFallbackURL:
-    def test_uses_web_search_not_shopping(self):
-        url = _build_search_fallback_url(_make_candidate())
-        assert url.startswith("https://www.google.com/search?q=")
-        # Google Shopping (tbm=shop) is the wrong surface for tickets/experiences.
-        assert "tbm=shop" not in url
+class _FakeBraveClient:
+    def __init__(self, results: list[dict]):
+        self._results = results
 
-    def test_prefers_localized_query(self):
-        candidate = _make_candidate(search_query="jazz concert tickets")
-        localized = "jazz concert tickets Los Angeles CA"
-        url = _build_search_fallback_url(candidate, localized_query=localized)
-        assert _query_of(url) == localized
+    async def __aenter__(self):
+        return self
 
-    def test_falls_back_to_claude_search_query(self):
-        url = _build_search_fallback_url(_make_candidate())
-        assert _query_of(url) == "The Fonda Theatre Ticketmaster Los Angeles CA"
+    async def __aexit__(self, *exc):
+        return False
 
-    def test_url_encodes_special_characters(self):
-        # No search_query → falls back to merchant_name + title, which contains a
-        # slash and spaces that must be percent/plus-encoded, not injected raw.
-        candidate = _make_candidate(search_query=None)
-        url = _build_search_fallback_url(candidate)
-        raw_query_string = url.split("?q=", 1)[1]
-        assert "/" not in raw_query_string  # the "/" in the merchant name is encoded
-        assert " " not in raw_query_string
-        # …and it round-trips back to the intended human-readable query.
-        assert _query_of(url) == "The Fonda Theatre / Ticketmaster Standing Room Concert at The Fonda Theatre"
+    async def get(self, *args, **kwargs):
+        return _FakeBraveResponse(self._results)
 
-    def test_falls_back_to_title_when_nothing_else(self):
-        candidate = _make_candidate(search_query=None, merchant_name=None)
-        url = _build_search_fallback_url(candidate)
-        assert _query_of(url) == "Standing Room Concert at The Fonda Theatre"
+
+def _patch_brave(results: list[dict]):
+    """Patch Brave config + the httpx client so _search_for_purchase_url sees `results`."""
+    return (
+        patch("app.agents.url_resolution.is_brave_search_configured", return_value=True),
+        patch(
+            "app.agents.url_resolution.httpx.AsyncClient",
+            lambda *a, **k: _FakeBraveClient(results),
+        ),
+    )
+
+
+class TestRejectDomain:
+    def test_rejects_general_search_engines(self):
+        for host in ("www.google.com", "www.bing.com", "duckduckgo.com", "search.yahoo.com"):
+            assert _is_rejected_domain(host) is True
+
+    def test_rejects_article_domains(self):
+        assert _is_rejected_domain("www.reddit.com") is True
+        assert _is_rejected_domain("en.wikipedia.org") is True
+
+    def test_accepts_real_merchant_domains(self):
+        for host in ("www.ticketmaster.com", "thefondatheatre.com", "resy.com"):
+            assert _is_rejected_domain(host) is False
+
+    def test_merchant_on_site_search_not_rejected(self):
+        # A venue's own on-site search path is acceptable (only general engines are barred).
+        assert _is_rejected_domain("search.thefondatheatre.com") is False
+
+    def test_real_google_merchant_properties_not_rejected(self):
+        # Precise matching must NOT reject Google's actual stores (they sell real goods).
+        for host in ("store.google.com", "play.google.com", "shop.google.com"):
+            assert _is_rejected_domain(host) is False
+
+    def test_lookalike_domains_not_rejected(self):
+        # Unrelated hosts that merely contain a search-engine substring stay allowed.
+        for host in ("task.com", "flask.com", "basking.com"):
+            assert _is_rejected_domain(host) is False
+
+    def test_international_and_news_search_rejected(self):
+        for host in ("google.co.uk", "www.google.de", "news.google.com", "search.brave.com"):
+            assert _is_rejected_domain(host) is True
+
+
+class TestScoreResult:
+    def test_preferred_commerce_domain_beats_bare_blog(self):
+        commerce = _score_result("https://www.ticketmaster.com/event/123", rank=4)
+        blog = _score_result("https://somevenue.com/about", rank=0)
+        assert commerce > blog
+
+    def test_purchase_path_keyword_adds_score(self):
+        with_kw = _score_result("https://shop.example.com/product/42", rank=3)
+        without = _score_result("https://info.example.com/hello", rank=3)
+        assert with_kw > without
+
+    def test_rank_is_a_tiebreak(self):
+        earlier = _score_result("https://a.example.com/page", rank=0)
+        later = _score_result("https://b.example.com/page", rank=5)
+        assert earlier > later
+
+
+class TestSearchForPurchaseURL:
+    @pytest.mark.asyncio
+    async def test_returns_none_when_all_results_are_search_engines(self):
+        cfg, cli = _patch_brave([
+            {"url": "https://www.google.com/search?q=x"},
+            {"url": "https://www.bing.com/search?q=x"},
+        ])
+        with cfg, cli:
+            url = await _search_for_purchase_url("the fonda theatre tickets")
+        assert url is None
+
+    @pytest.mark.asyncio
+    async def test_picks_best_scoring_not_first(self):
+        # A bare blog is ranked first; a real ticketing page is ranked lower but wins.
+        cfg, cli = _patch_brave([
+            {"url": "https://someblog.com/best-jazz-nights"},
+            {"url": "https://www.ticketmaster.com/event/the-fonda-123"},
+        ])
+        with cfg, cli:
+            url = await _search_for_purchase_url("the fonda theatre tickets")
+        assert url == "https://www.ticketmaster.com/event/the-fonda-123"
+
+    @pytest.mark.asyncio
+    async def test_accepts_any_real_non_search_page(self):
+        cfg, cli = _patch_brave([{"url": "https://thefondatheatre.com/calendar"}])
+        with cfg, cli:
+            url = await _search_for_purchase_url("the fonda theatre")
+        assert url == "https://thefondatheatre.com/calendar"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_brave_unconfigured(self):
+        with patch("app.agents.url_resolution.is_brave_search_configured", return_value=False):
+            assert await _search_for_purchase_url("anything") is None
 
 
 def _make_state(candidate: CandidateRecommendation) -> RecommendationState:
@@ -139,7 +223,7 @@ def _make_state(candidate: CandidateRecommendation) -> RecommendationState:
 
 class TestResolvePurchaseURLs:
     @pytest.mark.asyncio
-    async def test_resolved_url_is_not_flagged_as_search(self):
+    async def test_resolved_url_is_set(self):
         state = _make_state(_make_candidate())
         with patch(
             "app.agents.url_resolution._search_for_purchase_url",
@@ -149,10 +233,11 @@ class TestResolvePurchaseURLs:
 
         item = result["final_three"][0]
         assert item.external_url == "https://www.ticketmaster.com/event/abc123"
-        assert item.external_url_is_search is False
 
     @pytest.mark.asyncio
-    async def test_failed_resolution_flags_search_fallback(self):
+    async def test_failed_resolution_leaves_url_none(self):
+        # No real page found → external_url stays None (a signal to swap it later).
+        # Never a web-search fallback.
         state = _make_state(_make_candidate())
         with patch(
             "app.agents.url_resolution._search_for_purchase_url",
@@ -161,12 +246,10 @@ class TestResolvePurchaseURLs:
             result = await resolve_purchase_urls(state)
 
         item = result["final_three"][0]
-        assert item.external_url.startswith("https://www.google.com/search?q=")
-        assert "tbm=shop" not in item.external_url
-        assert item.external_url_is_search is True
+        assert item.external_url is None
 
     @pytest.mark.asyncio
-    async def test_idea_skips_resolution_and_is_not_search(self):
+    async def test_idea_skips_resolution(self):
         candidate = _make_candidate(
             id="idea-1", type="idea", is_idea=True, search_query=None
         )
@@ -175,4 +258,3 @@ class TestResolvePurchaseURLs:
 
         item = result["final_three"][0]
         assert item.external_url is None
-        assert item.external_url_is_search is False

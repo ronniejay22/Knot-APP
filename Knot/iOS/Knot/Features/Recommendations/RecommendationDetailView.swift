@@ -451,9 +451,17 @@ struct RecommendationDetailView: View {
         )
     }
 
+    /// A purchasable item is "openable" only when it carries a real merchant link.
+    /// The backend guarantees a resolved page or converts the card to an idea, so a
+    /// linkless purchasable is rare — but never show a dead "Open" button if it happens.
+    private var hasOpenableLink: Bool {
+        guard let url = item.externalUrl else { return false }
+        return !url.isEmpty
+    }
+
     @ViewBuilder
     private var primaryCTA: some View {
-        if isIdea {
+        if isIdea || !hasOpenableLink {
             KnotButton(
                 savedLocally ? "Saved" : "Save to Library",
                 variant: savedLocally ? .secondary : .primary,
@@ -477,12 +485,6 @@ struct RecommendationDetailView: View {
     }
 
     private var openLabel: String {
-        // When the link is only a search fallback (no direct merchant page
-        // resolved), don't promise "Open in <merchant>" — it would land the user
-        // on a generic results page. Say what it actually does.
-        if item.externalUrlIsSearch == true {
-            return "Find it online"
-        }
         if let merchant = item.merchantName, !merchant.isEmpty {
             return "Open in \(merchant)"
         }
@@ -567,18 +569,17 @@ enum PreviewRecommendations {
     static let experience = decode(type: "experience", isIdea: false)
     static let idea = decode(type: "idea", isIdea: true)
 
-    /// A purchasable item whose link is a search fallback — the CTA should read
-    /// "Find it online" instead of "Open in <merchant>". Used by the PR screenshot
-    /// harness (see KnotApp.rootView).
-    static let searchFallback: RecommendationItemResponse = {
+    /// A purchasable item with a real, resolved ticketing page — the CTA reads
+    /// "Open in <merchant>" and opens a dedicated purchase page (never a web search).
+    /// Used by the PR screenshot harness (see KnotApp.rootView).
+    static let bookablePurchasable: RecommendationItemResponse = {
         let json = """
         {
             "id": "date-fonda", "recommendation_type": "date",
             "title": "Sunset Dinner & Live Jazz at The Fonda Theatre",
             "description": "Spend an evening at this iconic Hollywood Boulevard venue catching a live jazz performance, then grab dinner at a nearby quiet-luxury spot.",
             "price_cents": 8000, "currency": "USD", "price_confidence": "estimated",
-            "external_url": "https://www.google.com/search?q=The+Fonda+Theatre+Ticketmaster+Los+Angeles+CA",
-            "external_url_is_search": true,
+            "external_url": "https://www.ticketmaster.com/the-fonda-theatre-tickets-los-angeles/venue/229121",
             "image_url": null, "merchant_name": "The Fonda Theatre / Ticketmaster", "source": "unified",
             "location": {"city": "Los Angeles", "state": "CA", "country": "US", "address": null},
             "is_idea": false,
