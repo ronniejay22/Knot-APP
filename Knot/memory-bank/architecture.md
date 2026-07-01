@@ -14,9 +14,28 @@ Knot/
 │   ├── IMPLEMENTATION_PLAN.md # Step-by-step build instructions
 │   ├── progress.md            # Implementation progress log
 │   └── architecture.md        # This file
+├── docs/                      # Project docs & published assets
+│   ├── legal/                 # Terms of Service & Privacy Policy (Markdown + HTML)
+│   └── pr-screenshots/        # UI screenshots embedded in agent-opened PRs
 ├── iOS/                       # iOS application (Swift/SwiftUI)
 └── backend/                   # Python/FastAPI backend
 ```
+
+### Legal Documents (`docs/legal/`)
+
+Public-facing Terms of Service and Privacy Policy, written from the actual data
+practices of the app and backend (**Step 19.3**). Each policy exists as source-of-truth
+Markdown plus a self-contained, styled HTML page.
+
+| File | Purpose |
+|------|---------|
+| `privacy-policy.md` / `privacy.html` | Privacy Policy — data collected, AI processing (Anthropic Claude, Google Vertex AI), third-party service-provider sharing table, 60-day soft-delete/restore retention, and user rights. Published at `knot-app.com/privacy`. |
+| `terms-of-service.md` / `terms.html` | Terms of Service — eligibility (18+), accounts, user-content license, AI-content and affiliate-link disclaimers, liability, and governing law. Published at `knot-app.com/terms`. |
+| `README.md` | Placeholders to fill, "not legal advice" note, and publishing instructions. |
+
+The HTML pages cross-link via the canonical root paths `/privacy` and `/terms` — the
+same URLs hard-coded in `iOS/Knot/Features/Settings/SettingsView.swift` and the Sign-In
+screen — so no app code changes when the pages are hosted.
 
 ---
 
