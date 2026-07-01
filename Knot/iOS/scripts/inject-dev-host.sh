@@ -39,7 +39,7 @@ if [ -z "${LAN_IP}" ]; then
     echo "inject-dev-host: no LAN IP found (offline?) — falling back to ${LAN_IP}"
 fi
 
-DEV_BASE_URL="http://${LAN_IP}:8000"
+DEV_BASE_URL="http://${LAN_IP}:8420"
 PLIST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/DevServer.plist"
 
 cat > "${PLIST}" <<EOF

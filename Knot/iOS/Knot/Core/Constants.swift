@@ -22,11 +22,13 @@ enum Constants {
         static let baseURL = resolveDebugBaseURL()
 
         /// The hardcoded fallback when no injected/override value is present.
-        /// Stays loopback — never commit a LAN IP here.
-        static let debugFallbackBaseURL = "http://127.0.0.1:8000"
+        /// Stays loopback — never commit a LAN IP here. Port 8420 is Knot's
+        /// dedicated local dev port (see `backend/scripts/dev.sh`), chosen to
+        /// avoid colliding with other projects on the common 8000.
+        static let debugFallbackBaseURL = "http://127.0.0.1:8420"
 
         /// UserDefaults key for a manual override that wins over auto-detection
-        /// (e.g. `defaults write … KnotDevAPIBaseURL http://10.0.0.5:8000`).
+        /// (e.g. `defaults write … KnotDevAPIBaseURL http://10.0.0.5:8420`).
         static let debugOverrideKey = "KnotDevAPIBaseURL"
 
         /// Whether this DEBUG build is running in the iOS Simulator. The
