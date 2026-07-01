@@ -22,12 +22,16 @@ final class PRScreenshotTests: XCTestCase {
 
     func testCaptureChangedScreen() throws {
         let app = XCUIApplication()
-        app.launch()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // e.g. app.tabBars.buttons["Recs"].tap()
-        //      app.buttons["Add intention"].tap()
-        // Leave empty to capture the first screen.
+        // The onboarding interests screen sits behind a real authenticated
+        // session, so drive it via the UI-test screenshot seam (see
+        // UITestScreenshotHarness) instead of navigating from a cold launch.
+        app.launchArguments += ["-uiTestScreenshot", "interests"]
+        app.launch()
+
+        // Wait for the interests screen to render before capturing.
+        _ = app.staticTexts["What does Alex love?"].waitForExistence(timeout: 15)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

@@ -16,7 +16,8 @@ import SwiftUI
 ///
 /// Visual states:
 /// - **Unselected:** `Theme.surface` background, subtle border, muted icon
-/// - **Selected:** pink (`Theme.accent`) border, accent-tinted icon chip, checkmark
+/// - **Selected:** accent-tinted background, pink (`Theme.accent`) border,
+///   accent-tinted icon chip, checkmark — matching the onboarding radio rows
 struct InterestListRow: View {
     let title: String
     /// SF Symbol name, from `OnboardingInterestsView.iconName(for:)`.
@@ -66,13 +67,13 @@ struct InterestListRow: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity)
-            .background(Theme.surface)
+            .background(isSelected ? Theme.accent.opacity(0.12) : Theme.surface)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.lg)
                     .stroke(
-                        isSelected ? Theme.accent : Theme.surfaceBorder,
-                        lineWidth: isSelected ? 2 : 1
+                        isSelected ? Theme.accent.opacity(0.5) : Theme.surfaceBorder,
+                        lineWidth: 1
                     )
             )
         }
