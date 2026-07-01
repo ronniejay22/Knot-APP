@@ -40,26 +40,21 @@ struct OnboardingBirthdayView: View {
     }
 
     private var birthdaySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Birthday")
-                .knotFont(Theme.Typography.cardTitle)
-
-            MilestoneDateField(
-                month: Binding(
-                    get: { viewModel.partnerBirthdayMonth },
-                    set: { viewModel.partnerBirthdayMonth = $0 }
-                ),
-                day: Binding(
-                    get: { viewModel.partnerBirthdayDay },
-                    set: { viewModel.partnerBirthdayDay = $0 }
-                ),
-                hasSelection: Binding(
-                    get: { viewModel.hasSetBirthday },
-                    set: { viewModel.hasSetBirthday = $0 }
-                ),
-                title: "Set Birthday"
-            )
-        }
+        MilestoneDateField(
+            month: Binding(
+                get: { viewModel.partnerBirthdayMonth },
+                set: { viewModel.partnerBirthdayMonth = $0 }
+            ),
+            day: Binding(
+                get: { viewModel.partnerBirthdayDay },
+                set: { viewModel.partnerBirthdayDay = $0 }
+            ),
+            hasSelection: Binding(
+                get: { viewModel.hasSetBirthday },
+                set: { viewModel.hasSetBirthday = $0 }
+            ),
+            title: "Set Birthday"
+        )
     }
 }
 
