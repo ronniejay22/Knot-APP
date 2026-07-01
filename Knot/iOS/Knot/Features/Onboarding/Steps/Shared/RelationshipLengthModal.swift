@@ -68,8 +68,10 @@ struct RelationshipLengthField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .knotFont(Theme.Typography.cta)
+            if !label.isEmpty {
+                Text(label)
+                    .knotFont(Theme.Typography.cta)
+            }
 
             Button {
                 present()
