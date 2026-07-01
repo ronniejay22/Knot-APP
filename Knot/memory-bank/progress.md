@@ -6830,6 +6830,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.3 ✅ Onboarding — Give Selected Interest/Dislike Rows the Radio-Row Tint
+
+**Date:** 2026-06-30
+**Status:** Complete
+
+**Goal:** On the onboarding interests and dislikes screens, a selected row only gained a thin pink outline and a trailing checkmark while keeping a plain white/`surface` background — a subtle, washed-out selected state next to the crisp, filled tint the "Do you live together?" cohabitation radio rows use. Make selection obvious and visually consistent by giving the selected rows the same filled tint as the radio rows.
+
+**Approach:** Both the interests screen (`OnboardingInterestsView`) and the dislikes screen (`OnboardingDislikesView`) render through the shared `InterestListRow`, so a single-component change covers both. Match the cohabitation row's exact treatment: a filled `Theme.accent.opacity(0.12)` background and a `Theme.accent.opacity(0.5)` border at a constant 1pt when selected (previously the background stayed `Theme.surface` and the border was a heavier 2pt full-accent line). The per-interest icon chip and trailing checkmark were kept — the request was to add the tint, not adopt the plain radio indicator.
+
+**What changed:**
+- **`iOS/Knot/Features/Onboarding/Steps/Shared/InterestListRow.swift`:** Selected-state `.background(...)` now tints with `Theme.accent.opacity(0.12)`; `.overlay(...)` stroke uses `Theme.accent.opacity(0.5)` at a uniform `lineWidth: 1`. Doc comment updated to describe the tinted selected state.
+- **`iOS/Knot/App/UITestScreenshotHarness.swift` (new, `#if DEBUG`):** A launch-argument screenshot seam. Because the onboarding flow sits behind a real authenticated Supabase session, a cold-launch UI test cannot deterministically reach the interests screen; when the app is launched with `-uiTestScreenshot <key>` it renders that screen standalone (for `interests`, `OnboardingInterestsView` with a partner name and five preselected interests). Guarded by `#if DEBUG` with a nil/`EmptyView` stub in release so it never ships in production, mirroring the codebase's existing debug-gating convention.
+- **`iOS/Knot/App/ContentView.swift`:** The root router now checks `UITestScreenshotHarness.activeScreen` first and renders the harness when set; no effect on normal launches.
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** Drives the interests screen via the `-uiTestScreenshot interests` launch argument and waits on the header before capturing.
+
+**Tests:** Full iOS suite green via `xcodebuild test` (unit + 5 UI tests, including `PRScreenshotTests`). Screenshot captured at `docs/pr-screenshots/feat-interest-row-selected-tint.png`, showing selected rows (Travel, Cooking, Music) with the new filled pink tint alongside untinted unselected rows.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
