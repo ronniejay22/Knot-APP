@@ -4,7 +4,7 @@
 //
 //  Created on February 16, 2026.
 //  Step 11.1: Settings screen with Account, Partner Profile, Notifications,
-//  Privacy, and About sections. Replaces the temporary toolbar buttons in HomeView.
+//  and About sections. Replaces the temporary toolbar buttons in HomeView.
 //  Step 11.2: Account deletion with three-stage confirmation flow
 //  (warning, Apple Sign-In re-auth, final confirmation).
 //
@@ -15,12 +15,12 @@ import LucideIcons
 
 /// Settings screen presented as a sheet from the Home screen.
 ///
-/// Organizes user-facing actions into five sections:
+/// Organizes user-facing actions into sections:
 /// - **Account** — email display, sign out, delete account (Step 11.2)
-/// - **Partner Profile** — edit vault (reuses `EditVaultView`)
-/// - **Notifications** — enable/disable toggle, quiet hours with time pickers (Step 11.4)
-/// - **Privacy** — data export (Step 11.3), clear all hints
-/// - **About** — app version, terms of service, privacy policy
+/// - **Partner Profile** — edit vault (reuses `EditVaultView`), milestones
+/// - **Appearance** — dark mode toggle
+/// - **Notifications** — enable/disable toggle
+/// - **About** — terms of service, privacy policy
 struct SettingsView: View {
     /// When `true`, the view is embedded in the tab bar and hides the dismiss button.
     var isTabEmbedded: Bool = false
@@ -50,7 +50,6 @@ struct SettingsView: View {
                         partnerProfileSection
                         appearanceSection
                         notificationsSection
-                        privacySection
                         aboutSection
                         #if DEBUG
                         developerSection
@@ -65,9 +64,6 @@ struct SettingsView: View {
                 if viewModel.isDeletingAccount {
                     deletionLoadingOverlay
                 }
-                if viewModel.isExportingData {
-                    exportLoadingOverlay
-                }
                 #if DEBUG
                 if viewModel.isDevResetting {
                     KnotProgressIndicator.Overlay(message: "Resetting onboarding...")
@@ -81,18 +77,15 @@ struct SettingsView: View {
                     settingsToolbar
                 }
             }
-            // Split alerts into two groups to help the Swift type checker.
-            // Group 1: Account deletion alerts (Step 11.2)
+            // Account deletion alerts (Step 11.2)
             .modifier(AccountDeletionAlerts(
                 viewModel: $viewModel,
                 modelContext: modelContext,
                 authViewModel: authViewModel,
                 dismiss: dismiss
             ))
-            // Group 2: Settings alerts (hints, export, quiet hours)
-            .modifier(SettingsAlerts(viewModel: $viewModel))
             #if DEBUG
-            // Group 3: DEBUG-only dev-reset confirmation + error alert
+            // DEBUG-only dev-reset confirmation + error alert
             .modifier(DeveloperAlerts(
                 viewModel: $viewModel,
                 modelContext: modelContext,
@@ -119,15 +112,9 @@ struct SettingsView: View {
                     onCancel: { }
                 )
             }
-            .sheet(isPresented: $viewModel.showExportShareSheet) {
-                if let fileURL = viewModel.exportedFileURL {
-                    ShareSheet(items: [fileURL])
-                }
-            }
             .task {
                 await viewModel.loadUserEmail()
                 await viewModel.loadNotificationStatus()
-                await viewModel.loadNotificationPreferences()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -140,11 +127,6 @@ struct SettingsView: View {
     /// Loading overlay shown during account deletion.
     private var deletionLoadingOverlay: some View {
         KnotProgressIndicator.Overlay(message: "Deleting account...")
-    }
-
-    /// Loading overlay shown during data export.
-    private var exportLoadingOverlay: some View {
-        KnotProgressIndicator.Overlay(message: "Exporting your data...")
     }
 
     /// Toolbar content extracted to reduce body complexity.
@@ -223,7 +205,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Notifications Section (Step 11.4)
+    // MARK: - Notifications Section
 
     private var notificationsSection: some View {
         VStack(spacing: 10) {
@@ -238,107 +220,6 @@ struct SettingsView: View {
                         Task { await viewModel.toggleNotifications() }
                     }
                 )
-            )
-
-            // Quiet hours row — taps to expand/collapse time pickers.
-            // Uses the generic KnotListRow init so the trailing chevron can
-            // animate between up/down with the expanded state.
-            KnotListRow(
-                icon: Lucide.moon,
-                title: "Quiet Hours",
-                subtitle: "\(viewModel.formatHour(viewModel.quietHoursStart)) – \(viewModel.formatHour(viewModel.quietHoursEnd))",
-                action: {
-                    withAnimation(Theme.Motion.standard) {
-                        viewModel.showQuietHoursPicker.toggle()
-                    }
-                }
-            ) {
-                Image(uiImage: viewModel.showQuietHoursPicker ? Lucide.chevronUp : Lucide.chevronDown)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-
-            // Expandable quiet hours time pickers
-            if viewModel.showQuietHoursPicker {
-                KnotCard(padding: .none, radius: Theme.Radius.md) {
-                    VStack(spacing: 0) {
-                        quietHoursPickerRow(
-                            label: "Start",
-                            hour: Binding(
-                                get: { viewModel.quietHoursStart },
-                                set: { newValue in
-                                    viewModel.quietHoursStart = newValue
-                                    Task { await viewModel.saveQuietHours() }
-                                }
-                            )
-                        )
-
-                        Divider()
-                            .background(Theme.surfaceBorder)
-
-                        quietHoursPickerRow(
-                            label: "End",
-                            hour: Binding(
-                                get: { viewModel.quietHoursEnd },
-                                set: { newValue in
-                                    viewModel.quietHoursEnd = newValue
-                                    Task { await viewModel.saveQuietHours() }
-                                }
-                            )
-                        )
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-
-    /// A row with a label and an hour picker (0-23, displayed as 12-hour time).
-    private func quietHoursPickerRow(
-        label: String,
-        hour: Binding<Int>
-    ) -> some View {
-        HStack {
-            Text(label)
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            Picker(label, selection: hour) {
-                ForEach(0..<24, id: \.self) { h in
-                    Text(viewModel.formatHour(h))
-                        .tag(h)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.accent)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Privacy Section
-
-    private var privacySection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Privacy", style: .caption)
-
-            KnotListRow.chevron(
-                icon: Lucide.download,
-                title: "Export My Data",
-                subtitle: "Download your data as a PDF",
-                action: { viewModel.showExportDataAlert = true }
-            )
-
-            KnotListRow.action(
-                icon: Lucide.trash,
-                title: "Clear All Hints",
-                subtitle: "Permanently delete all captured hints",
-                action: { viewModel.showClearHintsConfirmation = true }
             )
         }
     }
@@ -366,12 +247,6 @@ struct SettingsView: View {
         VStack(spacing: 10) {
             KnotSectionHeader<EmptyView>("About", style: .caption)
 
-            KnotListRow.info(
-                icon: Lucide.info,
-                title: "Version",
-                value: viewModel.appVersion
-            )
-
             KnotListRow.chevron(
                 icon: Lucide.fileText,
                 title: "Terms of Service",
@@ -397,7 +272,7 @@ struct SettingsView: View {
 
 // MARK: - Account Deletion Alerts (Step 11.2)
 
-/// Groups the three account deletion alerts into a single `ViewModifier`
+/// Groups the account deletion alerts into a single `ViewModifier`
 /// so the Swift type checker doesn't time out on a long `.alert` chain.
 private struct AccountDeletionAlerts: ViewModifier {
     @Binding var viewModel: SettingsViewModel
@@ -422,61 +297,12 @@ private struct AccountDeletionAlerts: ViewModifier {
     }
 }
 
-// MARK: - Settings Alerts (Step 11.1)
-
-/// Groups the general settings alerts (hints, export)
-/// into a single `ViewModifier` to assist the Swift type checker.
-private struct SettingsAlerts: ViewModifier {
-    @Binding var viewModel: SettingsViewModel
-
-    func body(content: Content) -> some View {
-        content
-            .alert("Clear All Hints", isPresented: $viewModel.showClearHintsConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Clear All", role: .destructive) {
-                    Task { await viewModel.clearAllHints() }
-                }
-            } message: {
-                Text("This will permanently delete all your captured hints. This action cannot be undone.")
-            }
-            .alert("Hints Cleared", isPresented: $viewModel.showClearHintsSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("All hints have been cleared successfully.")
-            }
-            .alert("Export My Data", isPresented: $viewModel.showExportDataAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Export") {
-                    Task { await viewModel.exportUserData() }
-                }
-            } message: {
-                Text("This will export all your Knot data as a PDF. You can save it or share it.")
-            }
-            .alert("Export Failed", isPresented: Binding(
-                get: { viewModel.exportDataError != nil },
-                set: { if !$0 { viewModel.exportDataError = nil } }
-            )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.exportDataError ?? "An unexpected error occurred.")
-            }
-            .alert("Error", isPresented: Binding(
-                get: { viewModel.clearHintsError != nil },
-                set: { if !$0 { viewModel.clearHintsError = nil } }
-            )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.clearHintsError ?? "An unexpected error occurred.")
-            }
-    }
-}
-
 // MARK: - Developer Alerts (Step 15.6 — DEBUG only)
 
 #if DEBUG
 /// Owns the dev-reset confirmation + error alerts. Lives in its own modifier
-/// so the existing `AccountDeletionAlerts` / `SettingsAlerts` chain stays the
-/// same length and doesn't push the Swift type checker further.
+/// so the existing `AccountDeletionAlerts` chain stays short and doesn't push
+/// the Swift type checker further.
 private struct DeveloperAlerts: ViewModifier {
     @Binding var viewModel: SettingsViewModel
     let modelContext: ModelContext
@@ -508,22 +334,6 @@ private struct DeveloperAlerts: ViewModifier {
     }
 }
 #endif
-
-// MARK: - Share Sheet (Step 11.3)
-
-/// Wraps `UIActivityViewController` for use in SwiftUI sheets.
-///
-/// Used by the data export flow to present the system share sheet with
-/// the exported PDF file, allowing the user to save to Files, AirDrop, etc.
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
-}
 
 // MARK: - Previews
 
