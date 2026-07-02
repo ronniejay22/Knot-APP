@@ -6905,24 +6905,20 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.7 ✅ Saved — Post-Date "Reward Moment" (Reflection + "Moments" Section for Date Plans)
+### Step 19.7 ✅ Dev Tooling — Simulator Never Resolves the Dev Backend to a LAN IP
 **Date:** 2026-07-01
 **Status:** Complete
 
-**Goal:** The date-plan flow dead-ended at "Save to Library." For a Knot Original date plan there was no completion state, no reflection, and no payoff — the app that exists to drive "relational excellence" had no success moment for the exact thing it asks the user to do. The PRD defines a reward (the post-experience rating / "peak gratitude" moment), but it was only ever wired to purchases (the merchant-handoff `PurchaseRatingSheet`), so date plans never reached it and generated no `"rated"` learning signal. Close that gap with the smallest change: keep "Save to Library" as the CTA, but let the user mark a saved date plan done, capture a lightweight reflection, celebrate it, and keep it as a record.
-
-**Approach:** Entirely iOS-side, reusing existing plumbing — the backend already accepts `action: "rated"` with `rating` + `feedback_text` (migration `00011`), so no backend or DB migration was needed. The `PurchaseRatingSheet` was generalized (not duplicated) for the reflection, and the Saved tab was split into two sections.
+**Goal:** On the Simulator the app kept showing "Unable to connect … (tried http://192.168.1.239:8000)" — a **LAN IP** on the **old port 8000**, recurring often. A fresh build cannot produce that (the Simulator resolves to loopback `127.0.0.1:8420`), so the Simulator was stuck on a LAN IP via a **sticky `UserDefaults[KnotDevAPIBaseURL]` override** (which wins over the loopback logic and survives rebuilds) or a stale build. Encode the invariant that a LAN IP is never correct on the Simulator so it can't be stranded again.
 
 **What changed:**
-- **`iOS/Knot/Models/SavedRecommendation.swift`:** added three optional fields — `completedAt: Date?`, `rating: Int?`, `reflectionNote: String?` (SwiftData lightweight auto-migration handles new optionals; no container change) — plus computed `isCompleted` and `isDoable` (`isIdea || recommendationType == "date"`, which scopes the reflection to date plans / Knot Originals; purchasable gifts/experiences keep their existing handoff→rating path). Init gained matching `nil`-default params so existing save call sites are unchanged.
-- **`iOS/Knot/Features/Saved/SavedViewModel.swift`:** split the loaded list into computed `activeItems` (not completed, savedAt desc) and `completedItems` (completed, completedAt desc); added `markCompleted(_:rating:note:modelContext:)` (persists locally, re-fetches so the item moves Saved→Moments, fires best-effort `recordFeedback(action: "rated", …)`), a `lastCelebratedTitle` flag, and `clearCelebration()`. The VM now holds a `RecommendationService`.
-- **`iOS/Knot/Features/Saved/SavedView.swift`:** two sections — **Saved** (active; date plans show a "We did this" button) and **Moments** (completed; shows the rating stars + reflection note, with a "N dates you made real" subtitle). "We did this" opens the reflection sheet; on submit a celebratory top overlay ("Moment made real 💛") fires with a success haptic and auto-dismisses.
-- **`iOS/Knot/Features/Recommendations/PurchaseRatingSheet.swift`:** added an optional `headline` param (default `"How was this pick?"`, preserving the two existing call sites); the Saved-tab reflection passes `"How did it go?"`.
-- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** new `"savedMoments"` screenshot key rendering `SavedView` seeded (isolated in-memory container) with one active plan + one completed moment; `KnotUITests/PRScreenshotTests.swift` navigation slot points at it.
+- **`iOS/Knot/Core/Constants.swift`:** `resolveDebugBaseURL` now ignores an **override OR injected** value whose host is a private LAN IP (RFC-1918: `10/8`, `172.16/12`, `192.168/16`) **when on the Simulator**, falling through to loopback `127.0.0.1:8420`. New `isPrivateLANHost(_:)` helper. Loopback/`localhost`/hostname overrides are still honored; device behavior is unchanged (LAN IP still used there). Also corrected the stale `:8000` fallback-port docstring.
+- **`iOS/Knot/Info.plist`:** fixed the stale `http://192.168.x.x:8000` ATS comment → `:8420`.
+- **`iOS/Knot/Services/RecommendationService.swift`:** the DEBUG `cannotConnectToHost` message is now actionable — names the tried URL and the fixes (backend on `:8420`, Simulator uses `127.0.0.1`, clean rebuild refreshes a stale host, device must share Wi-Fi).
 
-**Tests:** iOS green (332 tests, 0 failures). Extended `SavedRecommendationModelTests` (completion fields default nil, settable + flip `isCompleted`, `isDoable` scope) and `SavedViewModelTests` (in-memory container: load splits active/completed, completed sorted newest-first, `markCompleted` records the reflection + moves the item + triggers/clears the celebration). Backend `"rated"` encoding already covered by `testFeedbackPayloadEncodesAllActions` — no new backend tests. PR screenshot captured of the Saved/Moments screen.
+**Tests:** `DevAPIBaseURLResolutionTests` extended — Simulator ignores a LAN-IP override (→ loopback) but honors loopback/hostname overrides; device still honors a LAN-IP override; `isPrivateLANHost` covers the RFC-1918 ranges and their boundaries (and scheme-less input). Full iOS suite green (326).
 
-**Out of scope (deferred):** changing the primary CTA to "Plan this date" / calendar scheduling / reminders; making Saved cards re-openable into the full detail view; partner visibility of completed dates; streaks/badges beyond the simple count.
+**Immediate operational note:** a Simulator already stuck on the sticky override can be cleared with `xcrun simctl spawn booted defaults delete com.ronniejay.knot KnotDevAPIBaseURL` (or delete the app); the code fix makes it self-correct after one rebuild.
 
 ---
 
