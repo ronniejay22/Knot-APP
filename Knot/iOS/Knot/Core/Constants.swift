@@ -50,16 +50,37 @@ enum Constants {
             return dict["DevAPIBaseURL"] as? String
         }
 
+        /// True when `urlString`'s host is a private LAN IP (RFC-1918:
+        /// `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`). Loopback (`127.x`),
+        /// `localhost`, and hostnames are NOT private LAN IPs.
+        static func isPrivateLANHost(_ urlString: String) -> Bool {
+            // Parse the host even from a scheme-less `host:port` (e.g. a stale
+            // `defaults write … 192.168.1.239:8000`), which `URL(string:)` alone
+            // reads as a scheme rather than a host.
+            guard let host = URL(string: urlString)?.host
+                ?? URL(string: "http://\(urlString)")?.host else { return false }
+            let parts = host.split(separator: ".").map { Int($0) }
+            guard parts.count == 4, let a = parts[0], let b = parts[1],
+                  parts[2] != nil, parts[3] != nil else { return false }
+            if a == 10 { return true }
+            if a == 192 && b == 168 { return true }
+            if a == 172 && (16...31).contains(b) { return true }
+            return false
+        }
+
         /// Resolves the DEBUG base URL in priority order:
         /// 1. `UserDefaults[KnotDevAPIBaseURL]` — manual override escape hatch.
         /// 2. `DevServer.plist[DevAPIBaseURL]` — build-time auto-detected Mac LAN
         ///    IP — physical device only.
-        /// 3. `http://127.0.0.1:8000` — loopback (also the Simulator's default).
+        /// 3. `http://127.0.0.1:8420` — loopback (also the Simulator's default).
         ///
-        /// On the Simulator the injected LAN IP is skipped: the simulator shares
-        /// the Mac's loopback, so `127.0.0.1` always reaches the local backend
-        /// even when uvicorn is bound to loopback only. Using the LAN IP there
-        /// fails (cannotConnectToHost) whenever the backend isn't on `0.0.0.0`.
+        /// On the Simulator a private LAN IP is never used — from the injected
+        /// value OR a stale `UserDefaults` override — because the simulator shares
+        /// the Mac's loopback, so `127.0.0.1` always reaches the local backend even
+        /// when uvicorn is bound to loopback only. A LAN IP there fails
+        /// (cannotConnectToHost) whenever the backend isn't on `0.0.0.0`, and a
+        /// sticky LAN-IP override would otherwise strand the simulator every launch.
+        /// A loopback/localhost/hostname override is still honored on the Simulator.
         ///
         /// Inputs are injected for testability.
         static func resolveDebugBaseURL(
@@ -67,7 +88,8 @@ enum Constants {
             injected: String? = injectedDevBaseURL(),
             isSimulator: Bool = isRunningInSimulator
         ) -> String {
-            if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty {
+            if let override, !override.trimmingCharacters(in: .whitespaces).isEmpty,
+               !(isSimulator && isPrivateLANHost(override)) {
                 return override
             }
             if !isSimulator, let injected, !injected.trimmingCharacters(in: .whitespaces).isEmpty {

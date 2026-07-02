@@ -1237,6 +1237,76 @@ final class SavedRecommendationModelTests: XCTestCase {
 
         XCTAssertEqual(saved.savedAt, customDate)
     }
+
+    // MARK: - Completion / Reflection Fields
+
+    /// Verify a freshly saved item has no completion state.
+    func testCompletionFieldsDefaultNil() {
+        let saved = SavedRecommendation(
+            recommendationId: "rec-005",
+            recommendationType: "date",
+            title: "Movie Night Plan"
+        )
+
+        XCTAssertNil(saved.completedAt)
+        XCTAssertNil(saved.rating)
+        XCTAssertNil(saved.reflectionNote)
+        XCTAssertFalse(saved.isCompleted)
+    }
+
+    /// Verify completion fields are preserved when provided and flip isCompleted.
+    func testCompletionFieldsSettable() {
+        let when = Date(timeIntervalSince1970: 2000000)
+        let saved = SavedRecommendation(
+            recommendationId: "rec-006",
+            recommendationType: "date",
+            title: "Directors' Conversation",
+            completedAt: when,
+            rating: 5,
+            reflectionNote: "It was perfect"
+        )
+
+        XCTAssertEqual(saved.completedAt, when)
+        XCTAssertEqual(saved.rating, 5)
+        XCTAssertEqual(saved.reflectionNote, "It was perfect")
+        XCTAssertTrue(saved.isCompleted)
+    }
+
+    /// Verify isDoable gates the reflection to date plans / Knot Originals only.
+    func testIsDoableScope() {
+        // Knot Original idea (any type) → doable.
+        let idea = SavedRecommendation(
+            recommendationId: "rec-idea",
+            recommendationType: "experience",
+            title: "Knot Original Plan",
+            isIdea: true
+        )
+        XCTAssertTrue(idea.isDoable)
+
+        // Plain date → doable.
+        let date = SavedRecommendation(
+            recommendationId: "rec-date",
+            recommendationType: "date",
+            title: "Dinner"
+        )
+        XCTAssertTrue(date.isDoable)
+
+        // Purchasable gift → not doable (has its own handoff/rating path).
+        let gift = SavedRecommendation(
+            recommendationId: "rec-gift",
+            recommendationType: "gift",
+            title: "Star Map Print"
+        )
+        XCTAssertFalse(gift.isDoable)
+
+        // Purchasable experience (not an idea) → not doable.
+        let experience = SavedRecommendation(
+            recommendationId: "rec-exp",
+            recommendationType: "experience",
+            title: "Concert Tickets"
+        )
+        XCTAssertFalse(experience.isDoable)
+    }
 }
 
 // MARK: - SavedViewModel Tests (moved from HomeViewModel in tab navigation refactor)
@@ -1244,11 +1314,116 @@ final class SavedRecommendationModelTests: XCTestCase {
 @MainActor
 final class SavedViewModelTests: XCTestCase {
 
+    /// In-memory SwiftData context for exercising load/complete behavior.
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: SavedRecommendation.self, configurations: config)
+        return ModelContext(container)
+    }
+
+    @discardableResult
+    private func insert(
+        _ context: ModelContext,
+        id: String,
+        type: String = "date",
+        title: String,
+        savedAt: Date = Date(),
+        completedAt: Date? = nil,
+        rating: Int? = nil,
+        note: String? = nil
+    ) -> SavedRecommendation {
+        let item = SavedRecommendation(
+            recommendationId: id,
+            recommendationType: type,
+            title: title,
+            savedAt: savedAt,
+            completedAt: completedAt,
+            rating: rating,
+            reflectionNote: note
+        )
+        context.insert(item)
+        try? context.save()
+        return item
+    }
+
     /// Verify savedRecommendations is empty on init.
     func testSavedRecommendationsInitiallyEmpty() {
         let vm = SavedViewModel()
 
         XCTAssertTrue(vm.savedRecommendations.isEmpty)
+        XCTAssertTrue(vm.activeItems.isEmpty)
+        XCTAssertTrue(vm.completedItems.isEmpty)
+        XCTAssertNil(vm.lastCelebratedTitle)
+    }
+
+    /// Verify load splits items into active (not completed) and completed buckets.
+    func testLoadSplitsActiveAndCompleted() throws {
+        let context = try makeContext()
+        insert(context, id: "a", title: "Active Plan")
+        insert(context, id: "b", title: "Done Plan", completedAt: Date(), rating: 4)
+
+        let expectation = expectation(description: "load")
+        let vm = SavedViewModel()
+        Task {
+            await vm.loadSavedRecommendations(modelContext: context)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 2)
+
+        XCTAssertEqual(vm.activeItems.map(\.recommendationId), ["a"])
+        XCTAssertEqual(vm.completedItems.map(\.recommendationId), ["b"])
+    }
+
+    /// Verify completed items are sorted newest-completion first.
+    func testCompletedItemsSortedByCompletionDesc() throws {
+        let context = try makeContext()
+        let older = Date(timeIntervalSince1970: 1000)
+        let newer = Date(timeIntervalSince1970: 2000)
+        insert(context, id: "old", title: "Older", completedAt: older, rating: 3)
+        insert(context, id: "new", title: "Newer", completedAt: newer, rating: 5)
+
+        let expectation = expectation(description: "load")
+        let vm = SavedViewModel()
+        Task {
+            await vm.loadSavedRecommendations(modelContext: context)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 2)
+
+        XCTAssertEqual(vm.completedItems.map(\.recommendationId), ["new", "old"])
+    }
+
+    /// Verify marking an item done records the reflection, moves it to Moments,
+    /// and triggers the celebration.
+    func testMarkCompletedRecordsReflection() throws {
+        let context = try makeContext()
+        let item = insert(context, id: "plan", title: "Movie Night Plan")
+
+        let loaded = expectation(description: "load")
+        let vm = SavedViewModel()
+        Task {
+            await vm.loadSavedRecommendations(modelContext: context)
+            loaded.fulfill()
+        }
+        wait(for: [loaded], timeout: 2)
+        XCTAssertEqual(vm.activeItems.map(\.recommendationId), ["plan"])
+
+        vm.markCompleted(item, rating: 5, note: "We loved it", modelContext: context)
+
+        // Fields are set synchronously on the model object.
+        XCTAssertTrue(item.isCompleted)
+        XCTAssertEqual(item.rating, 5)
+        XCTAssertEqual(item.reflectionNote, "We loved it")
+        XCTAssertNotNil(item.completedAt)
+
+        // Sections reflect the change (computed from the mutated object).
+        XCTAssertTrue(vm.activeItems.isEmpty)
+        XCTAssertEqual(vm.completedItems.map(\.recommendationId), ["plan"])
+
+        // Reward overlay is triggered, then can be cleared.
+        XCTAssertEqual(vm.lastCelebratedTitle, "Movie Night Plan")
+        vm.clearCelebration()
+        XCTAssertNil(vm.lastCelebratedTitle)
     }
 }
 
