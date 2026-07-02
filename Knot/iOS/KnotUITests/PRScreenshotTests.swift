@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guards against STALE search/shopping links: a purchasable whose
-        // stored external_url is a Google-Shopping page must degrade its CTA to "Save to
-        // Library" instead of opening Google. The detail screen needs auth + a live
-        // backend to reach normally, so render it standalone via the DEBUG screenshot
-        // harness with a stale-link sample (`UITestScreenshotHarness` key "recDetailStale").
-        app.launchArguments += ["-uiTestScreenshot", "recDetailStale"]
+        // This change adds the end-of-onboarding subscription paywall, shown after the
+        // user opens a recommendation and taps "Continue". Reaching it normally needs a
+        // live auth session and a completed recommendation reveal, so render it
+        // standalone via the DEBUG screenshot harness (`UITestScreenshotHarness` key
+        // "onboardingPaywall").
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywall"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).

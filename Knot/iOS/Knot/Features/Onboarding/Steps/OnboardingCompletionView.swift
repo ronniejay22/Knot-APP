@@ -41,9 +41,11 @@ struct OnboardingCompletionView: View {
     @Environment(OnboardingViewModel.self) private var onboarding
 
     /// Drives the container's "Continue" button visibility. The button lives in
-    /// `OnboardingContainerView`'s navigation bar, so this reveal reports up
-    /// whether it is still in progress: the button stays hidden while loading or
-    /// celebrating, and appears only once the user reaches a terminal state.
+    /// `OnboardingContainerView`'s navigation bar, so this reveal reports up whether
+    /// it should be shown: it stays hidden while loading or celebrating, and once the
+    /// reveal finishes it appears immediately in the empty / error / vault-failed
+    /// states (nothing to open) but — in the loaded state — only after the user opens
+    /// at least one recommendation (see `hasOpenedRecommendation`).
     @Binding var showContinue: Bool
 
     @State private var viewModel = RecommendationsViewModel()
@@ -61,27 +63,33 @@ struct OnboardingCompletionView: View {
     /// True if the vault POST failed, surfacing a retry-able error state.
     @State private var vaultFailed = false
 
-    /// True while the reveal is still in progress — the loading screen (vault
-    /// creation then recommendation generation) or the climax celebration is on
-    /// screen. Mirrors the busy branches of `content` below. The container hides
-    /// "Continue" while this is true; it stays interactive in the loaded, empty,
-    /// error, and vault-failed states so the user is never trapped.
-    private var isRevealing: Bool {
-        Self.revealInProgress(
+    /// True once the user has opened at least one recommendation's detail during the
+    /// reveal. In the loaded state the container's "Continue" button stays hidden
+    /// until this flips, nudging the user to explore at least one pick before
+    /// proceeding to the paywall. The empty / error / vault-failed states ignore it —
+    /// there is nothing to open there, so Continue appears immediately.
+    @State private var hasOpenedRecommendation = false
+
+    /// Whether the container's "Continue" button should be shown. Delegates to the
+    /// pure `shouldShowContinue(...)` gate with the view's current state.
+    private var showContinueGate: Bool {
+        Self.shouldShowContinue(
             vaultFailed: vaultFailed,
             vaultReady: vaultReady,
             isLoading: viewModel.isLoading,
-            isPlayingClimax: isPlayingClimax
+            isPlayingClimax: isPlayingClimax,
+            hasError: viewModel.errorMessage != nil,
+            hasRecommendations: !viewModel.recommendations.isEmpty,
+            hasOpenedRecommendation: hasOpenedRecommendation
         )
     }
 
-    /// Pure gating logic for `isRevealing`, factored out of the computed property
-    /// so the Continue-button gating can be unit-tested independently of the
-    /// view's `@State`. Mirrors the busy branches of the `content` switch: the
-    /// reveal is "in progress" while the loading screen (vault creation then
-    /// recommendation generation) or the climax celebration is on screen, and
-    /// NOT in progress in the terminal loaded / empty / error / vault-failed
-    /// states (where "Continue" should appear so the user is never trapped).
+    /// Pure gating logic for whether the reveal is still in progress, factored out
+    /// of the computed property so it can be unit-tested independently of the view's
+    /// `@State`. Mirrors the busy branches of the `content` switch: the reveal is "in
+    /// progress" while the loading screen (vault creation then recommendation
+    /// generation) or the climax celebration is on screen, and NOT in progress in the
+    /// terminal loaded / empty / error / vault-failed states.
     static func revealInProgress(
         vaultFailed: Bool,
         vaultReady: Bool,
@@ -91,12 +99,44 @@ struct OnboardingCompletionView: View {
         (!vaultFailed && (!vaultReady || isLoading)) || isPlayingClimax
     }
 
+    /// Pure gating logic for the container's "Continue" button, factored out so it can
+    /// be unit-tested independently of the view's `@State`. Continue is hidden while
+    /// the reveal is in progress; once the reveal reaches a terminal state it appears
+    /// immediately when there is nothing to open (vault failed, generation error, or
+    /// no picks came back — so the user is never trapped) and, in the loaded state,
+    /// only after the user has opened at least one recommendation.
+    static func shouldShowContinue(
+        vaultFailed: Bool,
+        vaultReady: Bool,
+        isLoading: Bool,
+        isPlayingClimax: Bool,
+        hasError: Bool,
+        hasRecommendations: Bool,
+        hasOpenedRecommendation: Bool
+    ) -> Bool {
+        if revealInProgress(
+            vaultFailed: vaultFailed,
+            vaultReady: vaultReady,
+            isLoading: isLoading,
+            isPlayingClimax: isPlayingClimax
+        ) {
+            return false
+        }
+        // Terminal states with nothing to open must never trap the user.
+        if vaultFailed || hasError || !hasRecommendations {
+            return true
+        }
+        // Loaded with picks: require the user to open at least one first.
+        return hasOpenedRecommendation
+    }
+
     var body: some View {
         content
-            // Keep the container's "Continue" button in sync with the reveal's
-            // progress without mutating state mid-render.
-            .onChange(of: isRevealing) { _, revealing in
-                showContinue = !revealing
+            // Keep the container's "Continue" button in sync with the gate without
+            // mutating state mid-render. The gate stays false until the reveal
+            // finishes and — in the loaded state — the user has opened a pick.
+            .onChange(of: showContinueGate) { _, show in
+                showContinue = show
             }
             // Trigger the celebration only on a fresh, successful load — skips on
             // error or when no recommendations came back.
@@ -280,12 +320,20 @@ struct OnboardingCompletionView: View {
             // the Spotlight cards (page dots track position) and taps "See Details"
             // to open a pick. There's no save/pass voting here — saving happens
             // later on the For You tab and the detail page. The container's
-            // "Continue" button proceeds to Home.
+            // "Continue" button appears only after the user opens a pick and
+            // returns to the carousel, then proceeds to the paywall.
             SpotlightCarouselView(
                 items: viewModel.recommendations,
                 partnerName: viewModel.partnerName,
                 isSaved: { viewModel.isSaved($0) },
-                onOpenDetail: { viewModel.openDetail($0) }
+                onOpenDetail: {
+                    // Opening a pick reveals the container's "Continue" button once
+                    // the user dismisses the detail and returns here (the button
+                    // sits behind the detail's full-screen cover). See
+                    // `shouldShowContinue`.
+                    hasOpenedRecommendation = true
+                    viewModel.openDetail($0)
+                }
             )
             .padding(.bottom, 24)
         }

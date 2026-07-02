@@ -40,8 +40,14 @@ struct OnboardingContainerView: View {
     /// Whether the final completion step's recommendation reveal has finished and
     /// the "Continue" button should be shown. Starts hidden so the user can't skip
     /// past the loading screen; `OnboardingCompletionView` flips it once the reveal
-    /// reaches a terminal state.
+    /// reaches a terminal state AND (in the loaded state) the user has opened at
+    /// least one recommendation.
     @State private var completionShowContinue = false
+
+    /// Whether the end-of-onboarding subscription paywall is presented. Tapping
+    /// "Continue" on the completion step raises this instead of finishing onboarding
+    /// directly; `OnboardingPaywallView`'s own CTA / close then calls `onComplete`.
+    @State private var showPaywall = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -121,6 +127,23 @@ struct OnboardingContainerView: View {
             dismissTask = nil
             showValidationError = false
         }
+        // End-of-onboarding subscription paywall. Presented when the user taps
+        // "Continue" on the completion step; both its CTA and close finish
+        // onboarding (there is no live purchase to block on yet).
+        .fullScreenCover(isPresented: $showPaywall) {
+            OnboardingPaywallView(
+                onContinue: finishFromPaywall,
+                onClose: finishFromPaywall
+            )
+        }
+    }
+
+    /// Dismisses the paywall and finishes onboarding. Shared by the paywall's
+    /// "Continue" (chose a plan) and close (X) paths — both proceed into the app,
+    /// since there is no live purchase to block on yet.
+    private func finishFromPaywall() {
+        showPaywall = false
+        onComplete()
     }
 
     // MARK: - Back Button
@@ -215,10 +238,11 @@ struct OnboardingContainerView: View {
     private var navigationButtons: some View {
         if viewModel.currentStep.isLast {
             // Final recommendation-reveal step. "Continue" stays hidden while the
-            // reveal is loading or playing its climax (driven by
-            // `completionShowContinue`) so the user can't skip past their first
-            // picks before they appear. Once the reveal reaches a terminal state
-            // (loaded, empty, or error) the button appears and finishes onboarding.
+            // reveal is loading or playing its climax, and — in the loaded state —
+            // until the user opens at least one pick (driven by
+            // `completionShowContinue`). Once shown, tapping it presents the
+            // subscription paywall rather than finishing onboarding directly; the
+            // paywall's own CTA / close calls `onComplete`.
             // No transition/animation here — animating the nav buttons delays
             // first taps on real devices (see Step Content comment above).
             if completionShowContinue {
@@ -226,7 +250,7 @@ struct OnboardingContainerView: View {
                     "Continue",
                     variant: .primary,
                     size: .lg,
-                    action: { onComplete() }
+                    action: { showPaywall = true }
                 )
                 .frame(maxWidth: .infinity)
             }

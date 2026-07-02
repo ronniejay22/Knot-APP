@@ -6905,6 +6905,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.7 ✅ Onboarding — Gate "Continue" on Opening a Pick, Then Present a Subscription Paywall
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** During the final onboarding step (the recommendation reveal carousel), the "Continue" button appeared as soon as the reveal reached a terminal state — the user could proceed straight into the app without ever opening one of their first picks. The request: hold "Continue" back until the user opens at least one recommendation and returns to the carousel, and when they tap it, present a subscription/paywall screen (title, benefit checklist, two selectable price plans with one flagged "Most Popular", a primary CTA, a cancel-anytime line, and Terms/Privacy fine print).
+
+**Approach:** Tightened the existing pure gating in `OnboardingCompletionView` and added a new full-screen paywall reskinned to Knot's design system. The paywall is a **branded UI screen only** — it does not yet wire StoreKit purchases, receipt validation, or entitlements; both its CTA and its close (X) finish onboarding. `PaywallPlan` is modeled so real StoreKit products can replace the placeholder plans later without touching the view layout. The long-standing "never trap the user" invariant is preserved: the empty / generation-error / vault-failed states still surface "Continue" immediately (there is nothing to open there).
+
+**What changed:**
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` (new):** The end-of-onboarding paywall. Close (X) via `KnotIconButton`, a Fraunces title with an accent underline, four `Lucide.check` benefit bullets, two selectable plan cards (`PaywallPlanCard` composing `KnotCard` with an accent ring + "Most Popular" badge when selected/popular), a `KnotButton` primary CTA, a `Lucide.shieldCheck` cancel-anytime note, and `Link`s to the existing `https://knot-app.com/terms` / `/privacy` URLs. Includes the `PaywallPlan` model (placeholder Annual / Monthly pricing) with a `defaultSelection` rule (the popular plan).
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` (modified):** Added `hasOpenedRecommendation` state (flipped in the carousel's `onOpenDetail`) and a new pure `shouldShowContinue(...)` gate layered on top of the existing `revealInProgress(...)`: hidden while revealing; shown immediately in empty/error/vault-failed terminal states; and, in the loaded state, only once a pick has been opened. The container's `showContinue` binding is now driven by this gate.
+- **`iOS/Knot/Features/Onboarding/OnboardingContainerView.swift` (modified):** Added `showPaywall` state; the completion-step "Continue" now raises the paywall (via `.fullScreenCover`) instead of finishing onboarding directly, and the paywall's `onContinue` / `onClose` call `onComplete()`.
+- **`iOS/Knot/App/UITestScreenshotHarness.swift` (modified):** Added an `"onboardingPaywall"` screenshot key rendering the paywall standalone (it needs no auth/backend). `iOS/KnotUITests/PRScreenshotTests.swift` navigates to it.
+
+**Tests:** iOS green — 338 unit tests pass. Extended `OnboardingCompletionViewContinueGatingTests` with `shouldShowContinue` cases (loaded-but-unopened → hidden; loaded-and-opened → shown; still-revealing → hidden regardless of open; empty/error/vault-failed → shown). New `OnboardingPaywallViewTests` pins the `PaywallPlan` invariants (multiple plans, exactly one popular, unique ids, default selection is the popular plan, non-empty display copy). PR screenshot captures the paywall via the DEBUG harness.
+
+**Note:** No live purchase flow yet — wiring StoreKit products, receipt validation, and entitlements (and deciding whether the close/skip path should truly grant free access) is a deliberate follow-up. The screen and its plan data are structured to make that a drop-in change.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

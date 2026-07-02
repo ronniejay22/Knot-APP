@@ -37,9 +37,20 @@ enum UITestScreenshotHarness {
             RecDetailScreenshotHarnessView()
         case "recDetailStale":
             RecDetailStaleLinkHarnessView()
+        case "onboardingPaywall":
+            OnboardingPaywallHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Renders the end-of-onboarding subscription paywall standalone. Reaching it
+/// normally requires a live auth session and a completed recommendation reveal, so
+/// this bypasses both — the view takes only two closures and owns its own background.
+private struct OnboardingPaywallHarnessView: View {
+    var body: some View {
+        OnboardingPaywallView(onContinue: {}, onClose: {})
     }
 }
 
