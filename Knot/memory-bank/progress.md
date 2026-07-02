@@ -6869,7 +6869,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.5 ✅ Recommendations — Never Open/Serve a Stale Search-or-Shopping Link (Read/Open Boundary Guard)
+### Step 19.5 ✅ Legal — Terms of Service & Privacy Policy Documents
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** The iOS app's Settings and Sign-In screens already link to `https://knot-app.com/terms` and `https://knot-app.com/privacy`, but no such documents existed anywhere in the repo. App Store submission requires a working Privacy Policy URL, and a Terms of Service is standard for a service that creates accounts, processes personal data, and sends data to third-party AI providers. Produce both, grounded in what the code actually does.
+
+**Approach:** Explored the backend data model, the iOS client, and the memory bank to build the documents from verified facts (data collected, auth methods, AI providers, third-party services, retention/deletion behavior, monetization) rather than boilerplate. Delivered each policy as source-of-truth Markdown plus a self-contained, mobile-friendly HTML page ready to publish at the exact URLs the app links to. No application code changed.
+
+**What changed:**
+- **`docs/legal/privacy-policy.md` (new):** Privacy Policy covering account data, the partner Vault, milestones, hints (and their embeddings), recommendations/feedback, and the APNs device token; an explicit "what we do not collect" list (no contacts/calendar/camera/photos/location/mic, no payment data, no analytics SDKs); AI processing via Anthropic Claude and Google Vertex AI; a service-provider sharing table (Supabase, Vercel, Upstash QStash, Apple APNs, Brave, Yelp, Ticketmaster, Amazon, Shopify, OpenTable/Resy, Firecrawl); the 60-day soft-delete/restore then cascade-delete retention model; access/export/correction/deletion rights (GDPR/CCPA); security posture; and a children's (18+) clause.
+- **`docs/legal/terms-of-service.md` (new):** Terms covering eligibility (18+), Apple/Google/magic-link sign-in, ownership of and license to user-provided partner content, acceptable use, an AI-generated-content disclaimer, third-party merchant/affiliate-link disclosure, IP, free-today fees, notifications consent, disclaimers, limitation of liability, indemnification, termination, and governing law.
+- **`docs/legal/privacy.html` / `docs/legal/terms.html` (new):** Standalone styled pages (inline CSS, no external assets) mirroring the Markdown, cross-linked via the canonical root paths `/privacy` and `/terms` so they resolve at the URLs the app already uses.
+- **`docs/legal/README.md` (new):** Lists the placeholders to fill (`[Company Legal Name]`, `[Mailing Address]`, `[Governing-law State/Country]`, `[Effective Date]`, incl. the ALL-CAPS variant), a "not legal advice — have an attorney review" note, and publishing instructions for hosting at `knot-app.com/terms` and `/privacy`.
+
+**Tests:** None — docs-only change, no backend or iOS code touched. HTML tag nesting validated for both pages; confirmed all cross-links use the canonical `/privacy` and `/terms` paths and that those match the URLs hard-coded in `iOS/Knot/Features/Settings/SettingsView.swift`.
+
+---
+
+### Step 19.6 ✅ Recommendations — Never Open/Serve a Stale Search-or-Shopping Link (Read/Open Boundary Guard)
 **Date:** 2026-07-01
 **Status:** Complete
 
