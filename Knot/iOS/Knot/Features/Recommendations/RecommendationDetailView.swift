@@ -453,10 +453,12 @@ struct RecommendationDetailView: View {
 
     /// A purchasable item is "openable" only when it carries a real merchant link.
     /// The backend guarantees a resolved page or converts the card to an idea, so a
-    /// linkless purchasable is rare — but never show a dead "Open" button if it happens.
+    /// linkless purchasable is rare — but never show a dead "Open" button if it happens,
+    /// and never for a stale web-search/shopping link (degrade to Save instead).
     private var hasOpenableLink: Bool {
-        guard let url = item.externalUrl else { return false }
-        return !url.isEmpty
+        guard let urlString = item.externalUrl, !urlString.isEmpty,
+              let url = URL(string: urlString) else { return false }
+        return !url.isSearchOrShoppingLink
     }
 
     @ViewBuilder
@@ -587,6 +589,29 @@ enum PreviewRecommendations {
             "matched_interests": ["Music", "Travel"], "matched_vibes": ["quiet_luxury", "street_urban"],
             "matched_love_languages": ["words_of_affirmation", "acts_of_service"],
             "personalization_note": "You know how much Ronnie loves music and the energy of live performance—this hits that directly."
+        }
+        """.data(using: .utf8)!
+        return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
+    }()
+
+    /// A purchasable whose stored `external_url` is a stale Google-Shopping link (from
+    /// before the URL fix). The detail CTA must degrade to "Save to Library" rather than
+    /// open a Google results page. Used by the PR screenshot harness.
+    static let staleSearchLink: RecommendationItemResponse = {
+        let json = """
+        {
+            "id": "date-republique", "recommendation_type": "date",
+            "title": "Dinner + Bookstore Evening in Los Feliz",
+            "description": "An upscale French-California dinner paired with a browse through a beloved neighborhood bookstore — an easy, literary evening in Los Feliz.",
+            "price_cents": 12000, "currency": "USD", "price_confidence": "estimated",
+            "external_url": "https://www.google.com/search?tbm=shop&q=Republique+Los+Feliz+location",
+            "image_url": null, "merchant_name": "Republique (Los Feliz location)", "source": "unified",
+            "location": {"city": "Los Angeles", "state": "CA", "country": "US", "address": null},
+            "is_idea": false,
+            "interest_score": 0.9, "vibe_score": 0.8, "love_language_score": 0.7, "final_score": 0.82,
+            "matched_interests": ["Cooking", "Reading", "Travel"], "matched_vibes": ["quiet_luxury", "street_urban"],
+            "matched_love_languages": ["acts_of_service"],
+            "personalization_note": "This weaves Ronnie's love of cooking, reading, and exploring a great neighborhood into one thoughtful evening."
         }
         """.data(using: .utf8)!
         return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
