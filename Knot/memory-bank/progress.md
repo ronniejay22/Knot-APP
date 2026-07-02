@@ -6905,21 +6905,20 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.7 ✅ Recommendations — Remove the Star Icon from the "Why Knot" Detail Box
+### Step 19.7 ✅ Dev Tooling — Simulator Never Resolves the Dev Backend to a LAN IP
 **Date:** 2026-07-01
 **Status:** Complete
 
-**Goal:** Per user request, drop the leading sparkles/star icon (`Lucide.sparkles`) from the "Why Knot picked this for {partner}" card header on the recommendation detail screen. The title should read on its own with no icon, keeping the box's personalization note and matched-factor chips unchanged.
+**Goal:** On the Simulator the app kept showing "Unable to connect … (tried http://192.168.1.239:8000)" — a **LAN IP** on the **old port 8000**, recurring often. A fresh build cannot produce that (the Simulator resolves to loopback `127.0.0.1:8420`), so the Simulator was stuck on a LAN IP via a **sticky `UserDefaults[KnotDevAPIBaseURL]` override** (which wins over the loopback logic and survives rebuilds) or a stale build. Encode the invariant that a LAN IP is never correct on the Simulator so it can't be stranded again.
 
-**What changed (iOS-only, presentation-only):**
-- **`iOS/Knot/Features/Recommendations/RecommendationDetailView.swift`:** In `whyBlock`, removed the `Image(uiImage: Lucide.sparkles)` block that was the first child of the header `HStack(spacing: 8)`. Since the icon was the only sibling of the title, the now-single-child `HStack` was collapsed to just the `Text("Why Knot picked this for \(partnerDisplayName)")` (same `Theme.Typography.cta` font, `Theme.textPrimary`, and `.fixedSize`). The surrounding `VStack(alignment: .leading, spacing: 14)`, the italic personalization note, the `FlowLayout` of `MatchingFactorChip`s, and the accent-tinted rounded background are all unchanged. `import LucideIcons` stays — it's still used by the back/share/save circle buttons, the meta line, and the type-icon switch (which still uses `Lucide.sparkles` for the `experience` type — a separate concern from this header).
-- **`iOS/KnotUITests/PRScreenshotTests.swift`:** Repointed the navigation slot from the `recDetailStale` harness key to `recDetail` (the bookable sample, which also carries a personalization note + matched chips so the "Why Knot" box renders) and updated the comment to describe this change.
+**What changed:**
+- **`iOS/Knot/Core/Constants.swift`:** `resolveDebugBaseURL` now ignores an **override OR injected** value whose host is a private LAN IP (RFC-1918: `10/8`, `172.16/12`, `192.168/16`) **when on the Simulator**, falling through to loopback `127.0.0.1:8420`. New `isPrivateLANHost(_:)` helper. Loopback/`localhost`/hostname overrides are still honored; device behavior is unchanged (LAN IP still used there). Also corrected the stale `:8000` fallback-port docstring.
+- **`iOS/Knot/Info.plist`:** fixed the stale `http://192.168.x.x:8000` ATS comment → `:8420`.
+- **`iOS/Knot/Services/RecommendationService.swift`:** the DEBUG `cannotConnectToHost` message is now actionable — names the tried URL and the fixes (backend on `:8420`, Simulator uses `127.0.0.1`, clean rebuild refreshes a stale host, device must share Wi-Fi).
 
-**Backend:** No changes.
+**Tests:** `DevAPIBaseURLResolutionTests` extended — Simulator ignores a LAN-IP override (→ loopback) but honors loopback/hostname overrides; device still honors a LAN-IP override; `isPrivateLANHost` covers the RFC-1918 ranges and their boundaries (and scheme-less input). Full iOS suite green (326).
 
-**Tests:** No test asserted on the header icon, so none needed updating. Full app builds clean; `xcodebuild test -only-testing:KnotTests` passes (326 tests, 0 failures, including the `SpotlightViewRenderingTests` that render `RecommendationDetailView` across all types). PR screenshot (`recDetail` harness) visually confirms the "Why Knot picked this for Ronnie" box header renders with no leading icon.
-
-**Notes:** The `whyBlock` originated in Step 18.43 as the emotional centerpiece of the Airbnb-style detail page; this is a pure chrome tweak — the personalization note remains the box's focus, now without the redundant icon.
+**Immediate operational note:** a Simulator already stuck on the sticky override can be cleared with `xcrun simctl spawn booted defaults delete com.ronniejay.knot KnotDevAPIBaseURL` (or delete the app); the code fix makes it self-correct after one rebuild.
 
 ---
 

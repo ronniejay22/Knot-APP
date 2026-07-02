@@ -424,9 +424,13 @@ final class RecommendationService: Sendable {
             return "The request timed out. Please try again."
         case .cannotConnectToHost, .cannotFindHost:
             #if DEBUG
-            // Surface the URL we tried so a dev sees whether the LAN IP / backend
-            // is the problem (e.g. backend not running, or not on the same Wi-Fi).
-            return "Unable to reach the server. Please try again later. (tried \(baseURL))"
+            // Surface the URL we tried plus the usual dev fixes: the backend must be
+            // running on :8420 (`backend/scripts/dev.sh`); the Simulator should use
+            // 127.0.0.1 (a clean rebuild refreshes a stale host); a physical device
+            // must be on the same Wi-Fi as the Mac.
+            return "Can't reach the dev backend at \(baseURL). Is it running on :8420 "
+                + "(backend/scripts/dev.sh)? Simulator uses 127.0.0.1 — a clean rebuild "
+                + "refreshes a stale host; a device must share the Mac's Wi-Fi."
             #else
             return "Unable to reach the server. Please try again later."
             #endif
