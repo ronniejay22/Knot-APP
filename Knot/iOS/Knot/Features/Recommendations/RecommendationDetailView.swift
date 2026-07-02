@@ -304,18 +304,10 @@ struct RecommendationDetailView: View {
 
         if (note?.isEmpty == false) || !chips.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 8) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .foregroundStyle(Theme.accent)
-                    Text("Why Knot picked this for \(partnerDisplayName)")
-                        .knotFont(Theme.Typography.cta)
-                        .foregroundStyle(Theme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("Why Knot picked this for \(partnerDisplayName)")
+                    .knotFont(Theme.Typography.cta)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let note, !note.isEmpty {
                     Text("\"\(note)\"")

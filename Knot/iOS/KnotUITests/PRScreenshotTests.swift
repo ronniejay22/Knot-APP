@@ -24,12 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guards against STALE search/shopping links: a purchasable whose
-        // stored external_url is a Google-Shopping page must degrade its CTA to "Save to
-        // Library" instead of opening Google. The detail screen needs auth + a live
-        // backend to reach normally, so render it standalone via the DEBUG screenshot
-        // harness with a stale-link sample (`UITestScreenshotHarness` key "recDetailStale").
-        app.launchArguments += ["-uiTestScreenshot", "recDetailStale"]
+        // This change removes the sparkles/star icon from the "Why Knot picked this
+        // for <partner>" box on the recommendation detail screen (the title now reads
+        // without a leading icon). The detail screen needs auth + a live backend to
+        // reach normally, so render it standalone via the DEBUG screenshot harness with
+        // a bookable sample that has a personalization note + matched chips, so the
+        // "Why Knot" box is visible (`UITestScreenshotHarness` key "recDetail").
+        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
