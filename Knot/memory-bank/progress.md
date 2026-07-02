@@ -6905,6 +6905,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.7 ✅ Profile — Remove Export My Data, Clear All Hints, Version & Quiet Hours Rows
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** Slim the Profile/Settings screen by removing four rows the product no longer wants surfaced: **Export My Data** and **Clear All Hints** (the entire Privacy section), **Quiet Hours** (the expandable time-picker row under Notifications), and **Version** (under About). Remove the four rows and the iOS code that exclusively backs them, while leaving the untouched surfaces (Enable Notifications toggle, account deletion, Terms/Privacy links) working.
+
+**Scope decision — iOS-only; backend retained intentionally.** Each feature has a Python backend (the `/users/me/export` endpoint, the hint `DELETE` endpoint, the `/users/me/notification-preferences` endpoints, and the DND/quiet-hours engine in `services/dnd.py` wired into the push webhook). None of it was touched. The quiet-hours DND engine is an *active runtime behavior* — pushes are still suppressed/rescheduled during the default 22:00–08:00 window using the DB defaults; removing the picker only means users can no longer customize that window. Tearing out the engine would be a behavioral regression (pushes at 3 AM) plus a large, risky change (non-reversible migrations, ~35 DND tests). The export and hint-delete endpoints are harmless unused API surface. Backend and its test suite are therefore unchanged.
+
+**What changed:**
+- **`iOS/Knot/Features/Settings/SettingsView.swift`:** Removed the `privacySection` (Export My Data + Clear All Hints) and its reference in the body `VStack`; removed the Quiet Hours row, its expandable `KnotCard` picker block, and the `quietHoursPickerRow(label:hour:)` helper (the Enable Notifications toggle remains as the sole Notifications row); removed the Version `KnotListRow.info` from About (Terms of Service + Privacy Policy remain). Removed the export share `.sheet`, the export loading overlay, and the `loadNotificationPreferences()` call from `.task`. With Export and Clear-All-Hints gone, the `SettingsAlerts` `ViewModifier` (its five alerts all belonged to those two features) and the `ShareSheet` `UIViewControllerRepresentable` were deleted along with the `.modifier(SettingsAlerts…)` application. `AccountDeletionAlerts` and the DEBUG `DeveloperAlerts` are unchanged.
+- **`iOS/Knot/Features/Settings/SettingsViewModel.swift`:** Deleted the state and methods that exclusively served the four rows — hint clearing (`isClearingHints`, `clearHintsError`, `showClearHints*`, `clearAllHints()`), data export (`isExportingData`, `exportDataError`, `showExportShareSheet`, `exportedFileURL`, `showExportDataAlert`, `exportUserData()`), the `appVersion` computed property, and all quiet-hours/notification-preferences state (`quietHoursStart`/`End`, `showQuietHoursPicker`, `isLoadingPreferences`, `isSavingPreferences`, `preferencesError`, `loadNotificationPreferences()`, `saveQuietHours()`, `formatHour(_:)`). Retained email, the iOS notification-authorization toggle, account deletion, and DEBUG dev-reset.
+- **Deleted orphaned service files** (verified no remaining references): `Services/ExportService.swift`, `Services/PDFExportRenderer.swift`, `Services/NotificationPreferencesService.swift`.
+- **`iOS/Knot/Models/DTOs.swift`:** Removed the Data Export DTOs (`DataExportResponse` + nested `ExportUser`/`ExportVault`/`ExportBudget`/`ExportLoveLanguage`/`ExportMilestone`/`ExportHint`/`ExportRecommendation`/`ExportFeedback`/`ExportNotification`) and the Notification Preferences DTOs (`NotificationPreferencesDTO`, `NotificationPreferencesUpdateDTO`).
+- **`iOS/KnotTests/SettingsViewTests.swift`:** Removed the unit tests covering the deleted state/methods (export, clear-hints, `appVersion`, quiet-hours/preferences, `formatHour`); kept email, notification-toggle, account-deletion, and rendering tests.
+- **`HintService`** kept intact — `createHint` is still used by the recommendation refresh flow (`RecommendationsViewModel`). `listHints`/`deleteHint` (previously used only by `clearAllHints`) are retained as backend-mirroring API-client surface with no current in-app caller.
+- **Screenshot harness:** Added a `settings` key to `UITestScreenshotHarness` rendering `SettingsView(isTabEmbedded: true)`, and pointed `PRScreenshotTests` at it so the PR screenshot shows the slimmed Profile screen.
+
+**Tests:** iOS suite green — regenerated the Xcode project via `xcodegen` (deleted files drop out of the directory-globbed target) and ran `xcodebuild test -only-testing:KnotTests`: **307 tests, 0 failures**. PR screenshot captured (`docs/pr-screenshots/worktree-remove-profile-settings-rows.png`) confirming ACCOUNT / PARTNER PROFILE / APPEARANCE / NOTIFICATIONS (Enable Notifications only) / ABOUT (Terms + Privacy, no Version) with the Privacy section and Quiet Hours gone. No backend changes, so the backend suite is unaffected.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

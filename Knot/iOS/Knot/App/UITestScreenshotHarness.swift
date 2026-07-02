@@ -37,9 +37,22 @@ enum UITestScreenshotHarness {
             RecDetailScreenshotHarnessView()
         case "recDetailStale":
             RecDetailStaleLinkHarnessView()
+        case "settings":
+            SettingsScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Renders the Profile-tab Settings screen standalone so a screenshot shows the
+/// slimmed section list (no Quiet Hours, Export My Data, Clear All Hints, or
+/// Version rows). `isTabEmbedded: true` matches the Profile-tab presentation
+/// (title "Profile", no dismiss button). `AuthViewModel` and `modelContext` are
+/// supplied by `ContentView`'s environment.
+private struct SettingsScreenshotHarnessView: View {
+    var body: some View {
+        SettingsView(isTabEmbedded: true)
     }
 }
 

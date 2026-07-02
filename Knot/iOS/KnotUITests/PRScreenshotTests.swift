@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guards against STALE search/shopping links: a purchasable whose
-        // stored external_url is a Google-Shopping page must degrade its CTA to "Save to
-        // Library" instead of opening Google. The detail screen needs auth + a live
-        // backend to reach normally, so render it standalone via the DEBUG screenshot
-        // harness with a stale-link sample (`UITestScreenshotHarness` key "recDetailStale").
-        app.launchArguments += ["-uiTestScreenshot", "recDetailStale"]
+        // This change slims the Profile/Settings screen: the Quiet Hours,
+        // Export My Data, Clear All Hints, and Version rows were removed. The
+        // Settings screen normally sits behind auth + a vault, so render it
+        // standalone via the DEBUG screenshot harness (`UITestScreenshotHarness`
+        // key "settings", which mounts `SettingsView(isTabEmbedded: true)`).
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
