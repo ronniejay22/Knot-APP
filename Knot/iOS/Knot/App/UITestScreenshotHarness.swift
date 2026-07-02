@@ -35,6 +35,8 @@ enum UITestScreenshotHarness {
             InterestsScreenshotHarnessView()
         case "recDetail":
             RecDetailScreenshotHarnessView()
+        case "recDetailStale":
+            RecDetailStaleLinkHarnessView()
         default:
             EmptyView()
         }
@@ -49,6 +51,23 @@ private struct RecDetailScreenshotHarnessView: View {
     var body: some View {
         RecommendationDetailView(
             item: PreviewRecommendations.bookablePurchasable,
+            partnerName: "Ronnie",
+            isSaved: false,
+            onOpenMerchant: {},
+            onSave: {},
+            onShare: {},
+            onDismiss: {}
+        )
+    }
+}
+
+/// Renders the recommendation detail for a purchasable whose stored link is a stale
+/// Google-Shopping URL. The CTA must degrade to "Save to Library" (not "Open in …"),
+/// proving the guard neutralizes a pre-fix link.
+private struct RecDetailStaleLinkHarnessView: View {
+    var body: some View {
+        RecommendationDetailView(
+            item: PreviewRecommendations.staleSearchLink,
             partnerName: "Ronnie",
             isSaved: false,
             onOpenMerchant: {},

@@ -20,6 +20,7 @@ from app.agents.state import (
     CandidateRecommendation,
     RecommendationState,
 )
+from app.agents.url_resolution import is_search_or_shopping_url
 from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
 from app.models.notifications import (
@@ -47,6 +48,17 @@ from app.services.vault_loader import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/recommendations", tags=["recommendations"])
+
+
+def _safe_external_url(url: str | None) -> str | None:
+    """
+    Drop a stored/legacy `external_url` that is a general web-search or shopping-results
+    page so it is never re-served to the client. Recommendations generated before the
+    URL fix can carry a `google.com/search?tbm=shop&q=…` link; nulling it here makes the
+    client degrade to the Save action instead of opening a dead search. Real merchant
+    pages and idea (None) URLs pass through unchanged.
+    """
+    return None if is_search_or_shopping_url(url) else url
 
 
 # ===================================================================
@@ -607,7 +619,7 @@ async def get_recommendations_by_milestone(
             recommendation_type=r["recommendation_type"],
             title=r["title"],
             description=r.get("description"),
-            external_url=r.get("external_url"),
+            external_url=_safe_external_url(r.get("external_url")),
             price_cents=r.get("price_cents"),
             merchant_name=r.get("merchant_name"),
             image_url=r.get("image_url"),
@@ -868,7 +880,7 @@ async def get_recommendation_by_id(
         recommendation_type=rec["recommendation_type"],
         title=rec["title"],
         description=rec.get("description"),
-        external_url=rec.get("external_url"),
+        external_url=_safe_external_url(rec.get("external_url")),
         price_cents=rec.get("price_cents"),
         merchant_name=rec.get("merchant_name"),
         image_url=rec.get("image_url"),
@@ -982,7 +994,7 @@ def _build_response_items(
                 price_cents=candidate.price_cents,
                 currency=candidate.currency,
                 price_confidence=candidate.price_confidence,
-                external_url=candidate.external_url,
+                external_url=_safe_external_url(candidate.external_url),
                 image_url=image_url,
                 merchant_name=candidate.merchant_name,
                 source=candidate.source,

@@ -111,8 +111,10 @@ struct SavedView: View {
 
             Spacer()
 
-            // Open link button
-            if let urlString = saved.externalURL, let url = URL(string: urlString) {
+            // Open link button — hidden for a stale web-search/shopping link so an
+            // old Saved card never reopens a Google results page.
+            if let urlString = saved.externalURL, let url = URL(string: urlString),
+               !url.isSearchOrShoppingLink {
                 Button {
                     UIApplication.shared.open(url)
                 } label: {

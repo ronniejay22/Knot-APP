@@ -35,6 +35,8 @@ RESULTS_PER_QUERY = 10
 # rejects the bare domain AND any subdomain of it, so search/results/cache fronts like
 # `cse.google.com`, `shopping.google.com`, `html.duckduckgo.com`, `r.search.yahoo.com`,
 # and `webcache.googleusercontent.com` are all caught — not just the `www.` spelling.
+# NOTE: mirrored in iOS `URL+SearchLink.swift` (URL.isSearchOrShoppingLink) — keep
+# the two lists in sync so the client and server block the same hosts.
 SEARCH_ENGINE_DOMAINS = {
     "google.com", "bing.com", "duckduckgo.com", "yahoo.com", "baidu.com",
     "ecosia.org", "startpage.com", "ask.com", "aol.com", "brave.com",
@@ -74,20 +76,16 @@ PURCHASE_PATH_SCORE = 10
 # Brave Search for a single item
 # ======================================================================
 
-def _is_rejected_domain(domain: str) -> bool:
+def _is_search_engine_host(host: str) -> bool:
     """
-    True for a general search engine or article/listicle host — never a purchase page.
-
-    A search engine is rejected on the registrable domain OR any subdomain of it, so
-    every results/comparison/cache front is caught (cse., shopping., html., lite.,
-    r.search., cn., webcache. …) — not just the `www.` spelling. Real merchant
-    properties under a search domain (store.google.com, play.google.com) are allow-listed,
-    a merchant's own on-site search (search.thefondatheatre.com) is unaffected, and
+    True for a general search-engine host — the registrable domain OR any subdomain of
+    it, so every results/comparison/cache front is caught (cse., shopping., html., lite.,
+    r.search., cn., webcache. …), not just the `www.` spelling. Real merchant properties
+    under a search domain (store.google.com, play.google.com) are allow-listed, a
+    merchant's own on-site search (search.thefondatheatre.com) is unaffected, and
     unrelated look-alikes (task.com vs ask.com) are not matched.
     """
-    if any(bad in domain for bad in EXCLUDED_DOMAINS):
-        return True
-    host = domain.removeprefix("www.")
+    host = host.removeprefix("www.")
     if host in SEARCH_ENGINE_COMMERCE_ALLOWLIST:
         return False
     # The bare engine domain OR any subdomain of it.
@@ -96,6 +94,36 @@ def _is_rejected_domain(domain: str) -> bool:
     # Bare international Google/Bing search domains (google.co.uk, bing.de, …) and
     # their subdomains — the registrable set above lists only the `.com` forms.
     return host.startswith(("google.", "bing.")) or ".google." in host or ".bing." in host
+
+
+def _is_rejected_domain(domain: str) -> bool:
+    """True for a general search engine or article/listicle host — never a purchase page."""
+    if any(bad in domain for bad in EXCLUDED_DOMAINS):
+        return True
+    return _is_search_engine_host(domain)
+
+
+def is_search_or_shopping_url(url: str | None) -> bool:
+    """
+    True when `url` is a general web-search or shopping-results page rather than a real
+    merchant page (a search-engine host, or the Google Shopping `tbm=shop` flag).
+
+    Used to sanitize stored/legacy `external_url` values at the API boundary so a
+    recommendation generated before the URL fix can never re-serve a Google-Shopping
+    link. `None`/blank → False. A merchant's own on-site search is NOT matched.
+    """
+    if not url:
+        return False
+    if "tbm=shop" in url.lower():
+        return True
+    try:
+        host = urlparse(url).netloc.lower()
+    except ValueError:
+        # Malformed stored/legacy URL (e.g. a bad IPv6 literal). It isn't a search
+        # engine we can identify; leave it to the client's own URL parsing rather
+        # than 500 the whole read. (A malformed URL won't open on iOS anyway.)
+        return False
+    return bool(host) and _is_search_engine_host(host)
 
 
 def _score_result(url: str, rank: int) -> int:
