@@ -14,6 +14,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 #if DEBUG
 enum UITestScreenshotHarness {
@@ -37,20 +38,52 @@ enum UITestScreenshotHarness {
             RecDetailScreenshotHarnessView()
         case "recDetailStale":
             RecDetailStaleLinkHarnessView()
-        case "onboardingPaywall":
-            OnboardingPaywallHarnessView()
+        case "savedMoments":
+            SavedMomentsScreenshotHarnessView()
         default:
             EmptyView()
         }
     }
 }
 
-/// Renders the end-of-onboarding subscription paywall standalone. Reaching it
-/// normally requires a live auth session and a completed recommendation reveal, so
-/// this bypasses both — the view takes only two closures and owns its own background.
-private struct OnboardingPaywallHarnessView: View {
+/// Renders the Saved tab seeded with one active date plan (showing the new
+/// "We did this" reflection action) and one completed date plan in the new
+/// "Moments" section (showing its rating + reflection note). SavedView normally
+/// reads from the app's SwiftData store; this injects an isolated in-memory
+/// container with representative sample data so the screenshot is deterministic.
+private struct SavedMomentsScreenshotHarnessView: View {
+    private let container: ModelContainer = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        // Force-unwrap is acceptable in this DEBUG-only screenshot seam.
+        let container = try! ModelContainer(for: SavedRecommendation.self, configurations: config)
+        let context = container.mainContext
+
+        context.insert(SavedRecommendation(
+            recommendationId: "harness-active",
+            recommendationType: "date",
+            title: "Sunset Picnic in the Park",
+            descriptionText: "A low-key evening for two.",
+            isIdea: true
+        ))
+
+        context.insert(SavedRecommendation(
+            recommendationId: "harness-moment",
+            recommendationType: "date",
+            title: "Movie Night: Directors' Conversation",
+            descriptionText: "A film + soundtrack deep-dive.",
+            isIdea: true,
+            completedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            rating: 5,
+            reflectionNote: "We stayed up talking about the soundtrack for an hour."
+        ))
+
+        try? context.save()
+        return container
+    }()
+
     var body: some View {
-        OnboardingPaywallView(onContinue: {}, onClose: {})
+        SavedView()
+            .modelContainer(container)
     }
 }
 
