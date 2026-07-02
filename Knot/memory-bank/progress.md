@@ -6905,6 +6905,24 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.7 ✅ Recommendations — Remove the Star Icon from the "Why Knot" Detail Box
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** Per user request, drop the leading sparkles/star icon (`Lucide.sparkles`) from the "Why Knot picked this for {partner}" card header on the recommendation detail screen. The title should read on its own with no icon, keeping the box's personalization note and matched-factor chips unchanged.
+
+**What changed (iOS-only, presentation-only):**
+- **`iOS/Knot/Features/Recommendations/RecommendationDetailView.swift`:** In `whyBlock`, removed the `Image(uiImage: Lucide.sparkles)` block that was the first child of the header `HStack(spacing: 8)`. Since the icon was the only sibling of the title, the now-single-child `HStack` was collapsed to just the `Text("Why Knot picked this for \(partnerDisplayName)")` (same `Theme.Typography.cta` font, `Theme.textPrimary`, and `.fixedSize`). The surrounding `VStack(alignment: .leading, spacing: 14)`, the italic personalization note, the `FlowLayout` of `MatchingFactorChip`s, and the accent-tinted rounded background are all unchanged. `import LucideIcons` stays — it's still used by the back/share/save circle buttons, the meta line, and the type-icon switch (which still uses `Lucide.sparkles` for the `experience` type — a separate concern from this header).
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** Repointed the navigation slot from the `recDetailStale` harness key to `recDetail` (the bookable sample, which also carries a personalization note + matched chips so the "Why Knot" box renders) and updated the comment to describe this change.
+
+**Backend:** No changes.
+
+**Tests:** No test asserted on the header icon, so none needed updating. Full app builds clean; `xcodebuild test -only-testing:KnotTests` passes (326 tests, 0 failures, including the `SpotlightViewRenderingTests` that render `RecommendationDetailView` across all types). PR screenshot (`recDetail` harness) visually confirms the "Why Knot picked this for Ronnie" box header renders with no leading icon.
+
+**Notes:** The `whyBlock` originated in Step 18.43 as the emotional centerpiece of the Airbnb-style detail page; this is a pure chrome tweak — the personalization note remains the box's focus, now without the redundant icon.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
