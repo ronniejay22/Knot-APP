@@ -6905,6 +6905,23 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.7 ✅ Dev Tooling — Simulator Never Resolves the Dev Backend to a LAN IP
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** On the Simulator the app kept showing "Unable to connect … (tried http://192.168.1.239:8000)" — a **LAN IP** on the **old port 8000**, recurring often. A fresh build cannot produce that (the Simulator resolves to loopback `127.0.0.1:8420`), so the Simulator was stuck on a LAN IP via a **sticky `UserDefaults[KnotDevAPIBaseURL]` override** (which wins over the loopback logic and survives rebuilds) or a stale build. Encode the invariant that a LAN IP is never correct on the Simulator so it can't be stranded again.
+
+**What changed:**
+- **`iOS/Knot/Core/Constants.swift`:** `resolveDebugBaseURL` now ignores an **override OR injected** value whose host is a private LAN IP (RFC-1918: `10/8`, `172.16/12`, `192.168/16`) **when on the Simulator**, falling through to loopback `127.0.0.1:8420`. New `isPrivateLANHost(_:)` helper. Loopback/`localhost`/hostname overrides are still honored; device behavior is unchanged (LAN IP still used there). Also corrected the stale `:8000` fallback-port docstring.
+- **`iOS/Knot/Info.plist`:** fixed the stale `http://192.168.x.x:8000` ATS comment → `:8420`.
+- **`iOS/Knot/Services/RecommendationService.swift`:** the DEBUG `cannotConnectToHost` message is now actionable — names the tried URL and the fixes (backend on `:8420`, Simulator uses `127.0.0.1`, clean rebuild refreshes a stale host, device must share Wi-Fi).
+
+**Tests:** `DevAPIBaseURLResolutionTests` extended — Simulator ignores a LAN-IP override (→ loopback) but honors loopback/hostname overrides; device still honors a LAN-IP override; `isPrivateLANHost` covers the RFC-1918 ranges and their boundaries (and scheme-less input). Full iOS suite green (326).
+
+**Immediate operational note:** a Simulator already stuck on the sticky override can be cleared with `xcrun simctl spawn booted defaults delete com.ronniejay.knot KnotDevAPIBaseURL` (or delete the app); the code fix makes it self-correct after one rebuild.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

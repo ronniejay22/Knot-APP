@@ -44,7 +44,7 @@
         <true/>
         <!-- DEBUG-only effect: Constants.API.baseURL switches to https://api.knot-app.com
              via #if DEBUG, so Release/TestFlight/App Store traffic is HTTPS-only.
-             Enables URLSession to talk to the LAN-IP dev backend (http://192.168.x.x:8000)
+             Enables URLSession to talk to the LAN-IP dev backend (http://192.168.x.x:8420)
              during on-device testing, which NSAllowsLocalNetworking alone does not cover
              for direct IPv4-literal URLs. -->
         <key>NSAllowsArbitraryLoads</key>
