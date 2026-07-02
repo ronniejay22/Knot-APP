@@ -24,12 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guards against STALE search/shopping links: a purchasable whose
-        // stored external_url is a Google-Shopping page must degrade its CTA to "Save to
-        // Library" instead of opening Google. The detail screen needs auth + a live
-        // backend to reach normally, so render it standalone via the DEBUG screenshot
-        // harness with a stale-link sample (`UITestScreenshotHarness` key "recDetailStale").
-        app.launchArguments += ["-uiTestScreenshot", "recDetailStale"]
+        // This change adds the post-date "reward moment" to the Saved tab: date plans
+        // gain a "We did this" reflection action, and completed plans move into a new
+        // "Moments" section showing the rating + note the user left. The Saved tab reads
+        // from SwiftData behind auth, so render it standalone via the DEBUG screenshot
+        // harness seeded with one active plan + one completed moment
+        // (`UITestScreenshotHarness` key "savedMoments").
+        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).

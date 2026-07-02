@@ -6905,6 +6905,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.7 ✅ Saved — Post-Date "Reward Moment" (Reflection + "Moments" Section for Date Plans)
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** The date-plan flow dead-ended at "Save to Library." For a Knot Original date plan there was no completion state, no reflection, and no payoff — the app that exists to drive "relational excellence" had no success moment for the exact thing it asks the user to do. The PRD defines a reward (the post-experience rating / "peak gratitude" moment), but it was only ever wired to purchases (the merchant-handoff `PurchaseRatingSheet`), so date plans never reached it and generated no `"rated"` learning signal. Close that gap with the smallest change: keep "Save to Library" as the CTA, but let the user mark a saved date plan done, capture a lightweight reflection, celebrate it, and keep it as a record.
+
+**Approach:** Entirely iOS-side, reusing existing plumbing — the backend already accepts `action: "rated"` with `rating` + `feedback_text` (migration `00011`), so no backend or DB migration was needed. The `PurchaseRatingSheet` was generalized (not duplicated) for the reflection, and the Saved tab was split into two sections.
+
+**What changed:**
+- **`iOS/Knot/Models/SavedRecommendation.swift`:** added three optional fields — `completedAt: Date?`, `rating: Int?`, `reflectionNote: String?` (SwiftData lightweight auto-migration handles new optionals; no container change) — plus computed `isCompleted` and `isDoable` (`isIdea || recommendationType == "date"`, which scopes the reflection to date plans / Knot Originals; purchasable gifts/experiences keep their existing handoff→rating path). Init gained matching `nil`-default params so existing save call sites are unchanged.
+- **`iOS/Knot/Features/Saved/SavedViewModel.swift`:** split the loaded list into computed `activeItems` (not completed, savedAt desc) and `completedItems` (completed, completedAt desc); added `markCompleted(_:rating:note:modelContext:)` (persists locally, re-fetches so the item moves Saved→Moments, fires best-effort `recordFeedback(action: "rated", …)`), a `lastCelebratedTitle` flag, and `clearCelebration()`. The VM now holds a `RecommendationService`.
+- **`iOS/Knot/Features/Saved/SavedView.swift`:** two sections — **Saved** (active; date plans show a "We did this" button) and **Moments** (completed; shows the rating stars + reflection note, with a "N dates you made real" subtitle). "We did this" opens the reflection sheet; on submit a celebratory top overlay ("Moment made real 💛") fires with a success haptic and auto-dismisses.
+- **`iOS/Knot/Features/Recommendations/PurchaseRatingSheet.swift`:** added an optional `headline` param (default `"How was this pick?"`, preserving the two existing call sites); the Saved-tab reflection passes `"How did it go?"`.
+- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** new `"savedMoments"` screenshot key rendering `SavedView` seeded (isolated in-memory container) with one active plan + one completed moment; `KnotUITests/PRScreenshotTests.swift` navigation slot points at it.
+
+**Tests:** iOS green (332 tests, 0 failures). Extended `SavedRecommendationModelTests` (completion fields default nil, settable + flip `isCompleted`, `isDoable` scope) and `SavedViewModelTests` (in-memory container: load splits active/completed, completed sorted newest-first, `markCompleted` records the reflection + moves the item + triggers/clears the celebration). Backend `"rated"` encoding already covered by `testFeedbackPayloadEncodesAllActions` — no new backend tests. PR screenshot captured of the Saved/Moments screen.
+
+**Out of scope (deferred):** changing the primary CTA to "Plan this date" / calendar scheduling / reminders; making Saved cards re-openable into the full detail view; partner visibility of completed dates; streaks/badges beyond the simple count.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

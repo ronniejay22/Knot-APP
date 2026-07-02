@@ -16,6 +16,9 @@ import LucideIcons
 /// The user can submit a rating or skip.
 struct PurchaseRatingSheet: View {
     let itemTitle: String
+    /// Headline copy. Defaults to the purchase-rating prompt; the Saved-tab
+    /// post-date reflection passes "How did it go?".
+    var headline: String = "How was this pick?"
     let onSubmit: @MainActor @Sendable (Int, String?) -> Void
     let onSkip: @MainActor @Sendable () -> Void
 
@@ -36,7 +39,7 @@ struct PurchaseRatingSheet: View {
                         .frame(width: 32, height: 32)
                         .foregroundStyle(Theme.accent)
 
-                    Text("How was this pick?")
+                    Text(headline)
                         .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
 
