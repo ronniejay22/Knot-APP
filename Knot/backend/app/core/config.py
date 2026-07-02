@@ -78,6 +78,11 @@ APP_DOMAIN: str = os.getenv("APP_DOMAIN", "api.knot-app.com")
 # (default off) so production deploys can never wipe a vault by accident.
 DEV_RESET_ENABLED: bool = os.getenv("KNOT_DEV_RESET_ENABLED", "").lower() == "true"
 
+# Gates the Recommendation QA cockpit (GET /qa + /api/v1/qa/*). Internal tooling
+# for reviewing/tuning recommendation quality; must stay unset on production so
+# the QA surface and its dev-only storage are never exposed publicly.
+QA_ENABLED: bool = os.getenv("KNOT_QA_ENABLED", "").lower() == "true"
+
 
 def validate_yelp_config() -> bool:
     """

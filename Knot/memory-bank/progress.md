@@ -6905,6 +6905,27 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 20.1 ✅ Recommendations — Quality Cockpit (Rubric + LLM Judge + QA Tool + Eval Harness)
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** There was no explicit, enforced definition of a "good" recommendation. Generation (a single Haiku 4.5 call, thinking disabled) showed the *first* three structurally-valid recs, not the *best* three; validation checked structure only; and there was no way to measure or tune quality. Build an internal, dev-only cockpit to review recommendation quality directly (judge the recs, not the user), define good-vs-bad once, tune generation from that judgment, and measure it — including turning the Haiku-vs-Sonnet latency/quality call into an empirical one.
+
+**What changed (backend-only + a static HTML tool; no iOS view code):**
+- **Quality rubric as the single source of truth** (`app/services/rec_quality.py`): nine per-rec dimensions (grounded, dislike_safe, specific, budget_fit, vibe_fit, love_language_fit, location_fit, actionable, well_written) plus a set-level `diversity` dimension; `grounded` and `dislike_safe` are CRITICAL (a failure caps the overall at 0). One definition renders three ways — `rubric_prompt_guidance()` (appended to the generation system prompt), `rubric_reason_chips()` (the QA "why?" chips), and `rubric_for_judge()` (judge scoring) — so prompt, human QA, and judge can never drift. `overall_from_scores()` centralizes the critical-cap math.
+- **LLM judge** (`app/services/rec_judge.py`): `judge_recommendation()` scores one rec against the rubric via a Sonnet 4.6 call (manual JSON parse, consistent with `unified_generation.py`); the overall/verdict are computed in code from the scores, so the model can't hand-wave a dislike-violating rec into "good".
+- **Sample profiles** (`app/services/qa_profiles.py`): six reproducible `VaultData` personas (+ hints) spanning vibes/love-languages/budgets/cities; the QA endpoint can also load a real vault by user id.
+- **Generation re-steer + rubric injection** (`app/services/unified_generation.py`): the system prompt now carries the rubric; `_build_user_prompt` accepts `liked_exemplars`/`disliked_exemplars` and renders a "QA STEERING" block; `generate_unified_recommendations` gained `model` + `gen_params` overrides (default = today's Haiku/fast behavior), and rec metadata records the model actually used.
+- **QA verdict storage**: migration `00027_create_rec_qa_verdicts_table.sql` (append-only, RLS on, service-role only) + `app/models/qa_verdict.py`.
+- **Dev-gated QA API + web tool** (`app/api/qa.py`, mounted in `app/main.py`; static `app/static/qa.html`): `GET /qa`, `GET /api/v1/qa/profiles`, `POST /api/v1/qa/generate` (choose profile/occasion/model, optional judge + re-steer), `POST /api/v1/qa/verdict`. All routes 403 unless `KNOT_QA_ENABLED=true` (new flag in `config.py`, mirrors `KNOT_DEV_RESET_ENABLED`; must stay unset on prod). Verdicts persist AND are read back as steering on the next generate — the "re-steer + persist" loop.
+- **Offline eval harness** (`eval/run_eval.py`): generate → judge → per-dimension + overall aggregate per profile; `--models a,b` compares configs side-by-side to quantify the latency/quality tradeoff. Run: `python -m eval.run_eval`.
+
+**Tests:** 32 new tests across `tests/test_rec_quality.py`, `tests/test_rec_judge.py`, `tests/test_qa_api.py`, `tests/test_eval_harness.py` (rubric shape/rendering/overall-math, judge parsing/coercion/critical-cap with mocked Anthropic, endpoint gating + generate + verdict-sanitizing + steering split, prompt injection + model override, and pure `summarize()`/`run_eval`). Full suite green: 1331 passed, 622 skipped.
+
+**Out of scope (follow-on):** wiring the existing end-user learned-weights loop (loaded into pipeline state but never consumed by the active pipeline) back into live production generation. The steering hook added here is the same shape and can carry it later.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

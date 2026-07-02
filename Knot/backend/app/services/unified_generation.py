@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
+from app.services import rec_quality
 from app.services.llm_tuning import fast_generation_params
 from app.services.text_cleanup import (
     humanize_tags,
@@ -206,6 +207,14 @@ Return ONLY a JSON array of __NREC__ objects. No markdown, no code fences, no ex
 # Keep the prompt's stated count in sync with the generation target.
 UNIFIED_SYSTEM_PROMPT = UNIFIED_SYSTEM_PROMPT.replace("__NREC__", str(GENERATION_TARGET))
 
+# Append the shared quality rubric (app/services/rec_quality.py) so generation
+# targets the exact bar the LLM judge and human QA cockpit grade against, then
+# re-affirm the JSON-only output contract as the final instruction.
+UNIFIED_SYSTEM_PROMPT = (
+    f"{UNIFIED_SYSTEM_PROMPT}\n\n{rec_quality.rubric_prompt_guidance()}\n\n"
+    "Return ONLY the JSON array described above — no markdown, no code fences, no explanation."
+)
+
 
 # ======================================================================
 # User prompt construction
@@ -221,8 +230,17 @@ def _build_user_prompt(
     excluded_descriptions: list[str] | None = None,
     vibe_override: list[str] | None = None,
     rejection_reason: Optional[str] = None,
+    liked_exemplars: list[dict[str, Any]] | None = None,
+    disliked_exemplars: list[dict[str, Any]] | None = None,
 ) -> str:
-    """Build the user prompt with all personalization data and exclusion context."""
+    """Build the user prompt with all personalization data and exclusion context.
+
+    ``liked_exemplars`` / ``disliked_exemplars`` carry QA-steering examples (each
+    a dict with ``title``, ``reasons`` list, and free-text ``note``): earlier
+    recommendations an evaluator judged good or bad, plus why. They render as a
+    "QA STEERING" block so generation leans toward the liked traits and away from
+    the disliked ones — this is how the QA cockpit re-steers output live.
+    """
     parts: list[str] = []
 
     parts.append(
@@ -304,6 +322,28 @@ def _build_user_prompt(
         parts.append(f"\n=== REFRESH CONTEXT ===")
         parts.append(reason_guidance.get(rejection_reason, "Show different options."))
 
+    # QA steering — expert-graded exemplars re-steer generation toward the
+    # liked traits and away from the disliked ones (see the QA cockpit).
+    def _render_exemplar(ex: dict[str, Any], polarity: str) -> str:
+        title = str(ex.get("title", "")).strip()
+        reasons = [str(r) for r in (ex.get("reasons") or []) if str(r).strip()]
+        note = str(ex.get("note", "")).strip()
+        reason_str = f"{polarity} on {', '.join(reasons)}. " if reasons else ""
+        return f'- "{title}" — {reason_str}{note}'.rstrip()
+
+    liked_exemplars = liked_exemplars or []
+    disliked_exemplars = disliked_exemplars or []
+    if liked_exemplars or disliked_exemplars:
+        parts.append("\n=== QA STEERING (an expert reviewer graded earlier options) ===")
+        if liked_exemplars:
+            parts.append("LIKED — generate MORE recommendations like these:")
+            for ex in liked_exemplars[:10]:
+                parts.append(_render_exemplar(ex, "strong"))
+        if disliked_exemplars:
+            parts.append("DISLIKED — AVOID these and the traits that made them weak:")
+            for ex in disliked_exemplars[:10]:
+                parts.append(_render_exemplar(ex, "weak"))
+
     # Exclusion list — critical for preventing repeats
     excluded_titles = excluded_titles or []
     excluded_descriptions = excluded_descriptions or []
@@ -369,6 +409,7 @@ def _validate_recommendation(rec: dict[str, Any]) -> bool:
 def _normalize_recommendation(
     rec: dict[str, Any],
     vault_data: VaultData,
+    model: str = CLAUDE_MODEL,
 ) -> CandidateRecommendation:
     """Convert a validated recommendation dict into a CandidateRecommendation."""
     rec_type = rec["recommendation_type"]
@@ -429,7 +470,7 @@ def _normalize_recommendation(
         image_url=None,
         merchant_name=rec.get("merchant_name") if is_purchasable else None,
         location=location,
-        metadata={"generation_model": CLAUDE_MODEL},
+        metadata={"generation_model": model},
         is_idea=is_idea,
         content_sections=content_sections,
         personalization_note=trim_to_complete_sentence(
@@ -458,6 +499,10 @@ async def generate_unified_recommendations(
     excluded_descriptions: list[str] | None = None,
     vibe_override: list[str] | None = None,
     rejection_reason: Optional[str] = None,
+    liked_exemplars: list[dict[str, Any]] | None = None,
+    disliked_exemplars: list[dict[str, Any]] | None = None,
+    model: Optional[str] = None,
+    gen_params: Optional[dict[str, Any]] = None,
 ) -> list[CandidateRecommendation]:
     """
     Generate 3 personalized recommendations using Claude.
@@ -476,6 +521,12 @@ async def generate_unified_recommendations(
         excluded_descriptions: Previously shown description snippets.
         vibe_override: Optional session-scoped vibe override.
         rejection_reason: Optional reason from refresh (adjusts generation).
+        liked_exemplars: QA-steering examples the evaluator judged good (+ why).
+        disliked_exemplars: QA-steering examples the evaluator judged bad (+ why).
+        model: Override the generation model (defaults to CLAUDE_MODEL / Haiku).
+            The QA cockpit uses this to compare Haiku vs. Sonnet 4.6.
+        gen_params: Override the create() tuning kwargs (thinking/effort). Defaults
+            to fast_generation_params(model). Pass {} to run at the model's defaults.
 
     Returns:
         Up to GENERATION_TARGET CandidateRecommendation objects (the first
@@ -486,6 +537,9 @@ async def generate_unified_recommendations(
     if not is_anthropic_configured():
         logger.warning("Anthropic API key not configured — skipping unified generation")
         return []
+
+    model = model or CLAUDE_MODEL
+    create_params = gen_params if gen_params is not None else fast_generation_params(model)
 
     client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
     user_prompt = _build_user_prompt(
@@ -498,6 +552,8 @@ async def generate_unified_recommendations(
         excluded_descriptions=excluded_descriptions,
         vibe_override=vibe_override,
         rejection_reason=rejection_reason,
+        liked_exemplars=liked_exemplars,
+        disliked_exemplars=disliked_exemplars,
     )
 
     logger.info(
@@ -512,12 +568,13 @@ async def generate_unified_recommendations(
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = await client.messages.create(
-                model=CLAUDE_MODEL,
+                model=model,
                 max_tokens=CLAUDE_MAX_TOKENS,
                 system=UNIFIED_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
-                # Keep generation fast — see app/services/llm_tuning.py.
-                **fast_generation_params(CLAUDE_MODEL),
+                # Tuning kwargs (thinking/effort) — defaults keep generation fast;
+                # the QA cockpit can override to compare models. See llm_tuning.py.
+                **create_params,
             )
 
             # A max_tokens stop means the JSON was cut off mid-stream; parsing it
@@ -555,7 +612,7 @@ async def generate_unified_recommendations(
             valid_recs: list[CandidateRecommendation] = []
             for raw_rec in recommendations:
                 if _validate_recommendation(raw_rec):
-                    candidate = _normalize_recommendation(raw_rec, vault_data)
+                    candidate = _normalize_recommendation(raw_rec, vault_data, model=model)
                     valid_recs.append(candidate)
                 else:
                     logger.debug(

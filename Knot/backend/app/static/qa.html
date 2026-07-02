@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knot — Recommendation QA</title>
+<style>
+  :root {
+    --bg: #14131a; --panel: #1e1c26; --panel2: #26232f; --line: #34313f;
+    --text: #ece9f2; --muted: #9a95ab; --accent: #b98bff; --good: #5fd08a;
+    --bad: #f0736a; --like: #5fd08a; --dislike: #f0736a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--line); display: flex;
+           align-items: center; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+              padding: 16px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  select, button { font: inherit; color: var(--text); background: var(--panel2);
+                   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: #1a1526; border: none; font-weight: 600; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .toggle { display: flex; gap: 6px; align-items: center; }
+  .cards { padding: 24px; display: grid; gap: 16px;
+           grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+          padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .card.judged-like { border-color: var(--like); }
+  .card.judged-dislike { border-color: var(--dislike); }
+  .card h3 { margin: 0; font-size: 16px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+           background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+  .note { color: var(--muted); font-size: 14px; }
+  .pnote { font-style: italic; color: #cbb7f0; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: 11px; background: var(--panel2); border: 1px solid var(--line);
+         border-radius: 6px; padding: 2px 6px; color: var(--muted); }
+  .judge { background: var(--panel2); border-radius: 10px; padding: 10px; font-size: 13px; }
+  .judge .overall { font-weight: 600; }
+  .dims { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .dim { font-size: 11px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); }
+  .dim.hi { color: var(--good); border-color: var(--good); }
+  .dim.lo { color: var(--bad); border-color: var(--bad); }
+  .verdict-row { display: flex; gap: 8px; margin-top: auto; }
+  .verdict-row button { flex: 1; }
+  .vbtn.like.active { background: var(--like); color: #10231a; border: none; }
+  .vbtn.dislike.active { background: var(--dislike); color: #2a1110; border: none; }
+  .status { padding: 0 24px 12px; color: var(--muted); font-size: 13px; }
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+              align-items: center; justify-content: center; padding: 20px; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+           padding: 20px; width: 480px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .modal h2 { margin: 0; font-size: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { cursor: pointer; font-size: 13px; padding: 6px 10px; border-radius: 999px;
+          border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+  .chip.on { background: var(--accent); color: #1a1526; border-color: var(--accent); }
+  textarea { width: 100%; min-height: 64px; background: var(--panel2); color: var(--text);
+             border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; resize: vertical; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Knot · Recommendation QA</h1>
+    <span class="sub">Judge the recommendations. Like/dislike each, say why, and re-steer generation.</span>
+  </header>
+
+  <div class="controls">
+    <div class="field">
+      <label for="profile">Partner profile</label>
+      <select id="profile"></select>
+    </div>
+    <div class="field">
+      <label for="occasion">Occasion</label>
+      <select id="occasion">
+        <option value="just_because">Just because</option>
+        <option value="minor_occasion" selected>Minor occasion</option>
+        <option value="major_milestone">Major milestone</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="">Default (Haiku 4.5)</option>
+        <option value="claude-haiku-4-5">Haiku 4.5</option>
+        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Options</label>
+      <div class="toggle"><input type="checkbox" id="judge" /> <label for="judge">LLM judge</label></div>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="toggle"><input type="checkbox" id="steering" checked /> <label for="steering">Re-steer from verdicts</label></div>
+    </div>
+    <button class="primary" id="generate">Generate</button>
+  </div>
+
+  <div class="status" id="status">Loading profiles…</div>
+  <div class="cards" id="cards"></div>
+
+  <div class="modal-bg" id="modal-bg">
+    <div class="modal">
+      <h2 id="modal-title">Why?</h2>
+      <div class="sub" id="modal-rec"></div>
+      <div class="chips" id="modal-chips"></div>
+      <textarea id="modal-text" placeholder="Optional: what specifically made it good/bad?"></textarea>
+      <div class="modal-actions">
+        <button id="modal-cancel">Cancel</button>
+        <button class="primary" id="modal-save">Save verdict</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Escape model-generated strings before they go into innerHTML — content is
+// Claude-authored (not attacker input) in this dev-only tool, but a stray tag
+// shouldn't break layout or run script in the reviewer's browser.
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let REASON_CHIPS = [];
+let lastConfig = {};
+let modalState = null; // { rec, verdict, selected:Set }
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+
+async function loadProfiles() {
+  try {
+    const data = await api('/api/v1/qa/profiles');
+    REASON_CHIPS = data.reason_chips || [];
+    const sel = $('profile');
+    sel.innerHTML = '';
+    (data.profiles || []).forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.headline;
+      sel.appendChild(o);
+    });
+    $('status').textContent = 'Pick a profile and Generate.';
+  } catch (e) {
+    $('status').textContent = 'Failed to load profiles: ' + e.message +
+      ' (is KNOT_QA_ENABLED=true?)';
+  }
+}
+
+function dimClass(v) { return v >= 0.7 ? 'hi' : (v < 0.5 ? 'lo' : ''); }
+
+function renderJudge(j) {
+  if (!j) return '';
+  const dims = Object.entries(j.dimension_scores || {})
+    .map(([k, v]) => `<span class="dim ${dimClass(v)}">${esc(k)} ${Number(v).toFixed(2)}</span>`).join('');
+  return `<div class="judge">
+      <span class="overall" style="color:${j.verdict === 'good' ? 'var(--good)' : 'var(--bad)'}">
+        Judge: ${esc(j.verdict)} (${Number(j.overall).toFixed(2)})</span>
+      <div class="dims">${dims}</div>
+      ${j.rationale ? `<div class="note" style="margin-top:6px">${esc(j.rationale)}</div>` : ''}
+    </div>`;
+}
+
+function renderCard(rec, idx) {
+  const price = rec.price_cents != null ? ` · $${(rec.price_cents / 100).toFixed(0)}` : '';
+  const tags = [...(rec.matched_interests || []), ...(rec.matched_vibes || [])]
+    .map(t => `<span class="tag">${esc(t)}</span>`).join('');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div><span class="badge">${esc(rec.type)}${price}</span>
+         ${rec.merchant_name ? `<span class="badge">${esc(rec.merchant_name)}</span>` : ''}</div>
+    <h3>${esc(rec.title) || '(untitled)'}</h3>
+    ${rec.description ? `<div class="note">${esc(rec.description)}</div>` : ''}
+    ${rec.personalization_note ? `<div class="pnote">${esc(rec.personalization_note)}</div>` : ''}
+    <div class="tags">${tags}</div>
+    ${renderJudge(rec.judgment)}
+    <div class="verdict-row">
+      <button class="vbtn like" data-idx="${idx}" data-v="like">👍 Like</button>
+      <button class="vbtn dislike" data-idx="${idx}" data-v="dislike">👎 Dislike</button>
+    </div>`;
+  card.querySelectorAll('.vbtn').forEach(b =>
+    b.addEventListener('click', () => openModal(rec, b.dataset.v, card)));
+  return card;
+}
+
+async function generate() {
+  const body = {
+    profile_id: $('profile').value,
+    occasion_type: $('occasion').value,
+    model: $('model').value || null,
+    use_judge: $('judge').checked,
+    use_steering: $('steering').checked,
+  };
+  lastConfig = { model: body.model, occasion_type: body.occasion_type };
+  $('generate').disabled = true;
+  $('status').textContent = 'Generating…';
+  $('cards').innerHTML = '';
+  try {
+    const data = await api('/api/v1/qa/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    $('status').textContent =
+      `${data.count} recs · model ${data.model} · steering +${data.steering_applied.liked}/-${data.steering_applied.disliked}`;
+    data.recommendations.forEach((rec, i) => $('cards').appendChild(renderCard(rec, i)));
+  } catch (e) {
+    $('status').textContent = 'Generate failed: ' + e.message;
+  } finally {
+    $('generate').disabled = false;
+  }
+}
+
+function openModal(rec, verdict, card) {
+  modalState = { rec, verdict, card, selected: new Set() };
+  $('modal-title').textContent = verdict === 'like' ? '👍 Why did you like it?' : '👎 Why not?';
+  $('modal-rec').textContent = rec.title || '';
+  $('modal-text').value = '';
+  const chips = $('modal-chips');
+  chips.innerHTML = '';
+  REASON_CHIPS.forEach(c => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    el.textContent = verdict === 'like' ? c.like_reason : c.dislike_reason;
+    el.addEventListener('click', () => {
+      if (modalState.selected.has(c.id)) { modalState.selected.delete(c.id); el.classList.remove('on'); }
+      else { modalState.selected.add(c.id); el.classList.add('on'); }
+    });
+    chips.appendChild(el);
+  });
+  $('modal-bg').classList.add('open');
+}
+
+function closeModal() { $('modal-bg').classList.remove('open'); modalState = null; }
+
+async function saveVerdict() {
+  if (!modalState) return;
+  const { rec, verdict, card, selected } = modalState;
+  const body = {
+    profile_id: $('profile').value,
+    rec_snapshot: {
+      title: rec.title, type: rec.type, description: rec.description,
+      personalization_note: rec.personalization_note, price_cents: rec.price_cents,
+      merchant_name: rec.merchant_name, matched_interests: rec.matched_interests,
+      matched_vibes: rec.matched_vibes,
+    },
+    verdict,
+    reason_dimensions: [...selected],
+    reason_text: $('modal-text').value || null,
+    generation_config: lastConfig,
+  };
+  try {
+    await api('/api/v1/qa/verdict', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    card.classList.remove('judged-like', 'judged-dislike');
+    card.classList.add(verdict === 'like' ? 'judged-like' : 'judged-dislike');
+    closeModal();
+  } catch (e) {
+    alert('Failed to save verdict: ' + e.message);
+  }
+}
+
+$('generate').addEventListener('click', generate);
+$('modal-cancel').addEventListener('click', closeModal);
+$('modal-save').addEventListener('click', saveVerdict);
+$('modal-bg').addEventListener('click', (e) => { if (e.target === $('modal-bg')) closeModal(); });
+loadProfiles();
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ from app.api.hints import router as hints_router
 from app.api.ideas import router as ideas_router
 from app.api.milestones import router as milestones_router
 from app.api.notifications import router as notifications_router
+from app.api.qa import router as qa_router
 from app.api.recommendations import router as recommendations_router
 from app.api.users import router as users_router
 from app.api.vault import router as vault_router
@@ -34,6 +35,8 @@ app.include_router(milestones_router)
 app.include_router(recommendations_router)
 app.include_router(notifications_router)
 app.include_router(users_router)
+# Dev-only Recommendation QA cockpit — every route 403s unless KNOT_QA_ENABLED=true.
+app.include_router(qa_router)
 
 
 @app.get("/health")
