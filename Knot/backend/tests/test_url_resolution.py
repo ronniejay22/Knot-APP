@@ -23,8 +23,48 @@ from app.agents.url_resolution import (
     _localize_search_query,
     _score_result,
     _search_for_purchase_url,
+    is_search_or_shopping_url,
     resolve_purchase_urls,
 )
+
+
+class TestIsSearchOrShoppingURL:
+    def test_google_shopping_flagged(self):
+        assert is_search_or_shopping_url(
+            "https://www.google.com/search?tbm=shop&q=Republique+Los+Feliz"
+        ) is True
+
+    def test_general_search_pages_flagged(self):
+        for url in (
+            "https://www.google.com/search?q=x",
+            "https://cse.google.com/cse?q=x",
+            "https://www.bing.com/search?q=x",
+            "https://duckduckgo.com/?q=x",
+            "https://search.yahoo.com/search?p=x",
+        ):
+            assert is_search_or_shopping_url(url) is True, url
+
+    def test_real_merchant_pages_pass(self):
+        for url in (
+            "https://www.ticketmaster.com/event/abc123",
+            "https://republiquela.com/reservations",
+            "https://store.google.com/product/pixel",   # allow-listed real store
+            "https://search.thefondatheatre.com/events",  # merchant on-site search
+        ):
+            assert is_search_or_shopping_url(url) is False, url
+
+    def test_none_and_blank_pass(self):
+        assert is_search_or_shopping_url(None) is False
+        assert is_search_or_shopping_url("") is False
+
+    def test_malformed_url_does_not_raise(self):
+        # A bad stored/legacy URL must not blow up the read boundary (no ValueError).
+        assert is_search_or_shopping_url("https://[::1") is False
+        assert is_search_or_shopping_url("http://[bad") is False
+
+    def test_international_google_subdomain_flagged(self):
+        # Mirrors the Swift guard: a search subdomain on a non-.com Google TLD.
+        assert is_search_or_shopping_url("https://shopping.google.de/search?q=x") is True
 
 
 class TestLocalizeSearchQuery:

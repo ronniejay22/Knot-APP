@@ -52,6 +52,58 @@ final class MerchantHandoffServiceTests: XCTestCase {
         )
         XCTAssertTrue(result, "Valid HTTP URL should return true")
     }
+
+    /// A stale Google Shopping link (from a pre-fix card) must never be opened.
+    func testGoogleShoppingURLReturnsFalse() async {
+        let result = await MerchantHandoffService.openMerchantURL(
+            urlString: "https://www.google.com/search?tbm=shop&q=Republique+Los+Feliz",
+            recommendationId: "test-id"
+        )
+        XCTAssertFalse(result, "A stale Google Shopping link must not be opened")
+    }
+
+    /// A plain Google web-search results page must never be opened either.
+    func testGoogleSearchURLReturnsFalse() async {
+        let result = await MerchantHandoffService.openMerchantURL(
+            urlString: "https://www.google.com/search?q=couples+pottery+class",
+            recommendationId: "test-id"
+        )
+        XCTAssertFalse(result, "A stale web-search link must not be opened")
+    }
+}
+
+// MARK: - URL search/shopping-link guard
+
+final class URLSearchLinkTests: XCTestCase {
+
+    func testSearchAndShoppingLinksAreFlagged() {
+        let bad = [
+            "https://www.google.com/search?tbm=shop&q=x",
+            "https://www.google.com/search?q=x",
+            "https://cse.google.com/cse?q=x",
+            "https://www.bing.com/search?q=x",
+            "https://duckduckgo.com/?q=x",
+            "https://search.yahoo.com/search?p=x",
+            "https://www.google.co.uk/search?q=x",       // international (prefix)
+            "https://shopping.google.de/search?q=x",     // international subdomain
+            "https://webcache.googleusercontent.com/x",  // cache host
+        ]
+        for s in bad {
+            XCTAssertTrue(URL(string: s)!.isSearchOrShoppingLink, "should flag \(s)")
+        }
+    }
+
+    func testRealMerchantLinksArePassed() {
+        let good = [
+            "https://www.ticketmaster.com/event/abc",
+            "https://republiquela.com/reservations",
+            "https://store.google.com/product/pixel",       // allow-listed real store
+            "https://search.thefondatheatre.com/events",    // merchant on-site search
+        ]
+        for s in good {
+            XCTAssertFalse(URL(string: s)!.isSearchOrShoppingLink, "should pass \(s)")
+        }
+    }
 }
 
 // MARK: - Handoff Feedback DTO Tests

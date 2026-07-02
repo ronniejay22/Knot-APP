@@ -6887,6 +6887,24 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.6 ✅ Recommendations — Never Open/Serve a Stale Search-or-Shopping Link (Read/Open Boundary Guard)
+**Date:** 2026-07-01
+**Status:** Complete
+
+**Goal:** After Step 19.4 shipped, a user on the new backend still tapped a card and landed on **Google Shopping**. Investigation proved the generation pipeline can no longer produce such a URL — the card was **stale data**: the iOS deck only regenerates on a fresh app load (`hasLoadedInitially` suppresses re-gen within a session), so a deck generated against the *old* backend lingered in memory; and stored/Saved/notification recs re-serve their old `external_url` verbatim. Nothing sanitized those. Close the door so a search/shopping link can never be opened or served, regardless of when it was stored.
+
+**What changed:**
+- **iOS — never OPEN a search/shopping URL (the linchpin, downstream of every source):**
+  - New `URL.isSearchOrShoppingLink` (`iOS/Knot/Core/URL+SearchLink.swift`) — host is a general search engine (google/bing/duckduckgo/… + subdomains, `store./play.google.com` allow-listed) OR the URL has `tbm=shop`; mirrors the backend list.
+  - Guarded `MerchantHandoffService.openMerchantURL` (returns false without opening), `RecommendationDetailView.hasOpenableLink` (CTA degrades to "Save to Library"), and the **Saved** tab open button (hidden for such links).
+- **Backend — never SERVE a stored search/shopping URL:** added `is_search_or_shopping_url` (`agents/url_resolution.py`, refactoring the search-engine host test into a shared `_is_search_engine_host`) and a `_safe_external_url` helper in `api/recommendations.py` applied at the stored-read endpoints (`/by-milestone/{id}`, `/{id}`) and `_build_response_items` — a stored search/shopping URL is emitted as `external_url=None` so the client degrades to Save.
+
+**Tests:** Backend green — new `is_search_or_shopping_url` cases (`tbm=shop`, google/bing search, `cse.google.com`, vs real merchant + on-site search + None) and `_safe_external_url` nulling. iOS `URLSearchLinkTests` + `MerchantHandoffServiceTests` (a Google-Shopping/search URL is not opened). PR screenshot: the exact stale-link card ("Dinner + Bookstore Evening in Los Feliz" / Republique) now shows **"Save to Library"** instead of "Open in …".
+
+**Note:** The dead `aggregation.py` stub-fallback still contains `google.com/search` builders but has **no live caller** and is fully test-covered; left untouched (the guard + sanitize neutralize it even if revived). Immediate operational fix for a lingering stale deck: force-quit and relaunch the app to regenerate.
+
+---
+
 ### Step 19.7 ✅ Dev Tooling — Simulator Never Resolves the Dev Backend to a LAN IP
 **Date:** 2026-07-01
 **Status:** Complete
@@ -6898,7 +6916,7 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 - **`iOS/Knot/Info.plist`:** fixed the stale `http://192.168.x.x:8000` ATS comment → `:8420`.
 - **`iOS/Knot/Services/RecommendationService.swift`:** the DEBUG `cannotConnectToHost` message is now actionable — names the tried URL and the fixes (backend on `:8420`, Simulator uses `127.0.0.1`, clean rebuild refreshes a stale host, device must share Wi-Fi).
 
-**Tests:** `DevAPIBaseURLResolutionTests` extended — Simulator ignores a LAN-IP override (→ loopback) but honors loopback/hostname overrides; device still honors a LAN-IP override; `isPrivateLANHost` covers the RFC-1918 ranges and their boundaries. Full iOS suite green.
+**Tests:** `DevAPIBaseURLResolutionTests` extended — Simulator ignores a LAN-IP override (→ loopback) but honors loopback/hostname overrides; device still honors a LAN-IP override; `isPrivateLANHost` covers the RFC-1918 ranges and their boundaries (and scheme-less input). Full iOS suite green (326).
 
 **Immediate operational note:** a Simulator already stuck on the sticky override can be cleared with `xcrun simctl spawn booted defaults delete com.ronniejay.knot KnotDevAPIBaseURL` (or delete the app); the code fix makes it self-correct after one rebuild.
 

@@ -1241,3 +1241,26 @@ class TestOccasionTypes:
 
         assert resp.status_code == 200
         assert resp.json()["occasion_type"] == "major_milestone"
+
+
+class TestSafeExternalURL:
+    """`_safe_external_url` nulls a stored/legacy search or shopping link so it is
+    never re-served to the client, while real merchant URLs and None pass through."""
+
+    def test_nulls_google_shopping_and_search(self):
+        from app.api.recommendations import _safe_external_url
+
+        assert _safe_external_url(
+            "https://www.google.com/search?tbm=shop&q=Republique"
+        ) is None
+        assert _safe_external_url("https://www.google.com/search?q=x") is None
+        assert _safe_external_url("https://www.bing.com/search?q=x") is None
+
+    def test_passes_real_urls_and_none(self):
+        from app.api.recommendations import _safe_external_url
+
+        assert (
+            _safe_external_url("https://www.ticketmaster.com/event/abc")
+            == "https://www.ticketmaster.com/event/abc"
+        )
+        assert _safe_external_url(None) is None

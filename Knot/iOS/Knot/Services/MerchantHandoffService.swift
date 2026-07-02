@@ -35,6 +35,10 @@ enum MerchantHandoffService {
     ) async -> Bool {
         guard let url = URL(string: urlString), url.scheme != nil else { return false }
 
+        // Never hand off to a general web-search / shopping-results page (a stale
+        // pre-fix link from an old deck, Saved card, or deep-link). Treat as no-link.
+        guard !url.isSearchOrShoppingLink else { return false }
+
         // Try universal links first (native app)
         let openedInApp = await UIApplication.shared.open(
             url,

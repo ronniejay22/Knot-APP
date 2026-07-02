@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change touches the recommendation detail CTA: purchasables now open a
-        // real, dedicated merchant/booking page ("Open in <merchant>") — never a web
-        // search — and unbookable items degrade to an idea instead. The detail screen
-        // needs auth + a live backend to reach normally, so render it standalone via
-        // the DEBUG screenshot harness (`UITestScreenshotHarness` key "recDetail").
-        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
+        // This change guards against STALE search/shopping links: a purchasable whose
+        // stored external_url is a Google-Shopping page must degrade its CTA to "Save to
+        // Library" instead of opening Google. The detail screen needs auth + a live
+        // backend to reach normally, so render it standalone via the DEBUG screenshot
+        // harness with a stale-link sample (`UITestScreenshotHarness` key "recDetailStale").
+        app.launchArguments += ["-uiTestScreenshot", "recDetailStale"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
