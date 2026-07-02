@@ -238,6 +238,7 @@
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
 		7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationTests.swift; sourceTree = "<group>"; };
 		80F2A43D31A1865709700823 /* KnotInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotInputTests.swift; sourceTree = "<group>"; };
+		82BE88375DDF73B77B8B093B /* OnboardingPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPaywallView.swift; sourceTree = "<group>"; };
 		82D8C028DEC10B2C02A3FB2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		842768D146B565195D8F3390 /* Knot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Knot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		85E9D910606429BBE05C784F /* KnotIconButtonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotIconButtonTests.swift; sourceTree = "<group>"; };
