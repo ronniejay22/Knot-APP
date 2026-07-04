@@ -6922,6 +6922,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.8 ✅ Subscriptions — Wire the Onboarding Paywall to a Real StoreKit Free-Trial Purchase
+**Date:** 2026-07-03
+**Status:** Complete
+
+**Goal:** The end-of-onboarding paywall (Step 19.7's UI) was branded-screen-only — selecting a plan and tapping "Continue" just dismissed the modal and dropped the user into the app, with no StoreKit, no product identifiers, and no premium entitlement anywhere. Turn it into the real payment experience the user asked for: pick a plan → start a **7-day free trial** → the subscription **auto-renews and bills** at that plan's price after the trial ends. Confirmed decision: a 7-day free trial on **both** plans (annual → then $59.99/yr, monthly → then $9.99/mo).
+
+**Approach:** Native **StoreKit 2** (matches the app's no-third-party, `@Observable @MainActor` conventions — no RevenueCat). A local `.storekit` catalog makes the trial exercisable in the Simulator without App Store Connect. This step lands the **client-side** purchase experience only; server-side receipt validation / App Store Server Notifications (syncing entitlement to the backend) is a deliberate follow-up (see Next Steps).
+
+**What changed:**
+- **`iOS/Knot/Knot.storekit` (new):** one auto-renewable subscription group ("Knot Premium") with two products — `com.knot.premium.annual` ($59.99/yr) and `com.knot.premium.monthly` ($9.99/mo) — each carrying a **7-day (P1W) free-trial introductory offer**.
+- **`iOS/Knot/Services/SubscriptionManager.swift` (new):** `@Observable @MainActor final class` owning the catalog + purchase flow. Loads products (`Product.products(for:)`, sorted to paywall order), runs `purchase(_:)` (verifies via `checkVerified`, finishes the transaction, refreshes entitlement; user-cancel/pending are non-errors), `restorePurchases()` (`AppStore.sync()`), and tracks `isSubscribed` from `Transaction.currentEntitlements` with a `Transaction.updates` listener for renewals/deferred approvals. `isSubscribed` is always derived from StoreKit (never persisted), and is recomputed even when product loading fails, so a stale value can't strand and premium can't leak across app accounts on a shared device. Exposes `trialLabel(for:)` ("7-day free trial") and `renewalLabel(for:)` ("$9.99/month") for the paywall copy, plus `Product.SubscriptionPeriod` formatting helpers.
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`:** `PaywallPlan` gained a `productID` (mapped to `SubscriptionManager.ProductID`). The CTA now reads **"Start Free Trial"**, runs the async purchase, shows a spinner (`isLoading`)/disabled state and an inline error on failure, and only finishes onboarding after a completed purchase. Added a per-card "7-day free trial" line, a "7-day free trial, then $X/period" subline, and a **"Restore Purchases"** button. Loads products in `.task`; falls back to placeholder copy if products don't load.
+- **`iOS/Knot/Features/Onboarding/OnboardingContainerView.swift`:** owns the `SubscriptionManager` (`@State`) and injects it into the paywall so loaded products / in-flight purchase state survive view rebuilds.
+- **`iOS/project.yml`:** the Debug **run** scheme points at `Knot/Knot.storekit` (`storeKitConfiguration`) so purchases/trials work in the Simulator; the KnotTests target bundles the same `.storekit` (as a resource) and weak-links `StoreKitTest` (with `ENABLE_TESTING_SEARCH_PATHS`) so the tests' `SKTestSession` resolves it.
+- **Screenshot seam:** added an `onboardingPaywall` key to `UITestScreenshotHarness` and pointed `PRScreenshotTests` at it.
+
+**Tests:** New `SubscriptionManagerTests` (StoreKitTest / `SKTestSession` against `Knot.storekit`): both products load in paywall order; each plan's intro offer is a 7-day free trial; `renewalLabel` reflects each cadence; a purchase unlocks premium and clears in-flight state; a fresh session starts unsubscribed; the entitlement survives a manager reload. `OnboardingPaywallViewTests` extended for the plan → product-ID mapping (known + unique). Full iOS `KnotTests` suite green; paywall screenshot captured via `capture-ui-screenshot.sh`.
+
+**Note for future developers:** Before TestFlight/release, create the two auto-renewable subscriptions in **App Store Connect** with identifiers matching `SubscriptionManager.ProductID` (`com.knot.premium.annual` / `.monthly`) and a 7-day free-trial intro offer each; the local `.storekit` catalog only backs Simulator/testing. Premium is currently unlocked at onboarding but **not yet gated** on elsewhere — wiring feature gates and server-side entitlement sync are the follow-ups below.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

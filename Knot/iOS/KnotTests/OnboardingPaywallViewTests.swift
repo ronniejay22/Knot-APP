@@ -49,4 +49,22 @@ final class OnboardingPaywallViewTests: XCTestCase {
             XCTAssertFalse(plan.perWeekLabel.isEmpty, "plan \(plan.id) missing per-week price")
         }
     }
+
+    /// Every plan maps to a known StoreKit product identifier, so the purchase flow
+    /// can always resolve a `Product` for the user's selection.
+    func testEveryPlanMapsToAKnownProductID() {
+        let known = Set(SubscriptionManager.ProductID.all)
+        for plan in PaywallPlan.all {
+            XCTAssertTrue(
+                known.contains(plan.productID),
+                "plan \(plan.id) maps to unknown product id \(plan.productID)"
+            )
+        }
+    }
+
+    /// Plan → product identifiers are unique, so two plans can't collide on one product.
+    func testPlanProductIdentifiersAreUnique() {
+        let productIDs = PaywallPlan.all.map(\.productID)
+        XCTAssertEqual(productIDs.count, Set(productIDs).count)
+    }
 }

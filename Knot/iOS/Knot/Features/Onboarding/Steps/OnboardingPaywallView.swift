@@ -9,21 +9,25 @@
 //  plans (one flagged "Most Popular"), a primary CTA, a cancel-anytime note, and
 //  Terms / Privacy fine print.
 //
-//  NOTE: this is a branded UI screen only. It does not yet wire up StoreKit
-//  purchases, receipt validation, or entitlements — both the CTA and the close (X)
-//  simply finish onboarding and drop the user into the app. `PaywallPlan` is modeled
-//  so real StoreKit `Product`s can replace the placeholder plans later without
-//  touching the view layout.
+//  Step 19.8: Wired the CTA to a real StoreKit 2 purchase via `SubscriptionManager`.
+//  Selecting a plan and tapping the CTA starts that plan's 7-day free trial; the
+//  subscription auto-renews at the plan's price after the trial ends. A successful
+//  purchase (or a successful restore) finishes onboarding; the close (X) still skips
+//  straight into the app. `PaywallPlan` now carries the StoreKit product identifier
+//  it maps to, while its card copy stays the designed placeholder (mirroring
+//  `Knot.storekit`) until real App Store Connect prices are localized.
 //
 
 import SwiftUI
 import LucideIcons
 
-/// A placeholder subscription plan rendered by `OnboardingPaywallView`. Purely
-/// presentational for now — swap the static `all` list for StoreKit-derived
-/// products when in-app purchases are wired up.
+/// A subscription plan rendered by `OnboardingPaywallView`. Its card copy is the
+/// designed placeholder (mirroring `Knot.storekit`); `productID` maps it to the
+/// StoreKit `Product` that `SubscriptionManager` purchases.
 struct PaywallPlan: Identifiable, Equatable {
     let id: String
+    /// The StoreKit product identifier this plan purchases (see `SubscriptionManager.ProductID`).
+    let productID: String
     /// Display title, e.g. "Knot Premium — 12 Months".
     let title: String
     /// Headline price for the billing period, e.g. "$59.99".
@@ -35,11 +39,12 @@ struct PaywallPlan: Identifiable, Equatable {
     /// Whether this plan carries the "Most Popular" badge and is selected by default.
     let isPopular: Bool
 
-    /// The plans offered on the onboarding paywall. Placeholder pricing until
-    /// StoreKit products are introduced.
+    /// The plans offered on the onboarding paywall. Card copy mirrors `Knot.storekit`
+    /// until real App Store Connect prices are localized into the cards.
     static let all: [PaywallPlan] = [
         PaywallPlan(
             id: "annual",
+            productID: SubscriptionManager.ProductID.annual,
             title: "Knot Premium — 12 Months",
             priceLabel: "$59.99",
             perWeekLabel: "$1.15 / week",
@@ -48,6 +53,7 @@ struct PaywallPlan: Identifiable, Equatable {
         ),
         PaywallPlan(
             id: "monthly",
+            productID: SubscriptionManager.ProductID.monthly,
             title: "Knot Premium — Monthly",
             priceLabel: "$9.99",
             perWeekLabel: "$2.30 / week",
@@ -66,7 +72,11 @@ struct PaywallPlan: Identifiable, Equatable {
 /// The end-of-onboarding subscription paywall. Presented as a full-screen modal by
 /// `OnboardingContainerView` once the user opens a pick and taps "Continue".
 struct OnboardingPaywallView: View {
-    /// Invoked when the user taps the primary "Continue" CTA (chose a plan).
+    /// Runs the StoreKit purchase and tracks the resulting entitlement. Owned by
+    /// `OnboardingContainerView` and passed in so its state survives view rebuilds.
+    let subscriptionManager: SubscriptionManager
+    /// Invoked once the user has an active entitlement — a completed purchase or a
+    /// successful restore. Finishes onboarding and enters the app.
     let onContinue: () -> Void
     /// Invoked when the user dismisses the paywall via the close (X) button.
     let onClose: () -> Void
@@ -108,6 +118,9 @@ struct OnboardingPaywallView: View {
                 footer
             }
         }
+        // Load real products (and refresh the entitlement) when the paywall appears.
+        // Until this resolves, the cards render their placeholder copy.
+        .task { await subscriptionManager.loadProducts() }
     }
 
     // MARK: - Close Row
@@ -170,7 +183,13 @@ struct OnboardingPaywallView: View {
                 PaywallPlanCard(
                     plan: plan,
                     isSelected: plan == selectedPlan,
-                    onSelect: { selectedPlan = plan }
+                    trialLabel: subscriptionManager.trialLabel(for: plan),
+                    onSelect: {
+                        selectedPlan = plan
+                        // Drop any stale purchase/restore error when the user
+                        // changes their selection.
+                        subscriptionManager.purchaseError = nil
+                    }
                 )
             }
         }
@@ -180,8 +199,32 @@ struct OnboardingPaywallView: View {
 
     private var footer: some View {
         VStack(spacing: Theme.Spacing.md) {
-            KnotButton("Continue", variant: .primary, size: .lg, action: onContinue)
-                .frame(maxWidth: .infinity)
+            if let error = subscriptionManager.purchaseError {
+                Text(error)
+                    .knotFont(Theme.Typography.label)
+                    .foregroundStyle(Theme.accent)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+            }
+
+            KnotButton(
+                ctaTitle,
+                variant: .primary,
+                size: .lg,
+                isLoading: subscriptionManager.isPurchasing,
+                action: startPurchase
+            )
+            .frame(maxWidth: .infinity)
+
+            if let detail = trialDetailText {
+                // Spells out the trial → billing terms for the selected plan, e.g.
+                // "7-day free trial, then $9.99/month".
+                Text(detail)
+                    .knotFont(Theme.Typography.label)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
 
             HStack(spacing: Theme.Spacing.sm) {
                 Image(uiImage: Lucide.shieldCheck)
@@ -196,11 +239,56 @@ struct OnboardingPaywallView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
 
+            Button("Restore Purchases", action: restorePurchases)
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textSecondary)
+                .disabled(subscriptionManager.isPurchasing)
+
             finePrint
         }
         .padding(.horizontal, Theme.Spacing.xxl)
         .padding(.top, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.lg)
+        .animation(.easeInOut(duration: 0.2), value: subscriptionManager.purchaseError)
+    }
+
+    // MARK: - CTA copy & actions
+
+    /// The primary CTA title. Leads with the free trial when the selected plan has
+    /// one (or before products load, since both plans are trial-eligible by design),
+    /// otherwise a plain subscribe label.
+    private var ctaTitle: String {
+        if subscriptionManager.trialLabel(for: selectedPlan) != nil || !subscriptionManager.productsLoaded {
+            return "Start Free Trial"
+        }
+        return "Subscribe"
+    }
+
+    /// The trial → billing detail line for the selected plan, or nil until products
+    /// (and their offers) have loaded.
+    private var trialDetailText: String? {
+        guard let trial = subscriptionManager.trialLabel(for: selectedPlan),
+              let renewal = subscriptionManager.renewalLabel(for: selectedPlan) else { return nil }
+        return "\(trial), then \(renewal)"
+    }
+
+    /// Purchases the selected plan; finishes onboarding only on a completed purchase.
+    /// Cancel / pending leaves the user on the paywall (no error for a plain cancel).
+    private func startPurchase() {
+        Task {
+            if await subscriptionManager.purchase(selectedPlan) {
+                onContinue()
+            }
+        }
+    }
+
+    /// Restores a prior subscription; finishes onboarding if one is active.
+    private func restorePurchases() {
+        Task {
+            if await subscriptionManager.restorePurchases() {
+                onContinue()
+            }
+        }
     }
 
     private var finePrint: some View {
@@ -236,6 +324,9 @@ struct OnboardingPaywallView: View {
 private struct PaywallPlanCard: View {
     let plan: PaywallPlan
     let isSelected: Bool
+    /// A short free-trial label for this plan (e.g. "7-day free trial"), or nil
+    /// until the StoreKit offer has loaded.
+    let trialLabel: String?
     let onSelect: () -> Void
 
     var body: some View {
@@ -264,6 +355,12 @@ private struct PaywallPlanCard: View {
                             .knotFont(Theme.Typography.cta)
                             .foregroundStyle(Theme.accent)
                     }
+
+                    if let trialLabel {
+                        Text(trialLabel)
+                            .knotFont(Theme.Typography.label)
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
             }
             .overlay(
@@ -290,6 +387,10 @@ private struct PaywallPlanCard: View {
 
 #if DEBUG
 #Preview {
-    OnboardingPaywallView(onContinue: {}, onClose: {})
+    OnboardingPaywallView(
+        subscriptionManager: SubscriptionManager(),
+        onContinue: {},
+        onClose: {}
+    )
 }
 #endif
