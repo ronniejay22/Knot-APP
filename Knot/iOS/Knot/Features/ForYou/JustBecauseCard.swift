@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Card displayed at the top of the For You timeline for "just because" recommendations.
 struct JustBecauseCard: View {
@@ -18,7 +17,7 @@ struct JustBecauseCard: View {
     var body: some View {
         KnotCard(padding: .lg, radius: Theme.Radius.lg) {
             VStack(alignment: .leading, spacing: 12) {
-                KnotSectionHeader("Surprise them today", icon: Lucide.sparkles)
+                KnotSectionHeader("Surprise them today")
 
                 Text("Get personalized gift, date, or experience ideas for \(partnerName) \u{2014} no occasion needed.")
                     .knotFont(Theme.Typography.label)
@@ -29,7 +28,6 @@ struct JustBecauseCard: View {
                     "Get Recommendations",
                     variant: .primary,
                     size: .md,
-                    leadingIcon: Lucide.sparkles,
                     action: onGenerate
                 )
             }

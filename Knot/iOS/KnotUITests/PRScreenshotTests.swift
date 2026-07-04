@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change removes the "+" add-milestone button from the For You header,
-        // leaving just the centered "For You" title in the top bar. Render the For You
-        // tab standalone via the DEBUG screenshot harness (`forYou`) so the header —
-        // now without the "+" — is captured. The always-visible "Surprise them today"
-        // card confirms the screen rendered.
-        app.launchArguments += ["-uiTestScreenshot", "forYou"]
+        // This change removes the external-link icon (and its tap-to-open action)
+        // from Saved cards. Seed the Saved tab via the DEBUG screenshot harness
+        // (`savedMoments`) — which now includes an active purchasable card that used
+        // to carry that icon — and capture the Saved list itself so the reviewer can
+        // see the card now shows only the "X" delete button.
+        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,9 +39,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the always-rendered "Surprise them today" card so the screenshot
-        // captures the settled For You screen (header + card), not a loading frame.
-        _ = app.staticTexts["Surprise them today"].waitForExistence(timeout: 10)
+        // Wait for the purchasable card (the one that previously showed the open-link
+        // icon) so the screenshot captures the fully-rendered Saved list.
+        _ = app.staticTexts["Cooking Class: Thai Cuisine"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

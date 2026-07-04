@@ -98,7 +98,7 @@ final class SavedViewModel {
         Task {
             // Re-fetch so the item moves from the Saved section to Moments.
             await loadSavedRecommendations(modelContext: modelContext)
-            try? await service.recordFeedback(
+            _ = try? await service.recordFeedback(
                 recommendationId: id,
                 action: "rated",
                 rating: rating,
