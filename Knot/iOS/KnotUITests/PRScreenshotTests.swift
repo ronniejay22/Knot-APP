@@ -24,11 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes saved entries on the Saved tab tappable: pressing a saved
-        // card now opens the full RecommendationDetailView for that item. Seed the
-        // Saved tab via the DEBUG screenshot harness (`savedMoments`), then tap the
-        // active saved card to open its detail — capturing the feature end-to-end.
-        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
+        // This change removes the "+" add-milestone button from the For You header,
+        // leaving just the centered "For You" title in the top bar. Render the For You
+        // tab standalone via the DEBUG screenshot harness (`forYou`) so the header —
+        // now without the "+" — is captured. The always-visible "Surprise them today"
+        // card confirms the screen rendered.
+        app.launchArguments += ["-uiTestScreenshot", "forYou"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -38,15 +39,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Tap the active saved card to open its detail page.
-        let card = app.staticTexts["Sunset Picnic in the Park"]
-        if card.waitForExistence(timeout: 10) {
-            card.tap()
-        }
-
-        // Wait for a detail-only element (idea sticky-bar context) so the screenshot
-        // captures the opened RecommendationDetailView, not the mid-transition frame.
-        _ = app.staticTexts["Knot Original"].waitForExistence(timeout: 10)
+        // Wait for the always-rendered "Surprise them today" card so the screenshot
+        // captures the settled For You screen (header + card), not a loading frame.
+        _ = app.staticTexts["Surprise them today"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
