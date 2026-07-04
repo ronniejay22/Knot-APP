@@ -6979,6 +6979,23 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.11 ✅ For You — Compact Recommendation Icon Button on Milestone Rows
+**Date:** 2026-07-04
+**Status:** Complete
+
+**Goal:** Match the Figma "For You" design ([node 201:279](https://www.figma.com/design/pSH5gTc4J24uMA7GI3Wcyl/Knot-%E2%80%94-Build-Your-Partner-Vault?node-id=201-279)): each upcoming milestone row shows a compact pink recommendation icon button on its trailing edge, instead of the previous full-width "Get Recommendations" pill rendered below the row.
+
+**Approach:** Purely presentational — the per-milestone recommendation action already existed (`onGetRecommendations`, pushing `RecommendationsView` with milestone context). Restructured the row so the info column and the button share a trailing-aligned `HStack` (mirroring the Figma "Entry Info" `justify-between`), and replaced the pill with a transparent 24pt `Lucide.sparkles` glyph tinted `Theme.accent` (the app's established recommendation motif). Also dropped the `daysUntil <= 60` gate in `ForYouView` so the (now unobtrusive) button appears on every milestone, matching the design which shows it on far-out dates.
+
+**What changed:**
+- **`iOS/Knot/Features/ForYou/TimelineEntryView.swift`:** `milestoneContent` now nests the milestone info + countdown in a leading `VStack` alongside a trailing recommendation `Button` (`Lucide.sparkles`, 24pt, `Theme.accent`, 5pt padding, `.plain` style, accessibility label). Removed the old full-width pill CTA. Updated the layout doc comment.
+- **`iOS/Knot/Features/ForYou/ForYouView.swift`:** always pass the `onGetRecommendations` closure (removed the 60-day conditional). Updated the header doc comment.
+- **Screenshot seam:** added a `forYouTimeline` key + `ForYouTimelineScreenshotHarnessView` to `UITestScreenshotHarness.swift` that renders the "Upcoming" timeline with four sample milestones (each with the new button), since the live `ForYouView` fetch can't be deterministically seeded on a cold screenshot launch. Repointed `PRScreenshotTests` at it.
+
+**Tests:** No test asserted the old pill, so none needed changing. App + UI-test targets build clean; the screenshot UI test passes and `capture-ui-screenshot.sh` confirms the pink icon button on the trailing edge of every milestone row. `/ship-pr` runs the full `KnotTests` suite.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

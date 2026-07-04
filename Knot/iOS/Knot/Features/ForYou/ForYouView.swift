@@ -13,8 +13,8 @@ import SwiftUI
 /// Layout:
 /// - "Just Because" recommendation card at top
 /// - "Upcoming" section with chronological milestone timeline
-/// - Each milestone within 60 days has an inline "Get Recommendations" CTA
-/// - Tapping any CTA pushes to `RecommendationsView` with milestone context
+/// - Each milestone has a trailing recommendation icon button
+/// - Tapping the button pushes to `RecommendationsView` with milestone context
 struct ForYouView: View {
 
     @State private var viewModel = ForYouViewModel()
@@ -126,7 +126,7 @@ struct ForYouView: View {
                     isLast: index == viewModel.milestones.count - 1,
                     urgency: urgency,
                     formattedDate: viewModel.formattedDate(milestone.milestoneDate),
-                    onGetRecommendations: daysUntil <= 60 ? {
+                    onGetRecommendations: {
                         navigationDestination = RecommendationDestination(
                             milestoneId: milestone.id,
                             context: MilestoneDisplayContext(
@@ -137,7 +137,7 @@ struct ForYouView: View {
                                 occasionType: viewModel.occasionType(for: milestone)
                             )
                         )
-                    } : nil
+                    }
                 )
             }
         }

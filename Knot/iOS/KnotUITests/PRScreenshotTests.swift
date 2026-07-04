@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change removes the external-link icon (and its tap-to-open action)
-        // from Saved cards. Seed the Saved tab via the DEBUG screenshot harness
-        // (`savedMoments`) — which now includes an active purchasable card that used
-        // to carry that icon — and capture the Saved list itself so the reviewer can
-        // see the card now shows only the "X" delete button.
-        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
+        // This change adds a trailing recommendation icon button to each milestone
+        // row in the For You "Upcoming" timeline. Seed the timeline via the DEBUG
+        // screenshot harness (`forYouTimeline`) — which renders a few sample
+        // milestones, each with the new button — so the reviewer can see the pink
+        // icon button on the trailing edge of every row.
+        app.launchArguments += ["-uiTestScreenshot", "forYouTimeline"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,9 +39,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the purchasable card (the one that previously showed the open-link
-        // icon) so the screenshot captures the fully-rendered Saved list.
-        _ = app.staticTexts["Cooking Class: Thai Cuisine"].waitForExistence(timeout: 10)
+        // Wait for a seeded milestone so the screenshot captures the fully-rendered
+        // timeline with its new trailing recommendation buttons.
+        _ = app.staticTexts["Christmas"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
