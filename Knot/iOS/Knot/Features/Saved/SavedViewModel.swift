@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftData
+import UIKit
 
 /// Manages data for the Saved tab.
 ///
@@ -103,6 +104,67 @@ final class SavedViewModel {
                 rating: rating,
                 feedbackText: note
             )
+        }
+    }
+
+    // MARK: - Detail Actions
+
+    /// Opens the merchant/booking page for a saved recommendation from its detail view.
+    ///
+    /// Mirrors the Saved card's inline open-link button: `RecommendationDetailView`
+    /// only shows the "Open in {merchant}" CTA for a real, non-search link, so we can
+    /// open the URL directly here. Records a best-effort `"selected"` learning signal,
+    /// matching the merchant-handoff behavior elsewhere in the app.
+    func openMerchant(_ item: RecommendationItemResponse) {
+        guard let urlString = item.externalUrl, let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+
+        let service = self.service
+        let itemId = item.id
+        Task {
+            try? await service.recordFeedback(
+                recommendationId: itemId,
+                action: "selected"
+            )
+        }
+    }
+
+    /// Presents the system share sheet for a saved recommendation from its detail view.
+    ///
+    /// Mirrors `RecommendationsViewModel.shareRecommendation` — presents from the
+    /// top-most view controller and records a `"shared"` signal only on a completed
+    /// share (not on cancellation).
+    func shareRecommendation(_ item: RecommendationItemResponse) {
+        let title = item.title
+        let merchantText = item.merchantName.map { " from \($0)" } ?? ""
+        let message = "Check out this recommendation\(merchantText): \(title)"
+
+        var items: [Any] = [message]
+        if let urlString = item.externalUrl, let url = URL(string: urlString) {
+            items.append(url)
+        }
+
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+
+        let service = self.service
+        let itemId = item.id
+        activityVC.completionWithItemsHandler = { activityType, completed, _, _ in
+            guard completed, activityType != nil else { return }
+            Task {
+                try? await service.recordFeedback(
+                    recommendationId: itemId,
+                    action: "shared"
+                )
+            }
+        }
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            topVC.present(activityVC, animated: true)
         }
     }
 

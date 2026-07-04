@@ -24,6 +24,10 @@ struct SavedView: View {
     /// The item currently being reflected on (drives the reflection sheet).
     @State private var selectedForReflection: SavedRecommendation?
 
+    /// The saved item whose detail page is open (drives the full-screen detail cover).
+    /// Rebuilt from the local snapshot via `SavedRecommendation.toDetailItem()`.
+    @State private var selectedDetailItem: RecommendationItemResponse?
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -77,6 +81,19 @@ struct SavedView: View {
                 )
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(item: $selectedDetailItem) { item in
+                RecommendationDetailView(
+                    item: item,
+                    // The "Why Knot picked this" block is hidden for saved snapshots
+                    // (no note/chips stored), and partnerName is only used there.
+                    partnerName: nil,
+                    isSaved: true,
+                    onOpenMerchant: { viewModel.openMerchant(item) },
+                    onSave: {},
+                    onShare: { viewModel.shareRecommendation(item) },
+                    onDismiss: { selectedDetailItem = nil }
+                )
             }
             .overlay(alignment: .top) {
                 if let title = viewModel.lastCelebratedTitle {
@@ -190,6 +207,11 @@ struct SavedView: View {
         }
         .padding(12)
         .background(cardBackground)
+        // Tapping anywhere on the card (except its inner buttons) opens the detail.
+        // `.onTapGesture` — not a wrapping Button — keeps the inner open-link / delete
+        // / "We did this" buttons hit-testing correctly.
+        .contentShape(Rectangle())
+        .onTapGesture { selectedDetailItem = saved.toDetailItem() }
     }
 
     // MARK: - Moment Card
@@ -211,6 +233,8 @@ struct SavedView: View {
         }
         .padding(12)
         .background(cardBackground)
+        .contentShape(Rectangle())
+        .onTapGesture { selectedDetailItem = saved.toDetailItem() }
     }
 
     // MARK: - Shared Card Row

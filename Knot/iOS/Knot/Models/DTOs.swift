@@ -365,6 +365,62 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     var personalizationNote: String? { rawPersonalizationNote?.humanizingTagTokens }
     private let rawPersonalizationNote: String?
 
+    /// In-code initializer for building an item outside of JSON decoding.
+    ///
+    /// The synthesized memberwise init is `private` because `rawDescription` /
+    /// `rawPersonalizationNote` are private, so callers can otherwise only build
+    /// this type by decoding JSON. This exposes an `internal` init that maps the
+    /// public-facing `description` / `personalizationNote` to those raw fields, and
+    /// defaults every field a local snapshot lacks — letting the Saved tab rebuild
+    /// a detail-view item from a `SavedRecommendation` (see `toDetailItem()`).
+    init(
+        id: String,
+        recommendationType: String,
+        title: String,
+        description: String? = nil,
+        priceCents: Int? = nil,
+        currency: String = "USD",
+        priceConfidence: String? = nil,
+        externalUrl: String? = nil,
+        imageUrl: String? = nil,
+        merchantName: String? = nil,
+        source: String = "saved",
+        location: RecommendationLocationResponse? = nil,
+        isIdea: Bool? = nil,
+        contentSections: [IdeaContentSection]? = nil,
+        interestScore: Double = 0,
+        vibeScore: Double = 0,
+        loveLanguageScore: Double = 0,
+        finalScore: Double = 0,
+        matchedInterests: [String]? = nil,
+        matchedVibes: [String]? = nil,
+        matchedLoveLanguages: [String]? = nil,
+        personalizationNote: String? = nil
+    ) {
+        self.id = id
+        self.recommendationType = recommendationType
+        self.title = title
+        self.rawDescription = description
+        self.priceCents = priceCents
+        self.currency = currency
+        self.priceConfidence = priceConfidence
+        self.externalUrl = externalUrl
+        self.imageUrl = imageUrl
+        self.merchantName = merchantName
+        self.source = source
+        self.location = location
+        self.isIdea = isIdea
+        self.contentSections = contentSections
+        self.interestScore = interestScore
+        self.vibeScore = vibeScore
+        self.loveLanguageScore = loveLanguageScore
+        self.finalScore = finalScore
+        self.matchedInterests = matchedInterests
+        self.matchedVibes = matchedVibes
+        self.matchedLoveLanguages = matchedLoveLanguages
+        self.rawPersonalizationNote = personalizationNote
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case recommendationType = "recommendation_type"
