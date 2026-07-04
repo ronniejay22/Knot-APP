@@ -32,6 +32,8 @@ enum UITestScreenshotHarness {
     @ViewBuilder
     static func rootView(for key: String) -> some View {
         switch key {
+        case "forYou":
+            ForYouView()
         case "interests":
             InterestsScreenshotHarnessView()
         case "recDetail":

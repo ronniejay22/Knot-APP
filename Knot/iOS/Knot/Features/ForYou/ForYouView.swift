@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// The main For You tab view combining a milestone timeline with recommendation entry points.
 ///
@@ -44,19 +43,6 @@ struct ForYouView: View {
                     Text("For You")
                         .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        milestoneFormViewModel.prepareAdd()
-                    } label: {
-                        Image(uiImage: Lucide.plus)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
-                    }
-                    .tint(Theme.accent)
                 }
             }
             .navigationDestination(item: $navigationDestination) { destination in
