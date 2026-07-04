@@ -24,13 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change removes the sparkles/star icon from the "Why Knot picked this
-        // for <partner>" box on the recommendation detail screen (the title now reads
-        // without a leading icon). The detail screen needs auth + a live backend to
-        // reach normally, so render it standalone via the DEBUG screenshot harness with
-        // a bookable sample that has a personalization note + matched chips, so the
-        // "Why Knot" box is visible (`UITestScreenshotHarness` key "recDetail").
-        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
+        // This change wires the end-of-onboarding paywall to a real StoreKit purchase
+        // with a 7-day free trial: the CTA now reads "Start Free Trial", each plan card
+        // shows a trial line, and a "Restore Purchases" button was added. The paywall
+        // normally appears only after a full authenticated onboarding run, so render it
+        // standalone via the DEBUG screenshot harness (`UITestScreenshotHarness` key
+        // "onboardingPaywall").
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywall"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).

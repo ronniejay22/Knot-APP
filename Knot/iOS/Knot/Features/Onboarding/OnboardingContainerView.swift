@@ -49,6 +49,11 @@ struct OnboardingContainerView: View {
     /// directly; `OnboardingPaywallView`'s own CTA / close then calls `onComplete`.
     @State private var showPaywall = false
 
+    /// Owns the StoreKit purchase flow and premium entitlement for the paywall.
+    /// Held here (not inside the modal) so its loaded products and in-flight
+    /// purchase state survive the paywall's view rebuilds.
+    @State private var subscriptionManager = SubscriptionManager()
+
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header: Back Button + Progress Bar
@@ -128,19 +133,21 @@ struct OnboardingContainerView: View {
             showValidationError = false
         }
         // End-of-onboarding subscription paywall. Presented when the user taps
-        // "Continue" on the completion step; both its CTA and close finish
-        // onboarding (there is no live purchase to block on yet).
+        // "Continue" on the completion step. Its CTA runs a real StoreKit purchase
+        // (7-day free trial → auto-renew) and only calls `onContinue` once premium
+        // is unlocked; the close (X) skips straight into the app.
         .fullScreenCover(isPresented: $showPaywall) {
             OnboardingPaywallView(
+                subscriptionManager: subscriptionManager,
                 onContinue: finishFromPaywall,
                 onClose: finishFromPaywall
             )
         }
     }
 
-    /// Dismisses the paywall and finishes onboarding. Shared by the paywall's
-    /// "Continue" (chose a plan) and close (X) paths — both proceed into the app,
-    /// since there is no live purchase to block on yet.
+    /// Dismisses the paywall and finishes onboarding. Reached from the paywall's
+    /// CTA (after a completed purchase / restore) and its close (X) skip path —
+    /// both proceed into the app.
     private func finishFromPaywall() {
         showPaywall = false
         onComplete()

@@ -40,6 +40,10 @@ targets:
       - path: Knot
         excludes:
           - "**/.DS_Store"
+          # The StoreKit catalog is a debug/test artifact driven by the run
+          # scheme's `storeKitConfiguration` (and bundled into KnotTests for
+          # SKTestSession) — keep it out of the shipped app bundle.
+          - "**/*.storekit"
     entitlements:
       path: Knot/Knot.entitlements
       properties:
@@ -89,12 +93,21 @@ targets:
       - path: KnotTests
         excludes:
           - "**/.DS_Store"
+      # Bundle the StoreKit catalog into the test bundle so
+      # SubscriptionManagerTests can spin up an SKTestSession from it.
+      - path: Knot/Knot.storekit
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ronniejay.knot.tests
         GENERATE_INFOPLIST_FILE: true
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Knot.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Knot"
         BUNDLE_LOADER: "$(TEST_HOST)"
+        # StoreKitTest is a developer framework (like XCTest). Enable the testing
+        # search paths and weak-link it so SubscriptionManagerTests' SKTestSession
+        # resolves at build/run time.
+        ENABLE_TESTING_SEARCH_PATHS: true
+        OTHER_LDFLAGS: -weak_framework StoreKitTest
     dependencies:
       - target: Knot
 
@@ -122,6 +135,10 @@ schemes:
         KnotUITests: [test]
     run:
       config: Debug
+      # Drives StoreKit purchases/trials against the local product catalog in the
+      # simulator (see Knot/Knot.storekit) so the onboarding paywall's 7-day free
+      # trial can be exercised without App Store Connect. No effect on Release.
+      storeKitConfiguration: Knot/Knot.storekit
     test:
       config: Debug
       targets:

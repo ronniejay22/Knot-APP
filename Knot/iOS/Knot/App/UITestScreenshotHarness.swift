@@ -40,9 +40,27 @@ enum UITestScreenshotHarness {
             RecDetailStaleLinkHarnessView()
         case "savedMoments":
             SavedMomentsScreenshotHarnessView()
+        case "onboardingPaywall":
+            OnboardingPaywallScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Renders the end-of-onboarding subscription paywall standalone so a screenshot
+/// shows the live purchase CTA ("Start Free Trial") and trial copy. The paywall
+/// normally appears only after a full authenticated onboarding run; this drops it
+/// in directly with a fresh `SubscriptionManager` (products resolve from the local
+/// `Knot.storekit` catalog when the scheme provides one, otherwise the cards show
+/// their placeholder copy).
+private struct OnboardingPaywallScreenshotHarnessView: View {
+    var body: some View {
+        OnboardingPaywallView(
+            subscriptionManager: SubscriptionManager(),
+            onContinue: {},
+            onClose: {}
+        )
     }
 }
 
