@@ -24,13 +24,11 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change wires the end-of-onboarding paywall to a real StoreKit purchase
-        // with a 7-day free trial: the CTA now reads "Start Free Trial", each plan card
-        // shows a trial line, and a "Restore Purchases" button was added. The paywall
-        // normally appears only after a full authenticated onboarding run, so render it
-        // standalone via the DEBUG screenshot harness (`UITestScreenshotHarness` key
-        // "onboardingPaywall").
-        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywall"]
+        // This change makes saved entries on the Saved tab tappable: pressing a saved
+        // card now opens the full RecommendationDetailView for that item. Seed the
+        // Saved tab via the DEBUG screenshot harness (`savedMoments`), then tap the
+        // active saved card to open its detail — capturing the feature end-to-end.
+        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,6 +37,16 @@ final class PRScreenshotTests: XCTestCase {
         // Dismiss any transient SpringBoard system alert (e.g. the simulator's
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
+
+        // Tap the active saved card to open its detail page.
+        let card = app.staticTexts["Sunset Picnic in the Park"]
+        if card.waitForExistence(timeout: 10) {
+            card.tap()
+        }
+
+        // Wait for a detail-only element (idea sticky-bar context) so the screenshot
+        // captures the opened RecommendationDetailView, not the mid-transition frame.
+        _ = app.staticTexts["Knot Original"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

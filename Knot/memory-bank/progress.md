@@ -6944,6 +6944,25 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.9 ✅ Saved — Tap a Saved Entry to Open Its Recommendation Detail
+**Date:** 2026-07-03
+**Status:** Complete
+
+**Goal:** On the Saved tab, each bookmarked card was inert in its body — only the inline external-link, delete (✕), and (for date plans) "We did this" buttons responded to taps. Tapping a card's title/body did nothing. Make pressing a saved entry open the full **`RecommendationDetailView`** for that item — the same immersive detail page the For You feed uses.
+
+**Approach:** Reuse `RecommendationDetailView` as-is rather than build a second detail surface. The one friction was a type mismatch: the detail view renders a `RecommendationItemResponse` (backend DTO) but saved entries persist as `SavedRecommendation` (an offline SwiftData snapshot, by design — Step 6.6). So the work is a local snapshot → DTO conversion, then present the existing view via `.fullScreenCover(item:)`, mirroring `RecommendationsView`. No network fetch is added (the snapshot is authoritative and offline); the detail view already hides the "Why Knot picked this" block and "Where" row when those fields are absent, so a snapshot degrades cleanly.
+
+**What changed:**
+- **`iOS/Knot/Models/DTOs.swift`:** added an `internal` initializer to `RecommendationItemResponse`. Its synthesized memberwise init was `private` (because `rawDescription` / `rawPersonalizationNote` are private), so the type was previously only buildable by JSON-decoding. The new init maps the public-facing `description` / `personalizationNote` to those raw fields and defaults every field a snapshot lacks (scores, matched arrays, location, `priceConfidence`, `source`), so callers stay terse. Decoding is unaffected (`Decodable`'s synthesized `init(from:)` is independent).
+- **`iOS/Knot/Features/Saved/SavedRecommendation+Detail.swift` (new):** `toDetailItem() -> RecommendationItemResponse` rebuilds the detail DTO from the snapshot, decoding stored `contentSectionsData` back into `[IdeaContentSection]` (mirrors the encode in `RecommendationsViewModel.saveRecommendation`). Kept in the Saved feature (not DTOs.swift) so the model→DTO coupling stays out of the DTO layer.
+- **`iOS/Knot/Features/Saved/SavedView.swift`:** added `@State selectedDetailItem`; made both the active and moment cards tappable with `.contentShape(Rectangle())` + `.onTapGesture { selectedDetailItem = saved.toDetailItem() }` (using `.onTapGesture`, not a wrapping `Button`, so the inner open-link/delete/"We did this" buttons keep hit-testing correctly); and added `.fullScreenCover(item:)` presenting `RecommendationDetailView` with `isSaved: true`, `partnerName: nil` (the "why" block is hidden for snapshots), and the callbacks below.
+- **`iOS/Knot/Features/Saved/SavedViewModel.swift`:** added `openMerchant(_:)` (opens `externalUrl`, records a `"selected"` signal — the detail view only shows the "Open" CTA for a real, non-search link) and `shareRecommendation(_:)` (mirrors `RecommendationsViewModel.shareRecommendation`: `UIActivityViewController` from the top-most VC, records `"shared"` only on a completed share). Added `import UIKit`.
+- **Screenshot seam:** pointed `PRScreenshotTests` at the existing `savedMoments` harness, then scripted a tap on the active saved card so the shot captures the opened detail (proving the tap → detail behavior end-to-end).
+
+**Tests:** New `SavedRecommendationDetailTests` (`toDetailItem()`): a purchasable snapshot maps its core fields and is not an idea; a Knot Original snapshot round-trips its encoded `contentSectionsData` into non-empty `contentSections` (`isIdea == true`); a snapshot with no content data yields `nil` sections (no crash). Full iOS `KnotTests` suite green (341 tests); Saved-detail screenshot captured via `capture-ui-screenshot.sh`.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
