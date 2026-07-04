@@ -6963,6 +6963,23 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.10 ✅ For You — Remove the Sparkles Icons from the "Surprise them today" Card
+**Date:** 2026-07-03
+**Status:** Complete
+
+**Goal:** The For You "Surprise them today" card (`JustBecauseCard`) rendered a pink `Lucide.sparkles` glyph in two places — a leading icon on the "Surprise them today" header and a `leadingIcon` on the "Get Recommendations" CTA button. Remove both so the card reads as clean, text-only chrome.
+
+**Approach:** Both icons are optional parameters on shared primitives, so removal is purely subtractive with no layout rework. `KnotSectionHeader`'s `icon` defaults to `nil` (guarded by `if let icon`) and `KnotButton`'s `leadingIcon` defaults to `nil` (guarded by `if let leadingIcon`), so dropping the arguments removes the glyphs while title text, spacing, and fonts stay identical. With no remaining `Lucide.*` reference in the file, the now-unused `import LucideIcons` was removed.
+
+**What changed:**
+- **`iOS/Knot/Features/ForYou/JustBecauseCard.swift`:** removed `icon: Lucide.sparkles` from the `KnotSectionHeader("Surprise them today")` call and `leadingIcon: Lucide.sparkles` from the `KnotButton("Get Recommendations", …)` call; deleted the now-unused `import LucideIcons`.
+- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** added a `forYouCard` key rendering `JustBecauseCard(partnerName: "Jas", onGenerate: {})` standalone on `Theme.backgroundGradient`, so the card can be screenshotted deterministically without `ForYouView`'s auth + live milestone fetch.
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** pointed the navigation slot at the `forYouCard` harness key and waited on the "Surprise them today" text before capturing.
+
+**Tests:** Purely cosmetic (icon removal), so no new unit test was warranted; the existing iOS `KnotTests` suite must stay green, and the For You card screenshot was captured via `capture-ui-screenshot.sh`.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

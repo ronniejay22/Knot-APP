@@ -40,6 +40,8 @@ enum UITestScreenshotHarness {
             RecDetailStaleLinkHarnessView()
         case "savedMoments":
             SavedMomentsScreenshotHarnessView()
+        case "forYouCard":
+            ForYouCardScreenshotHarnessView()
         case "onboardingPaywall":
             OnboardingPaywallScreenshotHarnessView()
         default:
@@ -102,6 +104,21 @@ private struct SavedMomentsScreenshotHarnessView: View {
     var body: some View {
         SavedView()
             .modelContainer(container)
+    }
+}
+
+/// Renders the For You "Surprise them today" card standalone with a partner name, so a
+/// screenshot shows the JustBecauseCard header (now without a leading icon) and the
+/// "Get Recommendations" button (also without an icon). The full ForYouView normally sits
+/// behind auth and a live backend milestone fetch, so this drops the changed card in
+/// directly with representative state on the app's background.
+private struct ForYouCardScreenshotHarnessView: View {
+    var body: some View {
+        JustBecauseCard(partnerName: "Jas", onGenerate: {})
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.top, 24)
+            .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 
