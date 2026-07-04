@@ -6963,20 +6963,19 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.10 ✅ For You — Remove the Sparkles Icons from the "Surprise them today" Card
+### Step 19.10 ✅ Saved — Remove the External-Link Icon From Saved Cards
 **Date:** 2026-07-03
 **Status:** Complete
 
-**Goal:** The For You "Surprise them today" card (`JustBecauseCard`) rendered a pink `Lucide.sparkles` glyph in two places — a leading icon on the "Surprise them today" header and a `leadingIcon` on the "Get Recommendations" CTA button. Remove both so the card reads as clean, text-only chrome.
+**Goal:** On the Saved tab, each card's right edge showed a small external-link icon (`Lucide.externalLink`) beside the delete (✕) button. Tapping it opened the merchant/booking URL directly via `UIApplication.shared.open`. Since Step 19.9 made the whole card tappable — opening the full `RecommendationDetailView`, which has its own "Open in {Merchant}" CTA — that inline shortcut became redundant clutter. Remove the icon and its action from Saved cards.
 
-**Approach:** Both icons are optional parameters on shared primitives, so removal is purely subtractive with no layout rework. `KnotSectionHeader`'s `icon` defaults to `nil` (guarded by `if let icon`) and `KnotButton`'s `leadingIcon` defaults to `nil` (guarded by `if let leadingIcon`), so dropping the arguments removes the glyphs while title text, spacing, and fonts stay identical. With no remaining `Lucide.*` reference in the file, the now-unused `import LucideIcons` was removed.
+**Approach:** Delete the open-link `Button` block from the shared `cardRow(...)` helper in `SavedView.swift`. With the button gone, the `showOpenLink: Bool` parameter (previously `true` for active cards, `false` for moment cards) is unused, so it was dropped from the signature and both call sites (`activeCard` / `momentCard`) simplified to `cardRow(saved)`. The `Spacer()` above the removed block is retained, so the delete "✕" stays right-aligned. Scope was the Saved list only — `Lucide.externalLink` remains in the Recommendation Detail page, Notifications, and the Selection Confirmation sheet, where it's part of a *labeled* CTA button ("Open in {Merchant}" / "View Details"). The `externalURL` model field and the `URL.isSearchOrShoppingLink` guard are untouched (still used by those flows).
 
 **What changed:**
-- **`iOS/Knot/Features/ForYou/JustBecauseCard.swift`:** removed `icon: Lucide.sparkles` from the `KnotSectionHeader("Surprise them today")` call and `leadingIcon: Lucide.sparkles` from the `KnotButton("Get Recommendations", …)` call; deleted the now-unused `import LucideIcons`.
-- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** added a `forYouCard` key rendering `JustBecauseCard(partnerName: "Jas", onGenerate: {})` standalone on `Theme.backgroundGradient`, so the card can be screenshotted deterministically without `ForYouView`'s auth + live milestone fetch.
-- **`iOS/KnotUITests/PRScreenshotTests.swift`:** pointed the navigation slot at the `forYouCard` harness key and waited on the "Surprise them today" text before capturing.
+- **`iOS/Knot/Features/Saved/SavedView.swift`:** removed the `if showOpenLink, … { Button { UIApplication.shared.open(url) } … }` open-link block from `cardRow`; dropped the `showOpenLink` parameter and updated the doc comment + the `activeCard`/`momentCard` call sites; trimmed the `.onTapGesture` comment's stale "open-link" reference.
+- **Screenshot seam:** the `savedMoments` harness (`UITestScreenshotHarness.swift`) previously seeded only Knot-Original ideas (no `externalURL`, so the icon never rendered). Added an active **purchasable** card ("Cooking Class: Thai Cuisine" — Republique Culinary Classes, $140, a valid non-search link) so the shot shows the exact card type that used to carry the icon. Repointed `PRScreenshotTests` to capture the Saved *list* (waiting on that card) instead of tapping through to detail.
 
-**Tests:** Purely cosmetic (icon removal), so no new unit test was warranted; the existing iOS `KnotTests` suite must stay green, and the For You card screenshot was captured via `capture-ui-screenshot.sh`.
+**Tests:** No test asserted the open-link button, so none needed changing. The app + UI-test targets compile and the screenshot UI test passes; `/ship-pr` runs the full `KnotTests` suite. Screenshot captured via `capture-ui-screenshot.sh` confirms the purchasable card now shows only the "✕" delete button.
 
 ---
 

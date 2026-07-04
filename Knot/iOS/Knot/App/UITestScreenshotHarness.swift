@@ -66,17 +66,32 @@ private struct OnboardingPaywallScreenshotHarnessView: View {
     }
 }
 
-/// Renders the Saved tab seeded with one active date plan (showing the new
-/// "We did this" reflection action) and one completed date plan in the new
-/// "Moments" section (showing its rating + reflection note). SavedView normally
-/// reads from the app's SwiftData store; this injects an isolated in-memory
-/// container with representative sample data so the screenshot is deterministic.
+/// Renders the Saved tab seeded with one active purchasable (a merchant/price
+/// row that previously carried the external-link icon — now removed), one active
+/// date plan (showing the "We did this" reflection action), and one completed
+/// date plan in the "Moments" section (showing its rating + reflection note).
+/// SavedView normally reads from the app's SwiftData store; this injects an
+/// isolated in-memory container with representative sample data so the
+/// screenshot is deterministic.
 private struct SavedMomentsScreenshotHarnessView: View {
     private let container: ModelContainer = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         // Force-unwrap is acceptable in this DEBUG-only screenshot seam.
         let container = try! ModelContainer(for: SavedRecommendation.self, configurations: config)
         let context = container.mainContext
+
+        // Active purchasable with a valid (non-search) merchant link — the card
+        // type that used to show the open-link icon, proving it's now gone.
+        context.insert(SavedRecommendation(
+            recommendationId: "harness-purchasable",
+            recommendationType: "experience",
+            title: "Cooking Class: Thai Cuisine",
+            descriptionText: "A hands-on evening class for two.",
+            externalURL: "https://republiqueculinary.com/classes/thai",
+            priceCents: 14000,
+            merchantName: "Republique Culinary Classes",
+            isIdea: false
+        ))
 
         context.insert(SavedRecommendation(
             recommendationId: "harness-active",

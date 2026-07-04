@@ -183,7 +183,7 @@ struct SavedView: View {
 
     private func activeCard(_ saved: SavedRecommendation) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            cardRow(saved, showOpenLink: true)
+            cardRow(saved)
 
             if saved.isDoable {
                 Button {
@@ -208,8 +208,8 @@ struct SavedView: View {
         .padding(12)
         .background(cardBackground)
         // Tapping anywhere on the card (except its inner buttons) opens the detail.
-        // `.onTapGesture` — not a wrapping Button — keeps the inner open-link / delete
-        // / "We did this" buttons hit-testing correctly.
+        // `.onTapGesture` — not a wrapping Button — keeps the inner delete /
+        // "We did this" buttons hit-testing correctly.
         .contentShape(Rectangle())
         .onTapGesture { selectedDetailItem = saved.toDetailItem() }
     }
@@ -218,7 +218,7 @@ struct SavedView: View {
 
     private func momentCard(_ saved: SavedRecommendation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            cardRow(saved, showOpenLink: false)
+            cardRow(saved)
 
             if let rating = saved.rating {
                 starRow(rating)
@@ -239,9 +239,9 @@ struct SavedView: View {
 
     // MARK: - Shared Card Row
 
-    /// The common top row: type icon, title, merchant/price, optional open-link,
-    /// and delete. Used by both active and moment cards.
-    private func cardRow(_ saved: SavedRecommendation, showOpenLink: Bool) -> some View {
+    /// The common top row: type icon, title, merchant/price, and delete.
+    /// Used by both active and moment cards.
+    private func cardRow(_ saved: SavedRecommendation) -> some View {
         HStack(spacing: 12) {
             // Type icon
             Image(systemName: savedTypeIcon(saved.recommendationType))
@@ -277,23 +277,6 @@ struct SavedView: View {
             }
 
             Spacer()
-
-            // Open link button — hidden for a stale web-search/shopping link so an
-            // old Saved card never reopens a Google results page.
-            if showOpenLink, let urlString = saved.externalURL, let url = URL(string: urlString),
-               !url.isSearchOrShoppingLink {
-                Button {
-                    UIApplication.shared.open(url)
-                } label: {
-                    Image(uiImage: Lucide.externalLink)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(Theme.textTertiary)
-                }
-                .buttonStyle(.plain)
-            }
 
             // Delete button
             Button {
