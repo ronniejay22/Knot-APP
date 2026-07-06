@@ -147,7 +147,9 @@ struct OnboardingContainerView: View {
 
     /// Dismisses the paywall and finishes onboarding. Reached from the paywall's
     /// CTA (after a completed purchase / restore) and its close (X) skip path —
-    /// both proceed into the app.
+    /// both proceed into the app. `@MainActor`: mutates view `@State` and is wired
+    /// to the paywall's `@MainActor` `onContinue`/`onClose` callbacks.
+    @MainActor
     private func finishFromPaywall() {
         showPaywall = false
         onComplete()

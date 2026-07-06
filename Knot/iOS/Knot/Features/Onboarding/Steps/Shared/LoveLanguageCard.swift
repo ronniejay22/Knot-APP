@@ -28,7 +28,9 @@ enum LoveLanguageSelectionState: Equatable {
 
 enum LoveLanguageDisplay {
     /// Converts snake_case love language keys to human-readable display names.
-    static func name(for language: String) -> String {
+    /// Pure lookup — `nonisolated` so it's callable from any isolation (e.g. the
+    /// nonisolated `RecommendationDisplayChip.build` map closures).
+    nonisolated static func name(for language: String) -> String {
         let names: [String: String] = [
             "words_of_affirmation": "Words of Affirmation",
             "acts_of_service": "Acts of Service",
