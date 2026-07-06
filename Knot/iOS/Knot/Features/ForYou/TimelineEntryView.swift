@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// A single milestone entry in the vertical timeline.
 ///
@@ -100,16 +99,17 @@ struct TimelineEntryView: View {
 
                 Spacer(minLength: 8)
 
-                // Recommendation icon button
+                // Recommendation icon button (exact Figma "assistant" glyph).
+                // The 34pt asset already carries the design's 5pt inset around a
+                // 24pt icon, so no extra padding is applied here.
                 if let action = onGetRecommendations {
                     Button(action: action) {
-                        Image(uiImage: Lucide.sparkles)
+                        Image("RecommendationBadge")
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 34, height: 34)
                             .foregroundStyle(Theme.accent)
-                            .padding(5)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Get recommendations for \(milestone.milestoneName)")
