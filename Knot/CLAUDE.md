@@ -63,7 +63,10 @@ This is mandatory for every new session or agent task. Do not skip this step.
 Every new feature must include tests before it is considered complete:
 
 - **Backend (Python/FastAPI):** Write tests in `backend/tests/` and run `cd backend && python -m pytest`
-- **iOS (Swift/SwiftUI):** Write tests in `iOS/KnotTests/` and run via `xcodebuild test` or Xcode
+- **iOS (Swift/SwiftUI):** Write tests in `iOS/KnotTests/` and run via `xcodebuild test` or Xcode.
+  iOS tests are split into two test plans: the **Unit** plan (`KnotTests` only) is the default,
+  so a bare `xcodebuild test -scheme Knot` runs unit tests only (fast). Run the full suite —
+  unit **and** UI (`KnotUITests`) — with `-testPlan Full` before shipping any iOS change.
 
 A feature is not done until all new and existing tests pass.
 

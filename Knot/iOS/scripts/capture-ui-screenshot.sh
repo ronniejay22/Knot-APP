@@ -72,8 +72,11 @@ run_ui_test() {
     [ -n "${SIM_NAME}" ] || { echo "no iOS simulator available" >&2; return 1; }
     rm -rf "${RESULT}" "${ATTACH_DIR}"
     echo "capture-ui-screenshot: running ${TEST_ID} on '${SIM_NAME}'..." >&2
+    # -testPlan Full: the scheme's default plan (Unit) omits KnotUITests, so the
+    # screenshot UI test must run under the Full plan that includes it.
     ( cd "${IOS_DIR}" && xcodebuild test \
         -scheme "${SCHEME}" \
+        -testPlan Full \
         -only-testing:"${TEST_ID}" \
         -destination "platform=iOS Simulator,name=${SIM_NAME}" \
         -derivedDataPath "${DERIVED}" \

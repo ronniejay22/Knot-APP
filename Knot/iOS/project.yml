@@ -141,9 +141,13 @@ schemes:
       storeKitConfiguration: Knot/Knot.storekit
     test:
       config: Debug
-      targets:
-        - KnotTests
-        - KnotUITests
+      # Two test plans: "Unit" (KnotTests only) is the fast default for local
+      # iteration and Xcode ⌘U; "Full" adds KnotUITests. Run the full suite with
+      # `-testPlan Full` before merging/shipping.
+      testPlans:
+        - path: Unit.xctestplan
+          defaultPlan: true
+        - path: Full.xctestplan
     profile:
       config: Release
     analyze:

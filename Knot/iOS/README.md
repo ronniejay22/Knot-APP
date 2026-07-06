@@ -81,12 +81,22 @@ The project is configured with:
 
 ## Running Tests
 
-```bash
-# Run unit tests
-xcodebuild test -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 15'
+Tests are split into two Xcode test plans:
 
-# Run UI tests
-xcodebuild test -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:KnotUITests
+- **Unit** (`Unit.xctestplan`) — `KnotTests` only. The **default** plan, so it's what
+  Xcode ⌘U and a bare `xcodebuild test` run. Fast; use it for local iteration.
+- **Full** (`Full.xctestplan`) — `KnotTests` + `KnotUITests` (the UI tests boot the
+  simulator and are slow). Run this before merging/shipping.
+
+```bash
+# Fast: unit tests only (the default plan)
+xcodebuild test -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+
+# Full suite: unit + UI tests (run before merging/shipping)
+xcodebuild test -scheme Knot -testPlan Full -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+
+# Just the UI tests
+xcodebuild test -scheme Knot -testPlan Full -only-testing:KnotUITests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 ## Dependencies

@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "1E57A9C2-0000-4000-8000-000000000001",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Knot.xcodeproj",
+        "identifier" : "FA502BAB5DE73278D2AAD4FD",
+        "name" : "KnotTests"
+      }
+    }
+  ],
+  "version" : 1
+}
