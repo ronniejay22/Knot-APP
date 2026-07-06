@@ -77,9 +77,10 @@ struct OnboardingPaywallView: View {
     let subscriptionManager: SubscriptionManager
     /// Invoked once the user has an active entitlement — a completed purchase or a
     /// successful restore. Finishes onboarding and enters the app.
-    let onContinue: () -> Void
+    let onContinue: @MainActor () -> Void
     /// Invoked when the user dismisses the paywall via the close (X) button.
-    let onClose: () -> Void
+    /// `@MainActor`: wired to the close button's `@MainActor` action.
+    let onClose: @MainActor () -> Void
 
     @State private var selectedPlan: PaywallPlan = PaywallPlan.defaultSelection
 
@@ -274,6 +275,8 @@ struct OnboardingPaywallView: View {
 
     /// Purchases the selected plan; finishes onboarding only on a completed purchase.
     /// Cancel / pending leaves the user on the paywall (no error for a plain cancel).
+    /// `@MainActor`: passed as `KnotButton`'s `@MainActor` action; mutates view state.
+    @MainActor
     private func startPurchase() {
         Task {
             if await subscriptionManager.purchase(selectedPlan) {

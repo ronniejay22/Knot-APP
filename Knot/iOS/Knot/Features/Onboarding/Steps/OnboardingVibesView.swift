@@ -118,7 +118,9 @@ struct OnboardingVibesView: View {
     // MARK: - Vibe Display Names
 
     /// Converts snake_case vibe keys to human-readable display names.
-    static func displayName(for vibe: String) -> String {
+    /// Pure lookup — `nonisolated` so it's callable from any isolation (e.g. the
+    /// nonisolated `RecommendationDisplayChip.build` map closures).
+    nonisolated static func displayName(for vibe: String) -> String {
         let names: [String: String] = [
             "quiet_luxury": "Quiet Luxury",
             "street_urban": "Street / Urban",

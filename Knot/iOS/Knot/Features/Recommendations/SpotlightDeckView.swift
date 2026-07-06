@@ -230,6 +230,10 @@ struct SpotlightDeckView: View {
 
     // MARK: - Decision Logic
 
+    /// `@MainActor`: mutates view `@State` and invokes the view's `@MainActor`
+    /// `onLike`/`onPass` callbacks; also satisfies `circleActionButton`'s
+    /// `@MainActor` action parameter.
+    @MainActor
     private func performDecision(like: Bool) {
         guard !isDeciding, let item = currentItem else { return }
         isDeciding = true
@@ -279,7 +283,9 @@ struct SpotlightCard: View {
     var partnerName: String?
     let isSaved: Bool
     /// Opens the recommendation's detail page (the pink "See Details" button).
-    var onSeeDetails: () -> Void
+    /// `@MainActor`: wired to the "See Details" button's `@MainActor` action
+    /// (matches the deck's other `@MainActor` callbacks).
+    var onSeeDetails: @MainActor () -> Void
 
     private let cardCornerRadius: CGFloat = 22
 

@@ -29,7 +29,10 @@ enum UITestScreenshotHarness {
     }
 
     /// The standalone view for a screen key. Unknown keys render nothing.
+    /// `@MainActor`: builds SwiftUI views whose `@MainActor` view-models init on
+    /// construction; only ever called from `ContentView.body` (already main-actor).
     @ViewBuilder
+    @MainActor
     static func rootView(for key: String) -> some View {
         switch key {
         case "forYou":
@@ -77,6 +80,7 @@ private struct OnboardingPaywallScreenshotHarnessView: View {
 /// SavedView normally reads from the app's SwiftData store; this injects an
 /// isolated in-memory container with representative sample data so the
 /// screenshot is deterministic.
+@MainActor
 private struct SavedMomentsScreenshotHarnessView: View {
     private let container: ModelContainer = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -235,6 +239,7 @@ private struct RecDetailStaleLinkHarnessView: View {
 /// preselected interests, so a screenshot shows both selected (tinted) and
 /// unselected rows. The harness never mutates the view model after building it,
 /// so a plain `let` suffices.
+@MainActor
 private struct InterestsScreenshotHarnessView: View {
     private let viewModel: OnboardingViewModel = {
         let vm = OnboardingViewModel()
