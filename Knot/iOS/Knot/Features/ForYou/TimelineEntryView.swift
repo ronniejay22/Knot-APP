@@ -7,18 +7,17 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// A single milestone entry in the vertical timeline.
 ///
 /// Layout:
 /// ```
 /// [dot]── Mar 28 ────────────
-///  |     Birthday cake  Alex's Birthday
+///  |     Birthday cake  Alex's Birthday        [✦]
 ///  |     in 8 days
-///  |     [ Get Recommendations → ]   (if ≤60 days)
 ///  |
 /// ```
+/// The trailing `[✦]` is the recommendation icon button.
 struct TimelineEntryView: View {
 
     let milestone: MilestoneItemResponse
@@ -74,59 +73,47 @@ struct TimelineEntryView: View {
             // Date badge
             KnotBadge(formattedDate, variant: .secondary, size: .sm)
 
-            // Milestone info
-            HStack(spacing: 8) {
-                Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
-                    .font(.subheadline)
-                    .foregroundStyle(milestoneTypeColor)
+            // Info row: milestone details on the leading edge, recommendation
+            // icon button on the trailing edge.
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Milestone info
+                    HStack(spacing: 8) {
+                        Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
+                            .font(.subheadline)
+                            .foregroundStyle(milestoneTypeColor)
 
-                Text(milestone.milestoneName)
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-            }
-
-            // Countdown
-            if let days = milestone.daysUntil {
-                Text(MilestonesViewModel.daysUntilText(days))
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(dotColor)
-            }
-
-            // Recommendation CTA (shown for milestones within 60 days)
-            if let action = onGetRecommendations {
-                Button(action: action) {
-                    HStack(spacing: 6) {
-                        Image(uiImage: Lucide.sparkles)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 14, height: 14)
-
-                        Text("Get Recommendations")
-                            .knotFont(Theme.Typography.label)
-
-                        Spacer()
-
-                        Image(uiImage: Lucide.chevronRight)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 12, height: 12)
+                        Text(milestone.milestoneName)
+                            .knotFont(Theme.Typography.cta)
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
                     }
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.accent.opacity(0.08))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Theme.accent.opacity(0.2), lineWidth: 1)
-                            )
-                    )
+
+                    // Countdown
+                    if let days = milestone.daysUntil {
+                        Text(MilestonesViewModel.daysUntilText(days))
+                            .knotFont(Theme.Typography.label)
+                            .foregroundStyle(dotColor)
+                    }
                 }
-                .padding(.top, 2)
+
+                Spacer(minLength: 8)
+
+                // Recommendation icon button (exact Figma "assistant" glyph).
+                // The 34pt asset already carries the design's 5pt inset around a
+                // 24pt icon, so no extra padding is applied here.
+                if let action = onGetRecommendations {
+                    Button(action: action) {
+                        Image("RecommendationBadge")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 34, height: 34)
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Get recommendations for \(milestone.milestoneName)")
+                }
             }
         }
     }

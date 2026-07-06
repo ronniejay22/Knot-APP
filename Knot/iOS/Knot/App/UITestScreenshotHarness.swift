@@ -34,6 +34,8 @@ enum UITestScreenshotHarness {
         switch key {
         case "forYou":
             ForYouView()
+        case "forYouTimeline":
+            ForYouTimelineScreenshotHarnessView()
         case "interests":
             InterestsScreenshotHarnessView()
         case "recDetail":
@@ -136,6 +138,61 @@ private struct ForYouCardScreenshotHarnessView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.top, 24)
             .background(Theme.backgroundGradient.ignoresSafeArea())
+    }
+}
+
+/// Renders the For You "Upcoming" milestone timeline standalone with a handful of
+/// sample milestones, so a screenshot shows each row's new trailing recommendation
+/// icon button. The full ForYouView normally sits behind auth and a live backend
+/// milestone fetch (which a cold screenshot launch can't deterministically seed),
+/// so this composes the timeline directly with representative milestones and a
+/// non-nil recommendation action on every row.
+private struct ForYouTimelineScreenshotHarnessView: View {
+    private static func sample(
+        _ id: String, _ type: String, _ name: String, _ days: Int
+    ) -> MilestoneItemResponse {
+        MilestoneItemResponse(
+            id: id,
+            milestoneType: type,
+            milestoneName: name,
+            milestoneDate: "2026-12-25",
+            recurrence: "yearly",
+            budgetTier: nil,
+            daysUntil: days,
+            createdAt: "2026-07-04"
+        )
+    }
+
+    // (milestone, formattedDate, urgency) — mirrors ForYouView's timeline inputs.
+    private let entries: [(MilestoneItemResponse, String, MilestoneUrgency)] = [
+        (sample("h1", "holiday", "Christmas", 175), "Dec 25", .distant),
+        (sample("h2", "holiday", "New Year's Eve", 181), "Dec 31", .distant),
+        (sample("h3", "birthday", "Jas's Birthday", 182), "Jan 1", .distant),
+        (sample("h4", "holiday", "Valentine's Day", 226), "Feb 14", .distant),
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                KnotSectionHeader<EmptyView>("Upcoming")
+                    .padding(.bottom, 16)
+
+                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                    TimelineEntryView(
+                        milestone: entry.0,
+                        partnerName: "Jas",
+                        isLast: index == entries.count - 1,
+                        urgency: entry.2,
+                        formattedDate: entry.1,
+                        onGetRecommendations: {}
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 
