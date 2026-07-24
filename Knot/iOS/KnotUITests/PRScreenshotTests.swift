@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guarantees every recommendation card has an image and hardens
-        // the Spotlight card's fallback so a missing image reads as an intentional
-        // branded placeholder (per-type icon + brand gradient) instead of a
-        // near-black card. Seed the onboarding "Here are your recommendations"
-        // carousel via the DEBUG harness (`spotlightFallback`) with image-less items
-        // so the reviewer sees the new fallback on every card.
+        // This change guarantees every recommendation card always shows a real
+        // photo — the remote image, or a bundled per-type fallback photo beneath
+        // it — and removes the gradient fallback entirely. Seed the onboarding
+        // "Here are your recommendations" carousel via the DEBUG harness
+        // (`spotlightFallback`) with image-less items so the reviewer sees the
+        // bundled fallback photo on every card.
         app.launchArguments += ["-uiTestScreenshot", "spotlightFallback"]
         app.launch()
 

@@ -295,13 +295,10 @@ struct SpotlightCard: View {
 
             // Uniform dark tint over the whole photo (#1F1A29 @ 85%) so the image
             // reads as a moody backdrop and the overlaid content stays legible.
-            // Applied only when there's a real photo to darken — the branded
-            // fallback placeholder is designed to show at full strength so a
-            // missing image reads as intentional, not broken (see fallbackGradient).
-            if hasImageURL {
-                Color(red: 0x1F / 255, green: 0x1A / 255, blue: 0x29 / 255)
-                    .opacity(0.85)
-            }
+            // A real photo is always present (the remote image, or the bundled
+            // per-type fallback beneath it), so this always applies.
+            Color(red: 0x1F / 255, green: 0x1A / 255, blue: 0x29 / 255)
+                .opacity(0.85)
 
             // Scrims — light at the top (badge legibility), heavy at the bottom
             // so the overlaid chips/title/description/button stay readable.
@@ -345,38 +342,33 @@ struct SpotlightCard: View {
 
     // MARK: - Image
 
-    /// Whether the item carries a usable image URL. Drives the flat dark tint in
-    /// `body`: real photos get the moody tint; the branded fallback does not.
-    private var hasImageURL: Bool {
-        guard let imageURL = item.imageUrl else { return false }
-        return URL(string: imageURL) != nil
-    }
-
     @ViewBuilder
     private var imageBackground: some View {
-        if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    Color.clear.overlay {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
-                case .failure:
-                    fallbackGradient
-                case .empty:
-                    ZStack {
-                        fallbackGradient
+        ZStack {
+            // Local bundled photo — always present, so a real image shows even
+            // before the remote loads, when there's no URL, or if the load fails.
+            // A recommendation card never shows a gradient or a blank state.
+            RecommendationFallbackImage(recommendationType: item.recommendationType)
+
+            if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        Color.clear.overlay {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+                        .clipped()
+                    case .empty:
+                        // Keep the local photo visible while the remote loads.
                         ProgressView().tint(.white.opacity(0.5))
+                    default:
+                        // .failure / @unknown — the local photo shows through.
+                        Color.clear
                     }
-                @unknown default:
-                    fallbackGradient
                 }
             }
-        } else {
-            fallbackGradient
         }
     }
 
@@ -433,45 +425,6 @@ struct SpotlightCard: View {
         return description
     }
 
-    /// Branded placeholder shown when there's no image URL, while it loads, or if
-    /// the load fails. Fully opaque, per-type, and harmonized with the app's
-    /// deep-purple background so a missing image reads as an intentional design
-    /// element rather than a blank/black card.
-    private var fallbackGradient: some View {
-        ZStack {
-            LinearGradient(colors: fallbackGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-            // Soft top-corner highlight so the panel has depth instead of reading
-            // as a flat fill.
-            RadialGradient(
-                colors: [.white.opacity(0.12), .clear],
-                center: .topLeading,
-                startRadius: 0,
-                endRadius: 340
-            )
-            Image(systemName: typeIconSystemName)
-                .font(.system(size: 60, weight: .light))
-                .foregroundStyle(.white.opacity(0.35))
-        }
-    }
-
-    /// Fully-opaque, per-type gradient stops for `fallbackGradient`. Each runs
-    /// from a saturated type hue down into a deep plum close to the app's
-    /// background so the placeholder sits naturally on the moody card.
-    private var fallbackGradientColors: [Color] {
-        switch item.recommendationType {
-        case "gift":
-            return [Color(red: 0.42, green: 0.14, blue: 0.40), Color(red: 0.14, green: 0.07, blue: 0.20)]
-        case "experience":
-            return [Color(red: 0.17, green: 0.20, blue: 0.46), Color(red: 0.10, green: 0.06, blue: 0.18)]
-        case "date":
-            return [Color(red: 0.50, green: 0.18, blue: 0.30), Color(red: 0.20, green: 0.08, blue: 0.16)]
-        case "idea", "plan":
-            return [Color(red: 0.46, green: 0.32, blue: 0.14), Color(red: 0.18, green: 0.10, blue: 0.14)]
-        default:
-            return [Color(red: 0.32, green: 0.16, blue: 0.42), Color(red: 0.12, green: 0.07, blue: 0.20)]
-        }
-    }
-
     private var typeBadge: some View {
         HStack(spacing: 5) {
             Image(uiImage: typeIconLucide)
@@ -501,17 +454,6 @@ struct SpotlightCard: View {
         case "idea": return Lucide.lightbulb
         case "plan": return Lucide.calendarHeart
         default: return Lucide.star
-        }
-    }
-
-    private var typeIconSystemName: String {
-        switch item.recommendationType {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        case "idea": return "lightbulb.fill"
-        case "plan": return "calendar.badge.clock"
-        default: return "star.fill"
         }
     }
 

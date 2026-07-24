@@ -203,13 +203,12 @@ private struct ForYouTimelineScreenshotHarnessView: View {
 }
 
 /// Renders the onboarding "Here are your recommendations" Spotlight carousel with
-/// items that carry NO image URL, so the screenshot proves the hardened branded
-/// fallback placeholder: a missing image now reads as an intentional, per-type
-/// design element (icon + brand gradient) rather than the near-black card that
-/// prompted this fix. `PreviewRecommendations.decode` always sets `image_url` to
-/// null, so every card here exercises `SpotlightCard.fallbackGradient`. The real
-/// carousel sits behind auth + a live backend generate call, so this drops it in
-/// directly on the app background.
+/// items that carry NO image URL, so the screenshot proves the card always shows a
+/// real photo: a missing/failed remote image falls back to the bundled per-type
+/// photo (`RecommendationFallbackImage`) — never a gradient or blank card.
+/// `PreviewRecommendations.decode` always sets `image_url` to null, so every card
+/// here exercises the local-photo fallback. The real carousel sits behind auth + a
+/// live backend generate call, so this drops it in directly on the app background.
 @MainActor
 private struct SpotlightFallbackScreenshotHarnessView: View {
     private let items: [RecommendationItemResponse] = [
