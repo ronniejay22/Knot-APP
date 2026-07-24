@@ -18,7 +18,6 @@ import LucideIcons
 /// Organizes user-facing actions into sections:
 /// - **Account** — email display, sign out, delete account (Step 11.2)
 /// - **Partner Profile** — edit vault (reuses `EditVaultView`), milestones
-/// - **Appearance** — dark mode toggle
 /// - **Notifications** — enable/disable toggle
 /// - **About** — terms of service, privacy policy
 struct SettingsView: View {
@@ -30,7 +29,6 @@ struct SettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
 
-    @AppStorage("appThemeMode") private var themeMode: String = "light"
     @State private var viewModel = SettingsViewModel()
 
     /// Controls the Edit Profile fullScreenCover (moved from HomeView).
@@ -48,7 +46,6 @@ struct SettingsView: View {
                     VStack(spacing: 24) {
                         accountSection
                         partnerProfileSection
-                        appearanceSection
                         notificationsSection
                         aboutSection
                         #if DEBUG
@@ -184,23 +181,6 @@ struct SettingsView: View {
                 title: "Milestones",
                 subtitle: "Manage birthdays, anniversaries & key dates",
                 action: { showMilestones = true }
-            )
-        }
-    }
-
-    // MARK: - Appearance Section
-
-    private var appearanceSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Appearance", style: .caption)
-
-            KnotListRow.toggle(
-                icon: Lucide.moon,
-                title: "Dark Mode",
-                isOn: Binding(
-                    get: { themeMode == "dark" },
-                    set: { isDark in themeMode = isDark ? "dark" : "light" }
-                )
             )
         }
     }

@@ -24,12 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change adds a trailing recommendation icon button to each milestone
-        // row in the For You "Upcoming" timeline. Seed the timeline via the DEBUG
-        // screenshot harness (`forYouTimeline`) — which renders a few sample
-        // milestones, each with the new button — so the reviewer can see the pink
-        // icon button on the trailing edge of every row.
-        app.launchArguments += ["-uiTestScreenshot", "forYouTimeline"]
+        // This change removes the "Appearance → Dark Mode" toggle from the
+        // Settings (Profile) screen and locks the app to light. Render the
+        // Settings screen standalone via the DEBUG screenshot harness
+        // (`settings`) — which normally sits behind auth — so the reviewer can
+        // see the Settings sections with no Appearance/Dark Mode row.
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,9 +39,10 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for a seeded milestone so the screenshot captures the fully-rendered
-        // timeline with its new trailing recommendation buttons.
-        _ = app.staticTexts["Christmas"].waitForExistence(timeout: 10)
+        // Wait for a stable Settings row so the screenshot captures the
+        // fully-rendered screen (the Account section's "Sign Out" is always
+        // present; the removed Appearance/Dark Mode row is not).
+        _ = app.staticTexts["Sign Out"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

@@ -47,6 +47,14 @@ enum UITestScreenshotHarness {
             RecDetailStaleLinkHarnessView()
         case "savedMoments":
             SavedMomentsScreenshotHarnessView()
+        case "settings":
+            // Profile/Settings screen standalone — proves the Appearance/Dark
+            // Mode row is gone. `authViewModel` (injected by ContentView) and the
+            // model container (from KnotApp's WindowGroup) are already in scope,
+            // so no extra environment injection is needed. The view-model's async
+            // email/notification loads no-op without a live session; the sections
+            // still render.
+            SettingsView(isTabEmbedded: true)
         case "forYouCard":
             ForYouCardScreenshotHarnessView()
         case "onboardingPaywall":
