@@ -6997,6 +6997,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.12 ✅ Settings — Remove the Dark Mode Toggle (Lock App to Light)
+**Date:** 2026-07-23
+**Status:** Complete
+
+**Goal:** Remove the "Appearance → Dark Mode" toggle from the Settings (Profile) screen. Despite an older memory-bank note that the app was force-dark, the toggle was a live feature: it wrote `@AppStorage("appThemeMode")` (default `"light"`) and `KnotApp` read that same key to drive the app-wide `.preferredColorScheme`. The app already defaulted to and rendered in light. Per the user's choice, the app is now pinned to **light** with no in-app appearance option.
+
+**What changed (iOS):**
+- **`iOS/Knot/Features/Settings/SettingsView.swift`:** Deleted the entire `appearanceSection` (the "Appearance" `KnotSectionHeader` + its sole `KnotListRow.toggle` "Dark Mode" row), its call site in `body`, the now-orphaned `@AppStorage("appThemeMode") private var themeMode`, and the `- **Appearance** — dark mode toggle` header doc line. Section order is now account → partnerProfile → notifications → about (+ DEBUG developer). The shared `KnotListRow.toggle` factory (still used by the Notifications toggle) and `Lucide.moon` were left untouched.
+- **`iOS/Knot/App/KnotApp.swift`:** Removed the `@AppStorage("appThemeMode")` var and changed `.preferredColorScheme(themeMode == "dark" ? .dark : .light)` to a hard-coded `.preferredColorScheme(.light)`.
+- **Screenshot seam (`iOS/Knot/App/UITestScreenshotHarness.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`):** Added a `settings` harness key rendering `SettingsView(isTabEmbedded: true)` standalone (no extra injection needed — `authViewModel` from `ContentView` and the model container from `KnotApp`'s `WindowGroup` are already in scope), and pointed `PRScreenshotTests` at it (waits on the "Sign Out" row) so the PR image shows the Settings screen with no Appearance/Dark Mode row. Settings normally sits behind auth, so a cold screenshot launch can't reach it otherwise.
+
+**Notes:**
+- **No migration needed:** on installs where a user previously enabled dark mode, the `appThemeMode` UserDefaults key may persist, but nothing reads it anymore (KnotApp hard-codes light), so it is inert.
+- `SettingsViewTests.testViewRendersInDarkMode()` still compiles and passes — it applies `.preferredColorScheme(.dark)` at the test's own view level and only asserts the view renders; it never touched the toggle or the AppStorage key. Left as-is (still exercises rendering under a dark trait).
+- The `.environment(\.colorScheme, .dark)` calls in `RecommendationCard` / `RecommendationDetailView` / `SpotlightDeckView` are local glass-material overrides, unrelated to the global theme, and were not touched.
+
+**Tests:** `xcodebuild build` clean; full `KnotTests` suite green (no test referenced the toggle or `appThemeMode`). PR screenshot captured via the `settings` harness key showing Settings without the Appearance section.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
