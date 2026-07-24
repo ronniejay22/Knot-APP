@@ -24,12 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change adds a trailing recommendation icon button to each milestone
-        // row in the For You "Upcoming" timeline. Seed the timeline via the DEBUG
-        // screenshot harness (`forYouTimeline`) — which renders a few sample
-        // milestones, each with the new button — so the reviewer can see the pink
-        // icon button on the trailing edge of every row.
-        app.launchArguments += ["-uiTestScreenshot", "forYouTimeline"]
+        // This change guarantees every recommendation card has an image and hardens
+        // the Spotlight card's fallback so a missing image reads as an intentional
+        // branded placeholder (per-type icon + brand gradient) instead of a
+        // near-black card. Seed the onboarding "Here are your recommendations"
+        // carousel via the DEBUG harness (`spotlightFallback`) with image-less items
+        // so the reviewer sees the new fallback on every card.
+        app.launchArguments += ["-uiTestScreenshot", "spotlightFallback"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,9 +40,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for a seeded milestone so the screenshot captures the fully-rendered
-        // timeline with its new trailing recommendation buttons.
-        _ = app.staticTexts["Christmas"].waitForExistence(timeout: 10)
+        // Wait for the carousel's first card so the screenshot captures a
+        // fully-rendered Spotlight card with its hardened fallback placeholder.
+        _ = app.buttons["See Details"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

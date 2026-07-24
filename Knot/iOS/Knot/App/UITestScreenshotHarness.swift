@@ -49,6 +49,8 @@ enum UITestScreenshotHarness {
             SavedMomentsScreenshotHarnessView()
         case "forYouCard":
             ForYouCardScreenshotHarnessView()
+        case "spotlightFallback":
+            SpotlightFallbackScreenshotHarnessView()
         case "onboardingPaywall":
             OnboardingPaywallScreenshotHarnessView()
         default:
@@ -195,6 +197,39 @@ private struct ForYouTimelineScreenshotHarnessView: View {
             .padding(.horizontal, 20)
             .padding(.top, 12)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.backgroundGradient.ignoresSafeArea())
+    }
+}
+
+/// Renders the onboarding "Here are your recommendations" Spotlight carousel with
+/// items that carry NO image URL, so the screenshot proves the hardened branded
+/// fallback placeholder: a missing image now reads as an intentional, per-type
+/// design element (icon + brand gradient) rather than the near-black card that
+/// prompted this fix. `PreviewRecommendations.decode` always sets `image_url` to
+/// null, so every card here exercises `SpotlightCard.fallbackGradient`. The real
+/// carousel sits behind auth + a live backend generate call, so this drops it in
+/// directly on the app background.
+@MainActor
+private struct SpotlightFallbackScreenshotHarnessView: View {
+    private let items: [RecommendationItemResponse] = [
+        PreviewRecommendations.decode(type: "experience", isIdea: false),
+        PreviewRecommendations.decode(type: "gift", isIdea: false),
+        PreviewRecommendations.decode(type: "date", isIdea: false),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            OnboardingStepHeader(title: "Here are your recommendations")
+                .padding(.horizontal, 20)
+            SpotlightCarouselView(
+                items: items,
+                partnerName: "Jas",
+                isSaved: { _ in false },
+                onOpenDetail: { _ in }
+            )
+        }
+        .padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
     }
