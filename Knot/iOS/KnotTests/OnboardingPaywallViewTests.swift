@@ -68,7 +68,7 @@ final class OnboardingPaywallViewTests: XCTestCase {
         XCTAssertEqual(productIDs.count, Set(productIDs).count)
     }
 
-    // MARK: - CTA title (Step 19.13: entitlement-aware)
+    // MARK: - CTA title (Step 19.14: entitlement-aware)
 
     /// An already-entitled user (returning/restored subscriber, or leftover StoreKit
     /// test state) sees "Continue" — there is nothing left to purchase. This wins even

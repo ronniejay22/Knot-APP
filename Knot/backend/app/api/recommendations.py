@@ -180,6 +180,9 @@ async def generate_recommendations(
     # =================================================================
     rec_rows = []
     for candidate in final_three:
+        # Guarantee an image before persisting so every read path (generate
+        # response, by-milestone, by-id) serves a non-null image_url.
+        candidate.image_url = candidate.image_url or resolve_image_url(candidate)
         row = {
             "vault_id": vault_id,
             "milestone_id": payload.milestone_id,
@@ -411,6 +414,8 @@ async def refresh_recommendations(
     # =================================================================
     rec_rows = []
     for candidate in new_three:
+        # Guarantee an image before persisting (see generate endpoint).
+        candidate.image_url = candidate.image_url or resolve_image_url(candidate)
         row = {
             "vault_id": vault_id,
             "recommendation_type": candidate.type,
@@ -622,7 +627,9 @@ async def get_recommendations_by_milestone(
             external_url=_safe_external_url(r.get("external_url")),
             price_cents=r.get("price_cents"),
             merchant_name=r.get("merchant_name"),
-            image_url=r.get("image_url"),
+            # Guarantee an image even for rows stored before images were
+            # persisted (older rows have image_url = NULL).
+            image_url=r.get("image_url") or _default_image_for_type(r.get("recommendation_type")),
             created_at=r["created_at"],
         )
         for r in (rec_result.data or [])
@@ -883,7 +890,8 @@ async def get_recommendation_by_id(
         external_url=_safe_external_url(rec.get("external_url")),
         price_cents=rec.get("price_cents"),
         merchant_name=rec.get("merchant_name"),
-        image_url=rec.get("image_url"),
+        # Guarantee an image even for rows stored before images were persisted.
+        image_url=rec.get("image_url") or _default_image_for_type(rec.get("recommendation_type")),
         created_at=rec["created_at"],
     )
 
@@ -935,19 +943,63 @@ def _load_recent_descriptions(client, vault_id: str, limit: int = 200) -> list[s
         return []
 
 
-def _fallback_image_url(candidate: CandidateRecommendation) -> str | None:
-    """Return a fallback Unsplash image based on matched interests or vibes."""
-    from app.agents.aggregation import _INTEREST_IMAGES, _VIBE_IMAGES
+def _normalize_tag(value: str) -> str:
+    """Canonicalize an interest/vibe tag for case- and format-insensitive matching.
 
+    Lowercases and collapses ``_``/``-``/whitespace so ``"Quiet Luxury"``,
+    ``"quiet luxury"``, and ``"quiet_luxury"`` all compare equal.
+    """
+    return " ".join(value.replace("_", " ").replace("-", " ").lower().split())
+
+
+# Cache of normalized-key views of the curated image maps, built once on first use.
+_normalized_image_maps: dict[str, dict[str, str]] | None = None
+
+
+def _get_normalized_image_maps() -> dict[str, dict[str, str]]:
+    global _normalized_image_maps
+    if _normalized_image_maps is None:
+        from app.agents.aggregation import _INTEREST_IMAGES, _VIBE_IMAGES
+
+        _normalized_image_maps = {
+            "interests": {_normalize_tag(k): v for k, v in _INTEREST_IMAGES.items()},
+            "vibes": {_normalize_tag(k): v for k, v in _VIBE_IMAGES.items()},
+        }
+    return _normalized_image_maps
+
+
+def _default_image_for_type(rec_type: str | None) -> str:
+    """Return the guaranteed per-type default image (never None)."""
+    from app.agents.aggregation import _TYPE_DEFAULT_IMAGES
+
+    return _TYPE_DEFAULT_IMAGES.get(rec_type or "", _TYPE_DEFAULT_IMAGES["default"])
+
+
+def resolve_image_url(candidate: CandidateRecommendation) -> str:
+    """Resolve an image URL for a candidate — guaranteed non-None.
+
+    Matches the candidate's interests, then vibes, against the curated Unsplash
+    maps (case- and format-insensitive). If nothing matches, falls back to a
+    per-type default so a recommendation card is never left without an image.
+    """
+    maps = _get_normalized_image_maps()
     for interest in candidate.matched_interests:
-        url = _INTEREST_IMAGES.get(interest)
+        url = maps["interests"].get(_normalize_tag(interest))
         if url:
             return url
     for vibe in candidate.matched_vibes:
-        url = _VIBE_IMAGES.get(vibe)
+        url = maps["vibes"].get(_normalize_tag(vibe))
         if url:
             return url
-    return None
+
+    # No interest/vibe matched — fall back to a guaranteed type default so the
+    # card is never blank. Logged so these misses are observable, not silent.
+    logger.info(
+        "No interest/vibe image match for %s candidate %r; using type default",
+        candidate.type,
+        candidate.title,
+    )
+    return _default_image_for_type(candidate.type)
 
 
 def _build_response_items(
@@ -980,8 +1032,9 @@ def _build_response_items(
                 for s in candidate.content_sections
             ]
 
-        # Use candidate image_url, falling back to interest/vibe-based image
-        image_url = candidate.image_url or _fallback_image_url(candidate)
+        # Use candidate image_url, falling back to a guaranteed interest/vibe/
+        # type-based image so every response item always has an image.
+        image_url = candidate.image_url or resolve_image_url(candidate)
 
         response_items.append(
             RecommendationItemResponse(

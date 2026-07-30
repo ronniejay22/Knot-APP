@@ -17,7 +17,7 @@
 //  it maps to, while its card copy stays the designed placeholder (mirroring
 //  `Knot.storekit`) until real App Store Connect prices are localized.
 //
-//  Step 19.13: Made the paywall entitlement-aware. When `SubscriptionManager.isSubscribed`
+//  Step 19.14: Made the paywall entitlement-aware. When `SubscriptionManager.isSubscribed`
 //  is already true — a returning/restored subscriber, or leftover StoreKit test state in
 //  the Simulator — the CTA reads "Continue" and finishes onboarding directly instead of
 //  silently no-opping through a `product.purchase()` for an already-owned subscription
