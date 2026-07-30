@@ -15,7 +15,6 @@ import Supabase
 struct KnotApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var deepLinkHandler = DeepLinkHandler()
-    @AppStorage("appThemeMode") private var themeMode: String = "light"
 
     init() {
         Theme.registerFonts()
@@ -41,7 +40,10 @@ struct KnotApp: App {
     var body: some Scene {
         WindowGroup {
             rootView
-                .preferredColorScheme(themeMode == "dark" ? .dark : .light)
+                // Knot is a light-appearance app. The former Settings "Dark
+                // Mode" toggle (and its `appThemeMode` AppStorage) was removed,
+                // so the scheme is pinned to light app-wide.
+                .preferredColorScheme(.light)
                 .environment(deepLinkHandler)
                 .onOpenURL { url in
                     // Google Sign-In callback (reversed client ID scheme)
