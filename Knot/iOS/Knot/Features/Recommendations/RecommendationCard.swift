@@ -72,31 +72,31 @@ struct RecommendationCard: View {
 
     private var heroSection: some View {
         ZStack {
-            // Background: async image or gradient fallback
-            if let imageURL, let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(minWidth: 0, maxWidth: .infinity)
-                            .frame(height: heroHeight)
-                            .clipped()
-                    case .failure:
-                        fallbackGradient
-                    case .empty:
-                        ZStack {
-                            fallbackGradient
+            // Background: a local bundled photo is always present, with the remote
+            // image overlaid when it loads. A real photo shows in every state —
+            // never a gradient or a blank hero.
+            ZStack {
+                fallbackImage
+                if let imageURL, let url = URL(string: imageURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(minWidth: 0, maxWidth: .infinity)
+                                .frame(height: heroHeight)
+                                .clipped()
+                        case .empty:
+                            // Keep the local photo visible while the remote loads.
                             ProgressView()
                                 .tint(.white.opacity(0.5))
+                        default:
+                            // .failure / @unknown — the local photo shows through.
+                            Color.clear
                         }
-                    @unknown default:
-                        fallbackGradient
                     }
                 }
-            } else {
-                fallbackGradient
             }
 
             // Top edge gradient for top-overlay readability
@@ -156,35 +156,15 @@ struct RecommendationCard: View {
         return false
     }
 
-    // MARK: - Gradient Fallback
+    // MARK: - Local Photo Fallback
 
-    private var fallbackGradient: some View {
-        ZStack {
-            LinearGradient(
-                colors: fallbackGradientColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Image(systemName: typeIconSystemName)
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(.white.opacity(0.15))
-        }
-    }
-
-    private var fallbackGradientColors: [Color] {
-        switch recommendationType {
-        case "gift":
-            return [Color.pink.opacity(0.4), Color.purple.opacity(0.3)]
-        case "experience":
-            return [Color.blue.opacity(0.4), Color.indigo.opacity(0.3)]
-        case "date":
-            return [Color.orange.opacity(0.3), Color.pink.opacity(0.4)]
-        case "idea":
-            return [Color.yellow.opacity(0.3), Color.orange.opacity(0.3)]
-        default:
-            return [Color.purple.opacity(0.3), Color.pink.opacity(0.3)]
-        }
+    /// The bundled per-type photo, sized to the hero. Always shown beneath the
+    /// remote image so the card never falls back to a gradient.
+    private var fallbackImage: some View {
+        RecommendationFallbackImage(recommendationType: recommendationType)
+            .frame(minWidth: 0, maxWidth: .infinity)
+            .frame(height: heroHeight)
+            .clipped()
     }
 
     // MARK: - Hero Overlays
@@ -364,17 +344,6 @@ struct RecommendationCard: View {
         case "idea": return Lucide.lightbulb
         case "plan": return Lucide.calendarHeart
         default: return Lucide.star
-        }
-    }
-
-    private var typeIconSystemName: String {
-        switch recommendationType {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        case "idea": return "lightbulb.fill"
-        case "plan": return "calendar.badge.clock"
-        default: return "star.fill"
         }
     }
 

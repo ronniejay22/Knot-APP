@@ -7017,6 +7017,28 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.13 ✅ Recommendations — Guarantee Every Card Has an Image
+**Date:** 2026-07-23
+**Status:** Complete
+
+**Goal:** A recommendation card on the onboarding "Here are your recommendations" carousel rendered with no photo — just a near-black card. Recommendation images should never be blank.
+
+**Root cause:** The unified pipeline generates every candidate with `image_url = None` (`unified_generation.py`); images are attached only in the API layer. That attachment, `_fallback_image_url()`, did an **exact** string match of a candidate's `matched_interests`/`matched_vibes` against `_INTEREST_IMAGES` (40 Title-Case keys) and `_VIBE_IMAGES` (8 `lowercase_snake` keys). Empty arrays, case/format drift (`"quiet luxury"` vs `quiet_luxury`), or any off-list value Claude returned produced `None` — silently, with no logging. Worse, the DB insert persisted the raw `candidate.image_url` (`None`), not the resolved fallback, and the by-milestone / by-id read paths read `image_url` straight from the row with no fallback — so every stored recommendation served `null`. On iOS, a null image fell back to a faint gradient buried under the Spotlight card's 85%-opaque `#1F1A29` tint plus a 340pt black scrim, collapsing to a near-black void.
+
+**Approach:** Guarantee an image everywhere on the backend, and on iOS **always render a real photo** — the remote image, or a bundled per-type fallback photo beneath it — removing the gradient fallback entirely. Kept the existing curated-Unsplash architecture (no dynamic image search / AI generation — that remains a larger follow-up).
+
+**What changed:**
+- **`backend/app/agents/aggregation.py`:** added `_TYPE_DEFAULT_IMAGES`, a per-`recommendation_type` map (experience / gift / date / idea / plan / default). Each value reuses a curated, known-good URL from `_INTEREST_IMAGES`/`_VIBE_IMAGES` so it always resolves.
+- **`backend/app/api/recommendations.py`:** replaced `_fallback_image_url()` (could return `None`) with `resolve_image_url(candidate) -> str` that **never** returns `None`. It normalizes tags with a new `_normalize_tag()` (case-insensitive; `_`/`-`/whitespace collapsed) and matches against normalized views of the interest/vibe maps, then falls back to `_default_image_for_type(candidate.type)`. Misses are logged (`logger.info`) instead of being silent. Both the generate and refresh endpoints now set `candidate.image_url = candidate.image_url or resolve_image_url(candidate)` **before** persistence, so the DB row — and every read path that reads it — always carries a real URL. The by-milestone and by-id read paths back-fill `_default_image_for_type(...)` so rows written before this change (with `image_url = NULL`) also render an image.
+- **`iOS/Knot/Resources/Assets.xcassets/RecommendationFallbacks/`:** six bundled per-type fallback photos (`RecFallbackExperience/Gift/Date/Idea/Plan/Default`, ~1 MB total), each the same curated Unsplash photo as the backend's `_TYPE_DEFAULT_IMAGES` so the on-device fallback matches the remote default.
+- **`iOS/Knot/Features/Recommendations/RecommendationFallbackImage.swift`:** new shared `.fill` view mapping a `recommendation_type` to its bundled photo — the single source of truth for the local fallback across all card surfaces.
+- **`SpotlightDeckView.swift`, `RecommendationCard.swift`, `RecommendationDetailView.swift`:** removed every `fallbackGradient`/`fallbackGradientColors` (and the now-dead `typeIconSystemName`). Each image view now renders `RecommendationFallbackImage` as an always-present base with the remote `AsyncImage` overlaid — `.success` shows the remote photo, `.empty` keeps the local photo under a spinner, `.failure`/`@unknown` let the local photo show through. A recommendation surface never shows a gradient or blank state. `SpotlightCard`'s 85% moody tint is applied uniformly again (a photo is always present).
+- **Screenshot seam:** added a `spotlightFallback` key + `SpotlightFallbackScreenshotHarnessView` to `UITestScreenshotHarness.swift` that renders the onboarding carousel with image-less `PreviewRecommendations` items (so every card exercises the local-photo fallback), and repointed `PRScreenshotTests` at it.
+
+**Tests:** New `backend/tests/test_recommendation_images.py` (41 cases) covers `_normalize_tag` canonicalization, exact + normalized interest/vibe matching (interest preferred, first-match wins), the guaranteed per-type default (never `None`) for empty/off-list tags, `_default_image_for_type` for known/unknown types, and `_build_response_items` always emitting a non-null `image_url`. Full backend suite green (1340 passed, 622 skipped). iOS Full test plan (unit + UI) green; fallback screenshot captured via `capture-ui-screenshot.sh` shows a real photo on every card.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

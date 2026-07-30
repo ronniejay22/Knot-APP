@@ -295,6 +295,8 @@ struct SpotlightCard: View {
 
             // Uniform dark tint over the whole photo (#1F1A29 @ 85%) so the image
             // reads as a moody backdrop and the overlaid content stays legible.
+            // A real photo is always present (the remote image, or the bundled
+            // per-type fallback beneath it), so this always applies.
             Color(red: 0x1F / 255, green: 0x1A / 255, blue: 0x29 / 255)
                 .opacity(0.85)
 
@@ -342,29 +344,31 @@ struct SpotlightCard: View {
 
     @ViewBuilder
     private var imageBackground: some View {
-        if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    Color.clear.overlay {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
-                case .failure:
-                    fallbackGradient
-                case .empty:
-                    ZStack {
-                        fallbackGradient
+        ZStack {
+            // Local bundled photo — always present, so a real image shows even
+            // before the remote loads, when there's no URL, or if the load fails.
+            // A recommendation card never shows a gradient or a blank state.
+            RecommendationFallbackImage(recommendationType: item.recommendationType)
+
+            if let imageURL = item.imageUrl, let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        Color.clear.overlay {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
+                        .clipped()
+                    case .empty:
+                        // Keep the local photo visible while the remote loads.
                         ProgressView().tint(.white.opacity(0.5))
+                    default:
+                        // .failure / @unknown — the local photo shows through.
+                        Color.clear
                     }
-                @unknown default:
-                    fallbackGradient
                 }
             }
-        } else {
-            fallbackGradient
         }
     }
 
@@ -421,25 +425,6 @@ struct SpotlightCard: View {
         return description
     }
 
-    private var fallbackGradient: some View {
-        ZStack {
-            LinearGradient(colors: fallbackGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: typeIconSystemName)
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(.white.opacity(0.15))
-        }
-    }
-
-    private var fallbackGradientColors: [Color] {
-        switch item.recommendationType {
-        case "gift": return [Color.pink.opacity(0.4), Color.purple.opacity(0.3)]
-        case "experience": return [Color.blue.opacity(0.4), Color.indigo.opacity(0.3)]
-        case "date": return [Color.orange.opacity(0.3), Color.pink.opacity(0.4)]
-        case "idea", "plan": return [Color.yellow.opacity(0.3), Color.orange.opacity(0.3)]
-        default: return [Color.purple.opacity(0.3), Color.pink.opacity(0.3)]
-        }
-    }
-
     private var typeBadge: some View {
         HStack(spacing: 5) {
             Image(uiImage: typeIconLucide)
@@ -469,17 +454,6 @@ struct SpotlightCard: View {
         case "idea": return Lucide.lightbulb
         case "plan": return Lucide.calendarHeart
         default: return Lucide.star
-        }
-    }
-
-    private var typeIconSystemName: String {
-        switch item.recommendationType {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        case "idea": return "lightbulb.fill"
-        case "plan": return "calendar.badge.clock"
-        default: return "star.fill"
         }
     }
 

@@ -130,6 +130,19 @@ _VIBE_IMAGES: dict[str, str] = {
     "adventurous": "https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=1600&q=80&auto=format",
 }
 
+# Last-resort image per recommendation type, used when a candidate matches no
+# interest or vibe above. Every URL reuses a curated, known-good Unsplash photo
+# from the maps above so it always resolves — the guarantee that a recommendation
+# card is never left without an image (see recommendations.resolve_image_url).
+_TYPE_DEFAULT_IMAGES: dict[str, str] = {
+    "experience": _VIBE_IMAGES["adventurous"],
+    "gift": _INTEREST_IMAGES["Shopping"],
+    "date": _VIBE_IMAGES["romantic"],
+    "idea": _INTEREST_IMAGES["Art"],
+    "plan": _INTEREST_IMAGES["Wine"],
+    "default": _INTEREST_IMAGES["Nature"],
+}
+
 _INTEREST_GIFTS: dict[str, list[tuple[str, str, int, str, str]]] = {
     "Travel": [
         ("Premium Leather Passport Holder", "Handcrafted genuine leather passport cover with card slots", 4500, "Amazon", "amazon"),

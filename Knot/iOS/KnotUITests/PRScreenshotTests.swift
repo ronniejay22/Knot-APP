@@ -24,12 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change removes the "Appearance → Dark Mode" toggle from the
-        // Settings (Profile) screen and locks the app to light. Render the
-        // Settings screen standalone via the DEBUG screenshot harness
-        // (`settings`) — which normally sits behind auth — so the reviewer can
-        // see the Settings sections with no Appearance/Dark Mode row.
-        app.launchArguments += ["-uiTestScreenshot", "settings"]
+        // This change guarantees every recommendation card always shows a real
+        // photo — the remote image, or a bundled per-type fallback photo beneath
+        // it — and removes the gradient fallback entirely. Seed the onboarding
+        // "Here are your recommendations" carousel via the DEBUG harness
+        // (`spotlightFallback`) with image-less items so the reviewer sees the
+        // bundled fallback photo on every card.
+        app.launchArguments += ["-uiTestScreenshot", "spotlightFallback"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,10 +40,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for a stable Settings row so the screenshot captures the
-        // fully-rendered screen (the Account section's "Sign Out" is always
-        // present; the removed Appearance/Dark Mode row is not).
-        _ = app.staticTexts["Sign Out"].waitForExistence(timeout: 10)
+        // Wait for the carousel's first card so the screenshot captures a
+        // fully-rendered Spotlight card with its hardened fallback placeholder.
+        _ = app.buttons["See Details"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
