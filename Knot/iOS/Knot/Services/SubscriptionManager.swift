@@ -91,6 +91,23 @@ final class SubscriptionManager {
         updatesTask?.cancel()
     }
 
+#if DEBUG
+    /// Screenshot/preview override. When true, the manager reports an active Premium
+    /// entitlement without a live StoreKit transaction so the paywall's already-
+    /// subscribed "Continue" state can be rendered deterministically — the paywall's
+    /// `.task`-driven `refreshEntitlements()` would otherwise reset `isSubscribed` to
+    /// false in a harness with no real purchase. Never set in shipping code.
+    private var debugForceSubscribed = false
+
+    /// Screenshot/preview-only convenience: a manager pre-marked as subscribed, used by
+    /// `UITestScreenshotHarness` to capture the entitlement-aware "Continue" paywall.
+    convenience init(debugSubscribed: Bool) {
+        self.init()
+        debugForceSubscribed = debugSubscribed
+        isSubscribed = debugSubscribed
+    }
+#endif
+
     // MARK: - Products
 
     /// Loads the Knot Premium products from the App Store (or the local
@@ -191,6 +208,14 @@ final class SubscriptionManager {
     /// Recomputes `isSubscribed` from the current, unexpired, non-revoked
     /// entitlements for the Knot Premium products.
     func refreshEntitlements() async {
+#if DEBUG
+        // Screenshot/preview override — keep the forced entitlement instead of
+        // recomputing it from (absent) real transactions.
+        if debugForceSubscribed {
+            isSubscribed = true
+            return
+        }
+#endif
         var active = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }

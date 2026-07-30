@@ -24,13 +24,15 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change guarantees every recommendation card always shows a real
-        // photo — the remote image, or a bundled per-type fallback photo beneath
-        // it — and removes the gradient fallback entirely. Seed the onboarding
-        // "Here are your recommendations" carousel via the DEBUG harness
-        // (`spotlightFallback`) with image-less items so the reviewer sees the
-        // bundled fallback photo on every card.
-        app.launchArguments += ["-uiTestScreenshot", "spotlightFallback"]
+        // This change makes the end-of-onboarding paywall entitlement-aware. To
+        // actually show what changed, render the paywall in its already-subscribed
+        // state via the DEBUG screenshot harness (`onboardingPaywallSubscribed`,
+        // backed by a `SubscriptionManager(debugSubscribed:)`): the CTA reads
+        // "Continue" and the sub-line reads "You already have Knot Premium." — the
+        // state that previously showed a misleading "Start Free Trial" and silently
+        // proceeded. (The unchanged fresh-user "Start Free Trial" state is available
+        // via the `onboardingPaywall` key.)
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywallSubscribed"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,9 +42,10 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the carousel's first card so the screenshot captures a
-        // fully-rendered Spotlight card with its hardened fallback placeholder.
-        _ = app.buttons["See Details"].waitForExistence(timeout: 10)
+        // Wait for the entitlement-aware sub-line so the screenshot captures the
+        // fully-rendered "Continue" state (present only once the paywall's `.task`
+        // has refreshed the forced entitlement).
+        _ = app.staticTexts["You already have Knot Premium."].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
