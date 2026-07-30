@@ -67,4 +67,45 @@ final class OnboardingPaywallViewTests: XCTestCase {
         let productIDs = PaywallPlan.all.map(\.productID)
         XCTAssertEqual(productIDs.count, Set(productIDs).count)
     }
+
+    // MARK: - CTA title (Step 19.13: entitlement-aware)
+
+    /// An already-entitled user (returning/restored subscriber, or leftover StoreKit
+    /// test state) sees "Continue" — there is nothing left to purchase. This wins even
+    /// when a trial offer is present or products haven't loaded.
+    func testCTATitleIsContinueWhenAlreadySubscribed() {
+        XCTAssertEqual(
+            OnboardingPaywallView.ctaTitle(isSubscribed: true, hasTrial: true, productsLoaded: true),
+            "Continue"
+        )
+        XCTAssertEqual(
+            OnboardingPaywallView.ctaTitle(isSubscribed: true, hasTrial: false, productsLoaded: false),
+            "Continue"
+        )
+    }
+
+    /// A not-yet-subscribed user with an eligible free trial sees "Start Free Trial".
+    func testCTATitleIsStartFreeTrialWhenTrialAvailable() {
+        XCTAssertEqual(
+            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: true, productsLoaded: true),
+            "Start Free Trial"
+        )
+    }
+
+    /// Before products load, both plans are trial-eligible by design, so the CTA still
+    /// leads with the free trial.
+    func testCTATitleIsStartFreeTrialBeforeProductsLoad() {
+        XCTAssertEqual(
+            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: false, productsLoaded: false),
+            "Start Free Trial"
+        )
+    }
+
+    /// Products loaded, no trial offer, not subscribed → a plain "Subscribe".
+    func testCTATitleIsSubscribeWhenNoTrialAndLoaded() {
+        XCTAssertEqual(
+            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: false, productsLoaded: true),
+            "Subscribe"
+        )
+    }
 }

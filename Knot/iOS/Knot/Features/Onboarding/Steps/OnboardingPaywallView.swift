@@ -17,6 +17,14 @@
 //  it maps to, while its card copy stays the designed placeholder (mirroring
 //  `Knot.storekit`) until real App Store Connect prices are localized.
 //
+//  Step 19.13: Made the paywall entitlement-aware. When `SubscriptionManager.isSubscribed`
+//  is already true — a returning/restored subscriber, or leftover StoreKit test state in
+//  the Simulator — the CTA reads "Continue" and finishes onboarding directly instead of
+//  silently no-opping through a `product.purchase()` for an already-owned subscription
+//  (which reads as "the trial steps didn't show; it just went to the next screen"). The
+//  under-CTA line then states "You already have Knot Premium." The fresh-user trial flow
+//  is unchanged.
+//
 
 import SwiftUI
 import LucideIcons
@@ -218,9 +226,10 @@ struct OnboardingPaywallView: View {
             )
             .frame(maxWidth: .infinity)
 
-            if let detail = trialDetailText {
-                // Spells out the trial → billing terms for the selected plan, e.g.
-                // "7-day free trial, then $9.99/month".
+            if let detail = ctaDetailText {
+                // Either the trial → billing terms for the selected plan (e.g.
+                // "7-day free trial, then $9.99/month") or, when already entitled,
+                // a plain "You already have Knot Premium." note.
                 Text(detail)
                     .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary)
@@ -255,14 +264,33 @@ struct OnboardingPaywallView: View {
 
     // MARK: - CTA copy & actions
 
-    /// The primary CTA title. Leads with the free trial when the selected plan has
-    /// one (or before products load, since both plans are trial-eligible by design),
-    /// otherwise a plain subscribe label.
-    private var ctaTitle: String {
-        if subscriptionManager.trialLabel(for: selectedPlan) != nil || !subscriptionManager.productsLoaded {
-            return "Start Free Trial"
-        }
+    /// Resolves the primary CTA label from the current subscription state. Pure and
+    /// static so it can be unit-tested without a live `SubscriptionManager`.
+    /// - Already entitled → "Continue" (nothing to purchase).
+    /// - A free trial is available, or products haven't loaded yet (both plans are
+    ///   trial-eligible by design) → "Start Free Trial".
+    /// - Otherwise → "Subscribe".
+    static func ctaTitle(isSubscribed: Bool, hasTrial: Bool, productsLoaded: Bool) -> String {
+        if isSubscribed { return "Continue" }
+        if hasTrial || !productsLoaded { return "Start Free Trial" }
         return "Subscribe"
+    }
+
+    /// The primary CTA title for the current selection and entitlement.
+    private var ctaTitle: String {
+        Self.ctaTitle(
+            isSubscribed: subscriptionManager.isSubscribed,
+            hasTrial: subscriptionManager.trialLabel(for: selectedPlan) != nil,
+            productsLoaded: subscriptionManager.productsLoaded
+        )
+    }
+
+    /// The line rendered under the CTA. When the user already holds Premium it says so
+    /// plainly (there's nothing to purchase); otherwise it spells out the selected
+    /// plan's trial → billing terms.
+    private var ctaDetailText: String? {
+        if subscriptionManager.isSubscribed { return "You already have Knot Premium." }
+        return trialDetailText
     }
 
     /// The trial → billing detail line for the selected plan, or nil until products
@@ -275,9 +303,16 @@ struct OnboardingPaywallView: View {
 
     /// Purchases the selected plan; finishes onboarding only on a completed purchase.
     /// Cancel / pending leaves the user on the paywall (no error for a plain cancel).
+    /// When the user already holds an active entitlement (a returning/restored
+    /// subscriber, or leftover StoreKit test state) there's nothing to buy, so this
+    /// finishes onboarding directly instead of silently no-opping through a purchase.
     /// `@MainActor`: passed as `KnotButton`'s `@MainActor` action; mutates view state.
     @MainActor
     private func startPurchase() {
+        if subscriptionManager.isSubscribed {
+            onContinue()
+            return
+        }
         Task {
             if await subscriptionManager.purchase(selectedPlan) {
                 onContinue()

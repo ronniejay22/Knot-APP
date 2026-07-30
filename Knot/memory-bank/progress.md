@@ -7017,6 +7017,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.13 ✅ Paywall — Make the Onboarding Paywall Entitlement-Aware
+**Date:** 2026-07-29
+**Status:** Complete
+
+**Goal:** A user testing on the **Simulator** reported that tapping "Start Free Trial" on the end-of-onboarding paywall didn't show Apple's trial confirmation steps — "it just went to the next screen" (into the app). Diagnosis: on the Simulator the local `Knot.storekit` catalog is active, so products load (if they hadn't, the CTA would flash an inline error and stay put). The Simulator still held an **active Knot Premium test subscription from a prior run** — StoreKit test transactions persist across launches. Because the user was already subscribed, iOS did not re-present the trial flow; `product.purchase()` resolved immediately against the existing entitlement, `purchase()` returned `true`, and the app advanced. The paywall never consulted `SubscriptionManager.isSubscribed`, so it still showed a "Start Free Trial" CTA and silently proceeded — which read as a bug. The fresh-user happy path (no entitlement → real StoreKit trial sheet) was never broken.
+
+**Immediate remedy (no code):** to see the trial flow again in the Simulator, clear the StoreKit test transactions — **Debug ▸ StoreKit ▸ Manage Transactions ▸ delete**, or delete the app / **Erase All Content and Settings** — then relaunch; tapping "Start Free Trial" now presents the StoreKit test sheet ("[Environment: Xcode]") with the 7-day free trial.
+
+**Approach:** Make the paywall reflect an already-active entitlement instead of silently no-opping. This also fixes the real production case of a returning/restored subscriber re-reaching the paywall. `isSubscribed` is already refreshed in `SubscriptionManager.loadProducts()` (called from the paywall's `.task`), so no `SubscriptionManager` change was needed.
+
+**What changed (iOS):**
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`:** Extracted the CTA-title decision into a pure, testable `static func ctaTitle(isSubscribed:hasTrial:productsLoaded:)` returning `"Continue"` when already subscribed, `"Start Free Trial"` when a trial is available or products haven't loaded (both plans are trial-eligible by design), else `"Subscribe"`; the `ctaTitle` computed property now calls it. `startPurchase()` short-circuits to `onContinue()` when `isSubscribed` (nothing to buy) instead of running a purchase. A new `ctaDetailText` renders "You already have Knot Premium." under the CTA when subscribed, otherwise the existing "7-day free trial, then $X/period" line.
+- **Screenshot seam (`iOS/KnotUITests/PRScreenshotTests.swift`):** repointed the navigation slot at the existing `onboardingPaywall` harness key (waiting on the always-present "Cancel anytime…" note). The harness uses a fresh (unsubscribed) `SubscriptionManager`, so the shot shows the standard "Start Free Trial" state; the already-subscribed "Continue" variant needs `SKTestSession` state the screenshot harness can't seed.
+
+**Tests:** New `OnboardingPaywallViewTests` cases pin the CTA helper: "Continue" when subscribed (even with a trial/unloaded products), "Start Free Trial" when a trial is available or before products load, "Subscribe" when loaded with no trial. Full `KnotTests` Unit plan green (345 tests); paywall screenshot captured via `capture-ui-screenshot.sh`.
+
+**Note for future developers:** This is Simulator/entitlement UX only — the outstanding App Store Connect prerequisite from Step 19.8 (create `com.knot.premium.annual` / `.monthly` with a 7-day intro offer before TestFlight/release) is unchanged, and the trial still cannot appear on real distribution builds until those products exist.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

@@ -24,12 +24,14 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change removes the "Appearance → Dark Mode" toggle from the
-        // Settings (Profile) screen and locks the app to light. Render the
-        // Settings screen standalone via the DEBUG screenshot harness
-        // (`settings`) — which normally sits behind auth — so the reviewer can
-        // see the Settings sections with no Appearance/Dark Mode row.
-        app.launchArguments += ["-uiTestScreenshot", "settings"]
+        // This change makes the end-of-onboarding paywall entitlement-aware.
+        // Render the paywall standalone via the DEBUG screenshot harness
+        // (`onboardingPaywall`) — it normally appears only after a full
+        // authenticated onboarding run — so the reviewer can see the CTA + trial
+        // copy. A fresh (unsubscribed) `SubscriptionManager` shows the standard
+        // "Start Free Trial" state; the already-subscribed "Continue" variant
+        // needs SKTestSession state the harness can't seed.
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywall"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,10 +41,10 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for a stable Settings row so the screenshot captures the
-        // fully-rendered screen (the Account section's "Sign Out" is always
-        // present; the removed Appearance/Dark Mode row is not).
-        _ = app.staticTexts["Sign Out"].waitForExistence(timeout: 10)
+        // Wait for a stable paywall element so the screenshot captures the
+        // fully-rendered screen. The "Cancel anytime…" note is always present,
+        // independent of whether StoreKit products have loaded.
+        _ = app.staticTexts["Cancel anytime in your subscription settings."].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
