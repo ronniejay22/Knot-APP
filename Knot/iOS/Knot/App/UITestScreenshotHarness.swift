@@ -59,6 +59,8 @@ enum UITestScreenshotHarness {
             ForYouCardScreenshotHarnessView()
         case "onboardingPaywall":
             OnboardingPaywallScreenshotHarnessView()
+        case "onboardingPaywallSubscribed":
+            OnboardingPaywallSubscribedScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -75,6 +77,21 @@ private struct OnboardingPaywallScreenshotHarnessView: View {
     var body: some View {
         OnboardingPaywallView(
             subscriptionManager: SubscriptionManager(),
+            onContinue: {},
+            onClose: {}
+        )
+    }
+}
+
+/// Renders the paywall in its already-subscribed state so a screenshot shows the
+/// entitlement-aware behavior this change adds: the CTA reads "Continue" and the
+/// under-CTA line reads "You already have Knot Premium." A `SubscriptionManager`
+/// pre-marked as subscribed (DEBUG-only `init(debugSubscribed:)`) drives it — no live
+/// StoreKit transaction is needed, and the paywall's `.task` refresh preserves it.
+private struct OnboardingPaywallSubscribedScreenshotHarnessView: View {
+    var body: some View {
+        OnboardingPaywallView(
+            subscriptionManager: SubscriptionManager(debugSubscribed: true),
             onContinue: {},
             onClose: {}
         )
