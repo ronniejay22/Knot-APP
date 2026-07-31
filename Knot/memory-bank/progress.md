@@ -7060,7 +7060,31 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.15 ✅ Recommendations — Make the Return-to-App Prompt Type-Aware
+### Step 19.15 ✅ Recommendations — Never Open an On-Platform Search/Listing Page (SERP)
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** A recommendation card's "Open" CTA again landed the user on a **search results page** instead of a specific bookable detail page — this time an **Eventbrite search/directory page** for "pastry class" (`eventbrite.com` showing a results list with a search box), even though the card was titled for a single event ("Ravioli Revelry — Cooking Class in Los Angeles | Cozymeal"). A CTA must always reach a real, dedicated purchase/booking page — never a search/listing page.
+
+**Root cause:** Steps 19.4/19.6 added SERP guards, but they only reject **general web search engines** (Google/Bing/DuckDuckGo/…) and Google Shopping (`tbm=shop`), and they inspect only the URL **host**. An Eventbrite directory URL (`eventbrite.com/d/…`) lives on a legitimate commerce domain, so `_is_rejected_domain` passed it — and `_score_result` actively *rewarded* it (`eventbrite.` in `PREFERRED_COMMERCE_DOMAINS` → +100; `"class"`/`"event"` in `PURCHASE_PATH_KEYWORDS` → +10), so the listing page (~110) out-scored the real `/e/…` detail page. No code anywhere inspected the URL **path or query string** for an on-platform listing.
+
+**Approach:** Extend the single shared predicate that already gates SERPs (`is_search_or_shopping_url`) to be **path- and query-aware**, then let the three existing enforcement points inherit it (resolve → serve → tap), keeping client and server in lock-step exactly as 19.4/19.6 established. Generic-first detection plus a small documented per-platform directory map for path-only listings.
+
+**What changed (backend — `backend/app/agents/url_resolution.py`):**
+- `is_search_or_shopping_url(url)` now also returns `True` for: a **search-term query param** (`?q=`/`?query=`/`?search=`/`?find_desc=`, blank values ignored — `_has_search_query_param`); a **`/search` or `/results` whole path segment** on any host; and a **known per-platform directory prefix** (`LISTING_PATH_PREFIXES`: Eventbrite `/d/`,`/b/`; Amazon `/s`; Etsy `/c/` — matched trailing-slash-normalized so `/d/` never hits a `/dance-class` slug, and detail paths `/e/`, `/dp/`, `/listing/` survive) via `_is_listing_path`. The existing search-engine-host + `tbm=shop` checks are unchanged.
+- New `_is_rejected_result(url)` = `_is_rejected_domain(host) or is_search_or_shopping_url(url)`, used in `_search_for_purchase_url`'s Brave-results loop in place of the old domain-only skip. A listing URL is now **rejected before it can be scored/selected**; when every result is a listing, resolution returns `None` → `external_url` stays `None` → the availability node swaps the card for a bookable spare or a linkless idea (unchanged downstream behavior). A listing is never returned as a CTA.
+- The API read boundary needed no change: `_safe_external_url` (`api/recommendations.py`) already delegates to `is_search_or_shopping_url`, so a **stored/stale** Eventbrite listing URL is now nulled on read at `/by-milestone/{id}`, `/{id}`, and `_build_response_items` automatically.
+
+**What changed (iOS — `iOS/Knot/Core/URL+SearchLink.swift`):**
+- `URL.isSearchOrShoppingLink` mirrors the same three additions (query-param keys, `/search`|`/results` path segment, per-platform directory-path map) via a private `isOnPlatformListingLink(host:)` helper using `URLComponents`. This guards an already-loaded in-memory deck at tap time — the layer the read-boundary scrub can't reach — consistent with 19.6's defense-in-depth. Doc comments in both files cross-reference each other; keep the two lists in sync.
+
+**Tests:** Backend `test_url_resolution.py` — `TestIsSearchOrShoppingURL` gains `test_on_platform_listing_pages_flagged` (Eventbrite `/d/`,`/b/`; Etsy `/search?q=` and `/c/`; Yelp `?find_desc=`; Ticketmaster `/search`; Amazon `/s`; generic `?query=`), `test_dedicated_detail_pages_pass` (Eventbrite `/e/`, Etsy `/listing/`, Yelp `/biz/`, Amazon `/dp/`, `?variant=`), and `test_blank_search_param_value_not_flagged`; new `TestRejectResult`; and `TestSearchForPurchaseURL` gains `test_prefers_event_detail_over_platform_listing` (the `/e/` detail beats a `/d/` listing) and `test_returns_none_when_all_results_are_listings`. iOS `MerchantHandoffTests.swift` — `URLSearchLinkTests` gains `testOnPlatformListingLinksAreFlagged` + `testDedicatedDetailPagesArePassed`, and a `MerchantHandoffService` tap-guard case `testOnPlatformListingURLReturnsFalse`. Full backend suite green; iOS Full plan green.
+
+**Note for future developers:** This is a URL-logic change only — `URL+SearchLink.swift` is a `Foundation` extension, not UI-rendering view code, so no PR screenshot applies. The dead `aggregation.py` `_merchant_search_url` builders (noted in 19.6) remain unreferenced and are neutralized by this guard if ever revived. To cover a new platform's listing pattern, add its directory prefix to `LISTING_PATH_PREFIXES` (backend) and the mirrored `listingPrefixes` (iOS).
+
+---
+
+### Step 19.16 ✅ Recommendations — Make the Return-to-App Prompt Type-Aware
 **Date:** 2026-07-30
 **Status:** Complete
 
