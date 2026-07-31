@@ -63,6 +63,8 @@ enum UITestScreenshotHarness {
             OnboardingPaywallScreenshotHarnessView()
         case "onboardingPaywallSubscribed":
             OnboardingPaywallSubscribedScreenshotHarnessView()
+        case "purchasePromptDate":
+            PurchasePromptDateScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -96,6 +98,25 @@ private struct OnboardingPaywallSubscribedScreenshotHarnessView: View {
             subscriptionManager: SubscriptionManager(debugSubscribed: true),
             onContinue: {},
             onClose: {}
+        )
+    }
+}
+
+/// Renders the return-to-app prompt for a `date` recommendation, so a screenshot
+/// shows the type-aware copy this change adds: the headline reads "Did you book
+/// your date?" and the confirm button reads "Yes, we're set!" — no longer the
+/// gift-only "Did you complete your purchase?" / "Yes, I bought it!". The prompt
+/// normally appears only as a `.sheet` after a live merchant handoff; this renders
+/// its content standalone using the same date example from the reported screenshot.
+private struct PurchasePromptDateScreenshotHarnessView: View {
+    var body: some View {
+        PurchasePromptSheet(
+            title: "Used Books + Coffee Date at Skylight Books",
+            merchantName: "Skylight Books",
+            recommendationType: "date",
+            onConfirmPurchase: {},
+            onSaveForLater: {},
+            onDismiss: {}
         )
     }
 }

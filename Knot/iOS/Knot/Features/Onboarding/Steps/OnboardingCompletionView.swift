@@ -211,6 +211,7 @@ struct OnboardingCompletionView: View {
                     PurchasePromptSheet(
                         title: item.title,
                         merchantName: item.merchantName,
+                        recommendationType: item.recommendationType,
                         onConfirmPurchase: {
                             Task { await viewModel.confirmPurchase() }
                         },

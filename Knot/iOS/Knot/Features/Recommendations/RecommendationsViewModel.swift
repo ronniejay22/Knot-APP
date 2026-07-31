@@ -456,17 +456,19 @@ final class RecommendationsViewModel {
             )
         }
 
-        // Dismiss the confirmation sheet and preserve the recommendation
-        // for the return-to-app purchase prompt BEFORE opening the URL.
-        // Opening the URL immediately backgrounds the app, so state must
-        // be set first or handleReturnFromMerchant() finds nil. (Step 9.4)
+        // Dismiss the confirmation sheet.
         showConfirmationSheet = false
-        pendingHandoffRecommendation = item
         selectedRecommendation = nil
 
-        // Open the merchant URL with native-app preference and log handoff (Step 9.3)
-        // Ideas have no external URL — skip merchant handoff for them.
+        // Open the merchant URL with native-app preference and log handoff (Step 9.3).
+        // Only arm the return-to-app prompt when a tap-out actually happens: items
+        // with no external URL (ideas/plans, or a purchasable still awaiting a URL
+        // swap) never background the app, so a purchase prompt on the next resume
+        // would be spurious. Set pendingHandoffRecommendation BEFORE opening the URL,
+        // since opening immediately backgrounds the app and handleReturnFromMerchant()
+        // would otherwise find nil. (Step 9.4)
         if let urlString = item.externalUrl {
+            pendingHandoffRecommendation = item
             await MerchantHandoffService.openMerchantURL(
                 urlString: urlString,
                 recommendationId: item.id,
