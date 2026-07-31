@@ -459,6 +459,7 @@ final class PurchasePromptViewTests: XCTestCase {
         let view = PurchasePromptSheet(
             title: "Test Item",
             merchantName: "Test Store",
+            recommendationType: "gift",
             onConfirmPurchase: {},
             onSaveForLater: {},
             onDismiss: {}
@@ -473,6 +474,7 @@ final class PurchasePromptViewTests: XCTestCase {
         let view = PurchasePromptSheet(
             title: "Test Item",
             merchantName: nil,
+            recommendationType: "date",
             onConfirmPurchase: {},
             onSaveForLater: {},
             onDismiss: {}
@@ -492,6 +494,42 @@ final class PurchasePromptViewTests: XCTestCase {
         let hostingController = UIHostingController(rootView: view)
         XCTAssertNotNil(hostingController.view,
                         "PurchaseRatingSheet should render a valid view")
+    }
+
+    // MARK: - Type-aware copy (return-to-app prompt)
+
+    /// Gifts keep the original commerce wording.
+    func testPurchasePromptCopyForGift() {
+        let copy = PurchasePromptCopy(recommendationType: "gift")
+        XCTAssertEqual(copy.headline, "Did you complete your purchase?")
+        XCTAssertEqual(copy.confirmButtonTitle, "Yes, I bought it!")
+    }
+
+    /// Experiences are booked, not purchased.
+    func testPurchasePromptCopyForExperience() {
+        let copy = PurchasePromptCopy(recommendationType: "experience")
+        XCTAssertEqual(copy.headline, "Did you book it?")
+        XCTAssertEqual(copy.confirmButtonTitle, "Yes, I booked it!")
+    }
+
+    /// Dates are planned, not purchased.
+    func testPurchasePromptCopyForDate() {
+        let copy = PurchasePromptCopy(recommendationType: "date")
+        XCTAssertEqual(copy.headline, "Did you book your date?")
+        XCTAssertEqual(copy.confirmButtonTitle, "Yes, we're set!")
+    }
+
+    /// Ideas/plans (and any unknown type) fall back to neutral wording that never
+    /// says "purchase" — they route to Save-to-Library and don't normally reach
+    /// this sheet, so this only guards against an unexpected leak.
+    func testPurchasePromptCopyFallbackAvoidsPurchaseWording() {
+        for type in ["idea", "plan", "", "brand-new-type"] {
+            let copy = PurchasePromptCopy(recommendationType: type)
+            XCTAssertEqual(copy.headline, "Did you check it out?", "type: \(type)")
+            XCTAssertEqual(copy.confirmButtonTitle, "Yes, I did!", "type: \(type)")
+            XCTAssertFalse(copy.headline.lowercased().contains("purchase"),
+                           "fallback headline should not mention purchasing (type: \(type))")
+        }
     }
 }
 

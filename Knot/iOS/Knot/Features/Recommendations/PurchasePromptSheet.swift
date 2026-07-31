@@ -10,16 +10,32 @@ import SwiftUI
 import LucideIcons
 
 /// Bottom sheet shown when the user returns to Knot after a merchant handoff.
-/// Asks "Did you complete your purchase?" with Yes/No options.
+/// The prompt adapts to the recommendation type — gifts are "purchased",
+/// experiences are "booked", dates are "planned" — so the copy reads correctly
+/// for every type that reaches a merchant handoff (see `PurchasePromptCopy`).
 ///
-/// - "Yes, I bought it!" records a "purchased" feedback action and opens the rating prompt
+/// - The confirm button records a "purchased" feedback action and opens the rating prompt
 /// - "No, save for later" saves the recommendation locally via SwiftData
 struct PurchasePromptSheet: View {
     let title: String
     let merchantName: String?
+    /// Drives the type-aware headline, confirm-button label, and header icon.
+    let recommendationType: String
     let onConfirmPurchase: @MainActor @Sendable () -> Void
     let onSaveForLater: @MainActor @Sendable () -> Void
     let onDismiss: @MainActor @Sendable () -> Void
+
+    private var copy: PurchasePromptCopy { PurchasePromptCopy(recommendationType: recommendationType) }
+
+    /// Header icon matching the recommendation type (reuses the card's type icons).
+    private var headerIcon: UIImage {
+        switch recommendationType {
+        case "experience": return Lucide.sparkles
+        case "date": return Lucide.heart
+        case "idea", "plan": return Lucide.lightbulb
+        default: return Lucide.shoppingBag  // gift + unknown
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -28,14 +44,14 @@ struct PurchasePromptSheet: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(uiImage: Lucide.shoppingBag)
+                    Image(uiImage: headerIcon)
                         .renderingMode(.template)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 36, height: 36)
                         .foregroundStyle(Theme.accent)
 
-                    Text("Did you complete your purchase?")
+                    Text(copy.headline)
                         .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
@@ -76,7 +92,7 @@ struct PurchasePromptSheet: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 16, height: 16)
-                            Text("Yes, I bought it!")
+                            Text(copy.confirmButtonTitle)
                                 .knotFont(Theme.Typography.cta)
                         }
                         .foregroundStyle(.white)
@@ -121,22 +137,66 @@ struct PurchasePromptSheet: View {
     }
 }
 
+// MARK: - Type-aware copy
+
+/// Resolves the return-to-app prompt's headline and confirm-button label from the
+/// recommendation type. Gifts are "purchased", experiences are "booked", and dates
+/// are "planned"; any other type (ideas/plans, which don't normally hand off) falls
+/// back to a neutral follow-through prompt. Kept separate from the view so the
+/// per-type mapping is unit-testable.
+struct PurchasePromptCopy: Equatable {
+    let headline: String
+    let confirmButtonTitle: String
+
+    init(recommendationType: String) {
+        switch recommendationType {
+        case "gift":
+            headline = "Did you complete your purchase?"
+            confirmButtonTitle = "Yes, I bought it!"
+        case "experience":
+            headline = "Did you book it?"
+            confirmButtonTitle = "Yes, I booked it!"
+        case "date":
+            headline = "Did you book your date?"
+            confirmButtonTitle = "Yes, we're set!"
+        default:
+            // Ideas/plans route to Save-to-Library and don't reach this sheet;
+            // this neutral wording is a safe fallback for any unexpected type.
+            headline = "Did you check it out?"
+            confirmButtonTitle = "Yes, I did!"
+        }
+    }
+}
+
 // MARK: - Previews
 
-#Preview("Purchase Prompt") {
+#Preview("Gift") {
     PurchasePromptSheet(
         title: "Personalized Star Map Print",
         merchantName: "Amazon",
+        recommendationType: "gift",
         onConfirmPurchase: {},
         onSaveForLater: {},
         onDismiss: {}
     )
 }
 
-#Preview("No Merchant") {
+#Preview("Experience") {
     PurchasePromptSheet(
         title: "Sunset Helicopter Tour",
-        merchantName: nil,
+        merchantName: "Ticketmaster",
+        recommendationType: "experience",
+        onConfirmPurchase: {},
+        onSaveForLater: {},
+        onDismiss: {}
+    )
+}
+
+#Preview("Date") {
+    PurchasePromptSheet(
+        title: "Used Books + Coffee Date at Skylight Books",
+        merchantName: "Skylight Books",
+        recommendationType: "date",
         onConfirmPurchase: {},
         onSaveForLater: {},
         onDismiss: {}

@@ -7084,14 +7084,32 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.16 ✅ Dev Tooling — Add /log-step, /screenshot-screen, /sync-dto Skills
+### Step 19.16 ✅ Recommendations — Make the Return-to-App Prompt Type-Aware
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** The return-to-app bottom sheet (`PurchasePromptSheet`, Step 9.4) always asked "Did you complete your purchase?" with a "Yes, I bought it!" CTA and a shopping-bag icon — commerce framing that only makes sense for **gifts**. But the sheet fires after *any* merchant handoff, which spans three types (`gift`, `experience`, `date`) because all three carry an `external_url` and route through `MerchantHandoffService`. For an experience you *book* it; for a date you *plan / go on* it — so the words were wrong for two of the three types that reach this sheet. (`idea`/`plan` route to Save-to-Library and don't hand off.)
+
+**Approach:** Client-only copy fix — no backend change. The "Yes" action still records `action: "purchased"` (an internal positive-conversion signal for the feedback learning loop that works for every type), so no `recommendation_feedback` migration or Pydantic Literal change was needed. The follow-up `PurchaseRatingSheet` headline ("How was this pick?") is already type-neutral and was left as-is.
+
+**What changed (iOS):**
+- **`iOS/Knot/Features/Recommendations/PurchasePromptSheet.swift`:** Added a `recommendationType: String` parameter and a testable `PurchasePromptCopy(recommendationType:)` value type that resolves the headline + confirm-button label per type — gift → "Did you complete your purchase?" / "Yes, I bought it!"; experience → "Did you book it?" / "Yes, I booked it!"; date → "Did you book your date?" / "Yes, we're set!"; any other type → neutral "Did you check it out?" / "Yes, I did!" (never says "purchase"). The header icon is likewise type-aware (reusing the card's icons: gift→shoppingBag, experience→sparkles, date→heart). The secondary "No, save for later" and the "from {merchant}" line are unchanged for all types.
+- **Call sites** now pass `item.recommendationType`: `RecommendationsView.swift`, `DeepLinkRecommendationView.swift`, and `Features/Onboarding/Steps/OnboardingCompletionView.swift` (the onboarding flow shares `RecommendationsViewModel`).
+- **`iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift`:** Closed a latent leak in `confirmSelection()` — `pendingHandoffRecommendation = item` was set *unconditionally*, before the `if let urlString = item.externalUrl` guard, so a linkless item (an idea/plan, or a purchasable still awaiting a URL swap) selected from the deck could arm a spurious purchase prompt on the next resume despite no tap-out. The assignment now lives inside the URL guard (still set *before* `openMerchantURL`, preserving the ordering the background transition requires). The deep-link `openExternalURL` already `guard`ed on the URL, so no change there.
+- **Screenshot seam (`iOS/Knot/App/UITestScreenshotHarness.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`):** added a `purchasePromptDate` harness key that renders the sheet standalone for a `date` (the "Used Books + Coffee Date at Skylight Books" example from the report) and pointed the PR screenshot test at it (waiting on the "Did you book your date?" headline).
+
+**Tests:** New `PurchasePromptCopy` cases in `KnotTests/MerchantHandoffTests.swift` pin the per-type headline/CTA mapping and assert the fallback never mentions purchasing; the two existing `PurchasePromptSheet` render tests were updated for the new parameter. Unit plan green.
+
+---
+
+### Step 19.17 ✅ Dev Tooling — Add /log-step, /screenshot-screen, /sync-dto Skills
 **Date:** 2026-07-30
 **Status:** Complete
 
 **Goal:** Codify the three most repeated per-change authoring chores in this repo as reusable Claude Code skills so they stop being re-done by hand (and drifting) on every PR. Complements the existing `/ship` / `/ship-pr` / `/review` skills, which already cover the back half of the loop (test → review → commit → PR) but not the per-change authoring work.
 
 **What changed:**
-- **`/log-step`** — generates the correctly-formatted `### Step X.Y` progress.md entry (picking a non-colliding number and inserting it immediately before `## Next Steps`) plus the matching architecture.md row updates, from the current diff. Encodes the CLAUDE.md "Documentation Updates" rules so the format and strict section order (`## Completed Steps` → `## Next Steps` → `## Notes for Future Developers`) can't drift. This very entry was authored by following the skill end-to-end.
+- **`/log-step`** — generates the correctly-formatted `### Step X.Y` progress.md entry (picking a non-colliding number and inserting it immediately before `## Next Steps`) plus the matching architecture.md row updates, from the current diff. Encodes the CLAUDE.md "Documentation Updates" rules so the format and strict section order (`## Completed Steps` → `## Next Steps` → `## Notes for Future Developers`) can't drift. This very entry was authored by following the skill end-to-end (including this merge-time renumber from 19.16 to 19.17 after main landed its own 19.16 — exactly the collision the skill guards against).
 - **`/screenshot-screen`** — reuses or scaffolds a `UITestScreenshotHarness` key + standalone harness `View`, points the `PRScreenshotTests` `// >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<` slot at it, and runs `iOS/scripts/capture-ui-screenshot.sh`. Handles the multi-file harness edits (new `switch` case + seeded harness view) that `/ship-pr`'s capture step does not.
 - **`/sync-dto`** — keeps an API contract in sync across the two hand-maintained layers: a Pydantic model in `backend/app/models/*.py` (snake_case) and the Swift `Codable` DTO + explicit `CodingKeys` in `iOS/Knot/Models/DTOs.swift` (camelCase), plus any SwiftData `*Local.swift` mirror. Includes the type-mapping table and the known gotchas (`description` → `descriptionText`, server-only fields like `hint_embedding` excluded from local models). Closes the dual-maintenance gap that otherwise only surfaces at runtime JSON decode.
 - All three live as project-local skills at `Knot/.claude/skills/<name>/SKILL.md` (checked in, shared with the repo), matching the existing `~/.claude/skills/ship-pr` frontmatter format (`description` + `argument-hint`).
@@ -7103,7 +7121,7 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 **Tests:** None — skill-definition (Markdown) files only; no app code touched, so there is nothing for the backend or iOS suites to exercise. Each skill's file paths and patterns were grounded against the current source (`UITestScreenshotHarness.swift`, `PRScreenshotTests.swift`, `capture-ui-screenshot.sh`, `DTOs.swift`, `backend/app/models/vault.py`, `RecommendationLocal.swift`), and `/log-step` was dogfooded to write this entry.
 
-**Notes:** Tier-2 skill ideas surfaced during scoping but deferred: `/sync-main` (merge `origin/main` + resolve the recurring progress.md step-number collisions), `/new-migration` (scaffold the next Supabase migration + run the easily-forgotten `NOTIFY pgrst, 'reload schema'` step), and `/remove-ui-element` (the most templated recurring branch cluster). `.claude/settings.local.json` is untracked/gitignored, so allowlisting the new skill names there is a local-only convenience, not part of this change.
+**Notes:** Tier-2 skill ideas surfaced during scoping but deferred: `/sync-main` (merge `origin/main` + resolve the recurring progress.md step-number collisions — the exact chore this PR hit at merge time), `/new-migration` (scaffold the next Supabase migration + run the easily-forgotten `NOTIFY pgrst, 'reload schema'` step), and `/remove-ui-element` (the most templated recurring branch cluster). `.claude/settings.local.json` is untracked/gitignored, so allowlisting the new skill names there is a local-only convenience, not part of this change.
 
 ---
 
