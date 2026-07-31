@@ -286,8 +286,9 @@ final class ReturnToAppTests: XCTestCase {
                        "Purchase prompt should not show without a pending handoff")
     }
 
-    /// confirmPurchase dismisses purchase prompt and shows rating prompt.
-    func testConfirmPurchaseShowsRating() async {
+    /// confirmPurchase dismisses the purchase prompt and shows the celebration
+    /// beat first — the rating prompt follows only after the auto-advance delay.
+    func testConfirmPurchaseShowsCelebration() async {
         let vm = RecommendationsViewModel()
         let item = makeTestRecommendation(id: "return-2", title: "Test Purchase")
 
@@ -298,10 +299,35 @@ final class ReturnToAppTests: XCTestCase {
 
         XCTAssertFalse(vm.showPurchasePromptSheet,
                        "Purchase prompt should be dismissed")
-        XCTAssertTrue(vm.showRatingPrompt,
-                      "Rating prompt should be shown after confirming purchase")
+        XCTAssertTrue(vm.showPurchaseCelebration,
+                      "Celebration beat should be shown after confirming purchase")
+        XCTAssertFalse(vm.showRatingPrompt,
+                       "Rating prompt should not appear until the celebration advances")
         XCTAssertNotNil(vm.pendingHandoffRecommendation,
-                        "Pending handoff should be preserved for rating step")
+                        "Pending handoff should be preserved for the rating step")
+    }
+
+    /// advanceFromCelebrationToRating moves from the celebration beat to the rating prompt.
+    func testAdvanceFromCelebrationShowsRating() {
+        let vm = RecommendationsViewModel()
+        vm.showPurchaseCelebration = true
+
+        vm.advanceFromCelebrationToRating()
+
+        XCTAssertFalse(vm.showPurchaseCelebration, "Celebration should be dismissed")
+        XCTAssertTrue(vm.showRatingPrompt, "Rating prompt should be shown after the celebration")
+    }
+
+    /// advanceFromCelebrationToRating is a no-op if the celebration was already
+    /// dismissed (e.g. the user swiped it away), so it never re-presents a sheet.
+    func testAdvanceFromCelebrationNoOpWhenDismissed() {
+        let vm = RecommendationsViewModel()
+        vm.showPurchaseCelebration = false
+
+        vm.advanceFromCelebrationToRating()
+
+        XCTAssertFalse(vm.showRatingPrompt,
+                       "Rating prompt should stay hidden when the celebration was dismissed")
     }
 
     /// submitPurchaseRating clears all return-to-app state.
@@ -494,6 +520,17 @@ final class PurchasePromptViewTests: XCTestCase {
         let hostingController = UIHostingController(rootView: view)
         XCTAssertNotNil(hostingController.view,
                         "PurchaseRatingSheet should render a valid view")
+    }
+
+    /// Verify PurchaseCelebrationSheet renders without crashing (named + fallback).
+    func testPurchaseCelebrationSheetRenders() {
+        let named = UIHostingController(rootView: PurchaseCelebrationSheet(partnerName: "Alex"))
+        XCTAssertNotNil(named.view,
+                        "PurchaseCelebrationSheet should render with a partner name")
+
+        let fallback = UIHostingController(rootView: PurchaseCelebrationSheet(partnerName: nil))
+        XCTAssertNotNil(fallback.view,
+                        "PurchaseCelebrationSheet should render with no partner name")
     }
 
     // MARK: - Type-aware copy (return-to-app prompt)

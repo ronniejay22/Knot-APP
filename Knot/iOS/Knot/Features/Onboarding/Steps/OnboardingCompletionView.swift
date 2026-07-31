@@ -226,6 +226,12 @@ struct OnboardingCompletionView: View {
                     .presentationDragIndicator(.visible)
                 }
             }
+            // Celebration beat shown before the rating prompt (auto-advances).
+            .sheet(isPresented: $viewModel.showPurchaseCelebration) {
+                PurchaseCelebrationSheet(partnerName: viewModel.partnerName)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
             // Rating prompt after confirming a purchase.
             .sheet(isPresented: $viewModel.showRatingPrompt) {
                 if let item = viewModel.pendingHandoffRecommendation {

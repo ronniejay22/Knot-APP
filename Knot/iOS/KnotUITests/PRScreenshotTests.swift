@@ -24,13 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes the return-to-app prompt type-aware. To show what
-        // changed, render the prompt for a `date` recommendation via the DEBUG
-        // screenshot harness (`purchasePromptDate`): the headline reads "Did you
-        // book your date?" and the confirm button reads "Yes, we're set!" — no
-        // longer the gift-only "Did you complete your purchase?" / "Yes, I bought
-        // it!" that previously showed for every merchant handoff.
-        app.launchArguments += ["-uiTestScreenshot", "purchasePromptDate"]
+        // This change adds a celebratory beat between the "Yes, I bought it!"
+        // purchase confirmation and the "How was this pick?" rating sheet. To show
+        // what changed, render the new celebration popover via the DEBUG screenshot
+        // harness (`purchaseCelebration`): it reads "Alex is going to love it!" with
+        // a "Good choice!" subtitle before auto-advancing to the rating step.
+        app.launchArguments += ["-uiTestScreenshot", "purchaseCelebration"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,9 +39,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the type-aware headline so the screenshot captures the fully
-        // rendered date-specific copy.
-        _ = app.staticTexts["Did you book your date?"].waitForExistence(timeout: 10)
+        // Wait for the celebration copy so the screenshot captures the fully
+        // rendered popover.
+        _ = app.staticTexts["Good choice!"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

@@ -65,6 +65,8 @@ enum UITestScreenshotHarness {
             OnboardingPaywallSubscribedScreenshotHarnessView()
         case "purchasePromptDate":
             PurchasePromptDateScreenshotHarnessView()
+        case "purchaseCelebration":
+            PurchaseCelebrationScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -118,6 +120,17 @@ private struct PurchasePromptDateScreenshotHarnessView: View {
             onSaveForLater: {},
             onDismiss: {}
         )
+    }
+}
+
+/// Renders the new celebration beat this change adds — the "{Partner} is going to
+/// love it! Good choice!" popover shown after the user taps "Yes" in the purchase
+/// prompt, before the rating sheet. It normally appears only as a `.sheet` after a
+/// live merchant handoff; this renders its content standalone with a representative
+/// partner name so the screenshot shows the new copy.
+private struct PurchaseCelebrationScreenshotHarnessView: View {
+    var body: some View {
+        PurchaseCelebrationSheet(partnerName: "Alex")
     }
 }
 

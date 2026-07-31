@@ -120,8 +120,15 @@ final class RecommendationsViewModel {
     /// Whether the purchase prompt bottom sheet is presented.
     var showPurchasePromptSheet = false
 
+    /// Whether the celebratory beat ("{Partner} is going to love it!") is shown
+    /// after confirming a purchase, before the rating prompt.
+    var showPurchaseCelebration = false
+
     /// Whether the rating prompt is shown after confirming a purchase.
     var showRatingPrompt = false
+
+    /// How long the celebration beat lingers before auto-advancing to the rating prompt.
+    private let celebrationAdvanceDelay: Duration = .seconds(2)
 
     // MARK: - App Review Prompt State (Step 10.4)
 
@@ -605,11 +612,32 @@ final class RecommendationsViewModel {
             )
         }
 
-        // Dismiss the purchase prompt and show the rating step
+        // Dismiss the purchase prompt and show the celebratory beat. The rating
+        // step follows automatically after a short delay (scheduleCelebrationAdvance).
         showPurchasePromptSheet = false
-        showRatingPrompt = true
+        showPurchaseCelebration = true
 
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        scheduleCelebrationAdvance()
+    }
+
+    /// Kicks off the auto-advance from the celebration beat to the rating prompt.
+    /// Split from the transition itself so `advanceFromCelebrationToRating()` stays
+    /// synchronously unit-testable without waiting out the delay.
+    private func scheduleCelebrationAdvance() {
+        Task { @MainActor in
+            try? await Task.sleep(for: celebrationAdvanceDelay)
+            advanceFromCelebrationToRating()
+        }
+    }
+
+    /// Moves from the celebration beat to the rating prompt, unless the celebration
+    /// was already dismissed (guard = clean cancel when the user swipes it away).
+    func advanceFromCelebrationToRating() {
+        guard showPurchaseCelebration else { return }
+        showPurchaseCelebration = false
+        showRatingPrompt = true
     }
 
     /// Called when the user submits a rating after confirming purchase.
