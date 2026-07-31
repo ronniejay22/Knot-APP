@@ -17,6 +17,7 @@ Knot/
 ├── docs/                      # Project docs & published assets
 │   ├── legal/                 # Terms of Service & Privacy Policy (Markdown + HTML)
 │   └── pr-screenshots/        # UI screenshots embedded in agent-opened PRs
+├── .claude/                   # Claude Code workflow config (skills, commands, hooks, settings)
 ├── iOS/                       # iOS application (Swift/SwiftUI)
 └── backend/                   # Python/FastAPI backend
 ```
@@ -36,6 +37,24 @@ Markdown plus a self-contained, styled HTML page.
 The HTML pages cross-link via the canonical root paths `/privacy` and `/terms` — the
 same URLs hard-coded in `iOS/Knot/Features/Settings/SettingsView.swift` and the Sign-In
 screen — so no app code changes when the pages are hosted.
+
+### Claude Code Skills (`.claude/skills/`)
+
+Project-local Claude Code skills that codify the repeated per-change authoring chores of the
+Autonomous Feature Workflow (**Step 19.17**). Each is a `SKILL.md` with `description` +
+`argument-hint` frontmatter, mirroring the user-level `~/.claude/skills/ship-pr` format. They
+complement `/ship` / `/ship-pr` / `/review` (which cover the test → review → commit → PR back
+half of the loop).
+
+| Skill | Purpose |
+|-------|---------|
+| `log-step/SKILL.md` | `/log-step` — writes the memory-bank docs for a finished change: the correctly-formatted `### Step X.Y` entry in `progress.md` (picks a non-colliding number, inserts before `## Next Steps`, preserves the strict section order) plus the matching `architecture.md` row updates. Encodes the CLAUDE.md "Documentation Updates" rules. |
+| `screenshot-screen/SKILL.md` | `/screenshot-screen` — reuses or scaffolds a `UITestScreenshotHarness` key + standalone harness view, points the `PRScreenshotTests` navigation slot at it, and runs `iOS/scripts/capture-ui-screenshot.sh`. Handles the multi-file harness setup preceding `/ship-pr`'s capture. |
+| `sync-dto/SKILL.md` | `/sync-dto` — keeps an API contract in sync across the Pydantic model (`backend/app/models/*.py`) and the Swift `Codable` DTO + `CodingKeys` (`iOS/Knot/Models/DTOs.swift`), flagging any SwiftData `*Local.swift` mirror. Type-mapping table + snake_case ⇄ camelCase rules. |
+
+`.claude/` also holds the project slash command (`commands/review.md`), the SessionStart /
+UserPromptSubmit hooks that enforce the memory-bank read and autonomous workflow, and
+`settings.json`. `settings.local.json` is untracked (gitignored).
 
 ---
 

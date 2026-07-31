@@ -7102,6 +7102,29 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.17 ✅ Dev Tooling — Add /log-step, /screenshot-screen, /sync-dto Skills
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** Codify the three most repeated per-change authoring chores in this repo as reusable Claude Code skills so they stop being re-done by hand (and drifting) on every PR. Complements the existing `/ship` / `/ship-pr` / `/review` skills, which already cover the back half of the loop (test → review → commit → PR) but not the per-change authoring work.
+
+**What changed:**
+- **`/log-step`** — generates the correctly-formatted `### Step X.Y` progress.md entry (picking a non-colliding number and inserting it immediately before `## Next Steps`) plus the matching architecture.md row updates, from the current diff. Encodes the CLAUDE.md "Documentation Updates" rules so the format and strict section order (`## Completed Steps` → `## Next Steps` → `## Notes for Future Developers`) can't drift. This very entry was authored by following the skill end-to-end (including this merge-time renumber from 19.16 to 19.17 after main landed its own 19.16 — exactly the collision the skill guards against).
+- **`/screenshot-screen`** — reuses or scaffolds a `UITestScreenshotHarness` key + standalone harness `View`, points the `PRScreenshotTests` `// >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<` slot at it, and runs `iOS/scripts/capture-ui-screenshot.sh`. Handles the multi-file harness edits (new `switch` case + seeded harness view) that `/ship-pr`'s capture step does not.
+- **`/sync-dto`** — keeps an API contract in sync across the two hand-maintained layers: a Pydantic model in `backend/app/models/*.py` (snake_case) and the Swift `Codable` DTO + explicit `CodingKeys` in `iOS/Knot/Models/DTOs.swift` (camelCase), plus any SwiftData `*Local.swift` mirror. Includes the type-mapping table and the known gotchas (`description` → `descriptionText`, server-only fields like `hint_embedding` excluded from local models). Closes the dual-maintenance gap that otherwise only surfaces at runtime JSON decode.
+- All three live as project-local skills at `Knot/.claude/skills/<name>/SKILL.md` (checked in, shared with the repo), matching the existing `~/.claude/skills/ship-pr` frontmatter format (`description` + `argument-hint`).
+
+**Files created:**
+- `.claude/skills/log-step/SKILL.md` — progress.md + architecture.md entry writer
+- `.claude/skills/screenshot-screen/SKILL.md` — PR screenshot harness scaffolder + capture
+- `.claude/skills/sync-dto/SKILL.md` — Pydantic ↔ Swift DTO (+ SwiftData mirror) sync
+
+**Tests:** None — skill-definition (Markdown) files only; no app code touched, so there is nothing for the backend or iOS suites to exercise. Each skill's file paths and patterns were grounded against the current source (`UITestScreenshotHarness.swift`, `PRScreenshotTests.swift`, `capture-ui-screenshot.sh`, `DTOs.swift`, `backend/app/models/vault.py`, `RecommendationLocal.swift`), and `/log-step` was dogfooded to write this entry.
+
+**Notes:** Tier-2 skill ideas surfaced during scoping but deferred: `/sync-main` (merge `origin/main` + resolve the recurring progress.md step-number collisions — the exact chore this PR hit at merge time), `/new-migration` (scaffold the next Supabase migration + run the easily-forgotten `NOTIFY pgrst, 'reload schema'` step), and `/remove-ui-element` (the most templated recurring branch cluster). `.claude/settings.local.json` is untracked/gitignored, so allowlisting the new skill names there is a local-only convenience, not part of this change.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
