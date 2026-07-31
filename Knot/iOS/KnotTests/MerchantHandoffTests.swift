@@ -70,6 +70,17 @@ final class MerchantHandoffServiceTests: XCTestCase {
         )
         XCTAssertFalse(result, "A stale web-search link must not be opened")
     }
+
+    /// A stale on-platform search/directory page (the reported Eventbrite bug) must not
+    /// be opened either — the tap-time guard is the last line of defense for a card
+    /// already sitting in an in-memory deck that the read-boundary scrub can't reach.
+    func testOnPlatformListingURLReturnsFalse() async {
+        let result = await MerchantHandoffService.openMerchantURL(
+            urlString: "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/",
+            recommendationId: "test-id"
+        )
+        XCTAssertFalse(result, "A stale on-platform listing link must not be opened")
+    }
 }
 
 // MARK: - URL search/shopping-link guard
@@ -99,6 +110,41 @@ final class URLSearchLinkTests: XCTestCase {
             "https://republiquela.com/reservations",
             "https://store.google.com/product/pixel",       // allow-listed real store
             "https://search.thefondatheatre.com/events",    // merchant on-site search
+        ]
+        for s in good {
+            XCTAssertFalse(URL(string: s)!.isSearchOrShoppingLink, "should pass \(s)")
+        }
+    }
+
+    /// Mirrors the backend `is_search_or_shopping_url`: an on-platform search/directory
+    /// page hosted on a legitimate commerce domain (the reported Eventbrite bug) is a
+    /// listing, not a detail page, and must be flagged.
+    func testOnPlatformListingLinksAreFlagged() {
+        let bad = [
+            "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/",   // discovery dir
+            "https://www.eventbrite.com/b/ca--los-angeles/food-and-drink/", // browse dir
+            "https://www.etsy.com/search?q=leather+journal",                // ?q=
+            "https://www.yelp.com/search?find_desc=pottery&find_loc=Austin",// ?find_desc=
+            "https://www.ticketmaster.com/search?q=jazz",                   // /search
+            "https://someshop.example.com/catalog?query=gift",             // generic ?query=
+            "https://www.amazon.com/s?k=chef+knife",                        // amazon /s
+            "https://www.etsy.com/c/jewelry-and-accessories",               // etsy /c/
+        ]
+        for s in bad {
+            XCTAssertTrue(URL(string: s)!.isSearchOrShoppingLink, "should flag \(s)")
+        }
+    }
+
+    /// The specific-item detail pages that MUST still pass — flagging these would leave
+    /// every card unbookable.
+    func testDedicatedDetailPagesArePassed() {
+        let good = [
+            "https://www.eventbrite.com/e/ravioli-revelry-cooking-class-tickets-123456789",
+            "https://www.etsy.com/listing/1234567/leather-journal",
+            "https://www.yelp.com/biz/blue-bottle-coffee-los-angeles",
+            "https://www.amazon.com/dp/B0ABCDEFGH",
+            "https://shop.example.com/products/mug?variant=42",  // non-search query param
+            "https://shop.example.com/catalog?q=",               // blank search value
         ]
         for s in good {
             XCTAssertFalse(URL(string: s)!.isSearchOrShoppingLink, "should pass \(s)")
