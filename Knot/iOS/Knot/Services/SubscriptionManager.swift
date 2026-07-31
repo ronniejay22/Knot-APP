@@ -13,7 +13,7 @@
 //  validation / App Store Server Notifications (syncing entitlement to the
 //  backend) is a documented follow-up — see memory-bank/progress.md Step 19.8.
 //
-//  Step 19.18: Added an explicit `ProductsState` (loading / loaded / failed) so the
+//  Step 19.19: Added an explicit `ProductsState` (loading / loaded / failed) so the
 //  paywall can tell "still loading" from "couldn't load" and never present a purchase
 //  CTA that silently no-ops against an empty catalog. `productsLoaded` is now derived
 //  from that state.

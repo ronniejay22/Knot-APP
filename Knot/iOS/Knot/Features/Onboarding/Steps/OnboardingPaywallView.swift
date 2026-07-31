@@ -25,7 +25,7 @@
 //  under-CTA line then states "You already have Knot Premium." The fresh-user trial flow
 //  is unchanged.
 //
-//  Step 19.18: Made the primary CTA non-silent. Product loading now carries an explicit
+//  Step 19.19: Made the primary CTA non-silent. Product loading now carries an explicit
 //  `SubscriptionManager.ProductsState` (loading / loaded / failed): the footer spins while
 //  loading (disabling the CTA so it can't fire against a not-yet-loaded catalog), and on a
 //  failed load it swaps to a "Try Again" button plus a "We couldn't load subscription
