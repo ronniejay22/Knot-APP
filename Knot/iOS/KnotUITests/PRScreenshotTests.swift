@@ -24,15 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes the end-of-onboarding paywall entitlement-aware. To
-        // actually show what changed, render the paywall in its already-subscribed
-        // state via the DEBUG screenshot harness (`onboardingPaywallSubscribed`,
-        // backed by a `SubscriptionManager(debugSubscribed:)`): the CTA reads
-        // "Continue" and the sub-line reads "You already have Knot Premium." — the
-        // state that previously showed a misleading "Start Free Trial" and silently
-        // proceeded. (The unchanged fresh-user "Start Free Trial" state is available
-        // via the `onboardingPaywall` key.)
-        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywallSubscribed"]
+        // This change makes the return-to-app prompt type-aware. To show what
+        // changed, render the prompt for a `date` recommendation via the DEBUG
+        // screenshot harness (`purchasePromptDate`): the headline reads "Did you
+        // book your date?" and the confirm button reads "Yes, we're set!" — no
+        // longer the gift-only "Did you complete your purchase?" / "Yes, I bought
+        // it!" that previously showed for every merchant handoff.
+        app.launchArguments += ["-uiTestScreenshot", "purchasePromptDate"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -42,10 +40,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the entitlement-aware sub-line so the screenshot captures the
-        // fully-rendered "Continue" state (present only once the paywall's `.task`
-        // has refreshed the forced entitlement).
-        _ = app.staticTexts["You already have Knot Premium."].waitForExistence(timeout: 10)
+        // Wait for the type-aware headline so the screenshot captures the fully
+        // rendered date-specific copy.
+        _ = app.staticTexts["Did you book your date?"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

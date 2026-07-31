@@ -7084,6 +7084,24 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.16 ✅ Recommendations — Make the Return-to-App Prompt Type-Aware
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** The return-to-app bottom sheet (`PurchasePromptSheet`, Step 9.4) always asked "Did you complete your purchase?" with a "Yes, I bought it!" CTA and a shopping-bag icon — commerce framing that only makes sense for **gifts**. But the sheet fires after *any* merchant handoff, which spans three types (`gift`, `experience`, `date`) because all three carry an `external_url` and route through `MerchantHandoffService`. For an experience you *book* it; for a date you *plan / go on* it — so the words were wrong for two of the three types that reach this sheet. (`idea`/`plan` route to Save-to-Library and don't hand off.)
+
+**Approach:** Client-only copy fix — no backend change. The "Yes" action still records `action: "purchased"` (an internal positive-conversion signal for the feedback learning loop that works for every type), so no `recommendation_feedback` migration or Pydantic Literal change was needed. The follow-up `PurchaseRatingSheet` headline ("How was this pick?") is already type-neutral and was left as-is.
+
+**What changed (iOS):**
+- **`iOS/Knot/Features/Recommendations/PurchasePromptSheet.swift`:** Added a `recommendationType: String` parameter and a testable `PurchasePromptCopy(recommendationType:)` value type that resolves the headline + confirm-button label per type — gift → "Did you complete your purchase?" / "Yes, I bought it!"; experience → "Did you book it?" / "Yes, I booked it!"; date → "Did you book your date?" / "Yes, we're set!"; any other type → neutral "Did you check it out?" / "Yes, I did!" (never says "purchase"). The header icon is likewise type-aware (reusing the card's icons: gift→shoppingBag, experience→sparkles, date→heart). The secondary "No, save for later" and the "from {merchant}" line are unchanged for all types.
+- **Call sites** now pass `item.recommendationType`: `RecommendationsView.swift`, `DeepLinkRecommendationView.swift`, and `Features/Onboarding/Steps/OnboardingCompletionView.swift` (the onboarding flow shares `RecommendationsViewModel`).
+- **`iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift`:** Closed a latent leak in `confirmSelection()` — `pendingHandoffRecommendation = item` was set *unconditionally*, before the `if let urlString = item.externalUrl` guard, so a linkless item (an idea/plan, or a purchasable still awaiting a URL swap) selected from the deck could arm a spurious purchase prompt on the next resume despite no tap-out. The assignment now lives inside the URL guard (still set *before* `openMerchantURL`, preserving the ordering the background transition requires). The deep-link `openExternalURL` already `guard`ed on the URL, so no change there.
+- **Screenshot seam (`iOS/Knot/App/UITestScreenshotHarness.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`):** added a `purchasePromptDate` harness key that renders the sheet standalone for a `date` (the "Used Books + Coffee Date at Skylight Books" example from the report) and pointed the PR screenshot test at it (waiting on the "Did you book your date?" headline).
+
+**Tests:** New `PurchasePromptCopy` cases in `KnotTests/MerchantHandoffTests.swift` pin the per-type headline/CTA mapping and assert the fallback never mentions purchasing; the two existing `PurchasePromptSheet` render tests were updated for the new parameter. Unit plan green.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

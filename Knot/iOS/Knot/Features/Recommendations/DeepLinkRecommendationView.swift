@@ -79,6 +79,7 @@ struct DeepLinkRecommendationView: View {
                     PurchasePromptSheet(
                         title: rec.title,
                         merchantName: rec.merchantName,
+                        recommendationType: rec.recommendationType,
                         onConfirmPurchase: {
                             handleConfirmPurchase()
                         },
