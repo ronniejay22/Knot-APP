@@ -7125,6 +7125,26 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.18 ✅ Recommendations — Remove Tags & Type Badge From the Spotlight Card
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** Declutter the immersive recommendation card (`SpotlightCard`) so it reads as a clean photo card. On a rich recommendation the overlaid chrome was heavy: a top-left type badge (`IDEA` / `GIFT` / …) plus a wrapping row of matched-tag pills (vibes → love languages → interests) that could span three rows and eat most of the card above the title. The card now shows only the photo, title, description, and the red "See Details" button.
+
+**What changed (iOS):**
+- **`iOS/Knot/Features/Recommendations/SpotlightDeckView.swift` (`SpotlightCard`):** Removed the matched-tag pill row from `bottomOverlay` — the `RecommendationDisplayChip.build(vibes:loveLanguages:interests:)` call and the `FlowLayout` of `MatchingFactorChip(onImage: true)`; the overlay's `VStack` now starts directly at the title. Removed the `typeBadge` from the top row (the leading element of the top `HStack`), keeping the `Spacer()` and the top-right saved-bookmark indicator so a saved item still shows its glyph. Deleted the now-orphaned private helpers `typeBadge`, `typeIconLucide`, and `typeLabel` (only `typeBadge` referenced the latter two; `item.recommendationType` is still read independently by `RecommendationFallbackImage`, so the per-type fallback photo is unaffected). Updated the top-scrim comment to reflect it now serves the saved indicator rather than the badge.
+- **Scope is card-only.** `RecommendationDetailView` (the "See Details" destination) is unchanged — it still shows its type badge and the "Why Knot picked this for {partner}" proof chips, which is the right surface for that context. The shared chip layer — `RecommendationDisplayChip` / `MatchingFactorChip` (`RecommendationChips.swift`) and `FlowLayout` (`Components/FlowLayout.swift`) — is untouched and still used by `RecommendationDetailView` and the legacy `RecommendationCard`. Because `SpotlightCard` is consumed by both the For You carousel (`RecommendationsView`) and the onboarding reveal (`OnboardingCompletionView`) via `SpotlightCarouselView`, both surfaces get the cleaner card together.
+- **Screenshot seam (`iOS/Knot/App/UITestScreenshotHarness.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`):** added a `spotlightCard` harness key rendering a single idea-type `SpotlightCard` (fixture `PreviewRecommendations.idea`, which is idea-typed and carries matched vibes/love-languages/interests, so it would have shown both the badge and the pill row before this change) and pointed the PR screenshot test at it, waiting on the card title ("Idea for Alex").
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/SpotlightDeckView.swift` — removed tag pill row + type badge from `SpotlightCard`; deleted the three dead type helpers
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — added the `spotlightCard` DEBUG harness key + `SpotlightCardScreenshotHarnessView`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — pointed the screenshot navigation slot at `spotlightCard`
+
+**Tests:** No initializer or DTO change, so the existing `testSpotlightCardRendersAllTypes()` (constructs `SpotlightCard` for every type) still stands as the construction regression guard and passes; no test asserted on the badge/chip content, so none needed correcting. iOS Unit plan green; Full plan (incl. the `PRScreenshotTests` UI test) run for the PR screenshot. The introspection-free SwiftUI test suite can't assert *absence* of a subview, so the PR screenshot is the visual verification artifact for the removal.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

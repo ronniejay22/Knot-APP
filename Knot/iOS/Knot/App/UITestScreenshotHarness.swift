@@ -65,6 +65,8 @@ enum UITestScreenshotHarness {
             OnboardingPaywallSubscribedScreenshotHarnessView()
         case "purchasePromptDate":
             PurchasePromptDateScreenshotHarnessView()
+        case "spotlightCard":
+            SpotlightCardScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -118,6 +120,32 @@ private struct PurchasePromptDateScreenshotHarnessView: View {
             onSaveForLater: {},
             onDismiss: {}
         )
+    }
+}
+
+/// Renders a single idea-type Spotlight card standalone, so the screenshot shows
+/// the cleaned card this change produces: the top-left "IDEA" type badge and the
+/// row of matched-tag pills (vibes / love languages / interests) are both gone —
+/// only the photo, title, description, and red "See Details" button remain. The
+/// fixture (`PreviewRecommendations.idea`) is idea-typed and carries matched
+/// vibes/love-languages/interests, so before this change it would have shown both
+/// the badge and the pill row. Its `image_url` is null, so the card exercises the
+/// bundled per-type fallback photo (`RecommendationFallbackImage`). The real card
+/// sits behind auth + a live backend generate call, so this drops it in directly
+/// on the app background, framed like a single carousel page.
+@MainActor
+private struct SpotlightCardScreenshotHarnessView: View {
+    var body: some View {
+        SpotlightCard(
+            item: PreviewRecommendations.idea,
+            partnerName: "Ronnie",
+            isSaved: false,
+            onSeeDetails: {}
+        )
+        .padding(.horizontal, 20)
+        .padding(.vertical, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 

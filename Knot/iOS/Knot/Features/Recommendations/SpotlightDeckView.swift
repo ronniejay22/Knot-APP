@@ -300,8 +300,8 @@ struct SpotlightCard: View {
             Color(red: 0x1F / 255, green: 0x1A / 255, blue: 0x29 / 255)
                 .opacity(0.85)
 
-            // Scrims — light at the top (badge legibility), heavy at the bottom
-            // so the overlaid chips/title/description/button stay readable.
+            // Scrims — light at the top (saved-indicator legibility), heavy at the
+            // bottom so the overlaid title/description/button stay readable.
             VStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
                     .frame(height: 90)
@@ -310,10 +310,9 @@ struct SpotlightCard: View {
                     .frame(height: 340)
             }
 
-            // Top row: type badge + saved indicator
+            // Top row: saved indicator only
             VStack {
                 HStack(alignment: .top) {
-                    typeBadge
                     Spacer()
                     if isSaved {
                         Image(uiImage: Lucide.bookmarkCheck)
@@ -376,23 +375,6 @@ struct SpotlightCard: View {
 
     private var bottomOverlay: some View {
         VStack(alignment: .leading, spacing: 12) {
-            let chips = RecommendationDisplayChip.build(
-                vibes: item.matchedVibes ?? [],
-                loveLanguages: item.matchedLoveLanguages ?? [],
-                interests: item.matchedInterests ?? []
-            )
-            if !chips.isEmpty {
-                FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-                    ForEach(chips) { chip in
-                        MatchingFactorChip(label: chip.label, style: chip.style, onImage: true)
-                    }
-                }
-                // Force the flow layout to measure against the real card width
-                // (not an unconstrained one), so its reported height accounts for
-                // wrapped rows and the title below it never overlaps the chips.
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
             Text(item.title)
                 .knotFont(Theme.Typography.cardTitle)
                 .foregroundStyle(.white)
@@ -423,49 +405,6 @@ struct SpotlightCard: View {
         guard let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines),
               !description.isEmpty else { return nil }
         return description
-    }
-
-    private var typeBadge: some View {
-        HStack(spacing: 5) {
-            Image(uiImage: typeIconLucide)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-            Text(typeLabel)
-                .knotFont(Theme.Typography.label)
-                .textCase(.uppercase)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
-        )
-    }
-
-    // MARK: - Type Helpers
-
-    private var typeIconLucide: UIImage {
-        switch item.recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
-        }
-    }
-
-    private var typeLabel: String {
-        switch item.recommendationType {
-        case "gift": return "Gift"
-        case "experience": return "Experience"
-        case "date": return "Date"
-        case "idea": return "Idea"
-        case "plan": return "Date Plan"
-        default: return item.recommendationType.capitalized
-        }
     }
 }
 
