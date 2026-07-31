@@ -68,44 +68,61 @@ final class OnboardingPaywallViewTests: XCTestCase {
         XCTAssertEqual(productIDs.count, Set(productIDs).count)
     }
 
-    // MARK: - CTA title (Step 19.14: entitlement-aware)
+    // MARK: - Primary CTA (entitlement- and load-state-aware)
 
     /// An already-entitled user (returning/restored subscriber, or leftover StoreKit
-    /// test state) sees "Continue" — there is nothing left to purchase. This wins even
-    /// when a trial offer is present or products haven't loaded.
-    func testCTATitleIsContinueWhenAlreadySubscribed() {
-        XCTAssertEqual(
-            OnboardingPaywallView.ctaTitle(isSubscribed: true, hasTrial: true, productsLoaded: true),
-            "Continue"
-        )
-        XCTAssertEqual(
-            OnboardingPaywallView.ctaTitle(isSubscribed: true, hasTrial: false, productsLoaded: false),
-            "Continue"
-        )
+    /// test state) sees "Continue" and the app-finish action — there is nothing left to
+    /// purchase. This wins even when a trial offer is present or the load failed.
+    func testPrimaryButtonIsContinueWhenAlreadySubscribed() {
+        for state in [SubscriptionManager.ProductsState.loading, .loaded, .failed] {
+            let button = OnboardingPaywallView.primaryButton(
+                isSubscribed: true, state: state, hasTrial: true
+            )
+            XCTAssertEqual(button.title, "Continue")
+            XCTAssertEqual(button.action, .continueApp)
+            XCTAssertFalse(button.showsSpinner)
+        }
     }
 
-    /// A not-yet-subscribed user with an eligible free trial sees "Start Free Trial".
-    func testCTATitleIsStartFreeTrialWhenTrialAvailable() {
-        XCTAssertEqual(
-            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: true, productsLoaded: true),
-            "Start Free Trial"
+    /// While products are loading, the CTA leads with the free trial but spins — the
+    /// spinner disables the button so it can't be tapped against a not-yet-loaded catalog.
+    func testPrimaryButtonSpinsWhileLoading() {
+        let button = OnboardingPaywallView.primaryButton(
+            isSubscribed: false, state: .loading, hasTrial: false
         )
+        XCTAssertEqual(button.title, "Start Free Trial")
+        XCTAssertEqual(button.action, .purchase)
+        XCTAssertTrue(button.showsSpinner)
     }
 
-    /// Before products load, both plans are trial-eligible by design, so the CTA still
-    /// leads with the free trial.
-    func testCTATitleIsStartFreeTrialBeforeProductsLoad() {
-        XCTAssertEqual(
-            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: false, productsLoaded: false),
-            "Start Free Trial"
+    /// When the catalog failed to load, the CTA becomes "Try Again" wired to a reload —
+    /// never a silent no-op.
+    func testPrimaryButtonIsTryAgainWhenLoadFailed() {
+        let button = OnboardingPaywallView.primaryButton(
+            isSubscribed: false, state: .failed, hasTrial: false
         )
+        XCTAssertEqual(button.title, "Try Again")
+        XCTAssertEqual(button.action, .retry)
+        XCTAssertFalse(button.showsSpinner)
     }
 
-    /// Products loaded, no trial offer, not subscribed → a plain "Subscribe".
-    func testCTATitleIsSubscribeWhenNoTrialAndLoaded() {
-        XCTAssertEqual(
-            OnboardingPaywallView.ctaTitle(isSubscribed: false, hasTrial: false, productsLoaded: true),
-            "Subscribe"
+    /// Loaded with an eligible free trial, not subscribed → "Start Free Trial" (no spinner).
+    func testPrimaryButtonIsStartFreeTrialWhenLoadedWithTrial() {
+        let button = OnboardingPaywallView.primaryButton(
+            isSubscribed: false, state: .loaded, hasTrial: true
         )
+        XCTAssertEqual(button.title, "Start Free Trial")
+        XCTAssertEqual(button.action, .purchase)
+        XCTAssertFalse(button.showsSpinner)
+    }
+
+    /// Loaded, no trial offer, not subscribed → a plain "Subscribe".
+    func testPrimaryButtonIsSubscribeWhenLoadedWithoutTrial() {
+        let button = OnboardingPaywallView.primaryButton(
+            isSubscribed: false, state: .loaded, hasTrial: false
+        )
+        XCTAssertEqual(button.title, "Subscribe")
+        XCTAssertEqual(button.action, .purchase)
+        XCTAssertFalse(button.showsSpinner)
     }
 }

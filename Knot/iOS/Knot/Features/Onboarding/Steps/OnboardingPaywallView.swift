@@ -25,6 +25,13 @@
 //  under-CTA line then states "You already have Knot Premium." The fresh-user trial flow
 //  is unchanged.
 //
+//  Step 19.18: Made the primary CTA non-silent. Product loading now carries an explicit
+//  `SubscriptionManager.ProductsState` (loading / loaded / failed): the footer spins while
+//  loading (disabling the CTA so it can't fire against a not-yet-loaded catalog), and on a
+//  failed load it swaps to a "Try Again" button plus a "We couldn't load subscription
+//  options…" message instead of a purchase that no-ops. The pure
+//  `primaryButton(isSubscribed:state:hasTrial:)` helper replaces `ctaTitle(...)`.
+//
 
 import SwiftUI
 import LucideIcons
@@ -217,12 +224,21 @@ struct OnboardingPaywallView: View {
                     .transition(.opacity)
             }
 
+            if let message = loadFailedMessage {
+                Text(message)
+                    .knotFont(Theme.Typography.label)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+            }
+
             KnotButton(
-                ctaTitle,
+                primaryButton.title,
                 variant: .primary,
                 size: .lg,
-                isLoading: subscriptionManager.isPurchasing,
-                action: startPurchase
+                isLoading: subscriptionManager.isPurchasing || primaryButton.showsSpinner,
+                action: runPrimaryAction
             )
             .frame(maxWidth: .infinity)
 
@@ -260,29 +276,78 @@ struct OnboardingPaywallView: View {
         .padding(.top, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.lg)
         .animation(.easeInOut(duration: 0.2), value: subscriptionManager.purchaseError)
+        .animation(.easeInOut(duration: 0.2), value: subscriptionManager.productsState)
     }
 
     // MARK: - CTA copy & actions
 
-    /// Resolves the primary CTA label from the current subscription state. Pure and
-    /// static so it can be unit-tested without a live `SubscriptionManager`.
-    /// - Already entitled → "Continue" (nothing to purchase).
-    /// - A free trial is available, or products haven't loaded yet (both plans are
-    ///   trial-eligible by design) → "Start Free Trial".
-    /// - Otherwise → "Subscribe".
-    static func ctaTitle(isSubscribed: Bool, hasTrial: Bool, productsLoaded: Bool) -> String {
-        if isSubscribed { return "Continue" }
-        if hasTrial || !productsLoaded { return "Start Free Trial" }
-        return "Subscribe"
+    /// What tapping the primary CTA does, resolved from the current state. Splitting
+    /// this out of the title keeps every footer branch (purchase / retry / continue)
+    /// a single, testable value.
+    enum PrimaryAction: Equatable {
+        /// Run the StoreKit purchase for the selected plan.
+        case purchase
+        /// Re-attempt the product load (shown when the catalog failed to load).
+        case retry
+        /// Finish onboarding without purchasing (already entitled).
+        case continueApp
     }
 
-    /// The primary CTA title for the current selection and entitlement.
-    private var ctaTitle: String {
-        Self.ctaTitle(
+    /// The full primary-button configuration for a given state. Pure and static so the
+    /// footer's every branch is unit-testable without a live `SubscriptionManager`.
+    /// - Already entitled → "Continue" (nothing to purchase).
+    /// - Load failed → "Try Again" — re-runs the load instead of a silent no-op.
+    /// - Loading → "Start Free Trial" with a spinner; `KnotButton` disables itself while
+    ///   loading so the CTA can't be tapped against a not-yet-resolved catalog.
+    /// - Loaded + a free-trial offer → "Start Free Trial"; loaded without one → "Subscribe".
+    static func primaryButton(
+        isSubscribed: Bool,
+        state: SubscriptionManager.ProductsState,
+        hasTrial: Bool
+    ) -> (title: String, action: PrimaryAction, showsSpinner: Bool) {
+        if isSubscribed { return ("Continue", .continueApp, false) }
+        switch state {
+        case .failed:
+            return ("Try Again", .retry, false)
+        case .loading:
+            return ("Start Free Trial", .purchase, true)
+        case .loaded:
+            return hasTrial
+                ? ("Start Free Trial", .purchase, false)
+                : ("Subscribe", .purchase, false)
+        }
+    }
+
+    /// The primary-button configuration for the current selection and entitlement.
+    private var primaryButton: (title: String, action: PrimaryAction, showsSpinner: Bool) {
+        Self.primaryButton(
             isSubscribed: subscriptionManager.isSubscribed,
-            hasTrial: subscriptionManager.trialLabel(for: selectedPlan) != nil,
-            productsLoaded: subscriptionManager.productsLoaded
+            state: subscriptionManager.productsState,
+            hasTrial: subscriptionManager.trialLabel(for: selectedPlan) != nil
         )
+    }
+
+    /// Runs the primary CTA's resolved action so the button always does something
+    /// visible — purchase, reload, or finish onboarding.
+    /// `@MainActor`: passed as `KnotButton`'s `@MainActor` action; mutates view state.
+    @MainActor
+    private func runPrimaryAction() {
+        switch primaryButton.action {
+        case .continueApp:
+            onContinue()
+        case .retry:
+            Task { await subscriptionManager.loadProducts() }
+        case .purchase:
+            startPurchase()
+        }
+    }
+
+    /// A visible explanation shown when the product catalog couldn't load, so the
+    /// (now "Try Again") CTA has context instead of appearing to do nothing.
+    private var loadFailedMessage: String? {
+        guard subscriptionManager.productsState == .failed,
+              !subscriptionManager.isSubscribed else { return nil }
+        return "We couldn't load subscription options. Check your connection and tap Try Again."
     }
 
     /// The line rendered under the CTA. When the user already holds Premium it says so

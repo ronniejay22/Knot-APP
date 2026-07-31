@@ -63,6 +63,8 @@ enum UITestScreenshotHarness {
             OnboardingPaywallScreenshotHarnessView()
         case "onboardingPaywallSubscribed":
             OnboardingPaywallSubscribedScreenshotHarnessView()
+        case "onboardingPaywallLoadFailed":
+            OnboardingPaywallLoadFailedScreenshotHarnessView()
         case "purchasePromptDate":
             PurchasePromptDateScreenshotHarnessView()
         default:
@@ -96,6 +98,21 @@ private struct OnboardingPaywallSubscribedScreenshotHarnessView: View {
     var body: some View {
         OnboardingPaywallView(
             subscriptionManager: SubscriptionManager(debugSubscribed: true),
+            onContinue: {},
+            onClose: {}
+        )
+    }
+}
+
+/// Renders the paywall in its product-load-failure state so a screenshot shows the
+/// recovery UI this change adds: a "We couldn't load subscription options…" message and
+/// a "Try Again" CTA in place of a purchase button that would otherwise silently no-op.
+/// A `SubscriptionManager` pinned to `.failed` (DEBUG-only `init(debugProductsFailed:)`)
+/// drives it — `loadProducts()` honors the flag, so the paywall's `.task` keeps the state.
+private struct OnboardingPaywallLoadFailedScreenshotHarnessView: View {
+    var body: some View {
+        OnboardingPaywallView(
+            subscriptionManager: SubscriptionManager(debugProductsFailed: true),
             onContinue: {},
             onClose: {}
         )

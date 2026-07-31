@@ -24,13 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes the return-to-app prompt type-aware. To show what
-        // changed, render the prompt for a `date` recommendation via the DEBUG
-        // screenshot harness (`purchasePromptDate`): the headline reads "Did you
-        // book your date?" and the confirm button reads "Yes, we're set!" — no
-        // longer the gift-only "Did you complete your purchase?" / "Yes, I bought
-        // it!" that previously showed for every merchant handoff.
-        app.launchArguments += ["-uiTestScreenshot", "purchasePromptDate"]
+        // This change makes the onboarding paywall's CTA non-silent. To show what
+        // changed, render the paywall in its product-load-failure state via the DEBUG
+        // screenshot harness (`onboardingPaywallLoadFailed`): instead of a purchase
+        // button that silently no-ops when StoreKit has no products to sell, the footer
+        // now shows a "We couldn't load subscription options…" message and a "Try Again"
+        // CTA that reloads.
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywallLoadFailed"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,9 +40,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the type-aware headline so the screenshot captures the fully
-        // rendered date-specific copy.
-        _ = app.staticTexts["Did you book your date?"].waitForExistence(timeout: 10)
+        // Wait for the load-failure recovery CTA so the screenshot captures the fully
+        // rendered "Try Again" state.
+        _ = app.buttons["Try Again"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

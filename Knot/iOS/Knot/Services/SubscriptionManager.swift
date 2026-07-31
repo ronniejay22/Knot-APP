@@ -13,6 +13,11 @@
 //  validation / App Store Server Notifications (syncing entitlement to the
 //  backend) is a documented follow-up — see memory-bank/progress.md Step 19.8.
 //
+//  Step 19.18: Added an explicit `ProductsState` (loading / loaded / failed) so the
+//  paywall can tell "still loading" from "couldn't load" and never present a purchase
+//  CTA that silently no-ops against an empty catalog. `productsLoaded` is now derived
+//  from that state.
+//
 
 import StoreKit
 
@@ -45,9 +50,26 @@ final class SubscriptionManager {
     /// `loadProducts()` succeeds.
     private(set) var products: [Product] = []
 
-    /// True once `loadProducts()` has returned products (drives whether the UI
-    /// shows real prices/trial copy vs. the static placeholder labels).
-    private(set) var productsLoaded = false
+    /// The lifecycle of the product-catalog load. Drives whether the paywall shows
+    /// its live purchase CTA, a loading spinner, or a "couldn't load / Try Again"
+    /// recovery state — so a tap can never silently no-op against an empty catalog.
+    enum ProductsState: Equatable {
+        /// `loadProducts()` is in flight (or hasn't run yet).
+        case loading
+        /// Products resolved — the purchase CTA is live.
+        case loaded
+        /// The load finished with no products (empty catalog or a thrown error).
+        case failed
+    }
+
+    /// The current product-load lifecycle. Starts `.loading` because the paywall
+    /// kicks off `loadProducts()` the moment it appears.
+    private(set) var productsState: ProductsState = .loading
+
+    /// True once products have resolved (drives whether the UI shows real
+    /// prices/trial copy vs. the static placeholder labels). Derived from
+    /// `productsState` so the two can't disagree.
+    var productsLoaded: Bool { productsState == .loaded }
 
     /// True while a purchase or restore network round-trip is in flight. Drives
     /// the CTA's loading spinner and disabled state.
@@ -106,24 +128,50 @@ final class SubscriptionManager {
         debugForceSubscribed = debugSubscribed
         isSubscribed = debugSubscribed
     }
+
+    /// Screenshot/preview override. When true, `loadProducts()` skips the catalog
+    /// fetch and leaves `productsState == .failed`, so the paywall's "couldn't load /
+    /// Try Again" recovery state can be captured deterministically (a real fetch would
+    /// otherwise resolve it to `.loaded`). Never set in shipping code.
+    private var debugForceProductsFailed = false
+
+    /// Screenshot/preview-only convenience: a manager pinned to the failed-load state,
+    /// used by `UITestScreenshotHarness` to capture the paywall's Try-Again recovery UI.
+    convenience init(debugProductsFailed: Bool) {
+        self.init()
+        debugForceProductsFailed = debugProductsFailed
+        productsState = debugProductsFailed ? .failed : .loading
+    }
 #endif
 
     // MARK: - Products
 
     /// Loads the Knot Premium products from the App Store (or the local
     /// `.storekit` catalog in the simulator) and refreshes the entitlement.
-    /// Failures leave `productsLoaded == false` so the paywall keeps rendering
-    /// its placeholder pricing.
+    /// Drives `productsState`: `.loaded` on success, `.failed` on an empty catalog
+    /// or a thrown error (the paywall then shows its Try-Again recovery state instead
+    /// of a purchase CTA that would silently no-op).
     func loadProducts() async {
+#if DEBUG
+        // Screenshot/preview override — keep the forced `.failed` state so the harness
+        // can render the "couldn't load / Try Again" paywall deterministically (a real
+        // catalog fetch would otherwise resolve it to `.loaded`).
+        if debugForceProductsFailed {
+            productsState = .failed
+            await refreshEntitlements()
+            return
+        }
+#endif
+        productsState = .loading
         do {
             let fetched = try await Product.products(for: ProductID.all)
             products = fetched.sorted { lhs, rhs in
                 (ProductID.all.firstIndex(of: lhs.id) ?? .max)
                     < (ProductID.all.firstIndex(of: rhs.id) ?? .max)
             }
-            productsLoaded = !products.isEmpty
+            productsState = products.isEmpty ? .failed : .loaded
         } catch {
-            productsLoaded = false
+            productsState = .failed
         }
         // Always recompute the entitlement, even when product loading fails —
         // `currentEntitlements` is read locally and doesn't depend on the catalog,
