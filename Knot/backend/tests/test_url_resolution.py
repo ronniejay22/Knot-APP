@@ -20,6 +20,7 @@ from app.agents.state import (
 )
 from app.agents.url_resolution import (
     _is_rejected_domain,
+    _is_rejected_result,
     _localize_search_query,
     _score_result,
     _search_for_purchase_url,
@@ -65,6 +66,40 @@ class TestIsSearchOrShoppingURL:
     def test_international_google_subdomain_flagged(self):
         # Mirrors the Swift guard: a search subdomain on a non-.com Google TLD.
         assert is_search_or_shopping_url("https://shopping.google.de/search?q=x") is True
+
+    def test_on_platform_listing_pages_flagged(self):
+        # The reported bug: a card resolving to an on-platform SEARCH/DIRECTORY page
+        # hosted on a legitimate commerce domain, not a specific detail page.
+        for url in (
+            # Eventbrite discovery/browse directories (the "pastry class" results page).
+            "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/",
+            "https://www.eventbrite.com/b/ca--los-angeles/food-and-drink/",
+            # Generic ?q=/?query=/?search=/?find_desc= search-results pages on any host.
+            "https://www.etsy.com/search?q=leather+journal",
+            "https://www.yelp.com/search?find_desc=pottery&find_loc=Austin",
+            "https://www.ticketmaster.com/search?q=jazz",
+            "https://someshop.example.com/catalog?query=gift",
+            # Path-only listing markers and per-platform directory prefixes.
+            "https://www.amazon.com/s?k=chef+knife",
+            "https://www.etsy.com/c/jewelry-and-accessories",
+        ):
+            assert is_search_or_shopping_url(url) is True, url
+
+    def test_dedicated_detail_pages_pass(self):
+        # The specific-item detail pages that MUST survive — a listing check that
+        # rejected these would leave every card unbookable.
+        for url in (
+            "https://www.eventbrite.com/e/ravioli-revelry-cooking-class-tickets-123456789",
+            "https://www.etsy.com/listing/1234567/leather-journal",
+            "https://www.yelp.com/biz/blue-bottle-coffee-los-angeles",
+            "https://www.amazon.com/dp/B0ABCDEFGH",
+            "https://shop.example.com/products/mug?variant=42",  # non-search query param
+        ):
+            assert is_search_or_shopping_url(url) is False, url
+
+    def test_blank_search_param_value_not_flagged(self):
+        # `?q=` with no term is not a results page.
+        assert is_search_or_shopping_url("https://shop.example.com/catalog?q=") is False
 
 
 class TestLocalizeSearchQuery:
@@ -197,6 +232,28 @@ class TestRejectDomain:
             assert _is_rejected_domain(host) is True
 
 
+class TestRejectResult:
+    """`_is_rejected_result` is the per-Brave-result gate: search-engine/article host
+    OR on-platform search/listing page. A real detail page on a commerce host survives."""
+
+    def test_rejects_search_engines_and_listings(self):
+        for url in (
+            "https://www.google.com/search?q=x",                       # engine host
+            "https://www.reddit.com/r/gifts",                          # article host
+            "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/",  # on-platform listing
+            "https://www.etsy.com/search?q=journal",                   # search query param
+        ):
+            assert _is_rejected_result(url) is True, url
+
+    def test_accepts_dedicated_detail_pages(self):
+        for url in (
+            "https://www.eventbrite.com/e/ravioli-revelry-cooking-class-tickets-123456789",
+            "https://www.ticketmaster.com/event/the-fonda-123",
+            "https://thefondatheatre.com/calendar",
+        ):
+            assert _is_rejected_result(url) is False, url
+
+
 class TestScoreResult:
     def test_preferred_commerce_domain_beats_bare_blog(self):
         commerce = _score_result("https://www.ticketmaster.com/event/123", rank=4)
@@ -242,6 +299,32 @@ class TestSearchForPurchaseURL:
         with cfg, cli:
             url = await _search_for_purchase_url("the fonda theatre")
         assert url == "https://thefondatheatre.com/calendar"
+
+    @pytest.mark.asyncio
+    async def test_prefers_event_detail_over_platform_listing(self):
+        # The reported bug: Brave returns both an Eventbrite listing/directory page and
+        # the specific event detail page. The listing must be rejected outright (not just
+        # out-scored), so the /e/ detail page is chosen even when ranked lower.
+        cfg, cli = _patch_brave([
+            {"url": "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/"},
+            {"url": "https://www.eventbrite.com/e/ravioli-revelry-cooking-class-tickets-123456789"},
+        ])
+        with cfg, cli:
+            url = await _search_for_purchase_url("pastry class los angeles")
+        assert url == "https://www.eventbrite.com/e/ravioli-revelry-cooking-class-tickets-123456789"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_all_results_are_listings(self):
+        # Only on-platform search/directory pages available → resolve to None so the
+        # availability node swaps the card. A listing is NEVER returned as the CTA.
+        cfg, cli = _patch_brave([
+            {"url": "https://www.eventbrite.com/d/ca--los-angeles/pastry-class/"},
+            {"url": "https://www.etsy.com/search?q=pastry+class"},
+            {"url": "https://www.amazon.com/s?k=pastry+class"},
+        ])
+        with cfg, cli:
+            url = await _search_for_purchase_url("pastry class")
+        assert url is None
 
     @pytest.mark.asyncio
     async def test_returns_none_when_brave_unconfigured(self):

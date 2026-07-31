@@ -13,7 +13,7 @@ Step 15.1: Unified AI Recommendation System
 import asyncio
 import logging
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 
@@ -71,6 +71,32 @@ PURCHASE_PATH_KEYWORDS = (
 COMMERCE_DOMAIN_SCORE = 100
 PURCHASE_PATH_SCORE = 10
 
+# A destination must be a single item's DETAIL page — never an on-platform search or
+# directory/listing page (e.g. an Eventbrite "pastry class" results page). The general
+# search-engine host check above misses these because they live on legitimate commerce
+# domains, so we also inspect the URL's query string and path.
+#
+# Query-string keys that mean "this is a search-results page" on ANY host (Etsy
+# `/search?q=`, Yelp `?find_desc=`, Ticketmaster `/search?q=`, a bare `?q=`, …). Kept
+# deliberately tight so genuine detail-page params (`?variant=`, `?tickets=`) survive.
+SEARCH_QUERY_PARAM_KEYS = {"q", "query", "search", "find_desc"}
+# Path SEGMENTS that mark a listing/results page on any host. Matched as whole path
+# segments, not substrings, so a `search.<merchant>.com` host label or a `research-kit`
+# slug is unaffected — only an actual `/search` or `/results` path segment counts.
+LISTING_PATH_SEGMENTS = {"search", "results"}
+# Per-platform directory/browse path prefixes for listing pages that carry NO query
+# string (so the generic checks above can't catch them). Keyed by a domain fragment
+# matched as a substring of the host (same style as PREFERRED_COMMERCE_DOMAINS). Prefixes
+# are stored WITH a trailing slash and matched against the trailing-slash-normalized
+# path, so `/d/` won't match a `/dance-class` detail slug nor `/s/` a `/stores` page.
+# Detail pages (Eventbrite `/e/`, Amazon `/dp/`, Etsy `/listing/`) are intentionally
+# excluded. NOTE: mirrored in iOS `URL+SearchLink.swift` — keep the two in sync.
+LISTING_PATH_PREFIXES = {
+    "eventbrite.": ("/d/", "/b/"),  # discovery / browse directories; detail is /e/
+    "amazon.": ("/s/",),            # /s?k=… search results; detail is /dp/ or /gp/
+    "etsy.com": ("/c/",),           # category listing; detail is /listing/
+}
+
 
 # ======================================================================
 # Brave Search for a single item
@@ -103,27 +129,67 @@ def _is_rejected_domain(domain: str) -> bool:
     return _is_search_engine_host(domain)
 
 
+def _has_search_query_param(query: str) -> bool:
+    """
+    True when the query string carries a search-term param (`?q=`, `?query=`, `?search=`,
+    `?find_desc=`) — the signature of a results page. Blank values are ignored, so `?q=`
+    with no term does not count.
+    """
+    if not query:
+        return False
+    keys = {k.lower() for k in parse_qs(query)}
+    return bool(keys & SEARCH_QUERY_PARAM_KEYS)
+
+
+def _is_listing_path(host: str, path: str) -> bool:
+    """
+    True when the (already-lowercased) `path` is a search/directory/listing page rather
+    than a single item's detail page: a `/search` or `/results` path segment on any host,
+    or a known per-platform directory prefix (Eventbrite `/d/`,`/b/`; Amazon `/s`; Etsy
+    `/c/`). Detail paths (`/e/`, `/dp/`, `/listing/`) and a merchant's own `search.<host>`
+    subdomain (a host label, not a path segment) are unaffected.
+    """
+    if {seg for seg in path.split("/") if seg} & LISTING_PATH_SEGMENTS:
+        return True
+    norm = path if path.endswith("/") else path + "/"
+    return any(
+        frag in host and norm.startswith(prefixes)
+        for frag, prefixes in LISTING_PATH_PREFIXES.items()
+    )
+
+
 def is_search_or_shopping_url(url: str | None) -> bool:
     """
-    True when `url` is a general web-search or shopping-results page rather than a real
-    merchant page (a search-engine host, or the Google Shopping `tbm=shop` flag).
+    True when `url` is a search/shopping/directory-LISTING page rather than a real,
+    dedicated merchant detail page. Catches: a general search-engine host, the Google
+    Shopping `tbm=shop` flag, a search-term query param (`?q=`/`?query=`/`?search=`/
+    `?find_desc=`), a `/search`|`/results` path segment, and known on-platform directory
+    paths (Eventbrite `/d/`,`/b/`; Amazon `/s`; Etsy `/c/`).
 
-    Used to sanitize stored/legacy `external_url` values at the API boundary so a
-    recommendation generated before the URL fix can never re-serve a Google-Shopping
-    link. `None`/blank → False. A merchant's own on-site search is NOT matched.
+    Used both to reject Brave results during resolution and to sanitize stored/legacy
+    `external_url` values at the API boundary, so a recommendation can never open on a
+    web-search OR an on-platform listing page. `None`/blank → False. A merchant's own
+    on-site search *subdomain* (search.<host>) with a real path is NOT matched.
     """
     if not url:
         return False
     if "tbm=shop" in url.lower():
         return True
     try:
-        host = urlparse(url).netloc.lower()
+        parsed = urlparse(url)
+        host = parsed.netloc.lower()
+        path = parsed.path.lower()
+        query = parsed.query
     except ValueError:
         # Malformed stored/legacy URL (e.g. a bad IPv6 literal). It isn't a search
         # engine we can identify; leave it to the client's own URL parsing rather
         # than 500 the whole read. (A malformed URL won't open on iOS anyway.)
         return False
-    return bool(host) and _is_search_engine_host(host)
+    if host and _is_search_engine_host(host):
+        return True
+    if _has_search_query_param(query):
+        return True
+    return _is_listing_path(host, path)
 
 
 def _score_result(url: str, rank: int) -> int:
@@ -144,6 +210,18 @@ def _score_result(url: str, rank: int) -> int:
     return score
 
 
+def _is_rejected_result(url: str) -> bool:
+    """
+    True when a Brave result URL must never be selected as a purchase destination: a
+    general search-engine / article-listicle host (`_is_rejected_domain`), OR a
+    search/shopping/on-platform listing page (`is_search_or_shopping_url`). Rejecting an
+    on-platform listing here (rather than merely down-scoring it) means the item's
+    `external_url` is left None so availability swaps it — never lands on a results page.
+    """
+    domain = urlparse(url).netloc.lower()
+    return _is_rejected_domain(domain) or is_search_or_shopping_url(url)
+
+
 async def _search_for_purchase_url(
     search_query: str,
     merchant_name: str | None = None,
@@ -151,9 +229,10 @@ async def _search_for_purchase_url(
     """
     Search Brave for a real, dedicated purchase/booking URL matching the query.
 
-    Hard-rejects general search engines and article/listicle domains, then returns
-    the best-scoring surviving result (preferring known commerce/ticketing domains
-    and buy/book paths). Never returns a web-search link.
+    Hard-rejects general search engines, article/listicle domains, and on-platform
+    search/directory/listing pages (via `_is_rejected_result`), then returns the
+    best-scoring surviving result (preferring known commerce/ticketing domains and
+    buy/book paths). Never returns a web-search or listing link.
 
     Returns the best real page URL, or None if nothing suitable was found.
     """
@@ -195,8 +274,7 @@ async def _search_for_purchase_url(
                 url = result.get("url", "")
                 if not url:
                     continue
-                domain = urlparse(url).netloc.lower()
-                if _is_rejected_domain(domain):
+                if _is_rejected_result(url):
                     continue
                 score = _score_result(url, rank)
                 if score > best_score:
