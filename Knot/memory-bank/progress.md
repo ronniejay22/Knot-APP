@@ -7185,6 +7185,36 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.21 ✅ Recommendations — "Continue" CTA After Saving + Remove the Detail Page's Top-Right Buttons
+**Date:** 2026-08-01
+**Status:** Complete
+
+**Goal:** Two fixes on the recommendation detail page ([RecommendationDetailView.swift](iOS/Knot/Features/Recommendations/RecommendationDetailView.swift)). (1) The Save CTA dead-ended: for Knot Originals (`idea`/`plan`) and any purchasable without an openable merchant link, the sticky bottom CTA is "Save to Library" — after a tap it flipped to a **"Saved"** button that did nothing (`saveOnce()` guards every subsequent tap), leaving the user on a full-screen cover with no forward action. (2) Two circular buttons — Share and Heart(Save) — sat over the hero's top-right, duplicating the bottom CTA's job and adding chrome to a page meant to read as an immersive photo.
+
+**What changed (iOS — `RecommendationDetailView.swift`):**
+- **Three-state save CTA.** Added a pure, testable `static func saveCTAState(isSavedLocally:confirmationElapsed:) -> SaveCTAState` (`.save` / `.saved` / `.continueOn`) — the same "extract the decision, unit-test the helper" pattern as `PurchasePromptCopy` (Step 19.16) and `OnboardingPaywallView.primaryButton` (Step 19.19). The `isIdea || !hasOpenableLink` branch of `primaryCTA` now switches on it: **"Save to Library"** (`.primary`, leading `Lucide.bookmark`) → **"Saved"** (`.secondary`, leading `Lucide.bookmarkCheck`) → **"Continue"** (`.primary`, trailing `Lucide.arrowRight`, action `onDismiss`). Sizing (`.lg`, `.pill`, `maxWidth: 220`) is unchanged, and the `hasOpenableLink` "Open in {Merchant}" branch is untouched.
+- **Timing.** New `@State confirmationElapsed`, flipped by a `.task(id: savedLocally)` that sleeps `savedConfirmationDelay` (`.seconds(2)`) then animates with `Theme.Motion.standard`. `.task(id:)` cancels automatically when the cover is dismissed, so no manual task bookkeeping. `.onAppear` seeds **both** `savedLocally` and `confirmationElapsed` from `isSaved`, so an item opened already-saved (the Saved tab, or a card saved earlier in the session) shows "Continue" immediately instead of the previously inert "Saved" — the rule is simply *saved ⇒ the CTA moves you forward*.
+- **Top bar.** `topBar` is now just the Back button + `Spacer()`; the Share and Heart circle buttons were deleted, along with the now-unused `tint:` parameter on the private `circleButton(...)` helper.
+- **`onShare` removed** from the view's API and from every construction site: `RecommendationsView`, `OnboardingCompletionView`, `SavedView`, the two `UITestScreenshotHarness` detail harnesses, both `#Preview`s, and `RecommendationsViewTests`.
+- **Orphaned share plumbing deleted.** Those were the only callers of `shareRecommendation`, so the method was removed from both `RecommendationsViewModel` and `SavedViewModel` rather than left as dead `UIActivityViewController` code. This removes the app's only Share affordance and its `action: "shared"` feedback signal — the backend `Literal` still accepts `"shared"`, and the code is one `git revert` away if Share returns. `import UIKit` stays in both files (haptics / background tasks / `UIApplication.open`).
+
+**Screenshot seam:** added a `recDetailSaveCTA` key + `RecDetailSaveCTAHarnessView` to `UITestScreenshotHarness.swift` rendering `PreviewRecommendations.idea` (a Knot Original, so the Save-to-Library CTA is the one on screen) with `isSaved: false`. `PRScreenshotTests` taps **"Save to Library"**, waits for **"Continue"**, then captures — one image proving both changes (Back-only top bar + the Continue CTA).
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — three-state CTA + `saveCTAState` helper + `.task(id:)` timer; Share/Save circle buttons and `onShare` removed
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — deleted `shareRecommendation`
+- `iOS/Knot/Features/Saved/SavedViewModel.swift` — deleted `shareRecommendation`
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift`, `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift`, `iOS/Knot/Features/Saved/SavedView.swift` — dropped the `onShare:` argument
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — new `recDetailSaveCTA` harness; `onShare:` dropped from the two existing detail harnesses
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot points at `recDetailSaveCTA` and drives the save → continue transition
+- `iOS/KnotTests/RecommendationsViewTests.swift` — new `RecommendationDetailCTATests` + an already-saved render test; `onShare:` dropped
+
+**Tests:** New `RecommendationDetailCTATests` pins all four `saveCTAState` combinations (unsaved → `.save` even when `confirmationElapsed` is true; saved + not elapsed → `.saved`; saved + elapsed → `.continueOn`). Added `testDetailRendersWhenAlreadySaved` for the immediate-"Continue" path. Full plan (unit + UI) green.
+
+**Notes:** Purely presentational + view-model cleanup — no DTO, API, or schema change. The "Continue" action is `onDismiss`, which every call site already wires to closing the detail cover (back to the carousel, or back to the Saved list).
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

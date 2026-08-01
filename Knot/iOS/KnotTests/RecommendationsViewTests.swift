@@ -1579,6 +1579,44 @@ final class SpotlightDeckStateTests: XCTestCase {
     }
 }
 
+// MARK: - Recommendation Detail Save CTA Tests (August 1, 2026)
+
+/// Pins the pure Save → Saved → Continue CTA state machine on the detail page.
+/// The "Saved" confirmation is a brief acknowledgement; once it elapses the CTA
+/// becomes "Continue" so the user always has a forward action.
+@MainActor
+final class RecommendationDetailCTATests: XCTestCase {
+
+    func testUnsavedShowsSaveCTA() {
+        XCTAssertEqual(
+            RecommendationDetailView.saveCTAState(isSavedLocally: false, confirmationElapsed: false),
+            .save
+        )
+    }
+
+    /// The elapsed flag is meaningless until something is actually saved.
+    func testUnsavedIgnoresElapsedConfirmation() {
+        XCTAssertEqual(
+            RecommendationDetailView.saveCTAState(isSavedLocally: false, confirmationElapsed: true),
+            .save
+        )
+    }
+
+    func testJustSavedShowsSavedConfirmation() {
+        XCTAssertEqual(
+            RecommendationDetailView.saveCTAState(isSavedLocally: true, confirmationElapsed: false),
+            .saved
+        )
+    }
+
+    func testSavedAfterConfirmationShowsContinue() {
+        XCTAssertEqual(
+            RecommendationDetailView.saveCTAState(isSavedLocally: true, confirmationElapsed: true),
+            .continueOn
+        )
+    }
+}
+
 // MARK: - Spotlight View Rendering Tests (June 12, 2026)
 
 @MainActor
@@ -1594,12 +1632,25 @@ final class SpotlightViewRenderingTests: XCTestCase {
                 isSaved: false,
                 onOpenMerchant: {},
                 onSave: {},
-                onShare: {},
                 onDismiss: {}
             )
             let host = UIHostingController(rootView: view)
             XCTAssertNotNil(host.view, "RecommendationDetailView should render for type: \(type)")
         }
+    }
+
+    /// An already-saved item renders (the immediate-"Continue" CTA path).
+    func testDetailRendersWhenAlreadySaved() {
+        let view = RecommendationDetailView(
+            item: makeItem(type: "idea"),
+            partnerName: "Alex",
+            isSaved: true,
+            onOpenMerchant: {},
+            onSave: {},
+            onDismiss: {}
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "RecommendationDetailView should render for an already-saved item")
     }
 
     /// The Spotlight deck renders with a multi-item deck.

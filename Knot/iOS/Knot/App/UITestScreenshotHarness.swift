@@ -45,6 +45,8 @@ enum UITestScreenshotHarness {
             RecDetailScreenshotHarnessView()
         case "recDetailStale":
             RecDetailStaleLinkHarnessView()
+        case "recDetailSaveCTA":
+            RecDetailSaveCTAHarnessView()
         case "savedMoments":
             SavedMomentsScreenshotHarnessView()
         case "settings":
@@ -337,7 +339,6 @@ private struct RecDetailScreenshotHarnessView: View {
             isSaved: false,
             onOpenMerchant: {},
             onSave: {},
-            onShare: {},
             onDismiss: {}
         )
     }
@@ -354,7 +355,23 @@ private struct RecDetailStaleLinkHarnessView: View {
             isSaved: false,
             onOpenMerchant: {},
             onSave: {},
-            onShare: {},
+            onDismiss: {}
+        )
+    }
+}
+
+/// Renders the recommendation detail for a Knot Original — the type whose sticky CTA
+/// is the Save → Saved → Continue flow. Starts unsaved so the screenshot test can tap
+/// "Save to Library" and wait for the CTA to become "Continue", capturing both the
+/// three-state CTA and the now-single (Back-only) top bar in one image.
+private struct RecDetailSaveCTAHarnessView: View {
+    var body: some View {
+        RecommendationDetailView(
+            item: PreviewRecommendations.idea,
+            partnerName: "Ronnie",
+            isSaved: false,
+            onOpenMerchant: {},
+            onSave: {},
             onDismiss: {}
         )
     }

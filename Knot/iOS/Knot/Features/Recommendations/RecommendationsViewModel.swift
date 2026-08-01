@@ -536,48 +536,6 @@ final class RecommendationsViewModel {
         }
     }
 
-    // MARK: - Share (Step 6.6)
-
-    /// Presents the system share sheet with the recommendation URL and a custom message.
-    ///
-    /// Records "shared" feedback on the backend only when the user completes the share
-    /// (not on cancellation).
-    func shareRecommendation(_ item: RecommendationItemResponse) {
-        let title = item.title
-        let merchantText = item.merchantName.map { " from \($0)" } ?? ""
-        let message = "Check out this recommendation\(merchantText): \(title)"
-
-        var items: [Any] = [message]
-        if let urlString = item.externalUrl, let url = URL(string: urlString) {
-            items.append(url)
-        }
-
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-
-        // Record feedback only on successful share (not cancellation)
-        let service = self.service
-        let itemId = item.id
-        activityVC.completionWithItemsHandler = { activityType, completed, _, _ in
-            guard completed, activityType != nil else { return }
-            Task {
-                try? await service.recordFeedback(
-                    recommendationId: itemId,
-                    action: "shared"
-                )
-            }
-        }
-
-        // Present the share sheet from the top-most view controller
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            var topVC = rootVC
-            while let presented = topVC.presentedViewController {
-                topVC = presented
-            }
-            topVC.present(activityVC, animated: true)
-        }
-    }
-
     // MARK: - Return-to-App (Step 9.4)
 
     /// Called when the app returns to foreground and there is a pending handoff.
