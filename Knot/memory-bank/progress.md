@@ -7162,6 +7162,29 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.20 ✅ Dev Tooling — /start-server Command + Cold-Start Bootstrap for backend/scripts/dev.sh
+**Date:** 2026-08-01
+**Status:** Complete
+
+**Goal:** A local backend that isn't running makes every API call fail — the app shows "Unable to connect to the server" (the DEV **Reset Onboarding** button, which hits `POST /api/v1/users/me/dev-reset`, is where it usually bites). Give the repo a one-invocation way to boot the backend reliably and confirm it's up, and make the existing launcher survive a cold checkout instead of failing with a cryptic "uvicorn: command not found".
+
+**What changed:**
+- **New `/start-server` skill** wraps the existing `backend/scripts/dev.sh`: it skips if `GET /health` already answers (idempotent — never launches a second uvicorn on :8420), ensures `backend/.env` exists (copies `backend/.env.example`) and that `KNOT_DEV_RESET_ENABLED=true` is present so the DEV reset button actually works once the server is up, launches `dev.sh` in the background (output to `backend/.dev-server.log`, already gitignored by the backend `*.log` rule), then polls `/health` and reports the reachable URLs (Simulator/Mac `http://127.0.0.1:8420`, physical device `http://<Mac-LAN-IP>:8420`). An optional `restart` argument kills a wedged process on :8420 first.
+- **Hardened `backend/scripts/dev.sh`.** It previously only *activated* an existing `venv/` and otherwise fell straight through to `exec uvicorn`, which fails on a fresh clone or a git worktree (venv is gitignored, so `uvicorn` isn't on PATH). It now bootstraps a missing venv before activating: resolve `python3.13` (fall back to `python3`, warning if the resolved interpreter isn't 3.13), create `venv/`, and `pip install -r requirements.txt`. Warm runs are unchanged — activate the existing venv and `exec uvicorn app.main:app --host 0.0.0.0 --port 8420 --reload`. This keeps a single source of truth for *how* the server starts.
+- **Harness-aware health check.** The skill's readiness poll uses `curl --retry N --retry-delay 1 --retry-connrefused --retry-all-errors` rather than a shell `sleep` loop (the Claude Code Bash tool blocks a foreground `sleep`), and explicitly notes that a *cold* start's one-time `pip install` runs far longer than the retry budget — watch the log for the `✓ Dependencies installed.` line before polling health, so a slow first boot isn't mis-reported as a failure.
+
+**Files created:**
+- `.claude/skills/start-server/SKILL.md` — the `/start-server` command (boot the backend dev server + verify `/health`)
+
+**Files modified:**
+- `backend/scripts/dev.sh` — cold-start venv bootstrap (create `venv/` + `pip install` when missing) with a Python-version guard; warm-start behavior unchanged
+
+**Tests:** None automated — a Bash script plus a Markdown skill, so there is no Python/Swift surface for the pytest or XCTest suites to exercise. Verified end-to-end instead: booted the backend from this worktree using the main checkout's venv and confirmed `GET http://127.0.0.1:8420/health` → `{"status":"ok"}` with uvicorn bound to `0.0.0.0:8420`; `bash -n backend/scripts/dev.sh` parses clean.
+
+**Notes:** Port is 8420 on both sides — uvicorn `--port 8420` ↔ iOS `inject-dev-host.sh` + `Constants.swift` loopback fallback (`Step 19.7`). The `KNOT_DEV_RESET_ENABLED` write is deliberately local-`.env`-only: it gates a vault-wiping endpoint and must stay UNSET on Vercel prod. The skill is meant to run from the **main checkout** — a worktree has no venv, so the server is booted from the real dev tree.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
