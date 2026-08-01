@@ -52,6 +52,28 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(manager.products.map(\.id), SubscriptionManager.ProductID.all)
     }
 
+    // MARK: - Load state
+
+    /// A successful load against the local catalog resolves the state to `.loaded`
+    /// (which is what `productsLoaded` reports), so the paywall shows its live CTA.
+    func testProductsStateIsLoadedAfterSuccessfulLoad() async {
+        let manager = SubscriptionManager()
+        XCTAssertEqual(manager.productsState, .loading) // pre-load default
+        await manager.loadProducts()
+        XCTAssertEqual(manager.productsState, .loaded)
+        XCTAssertTrue(manager.productsLoaded)
+    }
+
+    /// The DEBUG failure hook pins the state to `.failed` even across a `loadProducts()`
+    /// call, so the screenshot harness can render the Try-Again recovery state.
+    func testDebugProductsFailedPinsFailedStateAcrossLoad() async {
+        let manager = SubscriptionManager(debugProductsFailed: true)
+        XCTAssertEqual(manager.productsState, .failed)
+        await manager.loadProducts()
+        XCTAssertEqual(manager.productsState, .failed)
+        XCTAssertFalse(manager.productsLoaded)
+    }
+
     // MARK: - Free trial
 
     func testEachPlanHasSevenDayFreeTrial() async {

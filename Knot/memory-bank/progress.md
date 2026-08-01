@@ -7145,7 +7145,24 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.19 ✅ Dev Tooling — /start-server Command + Cold-Start Bootstrap for backend/scripts/dev.sh
+### Step 19.19 ✅ Subscriptions — Make the Onboarding Paywall's "Start Free Trial" CTA Non-Silent
+**Date:** 2026-07-30
+**Status:** Complete
+
+**Goal:** Fix a report that tapping **"Start Free Trial"** on the end-of-onboarding paywall appears to do nothing. The purchase flow (Step 19.8) is real StoreKit 2, but it can only present Apple's system purchase sheet when StoreKit actually has products to sell — i.e. when the local `Knot.storekit` catalog is active (the app is run from Xcode's **Knot** scheme) or real App Store Connect products exist. When products fail to load (a device/TestFlight build without the StoreKit config, or a network failure), the CTA still read "Start Free Trial" and a tap hit `guard let product = product(for:)`, which set only a small accent-colored error line above the button — trivially easy to miss, so the tap read as "nothing happened." The button could also be tapped while products were still loading, producing the same silent no-op. (iOS subscriptions are charged to the user's Apple Account via Apple's own sheet — the app never sees or stores payment details — so there is no in-app card entry to add; the fix is making the load/failure states visible.)
+
+**What changed (iOS):**
+- **`iOS/Knot/Services/SubscriptionManager.swift`:** Replaced the boolean `productsLoaded` with an explicit `ProductsState` (`loading` / `loaded` / `failed`); `productsLoaded` is now a derived `productsState == .loaded`. `loadProducts()` sets `.loading` up front, `.loaded` on a non-empty catalog, and `.failed` on an empty catalog or a thrown error, so "still loading" and "couldn't load" are distinguishable. Added a DEBUG-only `init(debugProductsFailed:)` + `debugForceProductsFailed` flag (honored by an early return in `loadProducts()`) so the screenshot harness can render the failure state deterministically — mirroring the existing `init(debugSubscribed:)` seam.
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`:** Replaced the pure `ctaTitle(...)` helper with `primaryButton(isSubscribed:state:hasTrial:)`, which returns the full CTA config `(title, action, showsSpinner)` where `action ∈ {purchase, retry, continueApp}`. The footer now spins + disables the CTA while `.loading` (a tap can't fire against a not-yet-loaded catalog); on `.failed` swaps the CTA to **"Try Again"** (which re-runs `loadProducts()`) and shows a "We couldn't load subscription options. Check your connection and tap Try Again." message; and otherwise behaves as before ("Continue" when already entitled, "Start Free Trial" / "Subscribe" when loaded). The genuine-purchase-failure `purchaseError` path is unchanged.
+- **Screenshot seam (`iOS/Knot/App/UITestScreenshotHarness.swift` + `iOS/KnotUITests/PRScreenshotTests.swift`):** added an `onboardingPaywallLoadFailed` harness key (injecting `SubscriptionManager(debugProductsFailed: true)`) and pointed the PR screenshot test at it (waiting on the "Try Again" button).
+
+**Tests:** `KnotTests/OnboardingPaywallViewTests.swift` now covers `primaryButton(...)` across all five state combinations (subscribed → Continue, loading → spinner, failed → Try Again, loaded ± trial → Start Free Trial / Subscribe). `KnotTests/SubscriptionManagerTests.swift` asserts `productsState == .loaded` after a successful load and that `init(debugProductsFailed:)` pins `.failed` across `loadProducts()`. Full plan (unit + UI) green.
+
+**Notes:** Getting the *real* Apple purchase sheet to appear in the Simulator is a run-configuration matter, not a code one: run the **Knot** scheme from Xcode (it carries `storeKitConfiguration: Knot/Knot.storekit`), then use **Debug ▸ StoreKit ▸ Manage Transactions** to expire the trial / test a renewal. Before TestFlight/release the two auto-renewable subscriptions must still be created in App Store Connect (Step 19.8's outstanding follow-up), along with server-side receipt validation / entitlement sync — neither of which this step addresses.
+
+---
+
+### Step 19.20 ✅ Dev Tooling — /start-server Command + Cold-Start Bootstrap for backend/scripts/dev.sh
 **Date:** 2026-08-01
 **Status:** Complete
 

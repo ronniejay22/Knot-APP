@@ -24,13 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change strips the tag/badge chrome from the Spotlight recommendation
-        // card. To show what changed, render a single idea-type `SpotlightCard` via
-        // the DEBUG screenshot harness (`spotlightCard`): the top-left "IDEA" type
-        // badge and the row of matched-tag pills (Art, Cooking, Romantic, Quiet
-        // Luxury, Quality Time) are now gone — the card shows only the photo, title,
-        // description, and the red "See Details" button.
-        app.launchArguments += ["-uiTestScreenshot", "spotlightCard"]
+        // This change makes the onboarding paywall's CTA non-silent. To show what
+        // changed, render the paywall in its product-load-failure state via the DEBUG
+        // screenshot harness (`onboardingPaywallLoadFailed`): instead of a purchase
+        // button that silently no-ops when StoreKit has no products to sell, the footer
+        // now shows a "We couldn't load subscription options…" message and a "Try Again"
+        // CTA that reloads.
+        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywallLoadFailed"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,9 +40,9 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the card's title so the screenshot captures the fully rendered
-        // card (the fixture title is "Idea for Alex").
-        _ = app.staticTexts["Idea for Alex"].waitForExistence(timeout: 10)
+        // Wait for the load-failure recovery CTA so the screenshot captures the fully
+        // rendered "Try Again" state.
+        _ = app.buttons["Try Again"].waitForExistence(timeout: 10)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
