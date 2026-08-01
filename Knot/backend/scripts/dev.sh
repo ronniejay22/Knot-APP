@@ -49,8 +49,28 @@ echo "────────────────────────�
 
 cd "${BACKEND_DIR}"
 
-# Activate the virtualenv if present.
-if [ -f "venv/bin/activate" ]; then
+# Bootstrap the virtualenv on a cold checkout. venv/ is gitignored, so a fresh
+# clone (or a git worktree) has none and `uvicorn` isn't on PATH. Create it and
+# install deps once; subsequent runs just activate the existing venv.
+if [ ! -f "venv/bin/activate" ]; then
+    echo "  No virtualenv found — bootstrapping dependencies (one-time)…"
+    PYTHON="$(command -v python3.13 || command -v python3 || true)"
+    if [ -z "${PYTHON}" ]; then
+        echo "  ✗ No python3 found on PATH — install Python 3.13 and retry." >&2
+        exit 1
+    fi
+    echo "  Using $("${PYTHON}" --version 2>&1) at ${PYTHON}"
+    case "$("${PYTHON}" --version 2>&1)" in
+        *" 3.13."*) : ;;
+        *) echo "  ⚠ Expected Python 3.13 — deps may not install cleanly on this version." >&2 ;;
+    esac
+    "${PYTHON}" -m venv venv
+    # shellcheck disable=SC1091
+    source venv/bin/activate
+    python -m pip install --quiet --upgrade pip
+    python -m pip install --quiet -r requirements.txt
+    echo "  ✓ Dependencies installed."
+else
     # shellcheck disable=SC1091
     source venv/bin/activate
 fi

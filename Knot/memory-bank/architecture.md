@@ -51,6 +51,7 @@ half of the loop).
 | `log-step/SKILL.md` | `/log-step` — writes the memory-bank docs for a finished change: the correctly-formatted `### Step X.Y` entry in `progress.md` (picks a non-colliding number, inserts before `## Next Steps`, preserves the strict section order) plus the matching `architecture.md` row updates. Encodes the CLAUDE.md "Documentation Updates" rules. |
 | `screenshot-screen/SKILL.md` | `/screenshot-screen` — reuses or scaffolds a `UITestScreenshotHarness` key + standalone harness view, points the `PRScreenshotTests` navigation slot at it, and runs `iOS/scripts/capture-ui-screenshot.sh`. Handles the multi-file harness setup preceding `/ship-pr`'s capture. |
 | `sync-dto/SKILL.md` | `/sync-dto` — keeps an API contract in sync across the Pydantic model (`backend/app/models/*.py`) and the Swift `Codable` DTO + `CodingKeys` (`iOS/Knot/Models/DTOs.swift`), flagging any SwiftData `*Local.swift` mirror. Type-mapping table + snake_case ⇄ camelCase rules. |
+| `start-server/SKILL.md` | **Step 19.19:** `/start-server` — boots the backend dev server so the app can reach it (fixes "Unable to connect to the server"). Wraps `backend/scripts/dev.sh`: skips if `/health` already answers (idempotent), ensures `backend/.env` exists and `KNOT_DEV_RESET_ENABLED=true` is set, launches `dev.sh` in the background (log to `backend/.dev-server.log`), then polls `/health` and reports the Simulator (`127.0.0.1:8420`) + LAN device URLs. Optional `restart` arg kills a wedged process on :8420 first. Run from the main checkout (a worktree has no venv). |
 
 `.claude/` also holds the project slash command (`commands/review.md`), the SessionStart /
 UserPromptSubmit hooks that enforce the memory-bank read and autonomous workflow, and
@@ -596,7 +597,7 @@ The backend follows a clean separation of concerns:
 Each layer only depends on the layer below it. Route handlers never call the database directly.
 
 ### 7. Python Virtual Environment
-The backend uses a local `venv/` (gitignored) with Python 3.13. This avoids polluting the system Python and ensures reproducible builds. Activate with `source backend/venv/bin/activate`.
+The backend uses a local `venv/` (gitignored) with Python 3.13. This avoids polluting the system Python and ensures reproducible builds. Activate with `source backend/venv/bin/activate`. **Step 19.19:** `backend/scripts/dev.sh` now bootstraps this venv on a cold checkout — if `venv/bin/activate` is missing it resolves `python3.13` (falls back to `python3`, warns if not 3.13), creates the venv, and runs `pip install -r requirements.txt` before activating and `exec`ing uvicorn on `:8420`; warm runs just activate the existing venv. The `/start-server` skill drives it from the background and health-checks `:8420`.
 
 ### 8. Dependency Management Strategy
 All dependencies are declared in `requirements.txt` without pinned versions to allow flexibility during early development. Key dependency groups:
