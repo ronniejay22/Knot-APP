@@ -129,45 +129,6 @@ final class SavedViewModel {
         }
     }
 
-    /// Presents the system share sheet for a saved recommendation from its detail view.
-    ///
-    /// Mirrors `RecommendationsViewModel.shareRecommendation` — presents from the
-    /// top-most view controller and records a `"shared"` signal only on a completed
-    /// share (not on cancellation).
-    func shareRecommendation(_ item: RecommendationItemResponse) {
-        let title = item.title
-        let merchantText = item.merchantName.map { " from \($0)" } ?? ""
-        let message = "Check out this recommendation\(merchantText): \(title)"
-
-        var items: [Any] = [message]
-        if let urlString = item.externalUrl, let url = URL(string: urlString) {
-            items.append(url)
-        }
-
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-
-        let service = self.service
-        let itemId = item.id
-        activityVC.completionWithItemsHandler = { activityType, completed, _, _ in
-            guard completed, activityType != nil else { return }
-            Task {
-                try? await service.recordFeedback(
-                    recommendationId: itemId,
-                    action: "shared"
-                )
-            }
-        }
-
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            var topVC = rootVC
-            while let presented = topVC.presentedViewController {
-                topVC = presented
-            }
-            topVC.present(activityVC, animated: true)
-        }
-    }
-
     /// Clears the reward overlay after it has been shown.
     func clearCelebration() {
         lastCelebratedTitle = nil

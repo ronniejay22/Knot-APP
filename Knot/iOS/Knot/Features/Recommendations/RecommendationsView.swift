@@ -196,7 +196,6 @@ struct RecommendationsView: View {
                     isSaved: viewModel.isSaved(item.id),
                     onOpenMerchant: { Task { await viewModel.openMerchantFromDetail(item) } },
                     onSave: { viewModel.saveRecommendation(item) },
-                    onShare: { viewModel.shareRecommendation(item) },
                     onDismiss: { viewModel.dismissDetail() }
                 )
             }

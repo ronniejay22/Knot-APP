@@ -15,7 +15,7 @@ import LucideIcons
 /// Airbnb-style full-screen detail page for a single recommendation.
 ///
 /// Layout (top → bottom):
-/// - Collapsing hero image with overlaid back / share / save buttons
+/// - Collapsing hero image with a single overlaid back button
 /// - Title + meta (price · merchant · location)
 /// - "Why Knot picked this for {partner}" — the personalization note elevated into
 ///   the emotional centerpiece, with the matched vibes / love languages / interests
@@ -24,7 +24,7 @@ import LucideIcons
 /// - Location row (experiences / dates)
 /// - Structured idea content (Knot Originals), via the shared `IdeaContentSectionsView`
 /// - A sticky bottom bar: price on the left, primary CTA on the right
-///   ("Open in {Merchant}" for purchasables, "Save to Library" for ideas)
+///   ("Open in {Merchant}" for purchasables, the Save → Saved → Continue CTA otherwise)
 struct RecommendationDetailView: View {
     let item: RecommendationItemResponse
     /// Partner's first name, used to personalize the "Why Knot picked this" header.
@@ -36,20 +36,46 @@ struct RecommendationDetailView: View {
     let onOpenMerchant: @MainActor () -> Void
     /// Saves the recommendation to the library.
     let onSave: @MainActor () -> Void
-    /// Presents the system share sheet.
-    let onShare: @MainActor () -> Void
     /// Dismisses the detail page.
     let onDismiss: @MainActor () -> Void
 
-    /// Optimistic local save state so the heart + CTA flip immediately on tap
-    /// without coupling this view to the recommendations view model. Synced from
-    /// `isSaved` on appear; unsave is not supported, so a one-way flip is correct.
+    /// Optimistic local save state so the CTA flips immediately on tap without
+    /// coupling this view to the recommendations view model. Synced from `isSaved`
+    /// on appear; unsave is not supported, so a one-way flip is correct.
     @State private var savedLocally = false
+
+    /// True once the brief "Saved" confirmation has run its course, at which point
+    /// the CTA becomes "Continue". Seeded from `isSaved` on appear so an item opened
+    /// already-saved (the Saved tab, or a card saved earlier this session) shows a
+    /// forward action immediately rather than an inert "Saved" button.
+    @State private var confirmationElapsed = false
 
     private let heroHeight: CGFloat = 320
 
+    /// How long the "Saved" confirmation holds before the CTA becomes "Continue".
+    private static let savedConfirmationDelay: Duration = .seconds(2)
+
     private var isIdea: Bool {
         item.isIdea == true || item.recommendationType == "plan"
+    }
+
+    /// The three states of the save-flavored CTA. Pure so it can be unit-tested
+    /// without hosting the view.
+    enum SaveCTAState: Equatable {
+        case save
+        case saved
+        case continueOn
+    }
+
+    /// Resolves the save CTA: unsaved → "Save to Library"; saved → a brief "Saved"
+    /// confirmation; then "Continue", which moves the user on.
+    static func saveCTAState(isSavedLocally: Bool, confirmationElapsed: Bool) -> SaveCTAState {
+        guard isSavedLocally else { return .save }
+        return confirmationElapsed ? .continueOn : .saved
+    }
+
+    private var saveCTAState: SaveCTAState {
+        Self.saveCTAState(isSavedLocally: savedLocally, confirmationElapsed: confirmationElapsed)
     }
 
     /// Saves once (optimistically flips local state) — no-op if already saved.
@@ -88,7 +114,18 @@ struct RecommendationDetailView: View {
         .safeAreaInset(edge: .bottom) {
             stickyBottomBar
         }
-        .onAppear { savedLocally = isSaved }
+        .onAppear {
+            savedLocally = isSaved
+            confirmationElapsed = isSaved
+        }
+        // Hold the "Saved" confirmation briefly, then swap the CTA to "Continue".
+        // `.task(id:)` cancels automatically when the page is dismissed.
+        .task(id: savedLocally) {
+            guard savedLocally, !confirmationElapsed else { return }
+            try? await Task.sleep(for: Self.savedConfirmationDelay)
+            guard !Task.isCancelled else { return }
+            withAnimation(Theme.Motion.standard) { confirmationElapsed = true }
+        }
     }
 
     // MARK: - Hero
@@ -179,20 +216,14 @@ struct RecommendationDetailView: View {
         )
     }
 
-    // MARK: - Top Bar (overlaid circular buttons)
+    // MARK: - Top Bar (overlaid circular back button)
 
+    /// Only Back lives over the hero. The former Share and Save circle buttons were
+    /// removed — saving is the bottom CTA's job, and Share was redundant chrome.
     private var topBar: some View {
         HStack {
             circleButton(icon: Lucide.arrowLeft, label: "Back") { onDismiss() }
             Spacer()
-            HStack(spacing: 10) {
-                circleButton(icon: Lucide.share, label: "Share") { onShare() }
-                circleButton(
-                    icon: Lucide.heart,
-                    label: savedLocally ? "Saved" : "Save",
-                    tint: savedLocally ? Theme.accent : .white
-                ) { saveOnce() }
-            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -201,7 +232,6 @@ struct RecommendationDetailView: View {
     private func circleButton(
         icon: UIImage,
         label: String,
-        tint: Color = .white,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
@@ -210,7 +240,7 @@ struct RecommendationDetailView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 18, height: 18)
-                .foregroundStyle(tint)
+                .foregroundStyle(.white)
                 .padding(11)
                 .background(
                     Circle()
@@ -439,15 +469,8 @@ struct RecommendationDetailView: View {
     @ViewBuilder
     private var primaryCTA: some View {
         if isIdea || !hasOpenableLink {
-            KnotButton(
-                savedLocally ? "Saved" : "Save to Library",
-                variant: savedLocally ? .secondary : .primary,
-                size: .lg,
-                shape: .pill,
-                leadingIcon: savedLocally ? Lucide.bookmarkCheck : Lucide.bookmark,
-                action: saveOnce
-            )
-            .frame(maxWidth: 220)
+            saveFlavoredCTA
+                .frame(maxWidth: 220)
         } else {
             KnotButton(
                 openLabel,
@@ -458,6 +481,41 @@ struct RecommendationDetailView: View {
                 action: onOpenMerchant
             )
             .frame(maxWidth: 220)
+        }
+    }
+
+    /// Save → Saved → Continue. Shown for Knot Originals and for any purchasable
+    /// that has no openable merchant link.
+    @ViewBuilder
+    private var saveFlavoredCTA: some View {
+        switch saveCTAState {
+        case .save:
+            KnotButton(
+                "Save to Library",
+                variant: .primary,
+                size: .lg,
+                shape: .pill,
+                leadingIcon: Lucide.bookmark,
+                action: saveOnce
+            )
+        case .saved:
+            KnotButton(
+                "Saved",
+                variant: .secondary,
+                size: .lg,
+                shape: .pill,
+                leadingIcon: Lucide.bookmarkCheck,
+                action: saveOnce
+            )
+        case .continueOn:
+            KnotButton(
+                "Continue",
+                variant: .primary,
+                size: .lg,
+                shape: .pill,
+                trailingIcon: Lucide.arrowRight,
+                action: onDismiss
+            )
         }
     }
 
@@ -512,7 +570,6 @@ struct RecommendationDetailView: View {
         isSaved: false,
         onOpenMerchant: {},
         onSave: {},
-        onShare: {},
         onDismiss: {}
     )
 }
@@ -524,7 +581,6 @@ struct RecommendationDetailView: View {
         isSaved: false,
         onOpenMerchant: {},
         onSave: {},
-        onShare: {},
         onDismiss: {}
     )
 }

@@ -24,13 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes the onboarding paywall's CTA non-silent. To show what
-        // changed, render the paywall in its product-load-failure state via the DEBUG
-        // screenshot harness (`onboardingPaywallLoadFailed`): instead of a purchase
-        // button that silently no-ops when StoreKit has no products to sell, the footer
-        // now shows a "We couldn't load subscription options…" message and a "Try Again"
-        // CTA that reloads.
-        app.launchArguments += ["-uiTestScreenshot", "onboardingPaywallLoadFailed"]
+        // This change reworks the recommendation detail page: the top-right Share and
+        // Save circle buttons are gone (only Back remains over the hero), and the
+        // Save-to-Library CTA now runs Save → "Saved" → "Continue". Render a Knot
+        // Original via the DEBUG harness (`recDetailSaveCTA`), tap Save, and wait for
+        // the CTA to become "Continue" so one shot proves both changes.
+        app.launchArguments += ["-uiTestScreenshot", "recDetailSaveCTA"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,9 +39,16 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for the load-failure recovery CTA so the screenshot captures the fully
-        // rendered "Try Again" state.
-        _ = app.buttons["Try Again"].waitForExistence(timeout: 10)
+        // Save, then wait out the ~2s "Saved" confirmation for the "Continue" CTA.
+        let saveButton = app.buttons["Save to Library"]
+        if saveButton.waitForExistence(timeout: 10) {
+            saveButton.tap()
+        }
+        if app.buttons["Continue"].waitForExistence(timeout: 10) {
+            // The accessibility tree flips at the start of the CTA's crossfade, so
+            // let the animation settle before capturing or the shot shows "Saved".
+            Thread.sleep(forTimeInterval: 1)
+        }
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

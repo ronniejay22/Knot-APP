@@ -91,7 +91,6 @@ struct SavedView: View {
                     isSaved: true,
                     onOpenMerchant: { viewModel.openMerchant(item) },
                     onSave: {},
-                    onShare: { viewModel.shareRecommendation(item) },
                     onDismiss: { selectedDetailItem = nil }
                 )
             }
