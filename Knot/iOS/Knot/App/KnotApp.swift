@@ -14,7 +14,9 @@ import Supabase
 @main
 struct KnotApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var deepLinkHandler = DeepLinkHandler()
+    // The shared instance (not a fresh one) so AppDelegate's notification-tap
+    // writes land on the same object the SwiftUI environment observes.
+    @State private var deepLinkHandler = DeepLinkHandler.shared
 
     init() {
         Theme.registerFonts()

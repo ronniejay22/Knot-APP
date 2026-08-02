@@ -47,6 +47,7 @@
 		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
 		365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */; };
 		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
+		3E592F99EBC6581C8A3DDEBB /* MilestoneRecommendationsCoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F95757928EC85994F436B86 /* MilestoneRecommendationsCoverView.swift */; };
 		3F5DBBCC7D3535B153EF65D8 /* AppReviewPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEC8F1685B0276312C2AA25 /* AppReviewPromptSheet.swift */; };
 		40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726769364F3363201EE0535 /* LoginView.swift */; };
 		435FE3ED138D1475B5CBD686 /* KnotListRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A1AC76A335E8A0A59AEF8F /* KnotListRowTests.swift */; };
@@ -100,6 +101,7 @@
 		933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77282BCCC7022C9A21681178 /* IdeaDetailView.swift */; };
 		950E06232AF35D9FDF6B609D /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF126D4D0DAD62E5590870 /* SupabaseClient.swift */; };
 		96462109E4898C16649196D4 /* InterestListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A932CC2FBD754E6625A3E2BC /* InterestListRow.swift */; };
+		970DC3D1442560B7FB4BD6D0 /* MilestonePushTapThroughTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979676CBD103CA74150CCF92 /* MilestonePushTapThroughTests.swift */; };
 		98B2849C8DE2B34605B99EB6 /* IdeaContentSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */; };
 		9BE80618A782CFF1A09FFF6B /* EditMilestonesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */; };
 		9E94658B3F754231C13D1E5E /* KnotTabBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3004AEB082C62DE4C273BD /* KnotTabBarTests.swift */; };
@@ -264,10 +266,12 @@
 		91DD62D4760696C298A091D4 /* HintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintService.swift; sourceTree = "<group>"; };
 		93D78112D68DB3912DFC57EB /* KnotCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCardTests.swift; sourceTree = "<group>"; };
 		9576279FACB0210014A38F96 /* MilestoneLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneLocal.swift; sourceTree = "<group>"; };
+		979676CBD103CA74150CCF92 /* MilestonePushTapThroughTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestonePushTapThroughTests.swift; sourceTree = "<group>"; };
 		98A9210BC3C12D656CB34484 /* SavedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedView.swift; sourceTree = "<group>"; };
 		99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantHandoffTests.swift; sourceTree = "<group>"; };
 		99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsViewTests.swift; sourceTree = "<group>"; };
 		99E67470A9F668B0E113298E /* KnotBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotBadgeTests.swift; sourceTree = "<group>"; };
+		9F95757928EC85994F436B86 /* MilestoneRecommendationsCoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneRecommendationsCoverView.swift; sourceTree = "<group>"; };
 		A0D4AED680722D46D3983508 /* RecommendationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsView.swift; sourceTree = "<group>"; };
 		A2AE7970627763281E43105B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A89556B4935E6174F77F99B1 /* SubscriptionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerTests.swift; sourceTree = "<group>"; };
@@ -476,6 +480,7 @@
 				E46C7AC639A46165C4522F71 /* DeepLinkRecommendationView.swift */,
 				F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */,
 				77282BCCC7022C9A21681178 /* IdeaDetailView.swift */,
+				9F95757928EC85994F436B86 /* MilestoneRecommendationsCoverView.swift */,
 				895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */,
 				05AFB3A983B6B1374B579639 /* PurchaseRatingSheet.swift */,
 				AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */,
@@ -685,6 +690,7 @@
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
 				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
+				979676CBD103CA74150CCF92 /* MilestonePushTapThroughTests.swift */,
 				ED4B50F07B524E8920A6BDFF /* OnboardingCompletionViewContinueGatingTests.swift */,
 				CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */,
 				FC5590816CB9E33FDF165FEE /* OnboardingPaywallViewTests.swift */,
@@ -897,6 +903,7 @@
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
 				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
+				970DC3D1442560B7FB4BD6D0 /* MilestonePushTapThroughTests.swift in Sources */,
 				23C751FE5EFB5E2854616CC1 /* OnboardingCompletionViewContinueGatingTests.swift in Sources */,
 				DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */,
 				6EF0AF543DC8499F647C2EF4 /* OnboardingPaywallViewTests.swift in Sources */,
@@ -974,6 +981,7 @@
 				F223B5BB78F2F177EC4EBDA1 /* MilestoneDateModal.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				BD8620E466755ABD2D40FA83 /* MilestonePickers.swift in Sources */,
+				3E592F99EBC6581C8A3DDEBB /* MilestoneRecommendationsCoverView.swift in Sources */,
 				7945CB75D93045A1AF23CFB1 /* MilestoneService.swift in Sources */,
 				743E2F60B39E7442A0F1AB25 /* MilestonesManagementView.swift in Sources */,
 				FB7C927B11F02D1F7FE9ACD9 /* MilestonesViewModel.swift in Sources */,

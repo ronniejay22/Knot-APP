@@ -574,11 +574,12 @@ class TestMilestoneRecommendationsEndpoint:
         return "test-user-123"
 
     def test_returns_stored_recommendations(self, client):
-        """Should return existing recommendations for a milestone."""
+        """Should return existing recommendations with enriched fields."""
         milestone_id = str(uuid.uuid4())
         vault_id = str(uuid.uuid4())
 
         mock_client = MagicMock()
+        rec_table = MagicMock()
 
         def table_side_effect(table_name):
             mock_table = MagicMock()
@@ -587,31 +588,39 @@ class TestMilestoneRecommendationsEndpoint:
                     data=[{"id": vault_id}]
                 )
             elif table_name == "recommendations":
-                mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+                rec_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
                     data=[
                         {
                             "id": str(uuid.uuid4()),
                             "recommendation_type": "gift",
                             "title": "Test Gift",
-                            "description": "A test gift",
+                            "description": "A test gift.",
                             "external_url": "https://example.com/gift",
                             "price_cents": 5000,
                             "merchant_name": "Test Co.",
                             "image_url": "https://example.com/gift.jpg",
                             "created_at": datetime.now(timezone.utc).isoformat(),
+                            "personalization_note": "She loves handmade things.",
                         },
                         {
                             "id": str(uuid.uuid4()),
-                            "recommendation_type": "experience",
-                            "title": "Test Experience",
-                            "description": "A test experience",
-                            "external_url": "https://example.com/exp",
-                            "price_cents": 15000,
-                            "merchant_name": "Exp Co.",
-                            "image_url": "https://example.com/exp.jpg",
+                            "recommendation_type": "idea",
+                            "title": "Cozy Night In",
+                            "description": "A test idea.",
+                            "external_url": None,
+                            "price_cents": None,
+                            "merchant_name": None,
+                            "image_url": "https://example.com/idea.jpg",
                             "created_at": datetime.now(timezone.utc).isoformat(),
+                            "is_idea": True,
+                            "content_sections": '[{"type": "overview", "heading": "Overview", "body": "A cozy night."}]',
                         },
                     ]
+                )
+                return rec_table
+            elif table_name == "milestone_briefings":
+                mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"briefing_text": "Her birthday is next week — she mentioned pottery."}]
                 )
             return mock_table
 
@@ -629,9 +638,64 @@ class TestMilestoneRecommendationsEndpoint:
             assert data["count"] == 2
             assert data["milestone_id"] == milestone_id
             assert len(data["recommendations"]) == 2
-            assert data["recommendations"][0]["title"] == "Test Gift"
-            assert data["recommendations"][1]["title"] == "Test Experience"
-            print("  Returns stored recommendations for milestone")
+
+            gift = data["recommendations"][0]
+            assert gift["title"] == "Test Gift"
+            assert gift["personalization_note"] == "She loves handmade things."
+            assert gift["is_idea"] is False
+
+            idea = data["recommendations"][1]
+            assert idea["title"] == "Cozy Night In"
+            assert idea["is_idea"] is True
+            # JSON-string content_sections decoded to a list for the client
+            assert idea["content_sections"][0]["type"] == "overview"
+
+            # Latest briefing rides on the response
+            assert data["briefing_text"] == (
+                "Her birthday is next week — she mentioned pottery."
+            )
+
+            # Newest batch of 3 (Choice-of-Three), not the legacy 10
+            rec_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.assert_called_with(3)
+            print("  Returns enriched stored recommendations for milestone")
+        finally:
+            app.dependency_overrides.pop(get_active_user_id, None)
+
+    def test_briefing_fetch_failure_is_nonfatal(self, client):
+        """A briefing lookup error must not fail the endpoint."""
+        milestone_id = str(uuid.uuid4())
+        vault_id = str(uuid.uuid4())
+
+        mock_client = MagicMock()
+
+        def table_side_effect(table_name):
+            mock_table = MagicMock()
+            if table_name == "partner_vaults":
+                mock_table.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[{"id": vault_id}]
+                )
+            elif table_name == "recommendations":
+                mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[]
+                )
+            elif table_name == "milestone_briefings":
+                mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.side_effect = Exception(
+                    "briefings table unavailable"
+                )
+            return mock_table
+
+        mock_client.table.side_effect = table_side_effect
+
+        from app.core.security import get_active_user_id
+        app.dependency_overrides[get_active_user_id] = self._mock_auth
+
+        try:
+            with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+                resp = client.get(f"/api/v1/recommendations/by-milestone/{milestone_id}")
+
+            assert resp.status_code == 200
+            assert resp.json()["briefing_text"] is None
+            print("  Briefing fetch failure is non-fatal")
         finally:
             app.dependency_overrides.pop(get_active_user_id, None)
 
@@ -652,6 +716,10 @@ class TestMilestoneRecommendationsEndpoint:
                 mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
                     data=[]
                 )
+            elif table_name == "milestone_briefings":
+                mock_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+                    data=[]
+                )
             return mock_table
 
         mock_client.table.side_effect = table_side_effect
@@ -667,6 +735,7 @@ class TestMilestoneRecommendationsEndpoint:
             data = resp.json()
             assert data["count"] == 0
             assert data["recommendations"] == []
+            assert data["briefing_text"] is None
             print("  Returns empty list for milestone with no recommendations")
         finally:
             app.dependency_overrides.pop(get_active_user_id, None)
@@ -915,4 +984,19 @@ class TestModuleImports:
         assert resp.recommendations == []
         assert resp.count == 0
         assert resp.milestone_id == "test-ms-id"
+        assert resp.briefing_text is None
         print("  MilestoneRecommendationsResponse constructs correctly")
+
+    def test_milestone_recommendation_item_new_field_defaults(self):
+        """New enrichment fields default so legacy rows still validate."""
+        from app.models.notifications import MilestoneRecommendationItem
+        item = MilestoneRecommendationItem(
+            id="rec-1",
+            recommendation_type="gift",
+            title="Test",
+            created_at="2026-08-01T00:00:00Z",
+        )
+        assert item.personalization_note is None
+        assert item.is_idea is False
+        assert item.content_sections is None
+        print("  MilestoneRecommendationItem new fields default correctly")

@@ -71,9 +71,56 @@ enum UITestScreenshotHarness {
             PurchasePromptDateScreenshotHarnessView()
         case "spotlightCard":
             SpotlightCardScreenshotHarnessView()
+        case "milestoneRecs":
+            MilestoneRecsScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Renders the milestone push tap-through destination: `RecommendationsView` in
+/// preloaded modal mode with milestone context ("Jas's Birthday", 7 days out),
+/// a seeded VM carrying 3 pre-generated recommendations and a briefing — exactly
+/// what a user sees after tapping a milestone push notification. The seeded VM
+/// has `hasLoadedInitially = true`, so the view's `.task` skips all networking
+/// and the shot is deterministic.
+@MainActor
+private struct MilestoneRecsScreenshotHarnessView: View {
+    @State private var authViewModel = AuthViewModel()
+
+    private static func seededViewModel() -> RecommendationsViewModel {
+        let vm = RecommendationsViewModel()
+        vm.recommendations = [
+            PreviewRecommendations.decode(type: "experience", isIdea: false),
+            PreviewRecommendations.decode(type: "gift", isIdea: false),
+            PreviewRecommendations.decode(type: "idea", isIdea: true),
+        ]
+        vm.briefingText = "Jas's birthday is next week — she mentioned wanting to "
+            + "try that pottery studio, so I found a class nearby plus two "
+            + "backups that fit her quiet-luxury style."
+        vm.partnerName = "Jas"
+        vm.hasLoadedInitially = true
+        return vm
+    }
+
+    var body: some View {
+        NavigationStack {
+            RecommendationsView(
+                milestoneId: "harness-milestone",
+                milestoneContext: MilestoneDisplayContext(
+                    name: "Jas's Birthday",
+                    type: "birthday",
+                    daysUntil: 7,
+                    partnerName: "Jas",
+                    occasionType: "major_milestone"
+                ),
+                preferPregenerated: true,
+                isModal: true,
+                viewModel: Self.seededViewModel()
+            )
+        }
+        .environment(authViewModel)
     }
 }
 

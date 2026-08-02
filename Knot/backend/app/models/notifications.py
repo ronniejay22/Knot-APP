@@ -145,6 +145,18 @@ class MilestoneRecommendationItem(BaseModel):
     merchant_name: str | None = Field(default=None, description="Name of the merchant or venue.")
     image_url: str | None = Field(default=None, description="Hero image URL.")
     created_at: str = Field(..., description="ISO 8601 timestamp when the recommendation was generated.")
+    personalization_note: str | None = Field(
+        default=None,
+        description="Why Knot picked this for the partner.",
+    )
+    is_idea: bool = Field(
+        default=False,
+        description="True for Knot Original ideas/plans (no merchant link).",
+    )
+    content_sections: list | None = Field(
+        default=None,
+        description="Structured idea content sections for idea-type recommendations.",
+    )
 
 
 class MilestoneRecommendationsResponse(BaseModel):
@@ -155,3 +167,7 @@ class MilestoneRecommendationsResponse(BaseModel):
     )
     count: int = Field(..., description="Number of recommendations returned.")
     milestone_id: str = Field(..., description="UUID of the milestone.")
+    briefing_text: str | None = Field(
+        default=None,
+        description="Latest Claude briefing for this milestone, if one was generated.",
+    )
