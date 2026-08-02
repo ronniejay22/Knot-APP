@@ -24,13 +24,17 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change wires the milestone push-notification tap-through: tapping a
-        // push opens the pre-generated recommendations for that milestone. Render
-        // that destination via the DEBUG harness (`milestoneRecs`) — the standard
-        // recommendations surface in preloaded modal mode, with the "Jas's
-        // Birthday" milestone header, the "Knot's Take" briefing card, and the
-        // Spotlight carousel seeded with the stored trio (no networking).
-        app.launchArguments += ["-uiTestScreenshot", "milestoneRecs"]
+        // Step 19.23 adds two rows to Settings' DEBUG-only Developer section: "Show
+        // Paywall (DEV)", which opens the subscription paywall without replaying the
+        // whole onboarding flow, and "Reset Premium (DEV)", which explains how to clear
+        // persisted StoreKit purchases. Render Settings via the DEBUG harness and scroll
+        // to the bottom, where the Developer section lives.
+        //
+        // Deliberately NOT screenshotting the paywall itself: whether it shows "Start
+        // Free Trial" or "Try Again" depends on whether a local StoreKit catalog has
+        // been registered on that machine, which is exactly the environment-dependent
+        // behaviour this change documents — it would make the shot non-reproducible.
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,10 +44,24 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only the tap-through destination shows: the milestone
-        // toolbar title and the briefing card header.
-        _ = app.staticTexts["Jas's Birthday"].waitForExistence(timeout: 10)
-        _ = app.staticTexts["Knot's Take"].waitForExistence(timeout: 10)
+        // Scroll to the Developer section at the bottom of the settings list.
+        // `KnotListRow.action` wraps title AND subtitle in one Button, so its
+        // accessibility label is the two concatenated — match on a substring, not ==.
+        let showPaywall = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS[c] 'Show Paywall'"))
+            .firstMatch
+        XCTAssertTrue(
+            showPaywall.waitForExistence(timeout: 10),
+            "Developer section is missing the Show Paywall (DEV) row"
+        )
+        // `exists` is true for elements still scrolled off-screen, so drive on
+        // `isHittable` — otherwise the shot captures the top of the list.
+        for _ in 0..<8 where !showPaywall.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(showPaywall.isHittable, "could not scroll the Developer section into view")
+        // Let the scroll settle so the shot isn't captured mid-deceleration.
+        Thread.sleep(forTimeInterval: 1)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
