@@ -205,63 +205,80 @@ def client():
 class TestBuildNotificationPayload:
     """Tests for the notification payload builder function."""
 
-    def test_payload_has_correct_title_format(self):
-        """Title should be '[Partner]'s [Milestone] is in [X] days'."""
+    def test_title_phrase_for_each_cadence(self):
+        """Title uses friendly phrasing per scheduled cadence (14/7/3)."""
+        expected = {
+            14: "Alice's Birthday is two weeks away",
+            7: "Alice's Birthday is next week",
+            3: "Alice's Birthday is in 3 days",
+        }
+        for days, title in expected.items():
+            payload = build_notification_payload(
+                partner_name="Alice",
+                milestone_name="Birthday",
+                days_before=days,
+                notification_id="notif-123",
+                milestone_id="ms-456",
+            )
+            assert payload["aps"]["alert"]["title"] == title
+
+    def test_title_falls_back_for_unknown_cadence(self):
+        """An unmapped days_before value falls back to 'is in N days'."""
         payload = build_notification_payload(
-            partner_name="Alice",
-            milestone_name="Birthday",
-            days_before=14,
-            vibes=["cozy"],
-            recommendations_count=3,
+            partner_name="Bob",
+            milestone_name="Valentine's Day",
+            days_before=10,
             notification_id="notif-123",
             milestone_id="ms-456",
         )
-        assert payload["aps"]["alert"]["title"] == "Alice's Birthday is in 14 days"
+        assert payload["aps"]["alert"]["title"] == (
+            "Bob's Valentine's Day is in 10 days"
+        )
 
-    def test_payload_has_correct_body_format(self):
-        """Body should reference vibe and recommendation count."""
+    def test_fallback_body_is_friendly_copy(self):
+        """Without a briefing snippet, the body is the friendly nudge."""
+        from app.services.apns import FALLBACK_BODY
+
         payload = build_notification_payload(
             partner_name="Alice",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["romantic"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-456",
         )
-        expected = (
-            "I've found 3 Romantic options based on their interests. "
-            "Tap to see them."
+        assert payload["aps"]["alert"]["body"] == FALLBACK_BODY
+        assert payload["aps"]["alert"]["body"] == (
+            "Have you gotten them anything yet? "
+            "Tap for a few ideas we picked out."
         )
-        assert payload["aps"]["alert"]["body"] == expected
 
-    def test_payload_uses_first_vibe_capitalized(self):
-        """When multiple vibes exist, use the first one capitalized."""
+    def test_briefing_snippet_still_primary_body(self):
+        """A briefing snippet always wins over the fallback copy."""
         payload = build_notification_payload(
             partner_name="Alice",
             milestone_name="Birthday",
-            days_before=3,
-            vibes=["quiet_luxury", "adventurous"],
-            recommendations_count=3,
+            days_before=7,
             notification_id="notif-123",
             milestone_id="ms-456",
+            briefing_snippet="She mentioned that pottery studio last week...",
         )
-        body = payload["aps"]["alert"]["body"]
-        assert "Quiet luxury" in body
+        assert payload["aps"]["alert"]["body"] == (
+            "She mentioned that pottery studio last week..."
+        )
 
-    def test_payload_uses_curated_when_no_vibes(self):
-        """When vibes list is empty, fall back to 'curated'."""
+    def test_empty_briefing_snippet_uses_fallback(self):
+        """An empty-string snippet falls through to the fallback copy."""
+        from app.services.apns import FALLBACK_BODY
+
         payload = build_notification_payload(
             partner_name="Alice",
-            milestone_name="Anniversary",
-            days_before=14,
-            vibes=[],
-            recommendations_count=3,
+            milestone_name="Birthday",
+            days_before=7,
             notification_id="notif-123",
             milestone_id="ms-456",
+            briefing_snippet="",
         )
-        body = payload["aps"]["alert"]["body"]
-        assert "curated" in body.lower()
+        assert payload["aps"]["alert"]["body"] == FALLBACK_BODY
 
     def test_payload_has_milestone_reminder_category(self):
         """Category should be MILESTONE_REMINDER for View/Snooze actions."""
@@ -269,8 +286,6 @@ class TestBuildNotificationPayload:
             partner_name="Alice",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["cozy"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-456",
         )
@@ -282,8 +297,6 @@ class TestBuildNotificationPayload:
             partner_name="Alice",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["cozy"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-456",
         )
@@ -295,8 +308,6 @@ class TestBuildNotificationPayload:
             partner_name="Alice",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["cozy"],
-            recommendations_count=3,
             notification_id="notif-abc-123",
             milestone_id="ms-def-456",
         )
@@ -309,8 +320,6 @@ class TestBuildNotificationPayload:
             partner_name="Alice",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["cozy"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-456",
         )
@@ -319,33 +328,6 @@ class TestBuildNotificationPayload:
         assert "body" in alert
         assert isinstance(alert["title"], str)
         assert isinstance(alert["body"], str)
-
-    def test_payload_with_different_days_before_values(self):
-        """Title should correctly reflect 14, 7, and 3 day values."""
-        for days in [14, 7, 3]:
-            payload = build_notification_payload(
-                partner_name="Bob",
-                milestone_name="Valentine's Day",
-                days_before=days,
-                vibes=["romantic"],
-                recommendations_count=3,
-                notification_id="notif-123",
-                milestone_id="ms-456",
-            )
-            assert f"in {days} days" in payload["aps"]["alert"]["title"]
-
-    def test_payload_body_reflects_recommendation_count(self):
-        """Body should show the actual number of recommendations."""
-        payload = build_notification_payload(
-            partner_name="Alice",
-            milestone_name="Birthday",
-            days_before=7,
-            vibes=["cozy"],
-            recommendations_count=2,
-            notification_id="notif-123",
-            milestone_id="ms-456",
-        )
-        assert "I've found 2" in payload["aps"]["alert"]["body"]
 
 
 # ===================================================================
@@ -916,9 +898,11 @@ class TestDeliverPushNotification:
         device_token = call_args[0][0]
         payload = call_args[0][1]
 
+        from app.services.apns import FALLBACK_BODY
+
         assert device_token == "abc123hex"
-        assert payload["aps"]["alert"]["title"] == "Alice's Birthday is in 14 days"
-        assert "Quiet luxury" in payload["aps"]["alert"]["body"]
+        assert payload["aps"]["alert"]["title"] == "Alice's Birthday is two weeks away"
+        assert payload["aps"]["alert"]["body"] == FALLBACK_BODY
         assert payload["aps"]["category"] == "MILESTONE_REMINDER"
         assert payload["notification_id"] == "notif-uuid-456"
         assert payload["milestone_id"] == "ms-uuid-789"

@@ -24,7 +24,7 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // Step 19.22 adds two rows to Settings' DEBUG-only Developer section: "Show
+        // Step 19.23 adds two rows to Settings' DEBUG-only Developer section: "Show
         // Paywall (DEV)", which opens the subscription paywall without replaying the
         // whole onboarding flow, and "Reset Premium (DEV)", which explains how to clear
         // persisted StoreKit purchases. Render Settings via the DEBUG harness and scroll

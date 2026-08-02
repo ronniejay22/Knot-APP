@@ -207,8 +207,6 @@ class TestApnsBriefingSnippet:
             partner_name="Alex",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["quiet_luxury"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-123",
             briefing_snippet="She's been craving lemon bars — bake together!",
@@ -216,29 +214,24 @@ class TestApnsBriefingSnippet:
         assert payload["aps"]["alert"]["body"] == "She's been craving lemon bars — bake together!"
 
     def test_payload_falls_back_without_snippet(self):
-        from app.services.apns import build_notification_payload
+        from app.services.apns import build_notification_payload, FALLBACK_BODY
         payload = build_notification_payload(
             partner_name="Alex",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["quiet_luxury"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-123",
         )
-        assert "Quiet luxury" in payload["aps"]["alert"]["body"]
-        assert "3" in payload["aps"]["alert"]["body"]
+        assert payload["aps"]["alert"]["body"] == FALLBACK_BODY
 
     def test_payload_falls_back_with_none_snippet(self):
-        from app.services.apns import build_notification_payload
+        from app.services.apns import build_notification_payload, FALLBACK_BODY
         payload = build_notification_payload(
             partner_name="Alex",
             milestone_name="Birthday",
             days_before=7,
-            vibes=["quiet_luxury"],
-            recommendations_count=3,
             notification_id="notif-123",
             milestone_id="ms-123",
             briefing_snippet=None,
         )
-        assert "Quiet luxury" in payload["aps"]["alert"]["body"]
+        assert payload["aps"]["alert"]["body"] == FALLBACK_BODY

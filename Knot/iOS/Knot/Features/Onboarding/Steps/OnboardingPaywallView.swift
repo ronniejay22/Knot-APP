@@ -345,7 +345,7 @@ struct OnboardingPaywallView: View {
     /// A visible explanation shown when the product catalog couldn't load, so the
     /// (now "Try Again") CTA has context instead of appearing to do nothing.
     ///
-    /// Step 19.22: the DEBUG copy names the actual cause and the actual remedy. "Check
+    /// Step 19.23: the DEBUG copy names the actual cause and the actual remedy. "Check
     /// your connection" sent three rounds of debugging down the wrong path — an empty
     /// catalog in development is never the network. In the Simulator it means no local
     /// StoreKit configuration is registered for the app, which only happens by launching

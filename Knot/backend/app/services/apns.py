@@ -113,13 +113,23 @@ def _generate_apns_token() -> str:
 # Notification Payload Builder
 # ===================================================================
 
+# Friendly cadence phrasing for the notification title. The scheduler only
+# fires at 14/7/3 days before; the fallback covers any future cadence.
+_DAYS_PHRASE = {
+    14: "is two weeks away",
+    7: "is next week",
+    3: "is in 3 days",
+}
+
+# Fallback body when no personalized briefing snippet was generated.
+FALLBACK_BODY = "Have you gotten them anything yet? Tap for a few ideas we picked out."
+
+
 def build_notification_payload(
     *,
     partner_name: str,
     milestone_name: str,
     days_before: int,
-    vibes: list[str],
-    recommendations_count: int,
     notification_id: str,
     milestone_id: str,
     briefing_snippet: str | None = None,
@@ -127,9 +137,10 @@ def build_notification_payload(
     """
     Build the APNs notification payload.
 
-    Title format: "[Partner Name]'s [Milestone] is in [X] days"
+    Title format: "[Partner Name]'s [Milestone] is next week" (friendly
+    phrasing per cadence via _DAYS_PHRASE).
     Body: Uses the briefing snippet if available (personalized, hint-aware),
-          otherwise falls back to generic vibe-based text.
+          otherwise a friendly generic nudge (FALLBACK_BODY).
 
     The category "MILESTONE_REMINDER" enables "View" and "Snooze"
     actions defined in the iOS app's UNNotificationCategory registration.
@@ -141,8 +152,6 @@ def build_notification_payload(
         partner_name: Display name of the partner from the vault.
         milestone_name: Display name of the milestone.
         days_before: Number of days until the milestone (14, 7, or 3).
-        vibes: List of vibe tags from the vault.
-        recommendations_count: Number of recommendations generated.
         notification_id: UUID of the notification_queue entry.
         milestone_id: UUID of the milestone (for deep-linking).
         briefing_snippet: Optional condensed briefing for the notification body.
@@ -150,17 +159,10 @@ def build_notification_payload(
     Returns:
         dict: APNs-formatted payload ready for JSON serialization.
     """
-    title = f"{partner_name}'s {milestone_name} is in {days_before} days"
+    days_phrase = _DAYS_PHRASE.get(days_before, f"is in {days_before} days")
+    title = f"{partner_name}'s {milestone_name} {days_phrase}"
 
-    if briefing_snippet:
-        body = briefing_snippet
-    else:
-        # Fallback to generic vibe-based text
-        vibe_label = vibes[0].replace("_", " ").capitalize() if vibes else "curated"
-        body = (
-            f"I've found {recommendations_count} {vibe_label} options "
-            f"based on their interests. Tap to see them."
-        )
+    body = briefing_snippet if briefing_snippet else FALLBACK_BODY
 
     return {
         "aps": {
@@ -288,6 +290,10 @@ async def deliver_push_notification(
     """
     Look up the user's device token and deliver a push notification.
 
+    Note: `vibes` and `recommendations_count` are retained for caller-signature
+    stability but no longer influence the payload copy — the fallback body is
+    the friendly generic nudge in `FALLBACK_BODY`.
+
     This is the main entry point called from the notification webhook.
     It handles:
     1. Looking up the device_token from the users table
@@ -352,8 +358,6 @@ async def deliver_push_notification(
         partner_name=partner_name,
         milestone_name=milestone_name,
         days_before=days_before,
-        vibes=vibes,
-        recommendations_count=recommendations_count,
         notification_id=notification_id,
         milestone_id=milestone_id,
         briefing_snippet=briefing_snippet,

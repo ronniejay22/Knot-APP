@@ -10,6 +10,7 @@ Step 6.3: POST /api/v1/recommendations/feedback — Record user feedback
 Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stored recommendations
 """
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -564,12 +565,19 @@ async def get_recommendations_by_milestone(
     """
     Fetch existing (pre-generated) recommendations for a specific milestone.
 
-    Used by the Notification History screen to display the recommendations
-    that were generated when the notification fired. Does NOT generate new
-    recommendations — it only returns what already exists in the database.
+    Used by the milestone push-notification tap-through (and the Notification
+    History screen) to display the recommendations that were generated when
+    the notification fired. Does NOT generate new recommendations — it only
+    returns what already exists in the database.
+
+    Returns the NEWEST BATCH of 3 (each generation run inserts its trio in a
+    single call, so ordering by created_at desc and limiting to 3 yields
+    exactly the latest Choice-of-Three — a later 7-day push or a manual
+    For You generate naturally supersedes a stale 14-day batch), plus the
+    latest milestone briefing when one was stored.
 
     Returns:
-        200: List of stored recommendations for the milestone.
+        200: Latest stored recommendations + briefing for the milestone.
         401: Missing or invalid authentication token.
         404: No partner vault found for this user.
         500: Database error.
@@ -600,7 +608,7 @@ async def get_recommendations_by_milestone(
 
     vault_id = vault_result.data[0]["id"]
 
-    # 2. Fetch recommendations for this milestone + vault
+    # 2. Fetch the newest batch of recommendations for this milestone + vault
     try:
         rec_result = (
             client.table("recommendations")
@@ -608,7 +616,7 @@ async def get_recommendations_by_milestone(
             .eq("vault_id", vault_id)
             .eq("milestone_id", milestone_id)
             .order("created_at", desc=True)
-            .limit(10)
+            .limit(3)
             .execute()
         )
     except Exception as exc:
@@ -618,27 +626,62 @@ async def get_recommendations_by_milestone(
             detail="Failed to load recommendations.",
         )
 
-    items = [
-        MilestoneRecommendationItem(
-            id=r["id"],
-            recommendation_type=r["recommendation_type"],
-            title=r["title"],
-            description=r.get("description"),
-            external_url=_safe_external_url(r.get("external_url")),
-            price_cents=r.get("price_cents"),
-            merchant_name=r.get("merchant_name"),
-            # Guarantee an image even for rows stored before images were
-            # persisted (older rows have image_url = NULL).
-            image_url=r.get("image_url") or _default_image_for_type(r.get("recommendation_type")),
-            created_at=r["created_at"],
+    items = []
+    for r in (rec_result.data or []):
+        # content_sections is stored as a JSON string; decode for the client.
+        content_sections = r.get("content_sections")
+        if isinstance(content_sections, str):
+            try:
+                content_sections = json.loads(content_sections)
+            except (ValueError, TypeError):
+                content_sections = None
+
+        items.append(
+            MilestoneRecommendationItem(
+                id=r["id"],
+                recommendation_type=r["recommendation_type"],
+                title=r["title"],
+                description=trim_to_complete_sentence(r.get("description")),
+                external_url=_safe_external_url(r.get("external_url")),
+                price_cents=r.get("price_cents"),
+                merchant_name=r.get("merchant_name"),
+                # Guarantee an image even for rows stored before images were
+                # persisted (older rows have image_url = NULL).
+                image_url=r.get("image_url") or _default_image_for_type(r.get("recommendation_type")),
+                created_at=r["created_at"],
+                personalization_note=trim_to_complete_sentence(
+                    r.get("personalization_note")
+                ),
+                is_idea=bool(r.get("is_idea")),
+                content_sections=content_sections,
+            )
         )
-        for r in (rec_result.data or [])
-    ]
+
+    # 3. Best-effort: latest briefing for this milestone (write path:
+    #    the notification webhook and POST /generate both store one).
+    briefing_text = None
+    try:
+        briefing_result = (
+            client.table("milestone_briefings")
+            .select("briefing_text")
+            .eq("vault_id", vault_id)
+            .eq("milestone_id", milestone_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if briefing_result.data:
+            briefing_text = briefing_result.data[0].get("briefing_text")
+    except Exception as exc:
+        logger.warning(
+            "Failed to load briefing for milestone %s: %s", milestone_id, exc
+        )
 
     return MilestoneRecommendationsResponse(
         recommendations=items,
         count=len(items),
         milestone_id=milestone_id,
+        briefing_text=briefing_text,
     )
 
 

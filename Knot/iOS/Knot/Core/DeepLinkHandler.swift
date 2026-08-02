@@ -4,17 +4,20 @@
 //
 //  Created on February 12, 2026.
 //  Step 9.1: Universal Links infrastructure — deep link state management.
+//  Milestone push tap-through: added the milestoneRecommendations destination
+//  and the shared-instance bridge so AppDelegate can route notification taps.
 //
 
 import Foundation
 
 /// Represents a destination the app should navigate to from a deep link.
-///
-/// Currently only supports recommendation deep links. Additional cases
-/// (e.g., milestone, hint) can be added in future steps.
 enum DeepLinkDestination: Equatable, Sendable {
     /// Navigate to a specific recommendation by its database ID.
     case recommendation(id: String)
+    /// Navigate to the pre-generated recommendations for a milestone
+    /// (a tapped milestone push notification). `notificationId` marks the
+    /// originating notification_queue entry as viewed, when present.
+    case milestoneRecommendations(milestoneId: String, notificationId: String?)
 }
 
 /// Manages deep link state for the app.
@@ -29,9 +32,33 @@ enum DeepLinkDestination: Equatable, Sendable {
 @MainActor
 final class DeepLinkHandler {
 
+    /// Shared instance bridging the UIKit boundary. `AppDelegate`'s
+    /// notification-tap callback fires before (or independently of) the
+    /// SwiftUI hierarchy, so — like `DeviceTokenService.shared` — a singleton
+    /// is the access path from the delegate. `KnotApp` injects this same
+    /// instance into the SwiftUI environment, so delegate writes and view
+    /// observation always agree.
+    static let shared = DeepLinkHandler()
+
     /// The pending deep link destination. Set by `handleURL(_:)`,
     /// consumed and cleared by the view that navigates to it.
     var pendingDestination: DeepLinkDestination?
+
+    /// Builds the destination for a tapped milestone push notification.
+    ///
+    /// Pure static helper (rather than inline in AppDelegate) so XCTest can
+    /// exercise the mapping — `UNNotificationResponse` cannot be constructed
+    /// in tests. Returns `nil` when the payload carries no usable milestone id.
+    static func destination(
+        milestoneId: String?,
+        notificationId: String?
+    ) -> DeepLinkDestination? {
+        guard let milestoneId, !milestoneId.isEmpty else { return nil }
+        return .milestoneRecommendations(
+            milestoneId: milestoneId,
+            notificationId: (notificationId?.isEmpty == false) ? notificationId : nil
+        )
+    }
 
     /// Parses an incoming Universal Link URL and sets `pendingDestination`.
     ///

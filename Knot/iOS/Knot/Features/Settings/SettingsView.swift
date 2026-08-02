@@ -38,7 +38,7 @@ struct SettingsView: View {
     @State private var showMilestones = false
 
     #if DEBUG
-    /// Step 19.22 — Developer menu: presents `OnboardingPaywallView` on demand.
+    /// Step 19.23 — Developer menu: presents `OnboardingPaywallView` on demand.
     /// The paywall otherwise exists only at the very end of onboarding, so re-reaching it
     /// meant running the backend dev server and using "Reset Onboarding (DEV)" — far too
     /// much friction to verify a subscription change.
@@ -113,7 +113,7 @@ struct SettingsView: View {
                 MilestonesManagementView()
             }
             #if DEBUG
-            // Step 19.22 — Developer menu: the onboarding paywall, on demand.
+            // Step 19.23 — Developer menu: the onboarding paywall, on demand.
             .fullScreenCover(isPresented: $showDevPaywall) {
                 OnboardingPaywallView(
                     subscriptionManager: devSubscriptionManager,
@@ -256,7 +256,7 @@ struct SettingsView: View {
                 action: { viewModel.showDevResetConfirmation = true }
             )
 
-            // Step 19.22 — reach the paywall without replaying onboarding.
+            // Step 19.23 — reach the paywall without replaying onboarding.
             KnotListRow.action(
                 icon: Lucide.creditCard,
                 title: "Show Paywall (DEV)",
@@ -264,7 +264,7 @@ struct SettingsView: View {
                 action: { showDevPaywall = true }
             )
 
-            // Step 19.22 — the Simulator keeps StoreKit test purchases across launches, so
+            // Step 19.23 — the Simulator keeps StoreKit test purchases across launches, so
             // a completed trial makes the paywall CTA read "Continue" forever, which reads
             // as "the trial button doesn't show payment options". The app cannot revoke its
             // own transactions (StoreKit exposes no such API, and `SKTestSession` aborts

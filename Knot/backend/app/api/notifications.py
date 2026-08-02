@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, s
 
 from app.agents.pipeline import run_recommendation_pipeline
 from app.agents.state import RecommendationState
+from app.api.recommendations import resolve_image_url
 from app.core.config import is_apns_configured, is_qstash_configured, WEBHOOK_BASE_URL
 from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
@@ -291,8 +292,17 @@ async def process_notification(
                 final_three = result.get("final_three", [])
 
                 if final_three:
-                    rec_rows = [
-                        {
+                    # Mirror POST /generate's row construction (see
+                    # recommendations.py) so rows read back via the
+                    # by-milestone endpoint render at full fidelity:
+                    # guaranteed image, personalization note, and idea
+                    # content sections.
+                    rec_rows = []
+                    for candidate in final_three:
+                        candidate.image_url = (
+                            candidate.image_url or resolve_image_url(candidate)
+                        )
+                        row = {
                             "vault_id": vault_id,
                             "milestone_id": payload.milestone_id,
                             "recommendation_type": candidate.type,
@@ -303,8 +313,17 @@ async def process_notification(
                             "merchant_name": candidate.merchant_name,
                             "image_url": candidate.image_url,
                         }
-                        for candidate in final_three
-                    ]
+                        if getattr(candidate, "is_idea", False):
+                            row["is_idea"] = True
+                            if getattr(candidate, "content_sections", None):
+                                row["content_sections"] = json.dumps(
+                                    candidate.content_sections
+                                )
+                        if getattr(candidate, "personalization_note", None):
+                            row["personalization_note"] = (
+                                candidate.personalization_note
+                            )
+                        rec_rows.append(row)
                     client.table("recommendations").insert(rec_rows).execute()
                     recommendations_count = len(final_three)
 
