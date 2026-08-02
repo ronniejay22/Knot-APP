@@ -13,41 +13,31 @@ import LucideIcons
 
 /// Full-screen shell for the milestone push tap-through.
 ///
-/// Responsibilities beyond hosting `RecommendationsView`:
-/// - Best-effort lookup of the milestone via `MilestoneService.listMilestones()`
-///   to build the `MilestoneDisplayContext` (title + days-until + occasion
-///   type). The push payload only carries the milestone's ID. Proceeds with a
-///   nil context on failure — the hosted view then shows a generic title and
-///   its generate-fallback stays milestone-scoped.
-/// - Fire-and-forget mark-viewed of the originating notification_queue entry.
-/// - A close (X) button, mirroring `DeepLinkRecommendationView`.
+/// **Nothing blocks the first frame.** The header comes from the push payload
+/// (`MilestonePushDisplay`), so `RecommendationsView` mounts immediately and
+/// its single `GET /by-milestone/{id}` fetch starts right away. An earlier
+/// version awaited `MilestoneService().listMilestones()` — fetching the whole
+/// milestone list just for a name and a day count — behind a bare spinner,
+/// which meant the user sat through two serialized round-trips before seeing
+/// anything.
+///
+/// Also fires a fire-and-forget mark-viewed for the originating
+/// notification_queue entry, and shows a close (X) button mirroring
+/// `DeepLinkRecommendationView`.
 struct MilestoneRecommendationsCoverView: View {
     let milestoneId: String
     let notificationId: String?
+    let display: MilestonePushDisplay?
     let onDismiss: @MainActor () -> Void
-
-    @State private var milestoneContext: MilestoneDisplayContext?
-    @State private var contextLoaded = false
 
     var body: some View {
         NavigationStack {
-            Group {
-                if contextLoaded {
-                    RecommendationsView(
-                        milestoneId: milestoneId,
-                        milestoneContext: milestoneContext,
-                        preferPregenerated: true,
-                        isModal: true
-                    )
-                } else {
-                    // Brief spinner while the milestone lookup resolves —
-                    // typically well under a second.
-                    ProgressView()
-                        .tint(Theme.accent)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Theme.backgroundGradient.ignoresSafeArea())
-                }
-            }
+            RecommendationsView(
+                milestoneId: milestoneId,
+                milestoneContext: milestoneContext,
+                preferPregenerated: true,
+                isModal: true
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -64,37 +54,29 @@ struct MilestoneRecommendationsCoverView: View {
             }
         }
         .task {
-            await loadMilestoneContext()
-
             if let notificationId {
-                // Fire-and-forget: removes the unviewed marker for this
-                // notification. Never blocks or fails the tap-through.
-                Task {
-                    await NotificationHistoryService().markViewed(notificationId: notificationId)
-                }
+                // Fire-and-forget: clears the unviewed marker. Never blocks
+                // or fails the tap-through.
+                await NotificationHistoryService().markViewed(notificationId: notificationId)
             }
         }
     }
 
-    /// Looks up the milestone so the header can show its name and countdown.
-    /// Best-effort — `contextLoaded` flips true regardless so the user is
-    /// never stuck on the spinner.
-    private func loadMilestoneContext() async {
-        defer { contextLoaded = true }
-
-        guard let milestone = try? await MilestoneService().listMilestones()
-            .milestones.first(where: { $0.id == milestoneId }) else {
-            return
-        }
-
-        milestoneContext = MilestoneDisplayContext(
-            name: milestone.milestoneName,
-            type: milestone.milestoneType,
-            daysUntil: milestone.daysUntil ?? 0,
-            // RecommendationsView loads the partner name itself for the
-            // detail page; the display context doesn't surface it here.
-            partnerName: "",
-            occasionType: milestone.budgetTier ?? "major_milestone"
+    /// Header context built purely from the push payload — no network call.
+    ///
+    /// `nil` when the push predates the display keys; `RecommendationsView`
+    /// then shows its generic title and keeps its generation fallback
+    /// milestone-scoped via the `milestoneId`.
+    private var milestoneContext: MilestoneDisplayContext? {
+        guard let display else { return nil }
+        return MilestoneDisplayContext(
+            name: display.milestoneName,
+            type: "milestone",
+            daysUntil: display.daysBefore ?? 0,
+            partnerName: display.partnerName ?? "",
+            // The push fires for major milestones (birthday/anniversary/
+            // holiday); this only seeds the generation fallback's budget tier.
+            occasionType: "major_milestone"
         )
     }
 }
@@ -103,6 +85,11 @@ struct MilestoneRecommendationsCoverView: View {
     MilestoneRecommendationsCoverView(
         milestoneId: "preview-milestone",
         notificationId: nil,
+        display: MilestonePushDisplay(
+            milestoneName: "Jas's Birthday",
+            partnerName: "Jas",
+            daysBefore: 7
+        ),
         onDismiss: {}
     )
     .environment(AuthViewModel())

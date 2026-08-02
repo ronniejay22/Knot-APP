@@ -24,13 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change wires the milestone push-notification tap-through: tapping a
-        // push opens the pre-generated recommendations for that milestone. Render
-        // that destination via the DEBUG harness (`milestoneRecs`) — the standard
-        // recommendations surface in preloaded modal mode, with the "Jas's
-        // Birthday" milestone header, the "Knot's Take" briefing card, and the
-        // Spotlight carousel seeded with the stored trio (no networking).
-        app.launchArguments += ["-uiTestScreenshot", "milestoneRecs"]
+        // This change makes the push tap-through genuinely instant. The loaded
+        // screen itself is unchanged (captured in the previous PR screenshot);
+        // the NEW surface is the opt-in state shown when a tapped push has no
+        // stored recommendations — previously this silently started a ~30s
+        // generation. Render it via the DEBUG harness (`milestoneRecsMissing`),
+        // which drives the real load path with a fetcher that returns nothing.
+        app.launchArguments += ["-uiTestScreenshot", "milestoneRecsMissing"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,10 +40,11 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only the tap-through destination shows: the milestone
-        // toolbar title and the briefing card header.
+        // Wait for elements only this state shows: the milestone header from the
+        // push payload and the honest opt-in copy + CTA.
         _ = app.staticTexts["Jas's Birthday"].waitForExistence(timeout: 10)
-        _ = app.staticTexts["Knot's Take"].waitForExistence(timeout: 10)
+        _ = app.staticTexts["We're still putting these together"].waitForExistence(timeout: 10)
+        _ = app.buttons["Find picks now"].waitForExistence(timeout: 5)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

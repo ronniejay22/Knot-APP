@@ -81,6 +81,10 @@ struct RecommendationsView: View {
     @State private var isBriefingExpanded = false
     @State private var isBriefingDismissed = false
 
+    /// True when the push tap-through found no stored recommendations. Shows
+    /// an honest opt-in state rather than silently running a ~30s generation.
+    @State private var pregeneratedMissing = false
+
     /// True while the climax celebration is playing — between loading completing and
     /// recommendation cards appearing. Driven by `.onChange(of: viewModel.isLoading)`.
     @State private var isPlayingClimax = false
@@ -264,14 +268,17 @@ struct RecommendationsView: View {
 
     /// Single entry point for the initial load and the error/empty retries.
     ///
-    /// Push tap-through (`preferPregenerated`): fetch the stored batch first —
-    /// instant, and it's exactly what the push described. Fall back to the
-    /// generation pipeline only when no stored rows exist.
+    /// Push tap-through (`preferPregenerated`): fetch the stored batch — this
+    /// is instant and is exactly what the push described. If nothing is
+    /// stored we do NOT silently start a ~30s generation; the user gets an
+    /// honest state with a CTA (see `pregeneratedMissing`) so a tap never
+    /// turns into a surprise wait.
     private func loadContent() async {
         if preferPregenerated, let mId = milestoneId {
+            pregeneratedMissing = false
             let displayed = await viewModel.loadPregeneratedRecommendations(milestoneId: mId)
             if !displayed {
-                await generateWithMilestoneContext()
+                pregeneratedMissing = true
             }
         } else {
             await generateWithMilestoneContext()
@@ -380,6 +387,8 @@ struct RecommendationsView: View {
                 .transition(.opacity)
         } else if let error = viewModel.errorMessage {
             errorState(message: error)
+        } else if pregeneratedMissing {
+            pregeneratedMissingState
         } else if viewModel.recommendations.isEmpty {
             emptyState
         } else {
@@ -469,6 +478,63 @@ struct RecommendationsView: View {
                         .fill(Theme.accent)
                 )
             }
+        }
+    }
+
+    // MARK: - Pre-Generated Missing State (push tap-through)
+
+    /// Shown when a tapped push has no stored recommendations — rare, since
+    /// the backend only sends a push after storing them. Rather than silently
+    /// running a ~30s generation (which is exactly the surprise wait this
+    /// feature exists to avoid), it explains the situation and lets the user
+    /// opt in.
+    private var pregeneratedMissingState: some View {
+        VStack(spacing: 20) {
+            Image(uiImage: Lucide.sparkles)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+                .foregroundStyle(Theme.textTertiary)
+
+            VStack(spacing: 8) {
+                Text("We're still putting these together")
+                    .knotFont(Theme.Typography.cardTitle)
+                    .foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center)
+
+                Text("Your picks for this date aren't ready yet. Want us to find some now? It takes about half a minute.")
+                    .knotFont(Theme.Typography.body)
+                    .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+
+            Button {
+                Task {
+                    pregeneratedMissing = false
+                    await generateWithMilestoneContext()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(uiImage: Lucide.sparkles)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                    Text("Find picks now")
+                        .knotFont(Theme.Typography.cta)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Theme.accent)
+                )
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 4)
         }
     }
 

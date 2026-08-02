@@ -104,12 +104,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         let userInfo = response.notification.request.content.userInfo
         let notificationId = userInfo["notification_id"] as? String
         let milestoneId = userInfo["milestone_id"] as? String
+        // Display data rides in the payload so the tap-through renders its
+        // header with no lookup. `days_before` arrives as an NSNumber.
+        let milestoneName = userInfo["milestone_name"] as? String
+        let partnerName = userInfo["partner_name"] as? String
+        let daysBefore = (userInfo["days_before"] as? NSNumber)?.intValue
 
         print("[Knot] Notification tapped: notification=\(notificationId ?? "nil"), milestone=\(milestoneId ?? "nil")")
 
         guard let destination = DeepLinkHandler.destination(
             milestoneId: milestoneId,
-            notificationId: notificationId
+            notificationId: notificationId,
+            milestoneName: milestoneName,
+            partnerName: partnerName,
+            daysBefore: daysBefore
         ) else {
             print("[Knot] Notification tapped without milestone_id — ignoring")
             return

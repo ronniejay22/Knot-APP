@@ -8,6 +8,7 @@
 //
 
 import XCTest
+import SwiftUI
 @testable import Knot
 
 // MARK: - DeepLinkHandler Destination Tests
@@ -23,7 +24,11 @@ final class DeepLinkHandlerTests: XCTestCase {
         )
         XCTAssertEqual(
             destination,
-            .milestoneRecommendations(milestoneId: "ms-123", notificationId: "notif-456")
+            .milestoneRecommendations(
+                milestoneId: "ms-123",
+                notificationId: "notif-456",
+                display: nil
+            )
         )
     }
 
@@ -35,7 +40,11 @@ final class DeepLinkHandlerTests: XCTestCase {
         )
         XCTAssertEqual(
             destination,
-            .milestoneRecommendations(milestoneId: "ms-123", notificationId: nil)
+            .milestoneRecommendations(
+                milestoneId: "ms-123",
+                notificationId: nil,
+                display: nil
+            )
         )
     }
 
@@ -47,7 +56,11 @@ final class DeepLinkHandlerTests: XCTestCase {
         )
         XCTAssertEqual(
             destination,
-            .milestoneRecommendations(milestoneId: "ms-123", notificationId: nil)
+            .milestoneRecommendations(
+                milestoneId: "ms-123",
+                notificationId: nil,
+                display: nil
+            )
         )
     }
 
@@ -55,6 +68,75 @@ final class DeepLinkHandlerTests: XCTestCase {
     func testDestinationNilForMissingMilestoneId() {
         XCTAssertNil(DeepLinkHandler.destination(milestoneId: nil, notificationId: "n1"))
         XCTAssertNil(DeepLinkHandler.destination(milestoneId: "", notificationId: "n1"))
+    }
+
+    // MARK: - Display payload (instant header, no network call)
+
+    /// The push payload's display keys ride into the destination so the
+    /// tap-through renders its header without a milestone lookup.
+    func testDestinationCarriesDisplayPayload() {
+        let destination = DeepLinkHandler.destination(
+            milestoneId: "ms-123",
+            notificationId: "notif-456",
+            milestoneName: "Jas's Birthday",
+            partnerName: "Jas",
+            daysBefore: 7
+        )
+        XCTAssertEqual(
+            destination,
+            .milestoneRecommendations(
+                milestoneId: "ms-123",
+                notificationId: "notif-456",
+                display: MilestonePushDisplay(
+                    milestoneName: "Jas's Birthday",
+                    partnerName: "Jas",
+                    daysBefore: 7
+                )
+            )
+        )
+    }
+
+    /// A push from an older backend (no display keys) still routes — the
+    /// header just falls back to the generic title.
+    func testDestinationWithoutDisplayKeysHasNilDisplay() {
+        guard case .milestoneRecommendations(_, _, let display)? = DeepLinkHandler.destination(
+            milestoneId: "ms-123",
+            notificationId: nil
+        ) else {
+            return XCTFail("Expected a milestone destination")
+        }
+        XCTAssertNil(display)
+    }
+
+    /// A blank milestone_name is treated as absent rather than rendering an
+    /// empty header.
+    func testDestinationIgnoresBlankMilestoneName() {
+        guard case .milestoneRecommendations(_, _, let display)? = DeepLinkHandler.destination(
+            milestoneId: "ms-123",
+            notificationId: nil,
+            milestoneName: "",
+            partnerName: "Jas",
+            daysBefore: 7
+        ) else {
+            return XCTFail("Expected a milestone destination")
+        }
+        XCTAssertNil(display)
+    }
+
+    /// Partner name and day count are optional within the display payload.
+    func testDestinationDisplayToleratesMissingOptionalFields() {
+        guard case .milestoneRecommendations(_, _, let display)? = DeepLinkHandler.destination(
+            milestoneId: "ms-123",
+            notificationId: nil,
+            milestoneName: "Anniversary",
+            partnerName: "",
+            daysBefore: nil
+        ) else {
+            return XCTFail("Expected a milestone destination")
+        }
+        XCTAssertEqual(display?.milestoneName, "Anniversary")
+        XCTAssertNil(display?.partnerName)
+        XCTAssertNil(display?.daysBefore)
     }
 
     /// Regression: Universal Link parsing still yields the recommendation case.
@@ -68,7 +150,11 @@ final class DeepLinkHandlerTests: XCTestCase {
     func testDestinationCasesAreDistinct() {
         XCTAssertNotEqual(
             DeepLinkDestination.recommendation(id: "x"),
-            DeepLinkDestination.milestoneRecommendations(milestoneId: "x", notificationId: nil)
+            DeepLinkDestination.milestoneRecommendations(
+                milestoneId: "x",
+                notificationId: nil,
+                display: nil
+            )
         )
     }
 }
@@ -362,5 +448,65 @@ final class PregeneratedRecommendationsViewModelTests: XCTestCase {
         XCTAssertTrue(displayed)
         XCTAssertTrue(vm.recommendations.isEmpty)
         XCTAssertTrue(fetcher.requestedMilestoneIds.isEmpty)
+    }
+
+    /// The preload path never touches the generation service — that is the
+    /// whole point (a tap must not turn into a ~30s pipeline run). An empty
+    /// result reports `false`, and the view renders its opt-in state rather
+    /// than generating.
+    func testPreloadNeverInvokesGenerationService() async throws {
+        for behavior in [
+            MockMilestoneFetcher.Behavior.success(try makeResponse(itemCount: 0)),
+            .success(try makeResponse(itemCount: 3)),
+            .failure(MockError()),
+        ] {
+            let fetcher = MockMilestoneFetcher(behavior: behavior)
+            let vm = RecommendationsViewModel(milestoneFetcher: fetcher)
+
+            _ = await vm.loadPregeneratedRecommendations(milestoneId: "ms-123")
+
+            // A generation run would flip these; the preload path must not.
+            XCTAssertFalse(vm.isLoading)
+            XCTAssertEqual(fetcher.requestedMilestoneIds, ["ms-123"])
+        }
+    }
+}
+
+// MARK: - Cover View Rendering
+
+@MainActor
+final class MilestoneRecommendationsCoverViewTests: XCTestCase {
+
+    /// The cover renders immediately from the push payload — no milestone
+    /// lookup gate — so this must construct and host without crashing.
+    func testCoverRendersWithDisplayPayload() {
+        let view = MilestoneRecommendationsCoverView(
+            milestoneId: "ms-123",
+            notificationId: "notif-456",
+            display: MilestonePushDisplay(
+                milestoneName: "Jas's Birthday",
+                partnerName: "Jas",
+                daysBefore: 7
+            ),
+            onDismiss: {}
+        )
+        .environment(AuthViewModel())
+
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view)
+    }
+
+    /// A push without display keys (older backend) still renders.
+    func testCoverRendersWithoutDisplayPayload() {
+        let view = MilestoneRecommendationsCoverView(
+            milestoneId: "ms-123",
+            notificationId: nil,
+            display: nil,
+            onDismiss: {}
+        )
+        .environment(AuthViewModel())
+
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view)
     }
 }

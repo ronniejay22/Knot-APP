@@ -73,9 +73,57 @@ enum UITestScreenshotHarness {
             SpotlightCardScreenshotHarnessView()
         case "milestoneRecs":
             MilestoneRecsScreenshotHarnessView()
+        case "milestoneRecsMissing":
+            MilestoneRecsMissingScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Stub fetcher that reports no stored recommendations, so the harness can
+/// render the push tap-through's opt-in state by driving the real load path.
+private struct EmptyMilestoneFetcher: MilestoneRecommendationsFetching {
+    func fetchMilestoneRecommendations(
+        milestoneId: String
+    ) async throws -> MilestoneRecommendationsResponse {
+        MilestoneRecommendationsResponse(
+            recommendations: [],
+            count: 0,
+            milestoneId: milestoneId,
+            briefingText: nil
+        )
+    }
+}
+
+/// Renders the state shown when a tapped push has no stored recommendations.
+/// Rather than silently starting a ~30s generation (the surprise wait this
+/// feature exists to prevent), the user gets an honest explanation and an
+/// opt-in CTA. Driven through the real `loadContent()` path — the injected
+/// fetcher simply returns an empty batch.
+@MainActor
+private struct MilestoneRecsMissingScreenshotHarnessView: View {
+    @State private var authViewModel = AuthViewModel()
+
+    var body: some View {
+        NavigationStack {
+            RecommendationsView(
+                milestoneId: "harness-milestone",
+                milestoneContext: MilestoneDisplayContext(
+                    name: "Jas's Birthday",
+                    type: "birthday",
+                    daysUntil: 7,
+                    partnerName: "Jas",
+                    occasionType: "major_milestone"
+                ),
+                preferPregenerated: true,
+                isModal: true,
+                viewModel: RecommendationsViewModel(
+                    milestoneFetcher: EmptyMilestoneFetcher()
+                )
+            )
+        }
+        .environment(authViewModel)
     }
 }
 

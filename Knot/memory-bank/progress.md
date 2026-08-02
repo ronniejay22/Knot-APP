@@ -7258,6 +7258,42 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.23 ✅ Notifications — Make the Push Tap-Through Genuinely Instant
+**Date:** 2026-08-02
+**Status:** Complete
+
+**Goal:** Follow-up to Step 19.22. The product requirement is that tapping a milestone push shows the recommendations *immediately* — never a ~30s wait for the AI pipeline. The core guarantee already held (the webhook stores three recommendations and only pushes when `recommendations_count > 0`, so a push is never delivered without stored picks), but three defects undermined it: the tap-through blocked on two serialized network round-trips behind a bare spinner, an empty fetch silently started a full generation, and a failed generation consumed the notification so the user got no reminder at all.
+
+**What changed (backend):**
+- **`app/services/apns.py`:** `build_notification_payload` now carries `milestone_name`, `partner_name`, and `days_before` as custom payload keys alongside `notification_id`/`milestone_id`. It already received all three (it builds the title from them), so this is free — and it removes the tap-through's need to look the milestone up.
+- **`app/api/notifications.py`:** replaced the unconditional `status: "sent"` update with an outcome-derived resolution. `sent` now means the reminder actually reached the user; a **transient** failure (pipeline raised / returned an error state / produced zero recommendations / APNs rejected) marks `failed` and returns **500** so QStash retries (3 attempts, `services/qstash.py`); a **permanent** failure (no vault, deleted milestone, no device token) marks `cancelled` and returns 200 because no retry can succeed. Local dev with APNs unconfigured keeps the old `sent` + 200 behavior so a dev machine doesn't trigger retry storms. Tracked via new `transient_failure` / `permanent_failure` locals, plus a dedicated `except ValueError` for the no-vault case that `load_vault_data` raises.
+- **`app/models/notifications.py`:** documented `cancelled` in the response `status` description.
+
+**What changed (iOS):**
+- **`Core/DeepLinkHandler.swift`:** new `MilestonePushDisplay` value type (milestone name + optional partner name and day count); `.milestoneRecommendations` gained a `display` payload; `destination(...)` accepts the three new payload fields and builds the display only when a non-empty milestone name is present, so a push from an older backend still routes with `display: nil`.
+- **`App/AppDelegate.swift`:** extracts `milestone_name` / `partner_name` / `days_before` (an `NSNumber` on the wire) from `userInfo` and threads them into the destination.
+- **`App/ContentView.swift`:** `MilestoneDeepLink` carries the display payload through to the cover.
+- **`Features/Recommendations/MilestoneRecommendationsCoverView.swift`:** **nothing blocks the first frame anymore.** Deleted the `contextLoaded` gate, the `ProgressView` branch, and the `await MilestoneService().listMilestones()` call — the header is now derived from the push payload, so `RecommendationsView` mounts immediately and its single `GET /by-milestone/{id}` fetch starts on frame one. Previously the user sat through two serialized round-trips (a full milestone-list fetch, *then* the recommendations fetch) staring at a bare spinner.
+- **`Features/Recommendations/RecommendationsView.swift`:** `loadContent()` no longer falls back to `generateWithMilestoneContext()` when the stored batch is empty. New `pregeneratedMissing` state renders an honest opt-in — "We're still putting these together", explaining it takes about half a minute, with a "Find picks now" CTA that starts the generation explicitly. The ForYou-tab path (`preferPregenerated == false`) is untouched; tapping "Get Recommendations" there is already an explicit request.
+
+**Files modified:**
+- `backend/app/services/apns.py`, `backend/app/api/notifications.py`, `backend/app/models/notifications.py`
+- `backend/tests/test_apns_push_service.py` — display-key assertions; the two webhook tests that encoded "still marks sent" now assert `failed` + 500
+- `backend/tests/test_notification_processing.py` — new `TestNotificationStatusResolution` (delivered → `sent`; generation failure → `failed` + 500; no device token → `cancelled`; APNs rejection → `failed` + 500); the vault/milestone-not-found tests renamed and flipped to `cancelled`
+- `iOS/Knot/Core/DeepLinkHandler.swift`, `iOS/Knot/App/AppDelegate.swift`, `iOS/Knot/App/ContentView.swift`, `iOS/Knot/Features/Recommendations/MilestoneRecommendationsCoverView.swift`, `iOS/Knot/Features/Recommendations/RecommendationsView.swift`
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — new `milestoneRecsMissing` key + a DEBUG `EmptyMilestoneFetcher` stub so the opt-in state is captured by driving the *real* load path
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift` — display-payload cases (carried, absent, blank name, partial fields), a cover-render class, and a test that the preload path never invokes generation
+- `iOS/KnotUITests/PRScreenshotTests.swift`, `docs/pr-screenshots/worktree-feat-milestone-push-tapthrough.png`
+
+**Tests:** Full backend suite: 1354 passed, 622 skipped, 0 failures. iOS Full plan (unit + UI) green — 381 unit tests. Verified end-to-end against real data: ran the webhook's generation + storage path for a live milestone (three real recommendations with personalization notes and images stored), confirmed `GET /by-milestone/{id}` returns them, then pushed to the simulator with the new payload keys.
+
+**Notes:**
+- **Environment finding, unrelated to this change:** migration `00022_create_milestone_briefings_table.sql` has never been applied to the dev Supabase project — `milestone_briefings` does not exist, so every briefing insert fails (non-fatally, by design) and `briefing_text` is always null. The by-milestone briefing lookup's try/except was validated in the wild by this. Apply migration 00022 and run `NOTIFY pgrst, 'reload schema'` to enable the "Knot's Take" card.
+- The APNs-unconfigured escape hatch in the status logic is deliberate: without it, every local notification would fail three times through QStash. Production always has APNs configured, so the retry path is the one that runs there.
+- Silent `content-available` prefetch was considered and rejected — the app declares no `UIBackgroundModes`, and once the header comes from the payload and the fetch starts on frame one, there is nothing left to prefetch.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

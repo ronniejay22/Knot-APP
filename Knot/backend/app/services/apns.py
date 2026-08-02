@@ -145,8 +145,12 @@ def build_notification_payload(
     The category "MILESTONE_REMINDER" enables "View" and "Snooze"
     actions defined in the iOS app's UNNotificationCategory registration.
 
-    Custom data keys (notification_id, milestone_id) allow the iOS app
-    to deep-link to the recommendations screen on tap.
+    Custom data keys allow the iOS app to deep-link to the recommendations
+    screen on tap. `notification_id` / `milestone_id` identify what to fetch
+    and mark viewed; `milestone_name` / `partner_name` / `days_before` let the
+    tap-through render its header immediately from the payload, with no
+    milestone lookup on the critical path (the header used to cost a full
+    `GET /api/v1/milestones` round-trip before anything appeared).
 
     Args:
         partner_name: Display name of the partner from the vault.
@@ -175,6 +179,11 @@ def build_notification_payload(
         },
         "notification_id": notification_id,
         "milestone_id": milestone_id,
+        # Display payload — lets the tap-through render its header with zero
+        # network calls (see the docstring).
+        "milestone_name": milestone_name,
+        "partner_name": partner_name,
+        "days_before": days_before,
     }
 
 
