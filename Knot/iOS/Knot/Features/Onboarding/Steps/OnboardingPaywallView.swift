@@ -344,10 +344,26 @@ struct OnboardingPaywallView: View {
 
     /// A visible explanation shown when the product catalog couldn't load, so the
     /// (now "Try Again") CTA has context instead of appearing to do nothing.
+    ///
+    /// Step 19.22: the DEBUG copy names the actual cause and the actual remedy. "Check
+    /// your connection" sent three rounds of debugging down the wrong path — an empty
+    /// catalog in development is never the network. In the Simulator it means no local
+    /// StoreKit configuration is registered for the app, which only happens by launching
+    /// from Xcode's Knot scheme (it carries `storeKitConfiguration: Knot/Knot.storekit`);
+    /// storekitd otherwise falls through to the App Store Sandbox, where these products
+    /// don't exist yet. See iOS/scripts/reset-storekit.sh for the full explanation.
     private var loadFailedMessage: String? {
         guard subscriptionManager.productsState == .failed,
               !subscriptionManager.isSubscribed else { return nil }
+#if DEBUG
+        return """
+        No StoreKit products. In the Simulator, run once from Xcode's "Knot" scheme to \
+        register the local catalog. On a device, the subscriptions must be live in App \
+        Store Connect.
+        """
+#else
         return "We couldn't load subscription options. Check your connection and tap Try Again."
+#endif
     }
 
     /// The line rendered under the CTA. When the user already holds Premium it says so

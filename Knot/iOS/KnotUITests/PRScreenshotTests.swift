@@ -24,12 +24,17 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change reworks the recommendation detail page: the top-right Share and
-        // Save circle buttons are gone (only Back remains over the hero), and the
-        // Save-to-Library CTA now runs Save → "Saved" → "Continue". Render a Knot
-        // Original via the DEBUG harness (`recDetailSaveCTA`), tap Save, and wait for
-        // the CTA to become "Continue" so one shot proves both changes.
-        app.launchArguments += ["-uiTestScreenshot", "recDetailSaveCTA"]
+        // Step 19.22 adds two rows to Settings' DEBUG-only Developer section: "Show
+        // Paywall (DEV)", which opens the subscription paywall without replaying the
+        // whole onboarding flow, and "Reset Premium (DEV)", which explains how to clear
+        // persisted StoreKit purchases. Render Settings via the DEBUG harness and scroll
+        // to the bottom, where the Developer section lives.
+        //
+        // Deliberately NOT screenshotting the paywall itself: whether it shows "Start
+        // Free Trial" or "Try Again" depends on whether a local StoreKit catalog has
+        // been registered on that machine, which is exactly the environment-dependent
+        // behaviour this change documents — it would make the shot non-reproducible.
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,16 +44,24 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Save, then wait out the ~2s "Saved" confirmation for the "Continue" CTA.
-        let saveButton = app.buttons["Save to Library"]
-        if saveButton.waitForExistence(timeout: 10) {
-            saveButton.tap()
+        // Scroll to the Developer section at the bottom of the settings list.
+        // `KnotListRow.action` wraps title AND subtitle in one Button, so its
+        // accessibility label is the two concatenated — match on a substring, not ==.
+        let showPaywall = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS[c] 'Show Paywall'"))
+            .firstMatch
+        XCTAssertTrue(
+            showPaywall.waitForExistence(timeout: 10),
+            "Developer section is missing the Show Paywall (DEV) row"
+        )
+        // `exists` is true for elements still scrolled off-screen, so drive on
+        // `isHittable` — otherwise the shot captures the top of the list.
+        for _ in 0..<8 where !showPaywall.isHittable {
+            app.swipeUp()
         }
-        if app.buttons["Continue"].waitForExistence(timeout: 10) {
-            // The accessibility tree flips at the start of the CTA's crossfade, so
-            // let the animation settle before capturing or the shot shows "Saved".
-            Thread.sleep(forTimeInterval: 1)
-        }
+        XCTAssertTrue(showPaywall.isHittable, "could not scroll the Developer section into view")
+        // Let the scroll settle so the shot isn't captured mid-deceleration.
+        Thread.sleep(forTimeInterval: 1)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
