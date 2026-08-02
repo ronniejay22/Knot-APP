@@ -37,6 +37,22 @@ struct SettingsView: View {
     /// Controls the Milestones management fullScreenCover.
     @State private var showMilestones = false
 
+    #if DEBUG
+    /// Step 19.23 — Developer menu: presents `OnboardingPaywallView` on demand.
+    /// The paywall otherwise exists only at the very end of onboarding, so re-reaching it
+    /// meant running the backend dev server and using "Reset Onboarding (DEV)" — far too
+    /// much friction to verify a subscription change.
+    @State private var showDevPaywall = false
+
+    /// Owns the paywall's StoreKit state for the developer-menu presentation, mirroring
+    /// how `OnboardingContainerView` owns it for the real flow (so loaded products and
+    /// in-flight purchase state survive view rebuilds).
+    @State private var devSubscriptionManager = SubscriptionManager()
+
+    /// Result banner for "Reset Premium (DEV)", or nil.
+    @State private var devPremiumResetMessage: String?
+    #endif
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -96,6 +112,28 @@ struct SettingsView: View {
             .fullScreenCover(isPresented: $showMilestones) {
                 MilestonesManagementView()
             }
+            #if DEBUG
+            // Step 19.23 — Developer menu: the onboarding paywall, on demand.
+            .fullScreenCover(isPresented: $showDevPaywall) {
+                OnboardingPaywallView(
+                    subscriptionManager: devSubscriptionManager,
+                    onContinue: { showDevPaywall = false },
+                    onClose: { showDevPaywall = false }
+                )
+            }
+            // Informational only — the title must not imply something was reset.
+            .alert(
+                "Clearing StoreKit Purchases",
+                isPresented: Binding(
+                    get: { devPremiumResetMessage != nil },
+                    set: { if !$0 { devPremiumResetMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { devPremiumResetMessage = nil }
+            } message: {
+                Text(devPremiumResetMessage ?? "")
+            }
+            #endif
             .sheet(isPresented: $viewModel.showDeleteConfirmationSheet) {
                 ReauthenticationSheet(
                     onConfirm: {
@@ -216,6 +254,35 @@ struct SettingsView: View {
                 title: "Reset Onboarding (DEV)",
                 subtitle: "Wipe vault + pending deletion, return to onboarding",
                 action: { viewModel.showDevResetConfirmation = true }
+            )
+
+            // Step 19.23 — reach the paywall without replaying onboarding.
+            KnotListRow.action(
+                icon: Lucide.creditCard,
+                title: "Show Paywall (DEV)",
+                subtitle: "Open the subscription paywall and test the free trial",
+                action: { showDevPaywall = true }
+            )
+
+            // Step 19.23 — the Simulator keeps StoreKit test purchases across launches, so
+            // a completed trial makes the paywall CTA read "Continue" forever, which reads
+            // as "the trial button doesn't show payment options". The app cannot revoke its
+            // own transactions (StoreKit exposes no such API, and `SKTestSession` aborts
+            // outside an XCTest process), so this points at the tooling that can.
+            KnotListRow.action(
+                icon: Lucide.rotateCcw,
+                title: "Reset Premium (DEV)",
+                subtitle: "Shows how to clear local StoreKit purchases",
+                action: {
+                    devPremiumResetMessage = """
+                    An app can't revoke its own StoreKit purchases. Clear them with either:
+
+                    • iOS/scripts/reset-storekit.sh (from the repo)
+                    • Xcode ▸ Debug ▸ StoreKit ▸ Manage Transactions, if you launched from Xcode
+
+                    Then reopen the paywall — the CTA should read "Start Free Trial" again.
+                    """
+                }
             )
         }
     }

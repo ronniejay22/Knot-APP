@@ -7258,7 +7258,44 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
-### Step 19.23 ✅ Notifications — Make the Push Tap-Through Genuinely Instant
+### Step 19.23 ✅ Subscriptions — Make the Simulator Free-Trial Flow Reachable and Resettable
+**Date:** 2026-08-01
+**Status:** Complete
+
+**Goal:** A fourth report that choosing a trial plan on the onboarding paywall shows no payment options. Steps 19.8, 19.14 and 19.19 each shipped a code fix and none of them stuck, because the cause is environmental, not in the app. This step pins down *both* environmental failure modes with hard evidence, ships the tooling to escape them, and makes the paywall reachable in seconds instead of requiring a full onboarding replay.
+
+**Root cause — two distinct modes, both outside the app:**
+
+1. **No local StoreKit catalog → CTA reads "Try Again".** Xcode injects the run scheme's `storeKitConfiguration` only when *Xcode itself* launches the process. An icon tap on the Simulator home screen, `xcrun simctl launch`, or a UI-test launch does not get it; `storekitd` then logs `Initialized with server Sandbox` and falls through to the real App Store sandbox, where the Knot products don't exist yet (Step 19.8's App Store Connect prerequisite is still outstanding). `Product.products(for:)` returns `[]` → `productsState == .failed`. **Verified** by clearing the simulator's StoreKit store and launching via `simctl`. Important nuance: the catalog *registration persists* once made — after any Xcode run **or any test run** (`SubscriptionManagerTests` creates an `SKTestSession`), later plain launches log `Initialized with server XcodeTest` and the paywall shows live prices. Both directions were verified on-device.
+
+2. **Leftover test purchase → CTA reads "Continue", no Apple sheet.** StoreKit test purchases persist across launches *and* reinstalls — they live in a shared app-group container (`Documents/Persistence/Octane/<bundle-id>`), not the app sandbox. `SubscriptionManagerTests.testPurchaseUnlocksPremium` buys a subscription on every test run, so after any `xcodebuild test` the entitlement is active, `isSubscribed` is true, and Step 19.14's entitlement-aware CTA correctly shows "Continue" / "You already have Knot Premium." Tapping it finishes onboarding with no purchase sheet — which is precisely the reported symptom. Reproduced twice while verifying this step.
+
+**Rejected approach (documented so it isn't retried):** the obvious fix — have the app activate the bundled `Knot.storekit` itself via `SKTestSession`, removing the dependency on the launch path — **is impossible**. `SKTestSession(contentsOf:)` calls `-[SKTestSession bundleID]` → `__getXCTestConfigurationClass`, which aborts with `SIGABRT` outside an XCTest process (confirmed from the crash report backtrace). An app also cannot revoke its own entitlement; StoreKit exposes no such API. A prototype that bundled the catalog, weak-linked `StoreKitTest` for Debug only, and fell back to `SKTestSession` on an empty fetch was built, crashed on first launch, and was fully reverted.
+
+**What changed:**
+- **`iOS/scripts/reset-storekit.sh` (new):** deletes the Simulator's persisted StoreKit test store for `com.ronniejay.knot`, clearing both the purchase history and the registered catalog. This is the only thing that resolves failure mode 2, and it has to live outside the app for the reasons above. Terminates the app first so `storekitd` isn't holding the store open, resolves the booted device (or takes a UDID), reports each path cleared, and prints the follow-up (run once from Xcode's Knot scheme to re-register). Uses a `while read` loop rather than `mapfile` — macOS ships bash 3.2.
+- **`iOS/Knot/Features/Settings/SettingsView.swift`:** two rows added to the DEBUG-only `developerSection`. **"Show Paywall (DEV)"** presents `OnboardingPaywallView` in a `.fullScreenCover` backed by a `@State SubscriptionManager` (mirroring how `OnboardingContainerView` owns it) — the paywall previously existed *only* at the end of onboarding, so re-reaching it meant running the backend dev server and using "Reset Onboarding (DEV)", which is most of why this took four rounds to pin down. **"Reset Premium (DEV)"** surfaces an alert naming the two things that can actually clear purchases (the script above, or Xcode ▸ Debug ▸ StoreKit ▸ Manage Transactions); it deliberately does not pretend to do it itself.
+- **`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`:** `loadFailedMessage` now returns DEBUG-specific copy naming the cause and the remedy ("No StoreKit products. In the Simulator, run once from Xcode's \"Knot\" scheme to register the local catalog. On a device, the subscriptions must be live in App Store Connect."). The old "Check your connection and tap Try Again" is factually wrong in development and sent three rounds of debugging down the wrong path; it is retained verbatim for Release.
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** navigation slot points at the `settings` harness key and scrolls to the Developer section. Deliberately *not* the paywall — whether it renders "Start Free Trial" or "Try Again" depends on whether a catalog has been registered on that particular machine, so a paywall shot would not be reproducible. Two gotchas worth keeping: `KnotListRow.action` wraps title **and** subtitle in one `Button`, so its accessibility label is the two concatenated (match on a substring, not `==`); and `XCUIElement.exists` is true for rows still scrolled off-screen, so the scroll loop drives on `isHittable`.
+
+**Files created:**
+- `iOS/scripts/reset-storekit.sh` — Simulator StoreKit test-state reset
+- `docs/pr-screenshots/worktree-fix-storekit-trial-launch-path.png` — Developer section with the new rows
+
+**Files modified:**
+- `iOS/Knot/Features/Settings/SettingsView.swift` — Show Paywall (DEV) + Reset Premium (DEV) rows, paywall cover, reset-info alert
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` — DEBUG-specific `loadFailedMessage`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — screenshot slot repointed at the Developer section
+
+**Tests:** iOS Full plan green (360 unit + 5 UI, 0 failures). No new unit tests: every change is DEBUG-only developer tooling, a Release-unchanged string, or the screenshot harness — the behavior that matters is verified at runtime instead (below). `reset-storekit.sh` was exercised in both states (with a store to clear, and with nothing to clear).
+
+**Runtime verification:** With the StoreKit store cleared, `simctl launch` (no Xcode) → `Initialized with server Sandbox` → paywall shows "Try Again". After running `SubscriptionManagerTests` to register the catalog, the same `simctl launch` → `Initialized with server XcodeTest` → paywall shows `$59.99`, "7-day free trial", and "7-day free trial, then $59.99/year" (all read off live `Product` objects).
+
+**Notes:** One item stayed unverified — XcodeGen emits the run scheme's StoreKit reference as `identifier = "../../Knot/Knot.storekit"`, and Xcode's Run action can't be driven headlessly, so whether Xcode accepts that relative path was not confirmed. If a run from the Knot scheme still shows "Try Again", check Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Options ▸ StoreKit Configuration reads `Knot.storekit` and not `None`. Also note XcodeGen 2.45.4 wires `storeKitConfiguration` into the LaunchAction only — setting it under `schemes.Knot.test` is silently dropped. Step 19.8's App Store Connect prerequisites (Paid Applications Agreement + banking/tax, the two auto-renewable subscriptions with 7-day intro offers, per-product metadata, a sandbox tester) remain the gate on any real-money trial, and premium is still not gated on anywhere in the app.
+
+---
+
+### Step 19.24 ✅ Notifications — Make the Push Tap-Through Genuinely Instant
 **Date:** 2026-08-02
 **Status:** Complete
 
