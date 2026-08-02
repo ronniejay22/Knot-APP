@@ -251,10 +251,18 @@ async def process_notification(
         )
 
     # --- 7. Generate recommendations for this milestone (Step 7.3) ---
+    #
+    # Outcome tracking: the notification is only consumed ('sent') when a push
+    # actually went out. A transient failure leaves it retryable; a permanent
+    # one cancels it. Previously every path fell through to 'sent', so a failed
+    # generation silently burned the reminder — the user never heard about that
+    # milestone at that interval, and the 200 response stopped QStash retrying.
     recommendations_count = 0
     vault_data = None
     milestone_context = None
     briefing_snippet = None
+    transient_failure: str | None = None
+    permanent_failure: str | None = None
     try:
         vault_data, vault_id = await load_vault_data(payload.user_id)
         milestone_context = await load_milestone_context(
@@ -266,6 +274,8 @@ async def process_notification(
                 f"Milestone {payload.milestone_id[:8]}... not found for "
                 f"vault {vault_id[:8]}... — skipping recommendation generation"
             )
+            # The milestone was deleted — retrying can never succeed.
+            permanent_failure = "milestone_not_found"
         else:
             occasion_type = milestone_context.budget_tier
             budget_range = find_budget_range(vault_data.budgets, occasion_type)
@@ -288,6 +298,7 @@ async def process_notification(
                     "Pipeline returned error for notification %s: %s",
                     payload.notification_id, error,
                 )
+                transient_failure = f"pipeline_error: {error}"
             else:
                 final_three = result.get("final_three", [])
 
@@ -359,11 +370,23 @@ async def process_notification(
                         payload.notification_id,
                     )
 
+                if not final_three:
+                    transient_failure = "pipeline_returned_no_recommendations"
+
+    except ValueError as exc:
+        # load_vault_data raises ValueError when the user has no vault —
+        # onboarding was never completed (or the vault was deleted), so
+        # retrying is pointless.
+        logger.warning(
+            "No vault for notification %s: %s", payload.notification_id, exc,
+        )
+        permanent_failure = "vault_not_found"
     except Exception as exc:
         logger.warning(
             "Failed to generate recommendations for notification %s: %s",
             payload.notification_id, exc,
         )
+        transient_failure = f"generation_failed: {exc}"
 
     # --- 8. Deliver push notification (Step 7.5) ---
     push_result = None
@@ -394,29 +417,57 @@ async def process_notification(
                     push_result.get("apns_id"),
                 )
             else:
+                reason = push_result.get("reason") if push_result else "unknown"
                 logger.warning(
                     "Push notification failed for %s: %s",
                     payload.notification_id[:8],
-                    push_result.get("reason") if push_result else "unknown",
+                    reason,
                 )
+                # A missing device token can't be fixed by retrying — the user
+                # hasn't granted notification permission on any device.
+                if reason == "no_device_token":
+                    permanent_failure = "no_device_token"
+                else:
+                    transient_failure = f"push_failed: {reason}"
         except Exception as exc:
             logger.warning(
                 "Failed to deliver push notification for %s: %s",
                 payload.notification_id,
                 exc,
             )
+            transient_failure = f"push_failed: {exc}"
     elif not is_apns_configured():
         logger.debug(
             "APNs not configured — skipping push delivery for %s",
             payload.notification_id[:8],
         )
 
-    # --- 9. Update status to 'sent' ---
+    # --- 9. Resolve the final status ---
+    #
+    # 'sent' means the reminder actually reached the user, so the row is only
+    # consumed on delivery (or in local dev, where APNs is unconfigured and
+    # retrying would just spin). A transient failure returns 500 so QStash
+    # retries (3 attempts, see services/qstash.py); a permanent one is
+    # cancelled because no retry can succeed.
+    push_delivered = bool(push_result and push_result.get("success"))
+    apns_unconfigured = not is_apns_configured()
+
+    if permanent_failure:
+        final_status, response_status, failure = "cancelled", "cancelled", permanent_failure
+    elif push_delivered or apns_unconfigured:
+        final_status, response_status, failure = "sent", "processed", None
+    else:
+        final_status, response_status, failure = "failed", "failed", (
+            transient_failure or "push_not_delivered"
+        )
+
     try:
-        client.table("notification_queue").update({
-            "status": "sent",
-            "sent_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", payload.notification_id).execute()
+        update_fields: dict = {"status": final_status}
+        if final_status == "sent":
+            update_fields["sent_at"] = datetime.now(timezone.utc).isoformat()
+        client.table("notification_queue").update(update_fields).eq(
+            "id", payload.notification_id
+        ).execute()
     except Exception as exc:
         logger.error(
             f"Failed to update notification {payload.notification_id}: {exc}"
@@ -426,21 +477,40 @@ async def process_notification(
             detail=f"Failed to update notification status: {exc}",
         )
 
+    if final_status == "failed":
+        # Non-2xx so QStash retries this notification.
+        logger.warning(
+            "Notification %s marked failed (%s) — signalling QStash to retry",
+            payload.notification_id, failure,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Notification processing failed: {failure}",
+        )
+
     logger.info(
-        f"Notification {payload.notification_id} processed successfully "
+        f"Notification {payload.notification_id} resolved as {final_status} "
         f"(user={payload.user_id[:8]}..., days_before={payload.days_before}, "
         f"recommendations={recommendations_count})"
     )
 
-    return NotificationProcessResponse(
-        status="processed",
-        notification_id=payload.notification_id,
-        message=(
+    if response_status == "cancelled":
+        message = (
+            f"Notification for milestone {payload.milestone_id[:8]}... "
+            f"cancelled ({failure})."
+        )
+    else:
+        message = (
             f"Notification for milestone {payload.milestone_id[:8]}... "
             f"({payload.days_before} days before) processed."
-        ),
+        )
+
+    return NotificationProcessResponse(
+        status=response_status,
+        notification_id=payload.notification_id,
+        message=message,
         recommendations_generated=recommendations_count,
-        push_delivered=bool(push_result and push_result.get("success")),
+        push_delivered=push_delivered,
     )
 
 

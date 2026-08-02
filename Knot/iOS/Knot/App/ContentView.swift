@@ -15,6 +15,8 @@ import SwiftUI
 struct MilestoneDeepLink: Identifiable, Equatable {
     let milestoneId: String
     let notificationId: String?
+    /// Header data from the push payload — renders with no network call.
+    let display: MilestonePushDisplay?
     var id: String { milestoneId }
 }
 
@@ -94,6 +96,7 @@ struct ContentView: View {
             MilestoneRecommendationsCoverView(
                 milestoneId: link.milestoneId,
                 notificationId: link.notificationId,
+                display: link.display,
                 onDismiss: { milestoneDeepLink = nil }
             )
             // The cover's content does not inherit the `.environment(authViewModel)`
@@ -125,10 +128,11 @@ struct ContentView: View {
         switch deepLinkHandler.pendingDestination {
         case .recommendation(let id):
             deepLinkRecommendationId = id
-        case .milestoneRecommendations(let milestoneId, let notificationId):
+        case .milestoneRecommendations(let milestoneId, let notificationId, let display):
             milestoneDeepLink = MilestoneDeepLink(
                 milestoneId: milestoneId,
-                notificationId: notificationId
+                notificationId: notificationId,
+                display: display
             )
         case nil:
             return

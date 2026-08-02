@@ -908,7 +908,7 @@ class TestNotificationRecommendationGeneration:
         assert data["recommendations_generated"] == 0
         print("  Pipeline error state still marks notification as sent")
 
-    def test_vault_not_found_still_marks_sent(self, client):
+    def test_vault_not_found_is_cancelled(self, client):
         """
         If load_vault_data raises ValueError (no vault), the notification
         should still be marked as 'sent' with recommendations_generated=0.
@@ -958,13 +958,15 @@ class TestNotificationRecommendationGeneration:
                             },
                         )
 
+        # A missing vault can never be fixed by retrying, so the
+        # notification is cancelled (200 — QStash must not retry).
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "processed"
+        assert data["status"] == "cancelled"
         assert data["recommendations_generated"] == 0
-        print("  Vault not found still marks notification as sent")
+        print("  Vault not found cancels the notification")
 
-    def test_milestone_not_found_still_marks_sent(self, client):
+    def test_milestone_not_found_is_cancelled(self, client):
         """
         If load_milestone_context returns None (milestone deleted), the
         notification should still be marked as 'sent'.
@@ -1019,11 +1021,13 @@ class TestNotificationRecommendationGeneration:
                                 },
                             )
 
+        # A deleted milestone can never be fixed by retrying, so the
+        # notification is cancelled (200 — QStash must not retry).
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "processed"
+        assert data["status"] == "cancelled"
         assert data["recommendations_generated"] == 0
-        print("  Milestone not found still marks notification as sent")
+        print("  Milestone not found cancels the notification")
 
     def test_response_includes_recommendations_count(self, client):
         """
@@ -1122,6 +1126,164 @@ class TestNotificationRecommendationGeneration:
         assert data["status"] == "skipped"
         assert data["recommendations_generated"] == 0
         print("  Skipped notification has recommendations_generated=0")
+
+
+# ===================================================================
+# 2b. Status Resolution — only consume a notification that was delivered
+# ===================================================================
+
+class TestNotificationStatusResolution:
+    """
+    The notification_queue row is only marked 'sent' when a push actually
+    reached the user. Anything else is either retryable ('failed' + 500, so
+    QStash retries) or permanently impossible ('cancelled' + 200).
+
+    These tests run with APNs *configured* — i.e. the production shape. When
+    APNs is unconfigured (local dev) the webhook still marks 'sent' so a dev
+    machine doesn't trigger a retry storm; that path is covered by the
+    pipeline-failure tests above.
+    """
+
+    def _signed(self, payload: dict) -> tuple[bytes, str]:
+        body = json.dumps(payload).encode()
+        url = "http://testserver/api/v1/notifications/process"
+        return body, _create_qstash_signature(body, url)
+
+    def _run(
+        self,
+        client,
+        *,
+        pipeline_result,
+        push_result=None,
+        push_raises: Exception | None = None,
+    ):
+        """Drive the webhook with APNs configured. Returns (response, updates)."""
+        notification_id = str(uuid.uuid4())
+        payload = {
+            "notification_id": notification_id,
+            "user_id": str(uuid.uuid4()),
+            "milestone_id": str(uuid.uuid4()),
+            "days_before": 7,
+        }
+        body, signature = self._signed(payload)
+
+        updates: list[dict] = []
+        notif_select = MagicMock()
+        notif_select.data = [{"id": notification_id, "status": "pending"}]
+        generic = MagicMock()
+        generic.data = [{"id": "row"}]
+
+        def table_side_effect(table_name):
+            table = MagicMock()
+            if table_name == "notification_queue":
+                table.select.return_value.eq.return_value.execute.return_value = notif_select
+
+                def capture_update(fields):
+                    updates.append(fields)
+                    chain = MagicMock()
+                    chain.eq.return_value.execute.return_value = generic
+                    return chain
+
+                table.update.side_effect = capture_update
+            else:
+                table.insert.return_value.execute.return_value = generic
+            return table
+
+        db = MagicMock()
+        db.table.side_effect = table_side_effect
+
+        push_mock_kwargs = (
+            {"side_effect": push_raises} if push_raises else {"return_value": push_result}
+        )
+
+        with patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY), \
+             patch("app.services.qstash.QSTASH_NEXT_SIGNING_KEY", ""), \
+             patch("app.api.notifications.get_service_client", return_value=db), \
+             patch("app.api.notifications.is_apns_configured", return_value=True), \
+             patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as load_vault, \
+             patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as load_ms, \
+             patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as pipeline, \
+             patch("app.api.notifications.deliver_push_notification", new_callable=AsyncMock, **push_mock_kwargs):
+            load_vault.return_value = (_mock_vault_data("vault-1"), "vault-1")
+            load_ms.return_value = MilestoneContext(
+                id=payload["milestone_id"],
+                milestone_type="birthday",
+                milestone_name="Partner's Birthday",
+                milestone_date="2000-06-15",
+                recurrence="yearly",
+                budget_tier="major_milestone",
+            )
+            pipeline.return_value = pipeline_result
+            resp = client.post(
+                "/api/v1/notifications/process",
+                content=body,
+                headers={
+                    "Upstash-Signature": signature,
+                    "Content-Type": "application/json",
+                },
+            )
+        return resp, updates
+
+    def test_delivered_push_marks_sent(self, client):
+        """The happy path consumes the notification and stamps sent_at."""
+        resp, updates = self._run(
+            client,
+            pipeline_result={"final_three": _mock_candidates(), "error": None},
+            push_result={"success": True, "apns_id": "a1", "status_code": 200, "reason": None},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "processed"
+        assert data["push_delivered"] is True
+        assert any(u.get("status") == "sent" and u.get("sent_at") for u in updates), updates
+        print("  Delivered push marks the notification sent")
+
+    def test_generation_failure_marks_failed_for_retry(self, client):
+        """A pipeline crash leaves the notification retryable, not consumed."""
+        resp, updates = self._run(
+            client,
+            pipeline_result={"error": "pipeline exploded", "final_three": []},
+        )
+        assert resp.status_code == 500
+        assert any(u.get("status") == "failed" for u in updates), updates
+        assert not any(u.get("status") == "sent" for u in updates), updates
+        print("  Generation failure marks failed (QStash will retry)")
+
+    def test_no_device_token_is_cancelled(self, client):
+        """
+        A user with no registered device can never receive this push, so the
+        notification is cancelled rather than retried three times.
+        """
+        resp, updates = self._run(
+            client,
+            pipeline_result={"final_three": _mock_candidates(), "error": None},
+            push_result={
+                "success": False,
+                "apns_id": None,
+                "status_code": 0,
+                "reason": "no_device_token",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "cancelled"
+        assert any(u.get("status") == "cancelled" for u in updates), updates
+        print("  Missing device token cancels the notification")
+
+    def test_apns_rejection_marks_failed_for_retry(self, client):
+        """A transient APNs rejection is retryable."""
+        resp, updates = self._run(
+            client,
+            pipeline_result={"final_three": _mock_candidates(), "error": None},
+            push_result={
+                "success": False,
+                "apns_id": None,
+                "status_code": 503,
+                "reason": "ServiceUnavailable",
+            },
+        )
+        assert resp.status_code == 500
+        assert any(u.get("status") == "failed" for u in updates), updates
+        print("  APNs rejection marks failed (QStash will retry)")
 
 
 # ===================================================================

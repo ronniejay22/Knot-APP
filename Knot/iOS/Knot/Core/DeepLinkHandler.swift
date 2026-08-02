@@ -10,14 +10,29 @@
 
 import Foundation
 
+/// Milestone display data carried in the push payload so the tap-through can
+/// render its header immediately, with no network round-trip. The backend
+/// (`apns.build_notification_payload`) already knows all three fields — it
+/// builds the notification title from them.
+struct MilestonePushDisplay: Equatable, Sendable {
+    let milestoneName: String
+    let partnerName: String?
+    let daysBefore: Int?
+}
+
 /// Represents a destination the app should navigate to from a deep link.
 enum DeepLinkDestination: Equatable, Sendable {
     /// Navigate to a specific recommendation by its database ID.
     case recommendation(id: String)
     /// Navigate to the pre-generated recommendations for a milestone
     /// (a tapped milestone push notification). `notificationId` marks the
-    /// originating notification_queue entry as viewed, when present.
-    case milestoneRecommendations(milestoneId: String, notificationId: String?)
+    /// originating notification_queue entry as viewed, when present;
+    /// `display` renders the header without a lookup.
+    case milestoneRecommendations(
+        milestoneId: String,
+        notificationId: String?,
+        display: MilestonePushDisplay?
+    )
 }
 
 /// Manages deep link state for the app.
@@ -49,14 +64,33 @@ final class DeepLinkHandler {
     /// Pure static helper (rather than inline in AppDelegate) so XCTest can
     /// exercise the mapping — `UNNotificationResponse` cannot be constructed
     /// in tests. Returns `nil` when the payload carries no usable milestone id.
+    ///
+    /// `milestoneName` / `partnerName` / `daysBefore` come from the push
+    /// payload's custom keys; when present they let the tap-through render its
+    /// header instantly. They are optional so a push from an older backend
+    /// (before those keys were added) still routes correctly.
     static func destination(
         milestoneId: String?,
-        notificationId: String?
+        notificationId: String?,
+        milestoneName: String? = nil,
+        partnerName: String? = nil,
+        daysBefore: Int? = nil
     ) -> DeepLinkDestination? {
         guard let milestoneId, !milestoneId.isEmpty else { return nil }
+
+        var display: MilestonePushDisplay?
+        if let milestoneName, !milestoneName.isEmpty {
+            display = MilestonePushDisplay(
+                milestoneName: milestoneName,
+                partnerName: (partnerName?.isEmpty == false) ? partnerName : nil,
+                daysBefore: daysBefore
+            )
+        }
+
         return .milestoneRecommendations(
             milestoneId: milestoneId,
-            notificationId: (notificationId?.isEmpty == false) ? notificationId : nil
+            notificationId: (notificationId?.isEmpty == false) ? notificationId : nil,
+            display: display
         )
     }
 

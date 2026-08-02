@@ -314,6 +314,22 @@ class TestBuildNotificationPayload:
         assert payload["notification_id"] == "notif-abc-123"
         assert payload["milestone_id"] == "ms-def-456"
 
+    def test_payload_includes_display_fields_for_instant_header(self):
+        """
+        The payload carries the milestone display data so the tap-through can
+        render its header with no network round-trip.
+        """
+        payload = build_notification_payload(
+            partner_name="Alice",
+            milestone_name="Birthday",
+            days_before=7,
+            notification_id="notif-abc-123",
+            milestone_id="ms-def-456",
+        )
+        assert payload["milestone_name"] == "Birthday"
+        assert payload["partner_name"] == "Alice"
+        assert payload["days_before"] == 7
+
     def test_payload_alert_structure(self):
         """aps.alert should contain both title and body keys."""
         payload = build_notification_payload(
@@ -1035,7 +1051,7 @@ class TestNotificationWebhookPushIntegration:
     @patch("app.api.notifications.load_vault_data", new_callable=AsyncMock)
     @patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock)
     @patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY)
-    def test_webhook_push_failure_does_not_block_status_update(
+    def test_webhook_push_failure_marks_failed_for_retry(
         self,
         mock_milestone,
         mock_vault,
@@ -1044,7 +1060,12 @@ class TestNotificationWebhookPushIntegration:
         mock_apns_config,
         client,
     ):
-        """Push failure should not prevent notification from being marked 'sent'."""
+        """
+        A push that never reached the user must NOT consume the notification.
+
+        The row is marked 'failed' and the webhook returns 500 so QStash
+        retries — otherwise the user silently loses that reminder.
+        """
         vault_data = _mock_vault_data()
         mock_vault.return_value = (vault_data, "vault-123")
         mock_milestone.return_value = MilestoneContext(
@@ -1091,11 +1112,13 @@ class TestNotificationWebhookPushIntegration:
                 client, notif_id, user_id, milestone_id,
             )
 
-        # Should still succeed (200) despite push failure
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "processed"
-        assert data["push_delivered"] is False
+        # 500 signals QStash to retry rather than burning the notification.
+        assert response.status_code == 500
+        update_calls = [
+            c.args[0] for c in mock_table.update.call_args_list if c.args
+        ]
+        assert any(u.get("status") == "failed" for u in update_calls), update_calls
+        assert not any(u.get("status") == "sent" for u in update_calls), update_calls
 
     @patch("app.api.notifications.is_apns_configured", return_value=False)
     @patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock)
@@ -1222,11 +1245,14 @@ class TestNotificationWebhookPushIntegration:
                     client, notif_id, user_id, milestone_id,
                 )
 
-        assert response.status_code == 200
+        # No recommendations → no push is attempted, and the notification is
+        # left retryable (500) instead of consumed.
         mock_deliver.assert_not_called()
-        data = response.json()
-        assert data["recommendations_generated"] == 0
-        assert data["push_delivered"] is False
+        assert response.status_code == 500
+        update_calls = [
+            c.args[0] for c in mock_table.update.call_args_list if c.args
+        ]
+        assert any(u.get("status") == "failed" for u in update_calls), update_calls
 
     @patch("app.api.notifications.is_apns_configured", return_value=True)
     @patch("app.api.notifications.deliver_push_notification", new_callable=AsyncMock)

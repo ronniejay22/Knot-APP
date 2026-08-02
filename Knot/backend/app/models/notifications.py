@@ -44,7 +44,11 @@ class NotificationProcessResponse(BaseModel):
     """
     status: str = Field(
         ...,
-        description="Processing result: 'processed', 'skipped', 'rescheduled', or 'failed'.",
+        description=(
+            "Processing result: 'processed', 'skipped', 'rescheduled', "
+            "'cancelled', or 'failed'. A transient failure is returned as a "
+            "500 (so QStash retries) rather than in this field."
+        ),
     )
     notification_id: str = Field(
         ...,
