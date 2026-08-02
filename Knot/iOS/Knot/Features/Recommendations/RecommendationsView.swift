@@ -43,13 +43,40 @@ struct RecommendationsView: View {
     /// Display context for the milestone header (nil for "just because" mode).
     var milestoneContext: MilestoneDisplayContext?
 
+    /// When true (the milestone push tap-through), load the PRE-GENERATED
+    /// recommendations stored when the notification fired instead of
+    /// re-running the generation pipeline. Falls back to generating when no
+    /// stored batch exists.
+    var preferPregenerated: Bool
+
+    /// True when hosted inside a full-screen cover (no KnotTabBar below),
+    /// so the tab-bar bottom clearance isn't needed.
+    var isModal: Bool
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
     @Environment(AuthViewModel.self) private var authViewModel
 
-    @State private var viewModel = RecommendationsViewModel()
+    @State private var viewModel: RecommendationsViewModel
+
+    /// Defaults preserve every existing call site (ForYouView pushes, previews).
+    /// The `viewModel:` parameter lets the screenshot harness inject a
+    /// pre-seeded VM (with `hasLoadedInitially = true`) so no networking runs.
+    init(
+        milestoneId: String? = nil,
+        milestoneContext: MilestoneDisplayContext? = nil,
+        preferPregenerated: Bool = false,
+        isModal: Bool = false,
+        viewModel: RecommendationsViewModel = RecommendationsViewModel()
+    ) {
+        self.milestoneId = milestoneId
+        self.milestoneContext = milestoneContext
+        self.preferPregenerated = preferPregenerated
+        self.isModal = isModal
+        _viewModel = State(initialValue: viewModel)
+    }
 
     @State private var isBriefingExpanded = false
     @State private var isBriefingDismissed = false
@@ -82,7 +109,10 @@ struct RecommendationsView: View {
             }
             .task {
                 viewModel.configure(modelContext: modelContext)
-                await generateWithMilestoneContext()
+                // A harness-seeded VM (or a tab revisit) already has content —
+                // skip networking entirely.
+                guard !viewModel.hasLoadedInitially else { return }
+                await loadContent()
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -230,14 +260,35 @@ struct RecommendationsView: View {
         }
     }
 
+    // MARK: - Content Loading
+
+    /// Single entry point for the initial load and the error/empty retries.
+    ///
+    /// Push tap-through (`preferPregenerated`): fetch the stored batch first —
+    /// instant, and it's exactly what the push described. Fall back to the
+    /// generation pipeline only when no stored rows exist.
+    private func loadContent() async {
+        if preferPregenerated, let mId = milestoneId {
+            let displayed = await viewModel.loadPregeneratedRecommendations(milestoneId: mId)
+            if !displayed {
+                await generateWithMilestoneContext()
+            }
+        } else {
+            await generateWithMilestoneContext()
+        }
+    }
+
     // MARK: - Milestone-Aware Generation
 
     /// Generates recommendations using the milestone context passed from ForYouView,
     /// or falls back to "just_because" when no milestone context is provided.
+    /// When a milestone ID is known but its display context lookup failed, the
+    /// generation stays milestone-scoped ("major_milestone" occasion) instead of
+    /// silently dropping the milestone.
     private func generateWithMilestoneContext() async {
-        if let ctx = milestoneContext, let mId = milestoneId {
+        if let mId = milestoneId {
             await viewModel.generateRecommendations(
-                occasionType: ctx.occasionType,
+                occasionType: milestoneContext?.occasionType ?? "major_milestone",
                 milestoneId: mId
             )
         } else {
@@ -363,8 +414,10 @@ struct RecommendationsView: View {
             .padding(.top, 8)
             // Clearance above the KnotTabBar (~93pt content + home indicator).
             // SwiftUI's `safeAreaInset` from MainTabView does not propagate through
-            // `navigationDestination` pushes, so we pad explicitly here.
-            .padding(.bottom, 100)
+            // `navigationDestination` pushes, so we pad explicitly here. Inside a
+            // full-screen cover (push tap-through) there is no tab bar, so only a
+            // small breathing-room pad is needed.
+            .padding(.bottom, isModal ? 24 : 100)
             .opacity(viewModel.cardsVisible ? 1 : 0)
             .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
         }
@@ -395,7 +448,7 @@ struct RecommendationsView: View {
 
             Button {
                 Task {
-                    await generateWithMilestoneContext()
+                    await loadContent()
                 }
             } label: {
                 HStack(spacing: 6) {
@@ -443,7 +496,7 @@ struct RecommendationsView: View {
             }
 
             Button {
-                Task { await generateWithMilestoneContext() }
+                Task { await loadContent() }
             } label: {
                 HStack(spacing: 8) {
                     Image(uiImage: Lucide.sparkles)

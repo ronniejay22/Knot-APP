@@ -11,6 +11,13 @@
 
 import SwiftUI
 
+/// Identifiable payload for the milestone push tap-through cover.
+struct MilestoneDeepLink: Identifiable, Equatable {
+    let milestoneId: String
+    let notificationId: String?
+    var id: String { milestoneId }
+}
+
 /// Root view of the app. Routes between Sign-In, Onboarding, and Home based on auth state.
 ///
 /// On launch, the Supabase SDK checks the iOS Keychain for an existing session.
@@ -27,6 +34,10 @@ struct ContentView: View {
 
     /// The recommendation ID to display from a deep link (Step 9.2).
     @State private var deepLinkRecommendationId: String?
+
+    /// The milestone whose pre-generated recommendations to display
+    /// (a tapped milestone push notification).
+    @State private var milestoneDeepLink: MilestoneDeepLink?
 
     var body: some View {
         Group {
@@ -79,21 +90,50 @@ struct ContentView: View {
                 )
             }
         }
+        .fullScreenCover(item: $milestoneDeepLink) { link in
+            MilestoneRecommendationsCoverView(
+                milestoneId: link.milestoneId,
+                notificationId: link.notificationId,
+                onDismiss: { milestoneDeepLink = nil }
+            )
+            // The cover's content does not inherit the `.environment(authViewModel)`
+            // applied to the Group above (the cover is attached outside it), and
+            // the hosted RecommendationsView requires AuthViewModel — inject
+            // explicitly.
+            .environment(authViewModel)
+        }
         .onChange(of: deepLinkHandler.pendingDestination) { _, newValue in
-            if case .recommendation(let id) = newValue {
-                deepLinkRecommendationId = id
-                deepLinkHandler.pendingDestination = nil
-            }
+            // Warm start / foreground tap.
+            guard newValue != nil else { return }
+            consumePendingDeepLink()
         }
         .task {
+            // COLD START: consume any pending deep link BEFORE starting the
+            // auth listener — `listenForAuthChanges()` is a for-await over
+            // `authStateChanges` that never returns, so any code placed after
+            // the await is dead. (If the notification tap lands after this
+            // check instead, the `.onChange` above catches it — both
+            // orderings are safe.)
+            consumePendingDeepLink()
             await authViewModel.listenForAuthChanges()
-
-            // Check for pending deep link on cold start
-            if case .recommendation(let id) = deepLinkHandler.pendingDestination {
-                deepLinkRecommendationId = id
-                deepLinkHandler.pendingDestination = nil
-            }
         }
+    }
+
+    /// Routes the pending deep link (if any) to the matching presentation
+    /// state and clears it so it can't re-present.
+    private func consumePendingDeepLink() {
+        switch deepLinkHandler.pendingDestination {
+        case .recommendation(let id):
+            deepLinkRecommendationId = id
+        case .milestoneRecommendations(let milestoneId, let notificationId):
+            milestoneDeepLink = MilestoneDeepLink(
+                milestoneId: milestoneId,
+                notificationId: notificationId
+            )
+        case nil:
+            return
+        }
+        deepLinkHandler.pendingDestination = nil
     }
 
     // MARK: - Session Check Loading View

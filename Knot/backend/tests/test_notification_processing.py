@@ -572,6 +572,123 @@ class TestNotificationRecommendationGeneration:
         assert data["recommendations_generated"] == 3
         print("  Processing generates 3 recommendations")
 
+    def test_processing_persists_personalization_note(self, client):
+        """
+        Webhook-stored recommendation rows must carry personalization_note
+        and idea fields (is_idea, content_sections), mirroring POST /generate,
+        so the tap-through display renders at full fidelity.
+        """
+        notification_id = str(uuid.uuid4())
+        user_id = str(uuid.uuid4())
+        milestone_id = str(uuid.uuid4())
+        vault_id = str(uuid.uuid4())
+
+        payload = {
+            "notification_id": notification_id,
+            "user_id": user_id,
+            "milestone_id": milestone_id,
+            "days_before": 7,
+        }
+        body, signature = self._build_signed_request(payload)
+
+        mock_vault_data = _mock_vault_data(vault_id)
+        mock_milestone_ctx = MilestoneContext(
+            id=milestone_id,
+            milestone_type="birthday",
+            milestone_name="Partner's Birthday",
+            milestone_date="2000-06-15",
+            recurrence="yearly",
+            budget_tier="major_milestone",
+        )
+
+        candidates = _mock_candidates()
+        # Give the first candidate a personalization note, and turn the third
+        # into a Knot Original idea with structured content sections.
+        candidates[0] = candidates[0].model_copy(
+            update={"personalization_note": "She loves handmade ceramics."}
+        )
+        candidates[2] = candidates[2].model_copy(
+            update={
+                "is_idea": True,
+                "external_url": None,
+                "content_sections": [
+                    {"type": "overview", "heading": "Overview", "body": "A cozy night in."}
+                ],
+                "personalization_note": "Quality time is her love language.",
+            }
+        )
+
+        captured_rows = {}
+
+        mock_db_client = MagicMock()
+        notif_select_result = MagicMock()
+        notif_select_result.data = [{"id": notification_id, "status": "pending"}]
+        notif_update_result = MagicMock()
+        notif_update_result.data = [{"id": notification_id, "status": "sent"}]
+        rec_insert_result = MagicMock()
+        rec_insert_result.data = [{"id": f"db-rec-{i}"} for i in range(3)]
+
+        call_count = {"n": 0}
+
+        def table_side_effect(table_name):
+            mock_table = MagicMock()
+            if table_name == "notification_queue":
+                call_count["n"] += 1
+                if call_count["n"] == 1:
+                    mock_table.select.return_value.eq.return_value.execute.return_value = notif_select_result
+                else:
+                    mock_table.update.return_value.eq.return_value.execute.return_value = notif_update_result
+            elif table_name == "recommendations":
+                def capture_insert(rows):
+                    captured_rows["rows"] = rows
+                    insert_mock = MagicMock()
+                    insert_mock.execute.return_value = rec_insert_result
+                    return insert_mock
+                mock_table.insert.side_effect = capture_insert
+            return mock_table
+
+        mock_db_client.table.side_effect = table_side_effect
+
+        with patch("app.services.qstash.QSTASH_CURRENT_SIGNING_KEY", TEST_SIGNING_KEY):
+            with patch("app.services.qstash.QSTASH_NEXT_SIGNING_KEY", ""):
+                with patch("app.api.notifications.get_service_client", return_value=mock_db_client):
+                    with patch("app.api.notifications.load_vault_data", new_callable=AsyncMock) as mock_load:
+                        mock_load.return_value = (mock_vault_data, vault_id)
+                        with patch("app.api.notifications.load_milestone_context", new_callable=AsyncMock) as mock_ms:
+                            mock_ms.return_value = mock_milestone_ctx
+                            with patch("app.api.notifications.run_recommendation_pipeline", new_callable=AsyncMock) as mock_pipeline:
+                                mock_pipeline.return_value = {
+                                    "final_three": candidates,
+                                    "error": None,
+                                }
+                                resp = client.post(
+                                    "/api/v1/notifications/process",
+                                    content=body,
+                                    headers={
+                                        "Upstash-Signature": signature,
+                                        "Content-Type": "application/json",
+                                    },
+                                )
+
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        rows = captured_rows.get("rows")
+        assert rows is not None and len(rows) == 3
+
+        # Candidate 0: personalization note persisted
+        assert rows[0]["personalization_note"] == "She loves handmade ceramics."
+        # Candidate 1: no note → key omitted (matches /generate behavior)
+        assert "personalization_note" not in rows[1]
+        assert "is_idea" not in rows[1]
+        # Candidate 2: idea fields persisted, content_sections JSON-encoded
+        assert rows[2]["is_idea"] is True
+        assert rows[2]["personalization_note"] == "Quality time is her love language."
+        decoded = json.loads(rows[2]["content_sections"])
+        assert decoded[0]["type"] == "overview"
+        # Every row still carries a non-null image (resolve_image_url guarantee)
+        for row in rows:
+            assert row["image_url"]
+        print("  Webhook insert persists personalization_note + idea fields")
+
     def test_pipeline_failure_still_marks_sent(self, client):
         """
         If the recommendation pipeline raises an exception, the notification

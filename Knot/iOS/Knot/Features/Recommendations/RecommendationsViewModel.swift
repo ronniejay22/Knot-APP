@@ -20,6 +20,18 @@ import SwiftData
 import UIKit
 import UserNotifications
 
+/// Seam for fetching a milestone's pre-generated recommendations, so the
+/// push tap-through's preload path is unit-testable without a live backend.
+/// Conformed to by the existing `NotificationHistoryService`.
+@MainActor
+protocol MilestoneRecommendationsFetching {
+    func fetchMilestoneRecommendations(
+        milestoneId: String
+    ) async throws -> MilestoneRecommendationsResponse
+}
+
+extension NotificationHistoryService: MilestoneRecommendationsFetching {}
+
 /// State container for the recommendations screen.
 ///
 /// Manages loading, displaying, refreshing, and selecting the Choice-of-Three
@@ -168,14 +180,17 @@ final class RecommendationsViewModel {
 
     private let service: RecommendationService
     private let hintService: HintService
+    private let milestoneFetcher: any MilestoneRecommendationsFetching
     private var modelContext: ModelContext?
 
     init(
         service: RecommendationService = RecommendationService(),
-        hintService: HintService = HintService()
+        hintService: HintService = HintService(),
+        milestoneFetcher: any MilestoneRecommendationsFetching = NotificationHistoryService()
     ) {
         self.service = service
         self.hintService = hintService
+        self.milestoneFetcher = milestoneFetcher
     }
 
     /// Configures the model context for local persistence. Called from the view.
@@ -241,6 +256,47 @@ final class RecommendationsViewModel {
 
         completeBackgroundLoadingIfNeeded()
         isLoading = false
+    }
+
+    // MARK: - Pre-Generated Milestone Recommendations (push tap-through)
+
+    /// Loads the PRE-GENERATED recommendations stored when a milestone push
+    /// notification fired, instead of re-running the ~30s generation pipeline.
+    /// This is what the push copy described, so the tap-through shows exactly
+    /// those picks, instantly.
+    ///
+    /// - Returns: `true` when something was displayed (recommendations or an
+    ///   error state whose Try Again re-runs this path); `false` when no stored
+    ///   rows exist — the caller should fall back to the generate path.
+    func loadPregeneratedRecommendations(milestoneId: String) async -> Bool {
+        guard !isLoading else { return true }
+
+        isLoading = true
+        errorMessage = nil
+        currentPage = 0
+        defer { isLoading = false }
+
+        do {
+            let response = try await milestoneFetcher.fetchMilestoneRecommendations(
+                milestoneId: milestoneId
+            )
+            guard !response.recommendations.isEmpty else {
+                // No stored batch (generation failed when the push fired, or
+                // legacy data) — signal the caller to generate fresh ones.
+                return false
+            }
+            recommendations = response.recommendations.map { $0.toRecommendationItem() }
+            briefingText = response.briefingText
+            hasLoadedInitially = true
+            deckResetToken += 1
+            return true
+        } catch {
+            // Transient fetch error: surface the error state (Try Again
+            // re-runs this path) rather than silently burning a 30s
+            // pipeline run.
+            errorMessage = error.localizedDescription
+            return true
+        }
     }
 
     // MARK: - Refresh

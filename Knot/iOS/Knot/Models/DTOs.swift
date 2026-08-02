@@ -655,15 +655,20 @@ struct NotificationHistoryItemResponse: Codable, Sendable, Identifiable {
 // MARK: - Milestone Recommendations Response (Step 7.7)
 
 /// Response from `GET /api/v1/recommendations/by-milestone/{milestone_id}`.
-/// Returns pre-generated recommendations associated with a notification's milestone.
+/// Returns the newest batch of pre-generated recommendations for a milestone
+/// (stored when the push notification fired), plus the latest briefing.
 struct MilestoneRecommendationsResponse: Codable, Sendable {
     let recommendations: [MilestoneRecommendationItemResponse]
     let count: Int
     let milestoneId: String
+    /// Latest Claude briefing for this milestone (nil when none was stored,
+    /// or when talking to an older backend without the field).
+    let briefingText: String?
 
     enum CodingKeys: String, CodingKey {
         case recommendations, count
         case milestoneId = "milestone_id"
+        case briefingText = "briefing_text"
     }
 }
 
@@ -678,6 +683,12 @@ struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
     let merchantName: String?
     let imageUrl: String?
     let createdAt: String
+    /// Why Knot picked this for the partner (nil for legacy rows).
+    let personalizationNote: String?
+    /// True for Knot Original ideas/plans (no merchant link).
+    let isIdea: Bool?
+    /// Structured idea content sections for idea-type recommendations.
+    let contentSections: [IdeaContentSection]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -688,6 +699,35 @@ struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
         case merchantName = "merchant_name"
         case imageUrl = "image_url"
         case createdAt = "created_at"
+        case personalizationNote = "personalization_note"
+        case isIdea = "is_idea"
+        case contentSections = "content_sections"
+    }
+}
+
+extension MilestoneRecommendationItemResponse {
+    /// Rebuild a full detail-capable item from a pre-generated milestone row so
+    /// the notification tap-through can reuse the standard recommendations
+    /// surface (Spotlight carousel + `RecommendationDetailView`).
+    ///
+    /// Routes `description` / `personalizationNote` through the in-code
+    /// initializer's raw fields, which applies the standard tag-token
+    /// sanitation on read.
+    func toRecommendationItem() -> RecommendationItemResponse {
+        RecommendationItemResponse(
+            id: id,
+            recommendationType: recommendationType,
+            title: title,
+            description: description,
+            priceCents: priceCents,
+            externalUrl: externalUrl,
+            imageUrl: imageUrl,
+            merchantName: merchantName,
+            source: "milestone_pregenerated",
+            isIdea: isIdea,
+            contentSections: contentSections,
+            personalizationNote: personalizationNote
+        )
     }
 }
 

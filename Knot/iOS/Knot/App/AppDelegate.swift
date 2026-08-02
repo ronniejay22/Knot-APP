@@ -78,12 +78,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         return [.banner, .sound]
     }
 
-    /// Handles notification tap responses (Step 7.6).
+    /// Handles notification tap responses (Step 7.6; tap-through wired in the
+    /// milestone push tap-through step).
     ///
     /// Called when the user taps on a notification, including notifications
     /// that were queued by the system during DND/Focus mode and delivered
-    /// later. Extracts `notification_id` and `milestone_id` from the
-    /// payload for deep-linking to the recommendations screen.
+    /// later. Extracts `notification_id` and `milestone_id` from the payload
+    /// and routes to the pre-generated milestone recommendations via
+    /// `DeepLinkHandler.shared` — `ContentView` observes `pendingDestination`
+    /// (warm start via `.onChange`, cold start via its `.task`) and presents
+    /// the milestone recommendations cover.
+    ///
+    /// Swift 6 note: `userInfo` (`[AnyHashable: Any]`) is not Sendable. This
+    /// delegate is `@MainActor` (the conformance is `@preconcurrency`, so the
+    /// runtime hops here), so the String values are extracted before anything
+    /// crosses an isolation boundary; `DeepLinkHandler` is also `@MainActor`,
+    /// making the write a direct same-actor call.
     ///
     /// iOS automatically queues notifications during system DND and delivers
     /// them when DND ends — no custom suppression logic is needed.
@@ -97,7 +107,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
 
         print("[Knot] Notification tapped: notification=\(notificationId ?? "nil"), milestone=\(milestoneId ?? "nil")")
 
-        // Deep-link handling to recommendations screen will be
-        // implemented in Step 9.2 (Deep Link Handler for Recommendations).
+        guard let destination = DeepLinkHandler.destination(
+            milestoneId: milestoneId,
+            notificationId: notificationId
+        ) else {
+            print("[Knot] Notification tapped without milestone_id — ignoring")
+            return
+        }
+        DeepLinkHandler.shared.pendingDestination = destination
     }
 }
