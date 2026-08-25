@@ -604,6 +604,19 @@ The backend follows a clean separation of concerns:
 
 Each layer only depends on the layer below it. Route handlers never call the database directly.
 
+### 6b. Database Migrations (Step 19.26)
+`backend/scripts/migrate.py` applies everything in `backend/supabase/migrations/` and records what ran in a `schema_migrations` ledger table. Before it existed, migrations were pasted into the Supabase SQL Editor by hand and nothing tracked them — by August 2026 three of 27 (`00022`, `00023`, `00027`) had silently never been applied, so "Knot's Take" had never worked and every plan-type recommendation was being rejected on insert without an error anyone would see.
+
+**Commands:** `status` (applied vs pending), `apply [--dry-run]` (run pending in numeric order), `baseline --all-except <versions>` (record migrations as applied *without* executing them — a one-time command for adopting a database whose schema predates the ledger; `baselined = TRUE` keeps those rows distinguishable).
+
+**Design points that matter:**
+- One transaction per migration. A failure rolls back that migration alone and halts the run, so the ledger can never record a partial apply.
+- `apply` ends with `NOTIFY pgrst, 'reload schema'` — omitting it 500s every request touching a newly added column until the cache expires (the Step 15.5 failure mode), and it was previously a manual step people forgot. It fires on the failure path too: migrations committed before the break are live in Postgres but absent from PostgREST's cache, which is precisely the gap it guards.
+- The ledger has RLS enabled with no policies and `anon`/`authenticated` revoked. `public` is PostgREST-exposed and the anon key ships in the iOS app, so an unprotected ledger would let a forged row mark a real migration applied — skipping it permanently.
+- `baseline` refuses when the ledger is non-empty or when `public` has no tables. Against a fresh database it would otherwise mark all 27 applied on an empty schema, and `status` would report full compliance for a database with nothing in it.
+- Pending is a **set difference**, not "everything above the highest applied version". The real drift was a gap — 00022/00023 missing while 00024–00026 were live — which a contiguous-prefix assumption would have skipped entirely.
+- Needs `DATABASE_URL` (a direct Postgres DSN) rather than the service-role key, because PostgREST cannot execute DDL. That asymmetry is exactly why migrations stayed manual for so long. `psycopg2-binary` is declared explicitly in `requirements.txt` rather than leaned on as a transitive dependency of the supabase client.
+
 ### 7. Python Virtual Environment
 The backend uses a local `venv/` (gitignored) with Python 3.13. This avoids polluting the system Python and ensures reproducible builds. Activate with `source backend/venv/bin/activate`. **Step 19.20:** `backend/scripts/dev.sh` now bootstraps this venv on a cold checkout — if `venv/bin/activate` is missing it resolves `python3.13` (falls back to `python3`, warns if not 3.13), creates the venv, and runs `pip install -r requirements.txt` before activating and `exec`ing uvicorn on `:8420`; warm runs just activate the existing venv. The `/start-server` skill drives it from the background and health-checks `:8420`.
 

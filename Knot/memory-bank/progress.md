@@ -7401,6 +7401,43 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.26 ✅ Tooling — Migration Runner, and the End of Silent Schema Drift
+**Date:** 2026-08-24
+**Status:** Complete
+
+**Goal:** Stop the database drifting from the repo. Migrations were applied by pasting SQL into the Supabase SQL Editor, and nothing recorded what had actually run — so nothing could tell you when something hadn't.
+
+**Root cause:** an untracked manual process. By this date **three of the 27 migrations had never been applied** to the dev project: `00022` (`milestone_briefings`), `00023` (`'plan'` recommendation type), and `00027` (`occasion_category`). The first two fail *silently* by design — briefing inserts are wrapped in `try/except`, and a rejected `'plan'` insert surfaces only as a missing row — so "Knot's Take" had never once worked and every plan-type recommendation the pipeline generated was being thrown away on write. Nothing surfaced either. The drift was only discovered because Step 19.25 was the first change whose feature *could not function* without its migration.
+
+**What changed:**
+- New `backend/scripts/migrate.py` with a `schema_migrations` ledger table in the database, so "what is live" has an answer. Three commands: `status` (applied vs pending), `apply` (run pending in order, `--dry-run` supported), and `baseline --all-except <versions>` (mark migrations applied *without* executing them — needed once, to adopt a database whose schema predates the ledger).
+- Each migration runs in **its own transaction**. A failure rolls back that migration alone and stops the run, so the ledger can never claim a partial apply.
+- `apply` finishes with `NOTIFY pgrst, 'reload schema'` — the step that was manual, easy to forget, and whose omission 500s every request touching a new column (the Step 15.5 failure mode). It reloads **even when a migration fails**, because whatever committed before the failure is live in Postgres but missing from PostgREST's cache, and that gap is the thing being guarded against.
+- The ledger has RLS enabled with no policies, and `anon`/`authenticated` are revoked. It sits in `public`, which PostgREST exposes once the cache reloads, and the anon key ships inside the iOS app — without this a forged row could mark a real migration applied and it would be skipped forever. Both statements are idempotent, so they repair a ledger created before the hardening.
+- `baseline` refuses to run when the ledger already has entries, or when `public` has no tables. It is the one command capable of hiding the drift this tool exists to surface: run against a fresh database it would mark every migration applied against an empty schema, and `status` would then report full compliance for a database with nothing in it.
+- Pending is computed by set difference, not by "highest applied version". The real drift was a *gap* — 00022/00023 unapplied while 00024–00026 were live — and a contiguous-prefix assumption would have skipped exactly the migrations that were missing.
+- `DATABASE_URL` added to `.env.example` and `app/core/config.py`. The app itself never uses it; it goes through PostgREST via the service-role key, which **cannot execute DDL**. That is precisely why migrations needed a separate credential and why they had stayed manual.
+- `psycopg2-binary` promoted to an explicit entry in `requirements.txt`. It was already installed as a transitive dependency of the supabase client — the runner would have broken on the next clean venv.
+
+**Files created:**
+- `backend/scripts/migrate.py`
+- `backend/tests/test_migrate_script.py`
+
+**Files modified:**
+- `backend/.env.example`, `backend/app/core/config.py` — `DATABASE_URL`
+- `backend/requirements.txt` — explicit `psycopg2-binary`
+
+**Tests:** 22 new tests in `test_migrate_script.py` covering discovery and numeric ordering (including unpadded `9_hotfix` vs `00010`, which a string sort gets wrong), the pending set difference including the gap case, version-list parsing, ledger hardening, and a guard that every `.sql` file in the real migrations directory is discoverable — an undiscoverable file is one that would silently never be applied, which is the exact failure this script exists to end. Full backend suite: 1443 passed, 622 skipped. The DB-touching commands are deliberately untested: they need live Postgres, and the suite is offline by default.
+
+**Applied in this step:** baselined the 24 live migrations, then applied 00022, 00023 and 00027. Verified through PostgREST afterwards — `milestone_briefings` selectable, `partner_milestones.occasion_category` selectable, and a `'plan'` insert accepted (probe row deleted).
+
+**Notes:**
+- `DATABASE_URL` is the **direct** endpoint (`db.<ref>.supabase.co:5432`), not a pooler. The poolers are IPv4 and region-specific; the direct host needs no region and worked from this machine. If it ever stops resolving, the pooler URI from the dashboard is the drop-in replacement.
+- `baseline` is a one-time adoption command. It should never be needed again — if it looks like the answer, the real question is why the ledger disagrees with the schema.
+- The ledger records `baselined = TRUE` for adopted rows, so the 24 that were never executed by this runner stay distinguishable from the 3 that were.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
