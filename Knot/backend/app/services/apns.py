@@ -133,6 +133,7 @@ def build_notification_payload(
     notification_id: str,
     milestone_id: str,
     briefing_snippet: str | None = None,
+    occasion_category: str | None = None,
 ) -> dict:
     """
     Build the APNs notification payload.
@@ -159,6 +160,9 @@ def build_notification_payload(
         notification_id: UUID of the notification_queue entry.
         milestone_id: UUID of the milestone (for deep-linking).
         briefing_snippet: Optional condensed briefing for the notification body.
+        occasion_category: Stable occasion key, so the tap-through can pick the
+            entry modal's copy and illustration without a lookup. Omitted from
+            the payload when absent, which the client reads as "default".
 
     Returns:
         dict: APNs-formatted payload ready for JSON serialization.
@@ -168,7 +172,7 @@ def build_notification_payload(
 
     body = briefing_snippet if briefing_snippet else FALLBACK_BODY
 
-    return {
+    payload = {
         "aps": {
             "alert": {
                 "title": title,
@@ -185,6 +189,13 @@ def build_notification_payload(
         "partner_name": partner_name,
         "days_before": days_before,
     }
+
+    # Only sent when known. APNs payloads are size-capped (4KB), so there is no
+    # value in shipping a null the client would treat the same as absent.
+    if occasion_category:
+        payload["occasion_category"] = occasion_category
+
+    return payload
 
 
 # ===================================================================
@@ -295,6 +306,7 @@ async def deliver_push_notification(
     vibes: list[str],
     recommendations_count: int,
     briefing_snippet: str | None = None,
+    occasion_category: str | None = None,
 ) -> dict:
     """
     Look up the user's device token and deliver a push notification.
@@ -370,6 +382,7 @@ async def deliver_push_notification(
         notification_id=notification_id,
         milestone_id=milestone_id,
         briefing_snippet=briefing_snippet,
+        occasion_category=occasion_category,
     )
 
     return await send_push_notification(device_token, payload)

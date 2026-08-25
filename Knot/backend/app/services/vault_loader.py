@@ -19,6 +19,7 @@ from app.agents.state import (
 )
 from app.db.supabase_client import get_service_client
 from app.models.feedback_analysis import UserPreferencesWeights
+from app.services.occasion_category import resolve_from_row
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ async def load_milestone_context(
         milestone_date=ms["milestone_date"],
         recurrence=ms["recurrence"],
         budget_tier=ms["budget_tier"],
+        occasion_category=resolve_from_row(ms),
     )
 
 

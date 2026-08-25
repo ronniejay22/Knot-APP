@@ -27,6 +27,10 @@ from app.services.notification_scheduler import (
     compute_next_occurrence,
     schedule_milestone_notifications,
 )
+from app.services.occasion_category import (
+    resolve_from_row,
+    resolve_occasion_category,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,8 @@ def _compute_days_until(milestone: dict) -> int | None:
             milestone_date=ms_date,
             milestone_name=milestone["milestone_name"],
             recurrence=milestone["recurrence"],
+            occasion_category=milestone.get("occasion_category"),
+            milestone_type=milestone.get("milestone_type", ""),
         )
         if next_occ is None:
             return None
@@ -84,6 +90,9 @@ def _build_milestone_response(milestone: dict) -> MilestoneItemResponse:
         budget_tier=milestone.get("budget_tier"),
         days_until=_compute_days_until(milestone),
         created_at=str(milestone["created_at"]),
+        # Always resolved, never the raw column: rows written before migration
+        # 00027 have it NULL, and the client needs a usable key regardless.
+        occasion_category=resolve_from_row(milestone),
     )
 
 
@@ -174,6 +183,13 @@ async def create_milestone(
         "milestone_date": payload.milestone_date,
         "recurrence": payload.recurrence,
         "budget_tier": budget_tier,
+        # Resolve on write so the column is populated even when an older client
+        # omits it — the row then never needs the name-matching fallback.
+        "occasion_category": resolve_occasion_category(
+            occasion_category=payload.occasion_category,
+            milestone_name=payload.milestone_name,
+            milestone_type=payload.milestone_type,
+        ),
     }
 
     try:
@@ -195,6 +211,8 @@ async def create_milestone(
             milestone_date=date.fromisoformat(str(milestone["milestone_date"])),
             milestone_name=milestone["milestone_name"],
             recurrence=milestone["recurrence"],
+            occasion_category=milestone.get("occasion_category"),
+            milestone_type=milestone.get("milestone_type", ""),
         )
     except Exception as exc:
         logger.warning(
@@ -255,6 +273,20 @@ async def update_milestone(
         update_data["recurrence"] = payload.recurrence
     if payload.budget_tier is not None:
         update_data["budget_tier"] = payload.budget_tier
+    if payload.occasion_category is not None:
+        # Resolved, not written raw — matching the other three write paths. An
+        # unrecognised value would otherwise persist and push the row back onto
+        # the name-matching fallback on every subsequent read.
+        update_data["occasion_category"] = resolve_occasion_category(
+            occasion_category=payload.occasion_category,
+            milestone_name=payload.milestone_name or old_milestone["milestone_name"],
+            milestone_type=old_milestone["milestone_type"],
+        )
+    elif payload.milestone_name is not None and not old_milestone.get("occasion_category"):
+        # A legacy row (NULL category) being renamed would lose its only
+        # identifying signal, since the name is what the fallback matches on.
+        # Pin the pre-rename category before the name changes.
+        update_data["occasion_category"] = resolve_from_row(old_milestone)
 
     if not update_data:
         return _build_milestone_response(old_milestone)
@@ -275,11 +307,18 @@ async def update_milestone(
 
     updated_milestone = result.data[0]
 
-    # Reschedule notifications if date or recurrence changed
+    # Reschedule notifications if date, recurrence, or occasion changed. The
+    # occasion belongs here because it now drives compute_next_occurrence —
+    # switching Christmas to Thanksgiving moves the real date by a month, and
+    # without this the pending pushes would still fire on the old one.
     date_changed = payload.milestone_date is not None and payload.milestone_date != str(old_milestone["milestone_date"])
     recurrence_changed = payload.recurrence is not None and payload.recurrence != old_milestone["recurrence"]
+    category_changed = (
+        "occasion_category" in update_data
+        and update_data["occasion_category"] != old_milestone.get("occasion_category")
+    )
 
-    if date_changed or recurrence_changed:
+    if date_changed or recurrence_changed or category_changed:
         # Delete pending notifications for this milestone
         try:
             client.table("notification_queue").delete().eq(
@@ -299,6 +338,8 @@ async def update_milestone(
                 milestone_date=date.fromisoformat(str(updated_milestone["milestone_date"])),
                 milestone_name=updated_milestone["milestone_name"],
                 recurrence=updated_milestone["recurrence"],
+                occasion_category=updated_milestone.get("occasion_category"),
+                milestone_type=updated_milestone.get("milestone_type", ""),
             )
         except Exception as exc:
             logger.warning(

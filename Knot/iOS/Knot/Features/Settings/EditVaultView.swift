@@ -345,9 +345,21 @@ struct EditVaultView: View {
                     vm.hasSetAnniversary = true
                     vm.anniversaryMilestoneName = milestone.milestoneName
                 case "holiday":
-                    // Match to known holiday IDs
-                    let matchedHoliday = HolidayOption.allHolidays.first { h in
-                        h.month == month && h.day == day
+                    // Match on the stored occasion category first. Month/day is
+                    // only a fallback for rows predating migration 00027, and
+                    // fixed-date holidays are tried before computed ones: for
+                    // Thanksgiving, Easter and the lunisolar four the stored
+                    // month/day is a placeholder, so it must never outrank a
+                    // real date match. It is still tried last rather than
+                    // dropped — an unmatched holiday is not merely deselected,
+                    // it is destroyed by the next save, since the vault PUT
+                    // deletes and reinserts the whole milestone set.
+                    let matchedHoliday = HolidayOption.allHolidays.first {
+                        $0.occasionCategory == milestone.occasionCategory
+                    } ?? HolidayOption.allHolidays.first {
+                        !$0.hasComputedDate && $0.month == month && $0.day == day
+                    } ?? HolidayOption.allHolidays.first {
+                        $0.hasComputedDate && $0.month == month && $0.day == day
                     }
                     if let match = matchedHoliday {
                         vm.selectedHolidays.insert(match.id)

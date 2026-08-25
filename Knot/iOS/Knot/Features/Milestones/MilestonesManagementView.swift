@@ -291,6 +291,31 @@ struct MilestoneFormSheet: View {
         ("major_milestone", "Major Milestone"),
     ]
 
+    private var occasionOptions: [MilestoneOccasionOption] {
+        MilestoneOccasionOption.options(
+            for: viewModel.formType,
+            including: viewModel.formOccasionCategory
+        )
+    }
+
+    private var selectedOccasion: MilestoneOccasionOption? {
+        MilestoneOccasionOption.option(id: viewModel.formOccasionCategory)
+    }
+
+    /// Keeps the occasion valid for the chosen type — switching Holiday →
+    /// Custom must not leave "Christmas" selected.
+    private func syncOccasion(for milestoneType: String) {
+        if let implicit = MilestoneOccasionOption.implicitCategory(for: milestoneType) {
+            viewModel.formOccasionCategory = implicit
+            return
+        }
+        let options = MilestoneOccasionOption.options(for: milestoneType)
+        if !options.contains(where: { $0.id == viewModel.formOccasionCategory }) {
+            viewModel.formOccasionCategory = options.first?.id
+                ?? MilestoneOccasionOption.defaultCategory
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -306,6 +331,23 @@ struct MilestoneFormSheet: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                        .onChange(of: viewModel.formType) { _, newType in
+                            syncOccasion(for: newType)
+                        }
+                    }
+                }
+
+                // Which occasion this is — picks the entry modal's copy and
+                // illustration, and lets the backend compute the real date for
+                // holidays that move. Birthday and anniversary are their own
+                // category, so there is nothing to choose.
+                if !occasionOptions.isEmpty {
+                    Section("Occasion") {
+                        Picker("Occasion", selection: $viewModel.formOccasionCategory) {
+                            ForEach(occasionOptions) { option in
+                                Text(option.displayName).tag(option.id)
+                            }
+                        }
                     }
                 }
 
@@ -320,6 +362,12 @@ struct MilestoneFormSheet: View {
                         ForEach(1...31, id: \.self) { day in
                             Text("\(day)").tag(day)
                         }
+                    }
+
+                    if selectedOccasion?.hasComputedDate == true {
+                        Text("This holiday moves each year — we'll work out the real date for you.")
+                            .knotFont(Theme.Typography.label)
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 }
 

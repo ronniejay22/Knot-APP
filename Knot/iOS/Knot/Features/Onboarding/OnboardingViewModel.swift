@@ -33,20 +33,143 @@ struct CustomMilestone: Identifiable, Sendable {
 /// Each holiday has a display name, a stable identifier for storage,
 /// and a fixed month/day (or computed date for floating holidays).
 struct HolidayOption: Identifiable, Sendable {
-    let id: String          // stable key, e.g. "valentines_day"
+    let id: String              // stable key, e.g. "valentines_day"
     let displayName: String
     let month: Int
     let day: Int
-    let iconName: String    // SF Symbol name
+    let iconName: String        // SF Symbol name
 
-    /// The predefined US major holidays available during onboarding.
+    /// Stable occasion key persisted on the milestone. Drives the entry modal's
+    /// copy + illustration and, for holidays that move, the backend's date math.
+    let occasionCategory: String
+
+    /// Whether the backend computes this holiday's real date from a calendar
+    /// rule or lookup table rather than the stored month/day. For these the
+    /// month/day below is only a placeholder that keeps the vault payload valid
+    /// — `notification_scheduler` ignores it entirely.
+    let hasComputedDate: Bool
+
+    /// Seeded into every new vault. Deliberately limited to the broadly-observed
+    /// set the app has always seeded: adding a holiday here means every user
+    /// starts receiving three push notifications a year for it.
+    let isSeededByDefault: Bool
+
+    /// Only relevant when the partner is a parent. Gated behind the onboarding
+    /// parenthood question rather than seeded for everyone.
+    let requiresParent: Bool
+
+    init(
+        id: String,
+        displayName: String,
+        month: Int,
+        day: Int,
+        iconName: String,
+        occasionCategory: String,
+        hasComputedDate: Bool = false,
+        isSeededByDefault: Bool = false,
+        requiresParent: Bool = false
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.month = month
+        self.day = day
+        self.iconName = iconName
+        self.occasionCategory = occasionCategory
+        self.hasComputedDate = hasComputedDate
+        self.isSeededByDefault = isSeededByDefault
+        self.requiresParent = requiresParent
+    }
+
+    /// Every holiday the app knows about.
+    ///
+    /// Only `isSeededByDefault` entries are added to a new vault automatically;
+    /// the rest are opt-in from Settings → Milestones. The religious and
+    /// cultural holidays are deliberately opt-in — seeding Diwali or Eid for a
+    /// user who does not observe them is notification spam, not thoughtfulness.
     static let allHolidays: [HolidayOption] = [
-        HolidayOption(id: "valentines_day", displayName: "Valentine's Day", month: 2, day: 14, iconName: "heart.fill"),
-        HolidayOption(id: "mothers_day", displayName: "Mother's Day", month: 5, day: 11, iconName: "figure.and.child.holdinghands"),
-        HolidayOption(id: "fathers_day", displayName: "Father's Day", month: 6, day: 15, iconName: "figure.and.child.holdinghands"),
-        HolidayOption(id: "christmas", displayName: "Christmas", month: 12, day: 25, iconName: "gift.fill"),
-        HolidayOption(id: "new_years_eve", displayName: "New Year's Eve", month: 12, day: 31, iconName: "party.popper.fill"),
+        // — Seeded by default —
+        HolidayOption(
+            id: "valentines_day", displayName: "Valentine's Day",
+            month: 2, day: 14, iconName: "heart.fill",
+            occasionCategory: "valentines_day", isSeededByDefault: true
+        ),
+        HolidayOption(
+            id: "christmas", displayName: "Christmas",
+            month: 12, day: 25, iconName: "gift.fill",
+            occasionCategory: "christmas", isSeededByDefault: true
+        ),
+        HolidayOption(
+            id: "new_years_eve", displayName: "New Year's Eve",
+            month: 12, day: 31, iconName: "party.popper.fill",
+            occasionCategory: "new_years", isSeededByDefault: true
+        ),
+
+        // — Seeded only when the partner is a parent —
+        HolidayOption(
+            id: "mothers_day", displayName: "Mother's Day",
+            month: 5, day: 11, iconName: "figure.and.child.holdinghands",
+            occasionCategory: "mothers_day",
+            hasComputedDate: true, isSeededByDefault: true, requiresParent: true
+        ),
+        HolidayOption(
+            id: "fathers_day", displayName: "Father's Day",
+            month: 6, day: 15, iconName: "figure.and.child.holdinghands",
+            occasionCategory: "fathers_day",
+            hasComputedDate: true, isSeededByDefault: true, requiresParent: true
+        ),
+
+        // — Opt-in: seasonal —
+        HolidayOption(
+            id: "thanksgiving", displayName: "Thanksgiving",
+            month: 11, day: 26, iconName: "fork.knife",
+            occasionCategory: "thanksgiving", hasComputedDate: true
+        ),
+        HolidayOption(
+            id: "halloween", displayName: "Halloween",
+            month: 10, day: 31, iconName: "moon.stars.fill",
+            occasionCategory: "halloween"
+        ),
+        HolidayOption(
+            id: "easter", displayName: "Easter",
+            month: 4, day: 5, iconName: "leaf.fill",
+            occasionCategory: "easter", hasComputedDate: true
+        ),
+
+        // — Opt-in: religious and cultural —
+        HolidayOption(
+            id: "hanukkah", displayName: "Hanukkah",
+            month: 12, day: 4, iconName: "flame.fill",
+            occasionCategory: "hanukkah", hasComputedDate: true
+        ),
+        HolidayOption(
+            id: "diwali", displayName: "Diwali",
+            month: 11, day: 8, iconName: "sparkles",
+            occasionCategory: "diwali", hasComputedDate: true
+        ),
+        HolidayOption(
+            id: "lunar_new_year", displayName: "Lunar New Year",
+            month: 2, day: 17, iconName: "party.popper.fill",
+            occasionCategory: "lunar_new_year", hasComputedDate: true
+        ),
+        HolidayOption(
+            id: "eid", displayName: "Eid",
+            month: 3, day: 20, iconName: "moon.fill",
+            occasionCategory: "eid", hasComputedDate: true
+        ),
     ]
+
+    /// Holidays added to a new vault, given whether the partner is a parent.
+    static func defaultSeed(isPartnerParent: Bool) -> Set<String> {
+        Set(
+            allHolidays
+                .filter { $0.isSeededByDefault && (!$0.requiresParent || isPartnerParent) }
+                .map(\.id)
+        )
+    }
+
+    static func option(id: String) -> HolidayOption? {
+        allHolidays.first { $0.id == id }
+    }
 }
 
 /// Defines the ordered steps in the onboarding flow.
@@ -65,9 +188,10 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case dislikes = 6
     case birthday = 7
     case anniversary = 8
-    case vibes = 9
-    case loveLanguages = 10
-    case completion = 11
+    case parenthood = 9
+    case vibes = 10
+    case loveLanguages = 11
+    case completion = 12
 
     /// Human-readable title for the progress bar. Sibling questions
     /// share the same category title (e.g., all four partner-info
@@ -78,7 +202,7 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
         case .partnerName, .tenure, .cohabitation, .location: return "Partner Info"
         case .interests: return "Interests"
         case .dislikes: return "Dislikes"
-        case .birthday, .anniversary: return "Milestones"
+        case .birthday, .anniversary, .parenthood: return "Milestones"
         case .vibes: return "Aesthetic Vibes"
         case .loveLanguages: return "Love Languages"
         case .completion: return "Your Picks"
@@ -116,10 +240,18 @@ final class OnboardingViewModel {
     ///   the default (`false`) and hydrates `selectedHolidays` from the backend
     ///   instead, so pre-seeding must not leak into editing.
     init(seedDefaultHolidays: Bool = false) {
+        self.seedsDefaultHolidays = seedDefaultHolidays
         if seedDefaultHolidays {
-            selectedHolidays = Set(HolidayOption.allHolidays.map { $0.id })
+            // Parent-only holidays are excluded here and folded in later by
+            // `isPartnerParent`'s observer, since the user has not been asked yet.
+            selectedHolidays = HolidayOption.defaultSeed(isPartnerParent: false)
         }
     }
+
+    /// Whether this instance is driving onboarding (vs. the Settings edit flow,
+    /// which hydrates `selectedHolidays` from the backend). Gates the parenthood
+    /// answer from mutating a vault the user is only editing.
+    private let seedsDefaultHolidays: Bool
 
     // MARK: - Navigation State
 
@@ -300,6 +432,38 @@ final class OnboardingViewModel {
     var hasSetAnniversary: Bool = false
     /// Set of holiday IDs the user has toggled on (e.g., "valentines_day", "christmas").
     var selectedHolidays: Set<String> = []
+
+    /// Whether the partner is a parent.
+    ///
+    /// Mother's Day and Father's Day used to be seeded for every user regardless,
+    /// so a partner with no children still got three push notifications for each
+    /// — the gating the original implementation plan called for was never built.
+    /// Answering here adds or removes those two holidays from `selectedHolidays`.
+    ///
+    /// The observer is inert outside onboarding: `didSet` does not fire during
+    /// `init`, and the Settings edit flow never writes this property, so a vault
+    /// being edited keeps whatever holidays the backend returned.
+    var isPartnerParent: Bool = false {
+        didSet {
+            guard seedsDefaultHolidays, oldValue != isPartnerParent else { return }
+            syncParentHolidays()
+        }
+    }
+
+    /// Adds or removes the parent-only holidays to match `isPartnerParent`.
+    private func syncParentHolidays() {
+        let parentHolidayIDs = HolidayOption.allHolidays
+            .filter(\.requiresParent)
+            .map(\.id)
+
+        for id in parentHolidayIDs {
+            if isPartnerParent {
+                selectedHolidays.insert(id)
+            } else {
+                selectedHolidays.remove(id)
+            }
+        }
+    }
     /// User-created custom milestones (e.g., "First Date", "Gotcha Day").
     var customMilestones: [CustomMilestone] = []
 
@@ -436,7 +600,8 @@ final class OnboardingViewModel {
             milestoneName: birthdayName,
             milestoneDate: formatMilestoneDate(month: partnerBirthdayMonth, day: partnerBirthdayDay),
             recurrence: "yearly",
-            budgetTier: nil  // DB trigger sets major_milestone
+            budgetTier: nil,  // DB trigger sets major_milestone
+            occasionCategory: "birthday"
         ))
 
         // Anniversary (optional)
@@ -449,24 +614,29 @@ final class OnboardingViewModel {
                 milestoneName: anniversaryName,
                 milestoneDate: formatMilestoneDate(month: anniversaryMonth, day: anniversaryDay),
                 recurrence: "yearly",
-                budgetTier: nil  // DB trigger sets major_milestone
+                budgetTier: nil,  // DB trigger sets major_milestone
+                occasionCategory: "anniversary"
             ))
         }
 
-        // Holidays
+        // Holidays — the option's `occasionCategory` is carried through rather
+        // than discarded, so the backend never has to infer the holiday from
+        // its display name (and a later rename can't change its schedule).
         for holidayID in selectedHolidays {
-            if let holiday = HolidayOption.allHolidays.first(where: { $0.id == holidayID }) {
+            if let holiday = HolidayOption.option(id: holidayID) {
                 milestones.append(MilestonePayload(
                     milestoneType: "holiday",
                     milestoneName: holiday.displayName,
                     milestoneDate: formatMilestoneDate(month: holiday.month, day: holiday.day),
                     recurrence: "yearly",
-                    budgetTier: nil  // DB trigger sets based on holiday type
+                    budgetTier: nil,  // DB trigger sets based on holiday type
+                    occasionCategory: holiday.occasionCategory
                 ))
             }
         }
 
-        // Custom milestones
+        // Custom milestones — no category, so the backend resolves one from the
+        // name and falls back to "default" when it recognises nothing.
         for custom in customMilestones {
             milestones.append(MilestonePayload(
                 milestoneType: "custom",
@@ -571,8 +741,9 @@ final class OnboardingViewModel {
                 && !secondaryLoveLanguage.isEmpty
                 && secondaryLoveLanguage != primaryLoveLanguage
         default:
-            // welcome, cohabitation, completion all proceed freely
-            // (defaults or no validation needed).
+            // welcome, cohabitation, parenthood, completion all proceed freely
+            // (defaults or no validation needed). Parenthood defaults to "No",
+            // which is the safe answer — it seeds nothing extra.
             canProceed = true
         }
     }

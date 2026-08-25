@@ -103,6 +103,10 @@ class MilestoneContext(BaseModel):
     recurrence: Literal["yearly", "one_time"]
     budget_tier: Literal["just_because", "minor_occasion", "major_milestone"]
     days_until: Optional[int] = None  # computed at runtime
+    #: Stable occasion key. Unconstrained (not a Literal) so the catalogue can
+    #: grow without a schema change; always resolved, never raw — see
+    #: app/services/occasion_category.py.
+    occasion_category: str = "default"
 
 
 # ======================================================================

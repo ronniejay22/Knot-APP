@@ -28,6 +28,15 @@ class MilestoneCreateRequest(BaseModel):
     budget_tier: Optional[
         Literal["just_because", "minor_occasion", "major_milestone"]
     ] = None
+    occasion_category: Optional[str] = Field(
+        None,
+        description=(
+            "Stable occasion key (e.g. 'valentines_day', 'thanksgiving'). Drives "
+            "the entry modal and non-Gregorian holiday date math. Unconstrained "
+            "so the catalogue can grow without a schema change; unknown values "
+            "fall back to name/type resolution."
+        ),
+    )
 
 
 class MilestoneUpdateRequest(BaseModel):
@@ -39,6 +48,7 @@ class MilestoneUpdateRequest(BaseModel):
     budget_tier: Optional[
         Literal["just_because", "minor_occasion", "major_milestone"]
     ] = None
+    occasion_category: Optional[str] = None
 
 
 class MilestoneItemResponse(BaseModel):
@@ -52,6 +62,13 @@ class MilestoneItemResponse(BaseModel):
     budget_tier: Optional[str] = None
     days_until: Optional[int] = None
     created_at: str
+    occasion_category: str = Field(
+        default="default",
+        description=(
+            "Always populated — resolved server-side so legacy rows with a NULL "
+            "column still return a usable key for the client's entry modal."
+        ),
+    )
 
 
 class MilestoneListResponse(BaseModel):

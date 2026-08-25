@@ -56,6 +56,25 @@ struct MilestonePayload: Codable, Sendable {
     let milestoneDate: String  // ISO date format: "2000-MM-DD"
     let recurrence: String     // "yearly" or "one_time"
     let budgetTier: String?    // nil → DB trigger sets default
+    /// Stable occasion key (e.g. "valentines_day"). nil → the backend resolves
+    /// one from the name/type on write.
+    let occasionCategory: String?
+
+    init(
+        milestoneType: String,
+        milestoneName: String,
+        milestoneDate: String,
+        recurrence: String,
+        budgetTier: String?,
+        occasionCategory: String? = nil
+    ) {
+        self.milestoneType = milestoneType
+        self.milestoneName = milestoneName
+        self.milestoneDate = milestoneDate
+        self.recurrence = recurrence
+        self.budgetTier = budgetTier
+        self.occasionCategory = occasionCategory
+    }
 
     enum CodingKeys: String, CodingKey {
         case milestoneType = "milestone_type"
@@ -63,6 +82,7 @@ struct MilestonePayload: Codable, Sendable {
         case milestoneDate = "milestone_date"
         case recurrence
         case budgetTier = "budget_tier"
+        case occasionCategory = "occasion_category"
     }
 }
 
@@ -154,6 +174,9 @@ struct MilestoneGetResponse: Codable, Sendable {
     let milestoneDate: String
     let recurrence: String
     let budgetTier: String?
+    /// Optional on the wire so a client on a newer build still decodes a
+    /// response from a backend that predates migration 00027.
+    let occasionCategory: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -162,6 +185,7 @@ struct MilestoneGetResponse: Codable, Sendable {
         case milestoneDate = "milestone_date"
         case recurrence
         case budgetTier = "budget_tier"
+        case occasionCategory = "occasion_category"
     }
 }
 
@@ -740,6 +764,23 @@ struct MilestoneCreatePayload: Codable, Sendable {
     let milestoneDate: String
     let recurrence: String
     let budgetTier: String?
+    let occasionCategory: String?
+
+    init(
+        milestoneType: String,
+        milestoneName: String,
+        milestoneDate: String,
+        recurrence: String,
+        budgetTier: String?,
+        occasionCategory: String? = nil
+    ) {
+        self.milestoneType = milestoneType
+        self.milestoneName = milestoneName
+        self.milestoneDate = milestoneDate
+        self.recurrence = recurrence
+        self.budgetTier = budgetTier
+        self.occasionCategory = occasionCategory
+    }
 
     enum CodingKeys: String, CodingKey {
         case milestoneType = "milestone_type"
@@ -747,6 +788,7 @@ struct MilestoneCreatePayload: Codable, Sendable {
         case milestoneDate = "milestone_date"
         case recurrence
         case budgetTier = "budget_tier"
+        case occasionCategory = "occasion_category"
     }
 }
 
@@ -756,12 +798,28 @@ struct MilestoneUpdatePayload: Codable, Sendable {
     let milestoneDate: String?
     let recurrence: String?
     let budgetTier: String?
+    let occasionCategory: String?
+
+    init(
+        milestoneName: String?,
+        milestoneDate: String?,
+        recurrence: String?,
+        budgetTier: String?,
+        occasionCategory: String? = nil
+    ) {
+        self.milestoneName = milestoneName
+        self.milestoneDate = milestoneDate
+        self.recurrence = recurrence
+        self.budgetTier = budgetTier
+        self.occasionCategory = occasionCategory
+    }
 
     enum CodingKeys: String, CodingKey {
         case milestoneName = "milestone_name"
         case milestoneDate = "milestone_date"
         case recurrence
         case budgetTier = "budget_tier"
+        case occasionCategory = "occasion_category"
     }
 }
 
@@ -776,6 +834,39 @@ struct MilestoneItemResponse: Codable, Sendable, Identifiable {
     let daysUntil: Int?
     let createdAt: String
 
+    /// Decoded optionally so a response from a backend predating migration
+    /// 00027 still parses; read through `occasionCategory`, never directly.
+    private let rawOccasionCategory: String?
+
+    /// The stable occasion key driving the entry modal's copy and illustration.
+    /// Never empty — falls back to `"default"`, which every lookup handles.
+    var occasionCategory: String {
+        guard let raw = rawOccasionCategory, !raw.isEmpty else { return "default" }
+        return raw
+    }
+
+    init(
+        id: String,
+        milestoneType: String,
+        milestoneName: String,
+        milestoneDate: String,
+        recurrence: String,
+        budgetTier: String?,
+        daysUntil: Int?,
+        createdAt: String,
+        occasionCategory: String? = nil
+    ) {
+        self.id = id
+        self.milestoneType = milestoneType
+        self.milestoneName = milestoneName
+        self.milestoneDate = milestoneDate
+        self.recurrence = recurrence
+        self.budgetTier = budgetTier
+        self.daysUntil = daysUntil
+        self.createdAt = createdAt
+        self.rawOccasionCategory = occasionCategory
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case milestoneType = "milestone_type"
@@ -785,6 +876,7 @@ struct MilestoneItemResponse: Codable, Sendable, Identifiable {
         case budgetTier = "budget_tier"
         case daysUntil = "days_until"
         case createdAt = "created_at"
+        case rawOccasionCategory = "occasion_category"
     }
 }
 

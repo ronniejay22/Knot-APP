@@ -33,13 +33,17 @@ from app.core.config import (
 )
 from app.services.notification_scheduler import (
     NOTIFICATION_DAYS_BEFORE,
+    _LUNISOLAR_DATES,
+    _easter,
     _fathers_day,
-    _is_floating_holiday,
     _mothers_day,
+    _nth_weekday,
+    _thanksgiving,
     compute_next_occurrence,
     schedule_milestone_notifications,
     schedule_notifications_for_milestones,
 )
+from app.services.occasion_category import category_from_name
 
 
 # ---------------------------------------------------------------------------
@@ -198,34 +202,57 @@ def test_vault(test_auth_user):
 # ===================================================================
 
 class TestFloatingHolidayDetection:
-    """Unit tests for _is_floating_holiday() — no Supabase needed."""
+    """
+    Name-based category detection — no Supabase needed.
+
+    Replaces the old private `_is_floating_holiday()`; name matching now lives in
+    `occasion_category.category_from_name()` so the scheduler and the entry modal
+    share one source of truth.
+    """
 
     def test_mothers_day_detected(self):
         """'Mother's Day' should return 'mothers_day'."""
-        assert _is_floating_holiday("Mother's Day") == "mothers_day"
-        print("  Mother's Day detected")
+        assert category_from_name("Mother's Day") == "mothers_day"
 
     def test_fathers_day_detected(self):
         """'Father's Day' should return 'fathers_day'."""
-        assert _is_floating_holiday("Father's Day") == "fathers_day"
-        print("  Father's Day detected")
+        assert category_from_name("Father's Day") == "fathers_day"
 
     def test_case_insensitive(self):
         """Detection should be case-insensitive."""
-        assert _is_floating_holiday("MOTHER'S DAY") == "mothers_day"
-        assert _is_floating_holiday("father's day") == "fathers_day"
-        print("  Case-insensitive detection works")
+        assert category_from_name("MOTHER'S DAY") == "mothers_day"
+        assert category_from_name("father's day") == "fathers_day"
 
-    def test_non_floating_returns_none(self):
-        """Non-floating holidays should return None."""
-        assert _is_floating_holiday("Valentine's Day") is None
-        assert _is_floating_holiday("Christmas") is None
-        print("  Non-floating holidays return None")
+    def test_curly_apostrophe_detected(self):
+        """iOS text input produces U+2019, not an ASCII apostrophe."""
+        assert category_from_name("Mother’s Day") == "mothers_day"
+        assert category_from_name("Father’s Day") == "fathers_day"
 
-    def test_birthday_returns_none(self):
-        """Birthdays are not floating holidays."""
-        assert _is_floating_holiday("Partner's Birthday") is None
-        print("  Birthday returns None")
+    def test_other_holidays_detected(self):
+        """Names for the expanded catalogue resolve to their own categories."""
+        assert category_from_name("Valentine's Day") == "valentines_day"
+        assert category_from_name("Christmas") == "christmas"
+        assert category_from_name("Thanksgiving") == "thanksgiving"
+        assert category_from_name("Diwali") == "diwali"
+        assert category_from_name("Lunar New Year") == "lunar_new_year"
+
+    def test_birthday_detected(self):
+        """Birthdays resolve to their own category, not to a holiday."""
+        assert category_from_name("Partner's Birthday") == "birthday"
+
+    def test_grandmother_birthday_is_not_mothers_day(self):
+        """
+        Regression: the previous implementation matched the bare substring
+        "mother", so a milestone named "Grandmother's Birthday" was silently
+        rescheduled to the 2nd Sunday of May. Requiring "mother's day" fixes it.
+        """
+        assert category_from_name("Grandmother's Birthday") == "birthday"
+        assert category_from_name("Godmother's Anniversary") == "anniversary"
+
+    def test_unmatched_returns_none(self):
+        """An unrecognised name falls through so the caller can use the type."""
+        assert category_from_name("Trip to Lisbon") is None
+        assert category_from_name("") is None
 
 
 # ===================================================================
@@ -268,6 +295,196 @@ class TestFloatingHolidayDates:
             fd = _fathers_day(year)
             assert fd.weekday() == 6, f"Father's Day {year} is not Sunday"
         print("  Father's Day is always Sunday (2024-2030)")
+
+
+# ===================================================================
+# 2b. Expanded Holiday Date Math (Pure Unit Tests)
+# ===================================================================
+
+class TestNthWeekday:
+    """The shared nth-weekday-of-month helper."""
+
+    def test_first_of_month_is_the_weekday(self):
+        """When the 1st already falls on the target weekday, n=1 returns it."""
+        # 1 Nov 2029 is a Thursday.
+        assert _nth_weekday(2029, 11, 3, 1) == date(2029, 11, 1)
+
+    def test_nth_advances_by_whole_weeks(self):
+        assert _nth_weekday(2029, 11, 3, 4) == date(2029, 11, 22)
+
+    def test_matches_existing_mothers_day(self):
+        """The refactored helper reproduces the original hand-rolled math."""
+        for year in range(2026, 2036):
+            assert _mothers_day(year) == _nth_weekday(year, 5, 6, 2)
+            assert _fathers_day(year) == _nth_weekday(year, 6, 6, 3)
+
+
+class TestThanksgiving:
+    """Thanksgiving — 4th Thursday of November."""
+
+    def test_known_dates(self):
+        expected = {
+            2026: date(2026, 11, 26),
+            2027: date(2027, 11, 25),
+            2028: date(2028, 11, 23),
+            2029: date(2029, 11, 22),
+            2030: date(2030, 11, 28),
+        }
+        for year, want in expected.items():
+            assert _thanksgiving(year) == want, f"Thanksgiving {year}"
+
+    def test_always_a_thursday_in_november(self):
+        for year in range(2026, 2041):
+            result = _thanksgiving(year)
+            assert result.month == 11
+            assert result.weekday() == 3
+            assert 22 <= result.day <= 28
+
+
+class TestEaster:
+    """Easter Sunday — Western (Gregorian) computus."""
+
+    def test_known_dates(self):
+        expected = {
+            2026: date(2026, 4, 5),
+            2027: date(2027, 3, 28),
+            2028: date(2028, 4, 16),
+            2029: date(2029, 4, 1),
+            2030: date(2030, 4, 21),
+            2031: date(2031, 4, 13),
+        }
+        for year, want in expected.items():
+            assert _easter(year) == want, f"Easter {year}"
+
+    def test_always_a_sunday_in_range(self):
+        """Easter is always a Sunday between 22 March and 25 April."""
+        for year in range(2026, 2061):
+            result = _easter(year)
+            assert result.weekday() == 6, f"Easter {year} not a Sunday"
+            assert date(year, 3, 22) <= result <= date(year, 4, 25)
+
+
+class TestLunisolarTable:
+    """The lookup table for holidays that track non-Gregorian calendars."""
+
+    def test_all_four_categories_present(self):
+        assert set(_LUNISOLAR_DATES) == {
+            "hanukkah", "diwali", "lunar_new_year", "eid",
+        }
+
+    def test_dates_are_sorted_ascending(self):
+        """`_next_computed_occurrence` relies on ordering to pick the next one."""
+        for category, dates in _LUNISOLAR_DATES.items():
+            assert list(dates) == sorted(dates), f"{category} out of order"
+
+    def test_table_reaches_2035(self):
+        for category, dates in _LUNISOLAR_DATES.items():
+            assert dates[-1].year >= 2035, f"{category} horizon too short"
+
+    def test_eid_can_fall_twice_in_one_gregorian_year(self):
+        """
+        The Islamic calendar drifts ~11 days a year, so 2033 sees Eid al-Fitr in
+        both January and December. This is why the table is a flat sequence
+        rather than a {year: date} map.
+        """
+        years = [d.year for d in _LUNISOLAR_DATES["eid"]]
+        assert years.count(2033) == 2
+
+
+class TestComputedHolidayNextOccurrence:
+    """compute_next_occurrence() for the categories with real calendar rules."""
+
+    def test_thanksgiving_ignores_stored_placeholder_date(self):
+        """
+        The stored date is meaningless for a computed holiday — a user adding
+        Thanksgiving picks some arbitrary November day. The category wins.
+        """
+        result = compute_next_occurrence(
+            date(2000, 11, 1), "Thanksgiving", "yearly",
+            occasion_category="thanksgiving",
+        )
+        assert result == _thanksgiving(result.year)
+        assert result > date.today()
+
+    def test_easter_resolves_from_category(self):
+        result = compute_next_occurrence(
+            date(2000, 4, 1), "Easter", "yearly", occasion_category="easter",
+        )
+        assert result == _easter(result.year)
+        assert result > date.today()
+
+    def test_lunisolar_resolves_from_table(self):
+        result = compute_next_occurrence(
+            date(2000, 11, 1), "Diwali", "yearly", occasion_category="diwali",
+        )
+        assert result in _LUNISOLAR_DATES["diwali"]
+        assert result > date.today()
+
+    def test_lunisolar_past_horizon_returns_none(self):
+        """
+        Better to schedule nothing than to fall through to the meaningless
+        placeholder date and fire on the wrong day.
+        """
+        with patch(
+            "app.services.notification_scheduler.date",
+            wraps=date,
+        ) as mock_date:
+            mock_date.today.return_value = date(2099, 1, 1)
+            result = compute_next_occurrence(
+                date(2000, 11, 1), "Diwali", "yearly",
+                occasion_category="diwali",
+            )
+        assert result is None
+
+    def test_category_beats_name_matching(self):
+        """
+        An explicit category overrides the name. This is what stops a renamed
+        milestone from silently changing its schedule.
+        """
+        result = compute_next_occurrence(
+            date(2000, 5, 1), "Mum Day", "yearly",
+            occasion_category="mothers_day",
+        )
+        assert result == _mothers_day(result.year)
+
+    def test_grandmother_birthday_uses_stored_date(self):
+        """
+        Regression for the substring bug: this used to resolve to Mother's Day.
+        With no category set it falls back to name matching, which now reads it
+        as a birthday and honours the stored month/day.
+        """
+        today = date.today()
+        future = today + timedelta(days=45)
+        result = compute_next_occurrence(
+            date(2000, future.month, future.day),
+            "Grandmother's Birthday",
+            "yearly",
+        )
+        assert result == future
+
+    def test_custom_milestone_named_after_a_holiday_keeps_its_date(self):
+        """
+        "Easter egg hunt" is a custom milestone on a date the user picked. Name
+        matching must not hijack it onto the computed Easter — passing the type
+        is what confines that rung to holidays.
+        """
+        today = date.today()
+        future = today + timedelta(days=45)
+        result = compute_next_occurrence(
+            date(2000, future.month, future.day),
+            "Easter egg hunt",
+            "yearly",
+            milestone_type="custom",
+        )
+        assert result == future
+
+    def test_holiday_type_still_resolves_by_name(self):
+        """The legacy population the name-matching rung exists for."""
+        result = compute_next_occurrence(
+            date(2000, 11, 1), "Thanksgiving", "yearly",
+            milestone_type="holiday",
+        )
+        assert result == _thanksgiving(result.year)
 
 
 # ===================================================================
@@ -900,11 +1117,13 @@ class TestModuleImports:
 
     def test_notification_scheduler_imports(self):
         """All functions from notification_scheduler should be importable."""
-        from app.services.notification_scheduler import (
+        from app.services.notification_scheduler import (  # noqa: F401
             NOTIFICATION_DAYS_BEFORE,
+            _easter,
             _fathers_day,
-            _is_floating_holiday,
             _mothers_day,
+            _nth_weekday,
+            _thanksgiving,
             compute_next_occurrence,
             schedule_milestone_notifications,
             schedule_notifications_for_milestones,
