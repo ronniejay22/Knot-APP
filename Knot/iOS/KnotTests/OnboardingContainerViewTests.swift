@@ -17,11 +17,12 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertNotNil(host.view, "OnboardingContainerView should render without crashing")
     }
 
-    /// Asserts the onboarding flow currently has 12 distinct steps. The
+    /// Asserts the onboarding flow currently has 13 distinct steps. The
     /// dedicated Budget step was removed — budgets are seeded with defaults and
-    /// edited later in Settings — so no remaining step carries the "Budget" title.
-    func testOnboardingStepHasTwelveSteps() {
-        XCTAssertEqual(OnboardingStep.totalSteps, 12)
+    /// edited later in Settings — so no remaining step carries the "Budget"
+    /// title. A Parenthood step was added to gate Mother's/Father's Day.
+    func testOnboardingStepHasThirteenSteps() {
+        XCTAssertEqual(OnboardingStep.totalSteps, 13)
         XCTAssertEqual(OnboardingStep.allCases.first, .welcome)
         XCTAssertEqual(OnboardingStep.allCases.last, .completion)
         XCTAssertTrue(OnboardingStep.welcome.isFirst)
@@ -266,22 +267,96 @@ final class OnboardingContainerViewTests: XCTestCase {
         XCTAssertEqual(payload.loveLanguages.secondary, "physical_touch")
     }
 
-    /// The holidays onboarding step was removed; onboarding now seeds every
-    /// predefined holiday by default so they all become reminders without a
-    /// dedicated picker screen. The edit flow (plain init) must NOT be seeded.
-    func testSeedDefaultHolidaysSelectsAllHolidays() {
+    /// The holidays onboarding step was removed; onboarding seeds the
+    /// broadly-observed holidays by default. The edit flow (plain init) must
+    /// NOT be seeded, or editing a vault would silently re-add holidays the
+    /// user had removed.
+    func testSeedDefaultHolidaysSelectsDefaultSet() {
         // Default initializer (used by the Settings edit flow) seeds nothing.
         XCTAssertTrue(OnboardingViewModel().selectedHolidays.isEmpty)
 
-        // Onboarding initializer pre-selects all predefined holidays.
+        // Onboarding initializer pre-selects the default (non-parent) set.
         let vm = OnboardingViewModel(seedDefaultHolidays: true)
-        XCTAssertEqual(vm.selectedHolidays.count, HolidayOption.allHolidays.count)
-        XCTAssertEqual(vm.selectedHolidays, Set(HolidayOption.allHolidays.map { $0.id }))
+        XCTAssertEqual(vm.selectedHolidays, HolidayOption.defaultSeed(isPartnerParent: false))
+        XCTAssertTrue(vm.selectedHolidays.contains("christmas"))
 
-        // All seeded holidays flow into the vault payload as "holiday" milestones.
+        // Seeded holidays flow into the vault payload as "holiday" milestones.
         vm.partnerName = "Sample Partner"
-        let holidayMilestones = vm.buildVaultPayload().milestones.filter { $0.milestoneType == "holiday" }
-        XCTAssertEqual(holidayMilestones.count, HolidayOption.allHolidays.count)
+        let holidayMilestones = vm.buildVaultPayload().milestones
+            .filter { $0.milestoneType == "holiday" }
+        XCTAssertEqual(holidayMilestones.count, vm.selectedHolidays.count)
+    }
+
+    /// Religious and cultural holidays are catalogued but not seeded — adding
+    /// them for every user would send push notifications for holidays they
+    /// don't observe.
+    func testCulturalHolidaysAreNotSeededByDefault() {
+        let seeded = HolidayOption.defaultSeed(isPartnerParent: true)
+        for id in ["hanukkah", "diwali", "lunar_new_year", "eid", "thanksgiving", "easter", "halloween"] {
+            XCTAssertFalse(seeded.contains(id), "\(id) should be opt-in, not seeded")
+            XCTAssertNotNil(HolidayOption.option(id: id), "\(id) should still be in the catalogue")
+        }
+    }
+
+    /// Mother's Day and Father's Day are gated on the parenthood answer. Before
+    /// this gate they fired for every user regardless.
+    func testParenthoodGatesParentHolidays() {
+        let vm = OnboardingViewModel(seedDefaultHolidays: true)
+
+        // Defaults to "No" — the safe answer.
+        XCTAssertFalse(vm.isPartnerParent)
+        XCTAssertFalse(vm.selectedHolidays.contains("mothers_day"))
+        XCTAssertFalse(vm.selectedHolidays.contains("fathers_day"))
+
+        vm.isPartnerParent = true
+        XCTAssertTrue(vm.selectedHolidays.contains("mothers_day"))
+        XCTAssertTrue(vm.selectedHolidays.contains("fathers_day"))
+
+        // Answering again removes them — the user can change their mind.
+        vm.isPartnerParent = false
+        XCTAssertFalse(vm.selectedHolidays.contains("mothers_day"))
+        XCTAssertFalse(vm.selectedHolidays.contains("fathers_day"))
+
+        // Non-parent holidays are untouched throughout.
+        XCTAssertTrue(vm.selectedHolidays.contains("christmas"))
+    }
+
+    /// The parenthood observer must not fire for the Settings edit flow, which
+    /// hydrates `selectedHolidays` from the backend.
+    func testParenthoodDoesNotMutateEditFlow() {
+        let vm = OnboardingViewModel()  // edit flow
+        vm.selectedHolidays = ["christmas"]
+
+        vm.isPartnerParent = true
+
+        XCTAssertEqual(vm.selectedHolidays, ["christmas"],
+                       "Editing a vault must not re-seed holidays")
+    }
+
+    /// Each holiday carries its occasion category into the payload, so the
+    /// backend never has to infer it from the display name.
+    func testHolidayPayloadCarriesOccasionCategory() {
+        let vm = OnboardingViewModel(seedDefaultHolidays: true)
+        vm.partnerName = "Sample Partner"
+        vm.isPartnerParent = true
+
+        let milestones = vm.buildVaultPayload().milestones
+        let byCategory = Dictionary(
+            grouping: milestones.compactMap(\.occasionCategory),
+            by: { $0 }
+        )
+
+        XCTAssertNotNil(byCategory["christmas"])
+        XCTAssertNotNil(byCategory["mothers_day"])
+        XCTAssertNotNil(byCategory["birthday"], "The birthday milestone should be categorised too")
+
+        // Custom milestones deliberately send no category — the backend resolves
+        // one from the name and falls back to "default".
+        vm.customMilestones = [
+            CustomMilestone(name: "First Date", month: 6, day: 1, recurrence: "yearly")
+        ]
+        let custom = vm.buildVaultPayload().milestones.first { $0.milestoneType == "custom" }
+        XCTAssertNil(custom?.occasionCategory)
     }
 
     /// Verify `isSubmitting` toggles drive the loading overlay.

@@ -30,6 +30,33 @@ struct MilestoneRecommendationsCoverView: View {
     let display: MilestonePushDisplay?
     let onDismiss: @MainActor () -> Void
 
+    /// Gates the occasion entry modal. Starts on so the card is on screen from
+    /// the first frame — the recommendations keep loading behind it, so the
+    /// modal costs the user nothing and usually hides the fetch entirely.
+    ///
+    /// A push from a backend predating this feature carries no display payload,
+    /// which would leave the modal showing nothing but its own placeholder
+    /// copy. `headerContext` suppresses itself in exactly that case; this does
+    /// the same, and the user lands straight on the picks.
+    @State private var showEntryModal: Bool
+
+    init(
+        milestoneId: String,
+        notificationId: String?,
+        display: MilestonePushDisplay?,
+        onDismiss: @escaping @MainActor () -> Void
+    ) {
+        self.milestoneId = milestoneId
+        self.notificationId = notificationId
+        self.display = display
+        self.onDismiss = onDismiss
+        _showEntryModal = State(initialValue: display != nil)
+    }
+
+    /// The initial gate, exposed for tests — `showEntryModal` is `@State` and
+    /// unreadable from outside once the view is constructed.
+    var showsEntryModalOnAppear: Bool { display != nil }
+
     var body: some View {
         NavigationStack {
             RecommendationsView(
@@ -53,6 +80,17 @@ struct MilestoneRecommendationsCoverView: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showEntryModal) {
+            OccasionEntryModal(
+                copy: entryCopy,
+                // Continue and close land in the same place — the picks are
+                // already behind the card. The X is "skip the framing", not
+                // "leave", which is what the toolbar X is for.
+                onContinue: { dismissEntryModal() },
+                onClose: { dismissEntryModal() }
+            )
+            .presentationBackground(.clear)
+        }
         .task {
             if let notificationId {
                 // Fire-and-forget: clears the unviewed marker. Never blocks
@@ -60,6 +98,25 @@ struct MilestoneRecommendationsCoverView: View {
                 await NotificationHistoryService().markViewed(notificationId: notificationId)
             }
         }
+    }
+
+    /// Copy for the tapped occasion, built entirely from the push payload.
+    private var entryCopy: OccasionCopy {
+        OccasionCopy.resolve(
+            category: display?.occasionCategory ?? OccasionCopy.defaultCategory,
+            partnerName: display?.partnerName,
+            daysUntil: display?.daysBefore,
+            milestoneName: display?.milestoneName
+        )
+    }
+
+    /// Tears the cover down with no animation — `OccasionEntryModal` has
+    /// already played its own exit by the time this runs, so the system's
+    /// bottom-slide would be a second, conflicting transition.
+    private func dismissEntryModal() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { showEntryModal = false }
     }
 
     /// Header context built purely from the push payload — no network call.
@@ -88,7 +145,8 @@ struct MilestoneRecommendationsCoverView: View {
         display: MilestonePushDisplay(
             milestoneName: "Jas's Birthday",
             partnerName: "Jas",
-            daysBefore: 7
+            daysBefore: 7,
+            occasionCategory: "birthday"
         ),
         onDismiss: {}
     )

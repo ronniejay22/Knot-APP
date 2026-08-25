@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
         let milestoneName = userInfo["milestone_name"] as? String
         let partnerName = userInfo["partner_name"] as? String
         let daysBefore = (userInfo["days_before"] as? NSNumber)?.intValue
+        let occasionCategory = userInfo["occasion_category"] as? String
 
         print("[Knot] Notification tapped: notification=\(notificationId ?? "nil"), milestone=\(milestoneId ?? "nil")")
 
@@ -117,7 +118,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
             notificationId: notificationId,
             milestoneName: milestoneName,
             partnerName: partnerName,
-            daysBefore: daysBefore
+            daysBefore: daysBefore,
+            occasionCategory: occasionCategory
         ) else {
             print("[Knot] Notification tapped without milestone_id — ignoring")
             return

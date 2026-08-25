@@ -408,6 +408,11 @@ async def process_notification(
                 vibes=vault_data.vibes if vault_data else [],
                 recommendations_count=recommendations_count,
                 briefing_snippet=briefing_snippet,
+                occasion_category=(
+                    milestone_context.occasion_category
+                    if milestone_context
+                    else None
+                ),
             )
 
             if push_result and push_result.get("success"):

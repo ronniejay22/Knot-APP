@@ -99,6 +99,7 @@ class MilestoneCreate(BaseModel):
     budget_tier: Optional[
         Literal["just_because", "minor_occasion", "major_milestone"]
     ] = None
+    occasion_category: Optional[str] = None
 
     @field_validator("milestone_name")
     @classmethod
@@ -322,6 +323,7 @@ class MilestoneResponse(BaseModel):
     milestone_date: str
     recurrence: str
     budget_tier: Optional[str] = None
+    occasion_category: str = "default"
 
 
 class BudgetResponse(BaseModel):

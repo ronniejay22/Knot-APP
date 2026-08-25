@@ -347,6 +347,15 @@ extension Theme {
         /// Scales relative to `.body`.
         static let cta: Font = .custom(FontFamily.DMSans.semibold, size: 17, relativeTo: .body)
 
+        /// DMSans-SemiBold @ 20pt. Centered-dialog titles.
+        ///
+        /// Note this is a deliberate exception to the app's Fraunces-for-headings
+        /// convention — the occasion entry modal's comp specifies DM Sans
+        /// SemiBold 20 (Figma "Heading/Medium"), and a serif title fights the
+        /// photographic illustration directly beneath it.
+        /// Scales relative to `.title3`.
+        static let modalTitle: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title3)
+
         /// DMSans-Bold @ 17pt. Numeric callouts (streak counts, totals).
         /// Scales relative to `.body`.
         static let numeric: Font = .custom(FontFamily.DMSans.bold, size: 17, relativeTo: .body)

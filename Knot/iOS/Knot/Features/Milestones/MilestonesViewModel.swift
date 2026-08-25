@@ -31,6 +31,15 @@ final class MilestonesViewModel {
     var formRecurrence: String = "yearly"
     var formBudgetTier: String = "just_because"
 
+    /// The occasion the milestone represents — drives the entry modal's copy
+    /// and illustration, and (for holidays that move) the backend's date math.
+    ///
+    /// Separate from `formType` because `milestone_type` is CHECK-constrained
+    /// to four values in the DB. A graduation is stored as
+    /// `type: "custom", occasion_category: "graduation"` — no migration needed
+    /// to add an occasion.
+    var formOccasionCategory: String = MilestoneOccasionOption.defaultCategory
+
     // MARK: - Delete Confirmation
 
     var milestoneToDelete: MilestoneItemResponse?
@@ -70,6 +79,7 @@ final class MilestonesViewModel {
         formDay = 1
         formRecurrence = "yearly"
         formBudgetTier = "just_because"
+        formOccasionCategory = MilestoneOccasionOption.defaultCategory
         showAddSheet = true
     }
 
@@ -79,6 +89,7 @@ final class MilestonesViewModel {
         formType = milestone.milestoneType
         formRecurrence = milestone.recurrence
         formBudgetTier = milestone.budgetTier ?? "just_because"
+        formOccasionCategory = milestone.occasionCategory
 
         // Parse month/day from milestone_date (format: "2000-MM-DD" or "YYYY-MM-DD")
         let components = milestone.milestoneDate.split(separator: "-")
@@ -99,7 +110,8 @@ final class MilestonesViewModel {
                 milestoneName: formName,
                 milestoneDate: dateString,
                 recurrence: formRecurrence,
-                budgetTier: formBudgetTier
+                budgetTier: formBudgetTier,
+                occasionCategory: formOccasionCategory
             )
 
             do {
@@ -116,7 +128,8 @@ final class MilestonesViewModel {
                 milestoneName: formName,
                 milestoneDate: dateString,
                 recurrence: formRecurrence,
-                budgetTier: formBudgetTier
+                budgetTier: formBudgetTier,
+                occasionCategory: formOccasionCategory
             )
 
             do {

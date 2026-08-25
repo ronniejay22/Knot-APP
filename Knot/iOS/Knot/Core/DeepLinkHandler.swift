@@ -18,6 +18,23 @@ struct MilestonePushDisplay: Equatable, Sendable {
     let milestoneName: String
     let partnerName: String?
     let daysBefore: Int?
+
+    /// Stable occasion key selecting the entry modal's copy and illustration.
+    /// Absent on pushes from a backend predating the key; `OccasionCopy`
+    /// treats that as `default`.
+    let occasionCategory: String?
+
+    init(
+        milestoneName: String,
+        partnerName: String?,
+        daysBefore: Int?,
+        occasionCategory: String? = nil
+    ) {
+        self.milestoneName = milestoneName
+        self.partnerName = partnerName
+        self.daysBefore = daysBefore
+        self.occasionCategory = occasionCategory
+    }
 }
 
 /// Represents a destination the app should navigate to from a deep link.
@@ -74,7 +91,8 @@ final class DeepLinkHandler {
         notificationId: String?,
         milestoneName: String? = nil,
         partnerName: String? = nil,
-        daysBefore: Int? = nil
+        daysBefore: Int? = nil,
+        occasionCategory: String? = nil
     ) -> DeepLinkDestination? {
         guard let milestoneId, !milestoneId.isEmpty else { return nil }
 
@@ -83,7 +101,8 @@ final class DeepLinkHandler {
             display = MilestonePushDisplay(
                 milestoneName: milestoneName,
                 partnerName: (partnerName?.isEmpty == false) ? partnerName : nil,
-                daysBefore: daysBefore
+                daysBefore: daysBefore,
+                occasionCategory: (occasionCategory?.isEmpty == false) ? occasionCategory : nil
             )
         }
 

@@ -75,8 +75,34 @@ enum UITestScreenshotHarness {
             MilestoneRecsScreenshotHarnessView()
         case "milestoneRecsMissing":
             MilestoneRecsMissingScreenshotHarnessView()
+        case "occasionModal":
+            OccasionModalScreenshotHarnessView()
         default:
             EmptyView()
+        }
+    }
+}
+
+/// Renders the occasion entry modal standalone over the app's background.
+///
+/// The real modal only appears after a milestone push tap-through, which a cold
+/// screenshot launch cannot reach — it needs an authenticated session, a stored
+/// milestone, and a delivered notification.
+private struct OccasionModalScreenshotHarnessView: View {
+    var body: some View {
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
+
+            OccasionEntryModal(
+                copy: OccasionCopy.resolve(
+                    category: "birthday",
+                    partnerName: "Jerry",
+                    daysUntil: 3,
+                    milestoneName: "Jerry's Birthday"
+                ),
+                onContinue: {},
+                onClose: {}
+            )
         }
     }
 }

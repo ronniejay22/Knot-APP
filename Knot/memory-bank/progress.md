@@ -7331,6 +7331,76 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.25 ✅ Notifications — Occasion Entry Modal + Expanded Milestone Catalog
+**Date:** 2026-08-24
+**Status:** Complete
+
+**Goal:** Tapping a milestone push dropped the user straight into three recommendation cards with no framing — the push said "Jas's Birthday is next week" and the app answered with a grid. Insert a bespoke entry modal (illustration, occasion-specific headline and body, one CTA) between the tap and the picks. Doing that required inventing the occasion key the app never had, and then fixing the date math for every occasion that key made reachable.
+
+**Root cause of the blocker:** there was no way to tell *what kind of occasion* a milestone was. `milestone_type` has four values (`birthday | anniversary | holiday | custom`), every holiday is free-text `milestone_name`, and `HolidayOption.id` (`valentines_day`, …) was discarded at write time in `buildVaultPayload()`. The only categorisation in the codebase was `_is_floating_holiday()`'s unanchored substring match — so a partner named Heather with a "Grandmother's Birthday" milestone silently rescheduled to the second Sunday of May.
+
+**What changed:**
+
+*Backend — the occasion key*
+- Migration `00027` adds a nullable, unconstrained `occasion_category TEXT` to `partner_milestones`. Deliberately no CHECK constraint: that is exactly what migration 00025 had to drop from `partner_interests`, and it would force a migration every time the catalogue grows.
+- New `app/services/occasion_category.py` resolves a category through a four-rung ladder — persisted column → word-boundary name match → `milestone_type` map → `"default"`. Rung 2 is what makes this a zero-backfill change: every existing row resolves correctly on read.
+- The name matcher is `\b`-anchored regex, not substring, and the pattern list is ordered specific-before-general. Both were forced by real bugs found in test: "Lunar New Year" contains "new year", and `"eid"` matches inside "Deidre's Birthday".
+- Name matching is also **scoped to holiday-type milestones** (`_name_matching_applies`). Rung 2 exists for one population — holidays written before the column did — and letting it run for every type does real damage: a *custom* milestone called "Easter egg hunt" would be classified `easter` and permanently rescheduled onto the computed Easter, discarding the date the user chose. `milestone_type` is threaded through `compute_next_occurrence()` and `schedule_milestone_notifications()` to make this reachable; an empty type still allows matching, so a caller that doesn't know narrows nothing.
+- The category flows through `MilestoneContext` → `vault_loader` → the APNs payload, so the client knows the occasion at tap time. Adding it to the push rather than fetching it avoids reintroducing the round-trip Step 19.24 had just removed.
+
+*Backend — date math*
+- The scheduler could compute exactly two moving dates (Mother's/Father's Day) and re-projected everything else off the stored `2000-MM-DD` placeholder, so every new holiday would have fired on the wrong day. Replaced the ad-hoc pair with a generic `_nth_weekday()` plus `_thanksgiving()`, `_easter()` (Meeus/Jones/Butcher computus), and a `_LUNISOLAR_DATES` lookup table for Hanukkah, Diwali, Lunar New Year and Eid through 2035. Backend has stdlib `datetime` only — no `dateutil`, no `holidays`, no `convertdate`.
+- The lunisolar table is a flat sequence of dates per category, not `{year: date}`: Eid falls twice in 2033 (2 Jan and 22 Dec). Past the table's horizon `compute_next_occurrence()` returns `None` — the milestone is skipped rather than firing on the placeholder.
+- `_is_floating_holiday()` deleted; dispatch now keys off `occasion_category`.
+
+*Catalogue*
+- Onboarding's holiday list grew from a handful to 12 with stable `occasionCategory` keys, and the keys are no longer thrown away on write. Mother's/Father's Day are gated behind a new parenthood step (`OnboardingStep.parenthood`, 13 steps total) — seeding them for a childless partner was noise. Cultural holidays are offered but not seeded by default.
+- `MilestoneFormSheet` gained an Occasion picker so the post-onboarding form can reach the same catalogue. A graduation is stored as `type: "custom", occasion_category: "graduation"` — the CHECK-constrained type column never has to change to add an occasion.
+
+*iOS — the modal*
+- `OccasionEntryModal` implements Figma node 608:4358, reusing the centered-dialog mechanics already established by `RelationshipLengthModal` and `MilestoneDateModal` (`fullScreenCover` + cleared presentation background + a `disablesAnimations` transaction so the cover's bottom-slide is suppressed and the card runs its own spring).
+- `OccasionCopy` holds 22 title/body/CTA templates with `{partner}`/`{timing}`/`{milestone}` interpolation, and degrades to `default` — which renders imageless — for any category it doesn't know.
+- 21 illustrations exported from Figma at 3x (1050×480) and stored as JPEG q82. PNG would have grown the asset catalogue 65%; the view clips its own corners, so the alpha channel was dead weight, and `Interests/` and `SignIn/` already use JPEG for photographic assets.
+
+**Files created:**
+- `backend/supabase/migrations/00027_add_occasion_category_to_milestones.sql`
+- `backend/app/services/occasion_category.py` — the resolver
+- `backend/tests/test_occasion_category.py`
+- `iOS/Knot/Features/Recommendations/OccasionCopy.swift` — 22 copy templates + timing phrasing + illustration lookup
+- `iOS/Knot/Features/Recommendations/OccasionEntryModal.swift`
+- `iOS/Knot/Features/Milestones/MilestoneOccasionOption.swift` — the picker catalogue
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingParenthoodView.swift`
+- `iOS/Knot/Resources/Assets.xcassets/OccasionIllustrations/` — 21 namespaced imagesets
+- `iOS/KnotTests/OccasionEntryModalTests.swift`, `iOS/KnotTests/MilestoneOccasionOptionTests.swift`
+
+**Files modified:**
+- `backend/app/services/notification_scheduler.py` — holiday date math and category-keyed dispatch
+- `backend/app/services/apns.py`, `backend/app/api/notifications.py` — carry `occasion_category` in the push payload
+- `backend/app/api/milestones.py`, `backend/app/api/vault.py`, `backend/app/models/milestones.py`, `backend/app/models/vault.py`, `backend/app/agents/state.py`, `backend/app/services/vault_loader.py` — resolve and persist the category on every read and write path
+- `iOS/Knot/Models/DTOs.swift` — `occasionCategory` on the four milestone DTOs; decoded optionally so a pre-00027 backend still parses
+- `iOS/Knot/Features/Onboarding/OnboardingViewModel.swift`, `OnboardingContainerView.swift` — catalogue, parenthood gating, key pass-through
+- `iOS/Knot/Features/Settings/EditVaultView.swift` — hydrate holidays by category, month/day only as fallback
+- `iOS/Knot/Features/Milestones/MilestonesViewModel.swift`, `MilestonesManagementView.swift` — occasion picker
+- `iOS/Knot/Core/DeepLinkHandler.swift`, `iOS/Knot/App/AppDelegate.swift` — thread the category from the push to the cover view
+- `iOS/Knot/Features/Recommendations/MilestoneRecommendationsCoverView.swift` — present the modal before the picks
+- `iOS/Knot/Core/Theme.swift` — `Theme.Typography.modalTitle`
+- `iOS/Knot/App/UITestScreenshotHarness.swift`, `iOS/KnotUITests/PRScreenshotTests.swift`, `iOS/KnotTests/OnboardingContainerViewTests.swift`
+- `docs/pr-screenshots/worktree-feat-occasion-entry-modal.png`
+
+**Tests:** Full backend suite: 1421 passed, 622 skipped, 0 failures. iOS Full plan (unit + UI) green — 419 unit tests. New coverage: resolver precedence and name-match anchoring; `_nth_weekday`, Thanksgiving, Easter and the lunisolar table including the past-horizon `None`; all 22 copy templates render with no unreplaced tokens; the modal renders for every category; the picker catalogue is pinned against both the backend category set and the four legal `milestone_type` values.
+
+**Notes:**
+- **Deploy ordering matters.** Migration 00027 must be applied *and* `NOTIFY pgrst, 'reload schema'` run before the client starts writing `occasion_category`, or vault creation 500s on a PostgREST schema-cache miss — the Step 15.5 failure mode.
+- The lunisolar table ends in 2035. `_next_computed_occurrence()` returns `None` past that, which skips scheduling rather than firing wrong; extend the table before then.
+- Two deliberate deviations from the comp: the title uses a new DM Sans SemiBold 20 token rather than the app's Fraunces-for-headings convention (following Figma), and the CTA uses `Theme.accent` rather than the comp's `#f54266` — a second pink appearing only in this modal is worse than a hair of drift.
+- `KnotIconButton(.ghost)` hardcodes `Theme.accent`, so the close X is a plain `Button`. A pink X reads as an action, not a dismiss; this was only caught by looking at the captured PR screenshot.
+- `MilestoneOccasionOption.options(for:including:)` exists so editing a legacy holiday that matched nothing ("Our Christmas in July" → `default`) doesn't render a blank `Picker` — the current value is appended rather than silently rewritten.
+- Changing a milestone's occasion now **reschedules** it, alongside the existing date/recurrence triggers — the category drives `compute_next_occurrence`, so switching Christmas to Thanksgiving moves the real date by a month and stale pending pushes would otherwise fire on the old one.
+- `EditVaultView`'s month/day fallback tries fixed-date holidays before computed ones rather than skipping computed ones outright. An unmatched holiday isn't merely deselected — the vault PUT deletes and reinserts the whole milestone set, so it is destroyed on the next save.
+- The entry modal is suppressed when the push carries no display payload (a pre-19.24 backend). There is nothing to say at that point, and placeholder copy reads worse than going straight to the picks — `headerContext` already made the same call.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

@@ -24,13 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // This change makes the push tap-through genuinely instant. The loaded
-        // screen itself is unchanged (captured in the previous PR screenshot);
-        // the NEW surface is the opt-in state shown when a tapped push has no
-        // stored recommendations — previously this silently started a ~30s
-        // generation. Render it via the DEBUG harness (`milestoneRecsMissing`),
-        // which drives the real load path with a fetcher that returns nothing.
-        app.launchArguments += ["-uiTestScreenshot", "milestoneRecsMissing"]
+        // The new surface is the occasion entry modal shown between tapping a
+        // milestone push and seeing the picks. The real thing needs an
+        // authenticated session, a stored milestone and a delivered
+        // notification, none of which a cold screenshot launch can reach — so
+        // render it standalone via the DEBUG harness (`occasionModal`).
+        app.launchArguments += ["-uiTestScreenshot", "occasionModal"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -40,11 +39,14 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only this state shows: the milestone header from the
-        // push payload and the honest opt-in copy + CTA.
-        _ = app.staticTexts["Jas's Birthday"].waitForExistence(timeout: 10)
-        _ = app.staticTexts["We're still putting these together"].waitForExistence(timeout: 10)
-        _ = app.buttons["Find picks now"].waitForExistence(timeout: 5)
+        // Wait for elements only this modal shows: the occasion-specific
+        // headline and the CTA through to the recommendations.
+        _ = app.staticTexts["Happy Birthday to Jerry!"].waitForExistence(timeout: 10)
+        _ = app.buttons["See recommendations"].waitForExistence(timeout: 5)
+
+        // The card animates in (scale + fade over ~0.4s); capturing immediately
+        // catches it mid-transition.
+        Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

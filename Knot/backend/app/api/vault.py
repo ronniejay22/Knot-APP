@@ -26,6 +26,7 @@ from app.models.vault import (
 )
 
 from app.services.notification_scheduler import schedule_notifications_for_milestones
+from app.services.occasion_category import resolve_from_row, resolve_occasion_category
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,11 @@ async def create_vault(
                 # None → DB trigger sets default for birthday/anniversary/holiday.
                 # Explicit value used for custom milestones and holiday overrides.
                 "budget_tier": m.budget_tier,
+                "occasion_category": resolve_occasion_category(
+                    occasion_category=m.occasion_category,
+                    milestone_name=m.milestone_name,
+                    milestone_type=m.milestone_type,
+                ),
             }
             for m in payload.milestones
         ]
@@ -348,6 +354,7 @@ async def get_vault(
             milestone_date=row["milestone_date"],
             recurrence=row["recurrence"],
             budget_tier=row.get("budget_tier"),
+            occasion_category=resolve_from_row(row),
         )
         for row in (milestones_result.data or [])
     ]
@@ -504,6 +511,11 @@ async def update_vault(
                 "milestone_date": m.milestone_date,
                 "recurrence": m.recurrence,
                 "budget_tier": m.budget_tier,
+                "occasion_category": resolve_occasion_category(
+                    occasion_category=m.occasion_category,
+                    milestone_name=m.milestone_name,
+                    milestone_type=m.milestone_type,
+                ),
             }
             for m in payload.milestones
         ]
