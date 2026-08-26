@@ -7438,6 +7438,41 @@ Like Step 18.22, the weight is baked into the token at definition time — never
 
 ---
 
+### Step 19.27 ✅ Recommendations — Fix the Mixed-Batch Insert That Killed Generation
+**Date:** 2026-08-25
+**Status:** Complete
+
+**Goal:** Stop `POST /generate` failing with "Unable to generate recommendations" whenever Claude returned a mix of gifts and ideas.
+
+**Root cause:** the three recommendations are written as **one bulk insert**, and PostgREST normalises a batch to the union of every row's keys — a row missing a key that a sibling row carries is sent as an **explicit NULL**. Row construction only set `is_idea` when the candidate *was* an idea, so a gift in the same batch as an idea got `is_idea: NULL`. The column is `NOT NULL DEFAULT FALSE`, and **a DEFAULT does not apply to an explicit NULL** — so Postgres rejected the row with a 23502 and the *entire* batch failed. All three recommendations were lost and the user saw a 500.
+
+Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermittency is why it survived from Step 14.4 until now, and why it read as flakiness rather than a bug.
+
+**What changed:**
+- Extracted `build_recommendation_row(candidate, *, vault_id, milestone_id=None)` in `app/api/recommendations.py`. Its contract is that **every row it returns has the same keys** — `is_idea` is always a real `bool`, and `content_sections` / `personalization_note` / `milestone_id` are always present, holding `None` when empty.
+- All three writers now call it: `generate`, `refresh`, and the notification webhook. Each had grown its own hand-copied duplicate, which is exactly how one bug reached three call sites.
+- **Second bug, found in review:** the refresh copy had dropped `milestone_id` entirely, so re-rolled picks were stored unattached even though refresh already knows the milestone (it reads it at the top to derive `occasion_type`). `GET /by-milestone` filters on `milestone_id`, so after a re-roll the tap-through kept serving the three recommendations the user had just rejected. Replacements now inherit `source_milestone_id`; browsing-mode refreshes still store NULL, as before.
+- `notifications.py` now imports `build_recommendation_row` instead of `resolve_image_url`; the builder owns the image guarantee.
+
+**Files modified:**
+- `backend/app/api/recommendations.py` — new builder; `generate` and `refresh` reduced to list comprehensions
+- `backend/app/api/notifications.py` — uses the shared builder
+- `backend/tests/test_notification_processing.py` — updated assertions (see note below)
+
+**Files created:**
+- `backend/tests/test_recommendation_row_builder.py`
+
+**Tests:** 21 new tests, the load-bearing one being `test_mixed_batch_rows_all_share_the_same_keys` — a gift, an idea and a **plan** built together must produce one distinct key set. `plan` is deliberate: it is the only type where `is_idea` is True while `type != "idea"`, so it is the shape most likely to regress. Two anti-duplication guards: the literal row dict appears exactly once in `recommendations.py` and never in `notifications.py`, and no module that bulk-inserts recommendations (including `ideas.py`) assigns `is_idea` after building the row — that post-construction mutation was the bug's actual signature. Full backend suite: 1461 passed, 622 skipped.
+
+**Verified against the live database**, since a unit test cannot prove PostgREST's normalisation behaviour: inserted a gift + idea + plan in a single batch through the real builder. Accepted, 3 rows, probe rows deleted. The same batch shape built the old way still fails with 23502 — confirming both the diagnosis and the fix.
+
+**Notes:**
+- `test_processing_persists_personalization_note` previously asserted `"personalization_note" not in rows[1]` and `"is_idea" not in rows[1]` — it was **encoding the bug as expected behaviour**, asserting exactly the key non-uniformity that broke the insert. Updated to assert the keys are present and null/False, plus a new assertion that all rows in the batch share one key set. Worth remembering that a passing test asserted the broken shape for months.
+- Adding `milestone_id: None` to refresh rows is a no-op at the database level: the column is nullable, and an omitted key and an explicit NULL both store NULL. Uniform keys are what matter.
+- The same failure mode applies to **any** future bulk insert into a table with a `NOT NULL DEFAULT` column. Build rows through one function whose keys don't vary, rather than conditionally adding keys per row.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
