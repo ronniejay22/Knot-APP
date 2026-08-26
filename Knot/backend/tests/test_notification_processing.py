@@ -676,9 +676,13 @@ class TestNotificationRecommendationGeneration:
 
         # Candidate 0: personalization note persisted
         assert rows[0]["personalization_note"] == "She loves handmade ceramics."
-        # Candidate 1: no note → key omitted (matches /generate behavior)
-        assert "personalization_note" not in rows[1]
-        assert "is_idea" not in rows[1]
+        # Candidate 1: no note, no idea fields → keys PRESENT and null/False.
+        # These used to be omitted. That was the bug: this batch mixes a plain
+        # candidate with an idea, and PostgREST fills a missing key with an
+        # explicit NULL, which `is_idea NOT NULL` rejects — killing the whole
+        # insert. Uniform keys are now the contract.
+        assert rows[1]["personalization_note"] is None
+        assert rows[1]["is_idea"] is False
         # Candidate 2: idea fields persisted, content_sections JSON-encoded
         assert rows[2]["is_idea"] is True
         assert rows[2]["personalization_note"] == "Quality time is her love language."
@@ -687,6 +691,8 @@ class TestNotificationRecommendationGeneration:
         # Every row still carries a non-null image (resolve_image_url guarantee)
         for row in rows:
             assert row["image_url"]
+        # The property the bulk insert depends on.
+        assert len({frozenset(row) for row in rows}) == 1
         print("  Webhook insert persists personalization_note + idea fields")
 
     def test_pipeline_failure_still_marks_sent(self, client):

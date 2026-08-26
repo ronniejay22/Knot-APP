@@ -179,32 +179,12 @@ async def generate_recommendations(
     # =================================================================
     # 5. Store recommendations in the database
     # =================================================================
-    rec_rows = []
-    for candidate in final_three:
-        # Guarantee an image before persisting so every read path (generate
-        # response, by-milestone, by-id) serves a non-null image_url.
-        candidate.image_url = candidate.image_url or resolve_image_url(candidate)
-        row = {
-            "vault_id": vault_id,
-            "milestone_id": payload.milestone_id,
-            "recommendation_type": candidate.type,
-            "title": candidate.title,
-            "description": candidate.description,
-            "external_url": candidate.external_url,
-            "price_cents": candidate.price_cents,
-            "merchant_name": candidate.merchant_name,
-            "image_url": candidate.image_url,
-        }
-        # Include idea-specific fields only when the candidate is an idea (Step 14.4)
-        if getattr(candidate, "is_idea", False):
-            row["is_idea"] = True
-            if getattr(candidate, "content_sections", None):
-                import json
-                row["content_sections"] = json.dumps(candidate.content_sections)
-        # Include personalization note (Step 15.1)
-        if getattr(candidate, "personalization_note", None):
-            row["personalization_note"] = candidate.personalization_note
-        rec_rows.append(row)
+    rec_rows = [
+        build_recommendation_row(
+            candidate, vault_id=vault_id, milestone_id=payload.milestone_id
+        )
+        for candidate in final_three
+    ]
 
     try:
         db_result = client.table("recommendations").insert(rec_rows).execute()
@@ -344,11 +324,14 @@ async def refresh_recommendations(
     # 4. Determine occasion type and build pipeline state
     # =================================================================
     occasion_type = "just_because"
-    if rejected_recs.data[0].get("milestone_id"):
+    # The milestone the rejected picks belonged to, if any. Carried onto the
+    # replacements below so a re-roll actually supersedes them.
+    source_milestone_id = rejected_recs.data[0].get("milestone_id")
+    if source_milestone_id:
         ms_result = (
             client.table("partner_milestones")
             .select("budget_tier")
-            .eq("id", rejected_recs.data[0]["milestone_id"])
+            .eq("id", source_milestone_id)
             .execute()
         )
         if ms_result.data:
@@ -413,28 +396,16 @@ async def refresh_recommendations(
     # =================================================================
     # 6. Store new recommendations in the database
     # =================================================================
-    rec_rows = []
-    for candidate in new_three:
-        # Guarantee an image before persisting (see generate endpoint).
-        candidate.image_url = candidate.image_url or resolve_image_url(candidate)
-        row = {
-            "vault_id": vault_id,
-            "recommendation_type": candidate.type,
-            "title": candidate.title,
-            "description": candidate.description,
-            "external_url": candidate.external_url,
-            "price_cents": candidate.price_cents,
-            "merchant_name": candidate.merchant_name,
-            "image_url": candidate.image_url,
-        }
-        if getattr(candidate, "is_idea", False):
-            row["is_idea"] = True
-            if getattr(candidate, "content_sections", None):
-                import json
-                row["content_sections"] = json.dumps(candidate.content_sections)
-        if getattr(candidate, "personalization_note", None):
-            row["personalization_note"] = candidate.personalization_note
-        rec_rows.append(row)
+    # Replacements inherit the rejected picks' milestone. Without this they
+    # were stored unattached, and `GET /by-milestone` — which filters on
+    # milestone_id — kept serving the three the user had just rejected.
+    # In browsing mode there is no milestone and this is None, as before.
+    rec_rows = [
+        build_recommendation_row(
+            candidate, vault_id=vault_id, milestone_id=source_milestone_id
+        )
+        for candidate in new_three
+    ]
 
     try:
         db_result = client.table("recommendations").insert(rec_rows).execute()
@@ -1043,6 +1014,59 @@ def resolve_image_url(candidate: CandidateRecommendation) -> str:
         candidate.title,
     )
     return _default_image_for_type(candidate.type)
+
+
+def build_recommendation_row(
+    candidate: CandidateRecommendation,
+    *,
+    vault_id: str,
+    milestone_id: str | None = None,
+) -> dict:
+    """
+    Build one `recommendations` row, ready for a bulk insert.
+
+    **Every row this returns has the same keys.** That is the point of the
+    function, not an incidental property.
+
+    These rows are inserted as a batch, and PostgREST normalises a batch to the
+    union of every row's keys — a row missing a key that another row carries is
+    sent as an explicit NULL. `is_idea` is `NOT NULL DEFAULT FALSE`, and a
+    DEFAULT does not apply to an explicit NULL, so a batch mixing a gift with
+    an idea failed *in its entirety* with a 23502, surfacing to the user as
+    "Unable to generate recommendations". Only mixed batches broke, which is
+    why it went unnoticed for so long.
+
+    Three call sites had grown their own copy of this construction (generate,
+    refresh, and the notification webhook), and all three carried the bug.
+
+    Mutates `candidate.image_url` to the resolved URL, so the response built
+    from the same candidate serves the image that was persisted.
+    """
+    # Guarantee an image before persisting so every read path (generate
+    # response, by-milestone, by-id) serves a non-null image_url.
+    candidate.image_url = candidate.image_url or resolve_image_url(candidate)
+
+    is_idea = bool(getattr(candidate, "is_idea", False))
+    content_sections = getattr(candidate, "content_sections", None)
+
+    return {
+        "vault_id": vault_id,
+        "milestone_id": milestone_id,
+        "recommendation_type": candidate.type,
+        "title": candidate.title,
+        "description": candidate.description,
+        "external_url": candidate.external_url,
+        "price_cents": candidate.price_cents,
+        "merchant_name": candidate.merchant_name,
+        "image_url": candidate.image_url,
+        "is_idea": is_idea,
+        # Ideas and plans carry structured sections; everything else stores
+        # NULL, which the column allows.
+        "content_sections": (
+            json.dumps(content_sections) if is_idea and content_sections else None
+        ),
+        "personalization_note": getattr(candidate, "personalization_note", None),
+    }
 
 
 def _build_response_items(
