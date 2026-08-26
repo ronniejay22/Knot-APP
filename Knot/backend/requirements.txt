@@ -37,6 +37,11 @@ cryptography
 # --- Environment Variable Management ---
 python-dotenv
 
+# --- Database (direct connection, migrations only) ---
+# scripts/migrate.py runs DDL, which PostgREST cannot do. Declared explicitly
+# rather than leaned on as a transitive dependency of the supabase client.
+psycopg2-binary
+
 # --- Testing ---
 pytest
 pytest-asyncio

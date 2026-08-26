@@ -22,6 +22,11 @@ SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
+#: Direct Postgres DSN. The app itself never uses this — it goes through
+#: PostgREST via the service-role key. Only `scripts/migrate.py` needs it,
+#: because PostgREST cannot execute DDL.
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+
 # --- Vertex AI (future steps) ---
 GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
