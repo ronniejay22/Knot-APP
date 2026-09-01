@@ -12,6 +12,7 @@ APNs requires:
 Step 7.5: Create Push Notification Service (Backend).
 """
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -317,10 +318,17 @@ async def deliver_push_notification(
 
     This is the main entry point called from the notification webhook.
     It handles:
-    1. Looking up the device_token from the users table
+    1. Looking up every registered device for the user (`user_devices`)
     2. Building the notification payload
-    3. Sending via APNs
-    4. Returning the delivery result
+    3. Sending to all of them concurrently
+    4. Pruning tokens APNs reports as dead
+    5. Returning an aggregate delivery result
+
+    Delivery fans out because a user may have several devices — a phone and a
+    tablet, or a real device and a Simulator during development. This used to
+    read `users.device_token`, a single column that each registration
+    overwrote, so only the most recently opened device ever got a
+    notification and the others failed silently.
 
     Gracefully handles missing device tokens (returns success=False
     with reason "no_device_token" instead of raising).
@@ -336,7 +344,9 @@ async def deliver_push_notification(
         recommendations_count: Number of recommendations generated.
 
     Returns:
-        dict with delivery result (see send_push_notification).
+        dict with the same keys `send_push_notification` returns, so callers
+        are unaffected — `success` is True when *any* device took delivery.
+        Adds `device_count`, `delivered_count` and `pruned_count`.
     """
     from app.db.supabase_client import get_service_client
 
@@ -344,14 +354,14 @@ async def deliver_push_notification(
 
     try:
         result = (
-            client.table("users")
-            .select("device_token, device_platform")
-            .eq("id", user_id)
+            client.table("user_devices")
+            .select("device_token")
+            .eq("user_id", user_id)
             .execute()
         )
     except Exception as exc:
         logger.error(
-            "Failed to look up device token for user %s: %s",
+            "Failed to look up devices for user %s: %s",
             user_id[:8], exc,
         )
         return {
@@ -359,11 +369,19 @@ async def deliver_push_notification(
             "apns_id": None,
             "status_code": 0,
             "reason": f"device_token_lookup_failed: {exc}",
+            "device_count": 0,
+            "delivered_count": 0,
+            "failed_count": 0,
+            "pruned_count": 0,
         }
 
-    if not result.data or not result.data[0].get("device_token"):
+    tokens = [
+        row["device_token"] for row in (result.data or []) if row.get("device_token")
+    ]
+
+    if not tokens:
         logger.info(
-            "No device token registered for user %s — skipping push delivery",
+            "No device registered for user %s — skipping push delivery",
             user_id[:8],
         )
         return {
@@ -371,9 +389,11 @@ async def deliver_push_notification(
             "apns_id": None,
             "status_code": 0,
             "reason": "no_device_token",
+            "device_count": 0,
+            "delivered_count": 0,
+            "failed_count": 0,
+            "pruned_count": 0,
         }
-
-    device_token = result.data[0]["device_token"]
 
     payload = build_notification_payload(
         partner_name=partner_name,
@@ -385,4 +405,114 @@ async def deliver_push_notification(
         occasion_category=occasion_category,
     )
 
-    return await send_push_notification(device_token, payload)
+    # Concurrent, and never raises: one unreachable device must not stop the
+    # others from being notified.
+    results = await asyncio.gather(
+        *(send_push_notification(token, payload) for token in tokens),
+        return_exceptions=True,
+    )
+
+    delivered: list[dict] = []
+    failures: list[dict] = []
+    dead_tokens: list[str] = []
+
+    for token, outcome in zip(tokens, results):
+        if isinstance(outcome, BaseException):
+            logger.warning(
+                "Push to device %s... raised: %s", token[:16], outcome
+            )
+            failures.append({"reason": f"exception: {outcome}", "status_code": 0})
+            continue
+        if outcome.get("success"):
+            delivered.append(outcome)
+        else:
+            failures.append(outcome)
+            if _is_dead_token(outcome):
+                dead_tokens.append(token)
+
+    pruned = _prune_dead_tokens(client, dead_tokens)
+
+    # Failures that are neither "device is gone" nor "we delivered" — an APNs
+    # 503, a throttle, a timeout. These are the ones a retry could fix.
+    transient = [
+        f for f in failures
+        if not _is_dead_token(f) and f.get("status_code") != 200
+    ]
+
+    if delivered:
+        if transient:
+            # Deliberately still a success: the notification reached the user.
+            # Returning failure would make the webhook 500 and QStash re-run
+            # the whole delivery, which would push a DUPLICATE to every device
+            # that already took it. A missed reminder on a second device is a
+            # better outcome than a doubled one on the first. Logged loudly
+            # because it is otherwise invisible.
+            logger.warning(
+                "Push for user %s reached %d/%d devices; %d transient "
+                "failure(s) not retried: %s",
+                user_id[:8], len(delivered), len(tokens), len(transient),
+                [f.get("reason") for f in transient],
+            )
+        first = delivered[0]
+        return {
+            "success": True,
+            "apns_id": first.get("apns_id"),
+            "status_code": 200,
+            "reason": None,
+            "device_count": len(tokens),
+            "delivered_count": len(delivered),
+            "failed_count": len(failures),
+            "pruned_count": pruned,
+        }
+
+    # Nothing landed. Surface a transient reason in preference to a terminal
+    # one, so the webhook retries when a retry could actually help.
+    worst = (transient or failures or [{}])[0]
+    return {
+        "success": False,
+        "apns_id": worst.get("apns_id"),
+        "status_code": worst.get("status_code", 0),
+        "reason": worst.get("reason") or "push_not_delivered",
+        "device_count": len(tokens),
+        "delivered_count": 0,
+        "failed_count": len(failures),
+        "pruned_count": pruned,
+    }
+
+
+#: The only APNs verdict that means a device is genuinely gone: 410
+#: `Unregistered`, i.e. the app was deleted from that device.
+#:
+#: Deliberately nothing else. `BadDeviceToken` and `DeviceTokenNotForTopic` are
+#: tempting — they sound terminal — but APNs returns them for *server*
+#: misconfiguration too: a wrong `APNS_USE_SANDBOX`, or a bundle ID that does
+#: not match the token's app. In that state every push 400s, so treating them
+#: as dead would delete every row in `user_devices` on the first send after a
+#: bad deploy. There is no way back from that: delivery no longer reads
+#: `users.device_token`, so every user would have to relaunch the app on every
+#: device, and until they did, `no_device_token` would make the webhook cancel
+#: their notifications permanently rather than retry.
+#:
+#: A pruning rule has to be safe when the *sender* is what is broken.
+_DEAD_TOKEN_STATUS = 410
+_DEAD_TOKEN_REASON = "Unregistered"
+
+
+def _is_dead_token(outcome: dict) -> bool:
+    return (
+        outcome.get("status_code") == _DEAD_TOKEN_STATUS
+        and outcome.get("reason") == _DEAD_TOKEN_REASON
+    )
+
+
+def _prune_dead_tokens(client, tokens: list[str]) -> int:
+    """Delete devices APNs has told us are gone. Best-effort."""
+    if not tokens:
+        return 0
+    try:
+        client.table("user_devices").delete().in_("device_token", tokens).execute()
+    except Exception as exc:
+        logger.warning("Failed to prune %d dead device token(s): %s", len(tokens), exc)
+        return 0
+    logger.info("Pruned %d dead device token(s)", len(tokens))
+    return len(tokens)

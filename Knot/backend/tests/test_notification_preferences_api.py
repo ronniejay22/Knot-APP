@@ -502,6 +502,17 @@ class TestModuleImports:
 class TestWebhookNotificationsDisabled:
     """Webhook skips processing when user has notifications disabled."""
 
+    @pytest.fixture(autouse=True)
+    def _apns_unconfigured(self):
+        """
+        Pin APNs to unconfigured — these tests assert on the notifications
+        toggle, not on delivery, and without this their outcome depends on
+        whether the developer has APNS_* set in a local `.env`. See the same
+        fixture in test_notification_processing.py.
+        """
+        with patch("app.api.notifications.is_apns_configured", return_value=False):
+            yield
+
     def test_webhook_skips_when_notifications_disabled(self, client):
         """Webhook returns 'skipped' when notifications_enabled is false."""
         test_user_id = str(uuid.uuid4())

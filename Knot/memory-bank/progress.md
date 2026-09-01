@@ -7497,6 +7497,46 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 
 ---
 
+### Step 19.29 ✅ Notifications — One Row Per Device, Instead of One Token Per User
+**Date:** 2026-08-31
+**Status:** Complete
+
+*(Numbered 19.29 rather than 19.28: the backdrop-blur branch above was open and already holding 19.28 when this was written. Picking the next free number instead of the next sequential one is what keeps two in-flight branches from both landing a `### Step 19.28`.)*
+
+**Goal:** Let a user receive push notifications on every device they own, rather than only the one they opened most recently.
+
+**Root cause:** `users.device_token` was a single column, so `POST /device-token` **overwrote** whatever was there. Registering a second device silently unsubscribed the first. Nothing errored — APNs kept returning 200, because the token it was handed was perfectly valid, just the wrong device's.
+
+**How it surfaced:** while testing pushes to a real iPhone, deliveries stopped arriving even though APNs reported success every time. The token in the database was 160 hex characters; a real APNs token is 32 bytes / 64. It was the **Simulator's** token — every launch of the app on the Simulator during development had overwritten the phone's. In production this same bug is invisible: a user with a phone and an iPad simply stops getting notifications on one of them, with nothing to report.
+
+**What changed:**
+- Migration `00028` creates `user_devices` — one row per device token, `user_id` foreign-keyed with `ON DELETE CASCADE`, indexed on `user_id` since delivery fans out by user. RLS enabled and `anon`/`authenticated` revoked: device tokens are push-addressable identifiers sitting in the PostgREST-exposed `public` schema, and the anon key ships inside the app.
+- **`device_token` is globally UNIQUE, not unique per user.** A physical device belongs to one account at a time, so if someone signs out and another user signs in, the token must *move* rather than exist twice — otherwise the previous account keeps receiving that phone's notifications. The registration endpoint upserts `on_conflict="device_token"` for exactly this reason.
+- The migration backfills from `users.device_token`. That column is left in place and still written on registration as a most-recently-seen convenience, but delivery no longer reads it.
+- `deliver_push_notification()` now loads every device for the user and sends concurrently via `asyncio.gather(..., return_exceptions=True)`, so one unreachable device cannot stop the others. It returns `success=True` if *any* device took delivery, and adds `device_count` / `delivered_count` / `pruned_count`. The pre-existing `success` / `reason` keys are unchanged, so `notifications.py` needed no edit.
+- Dead tokens are pruned, but **only on a 410 `Unregistered`** — the single APNs verdict that means the app was deleted from that device. Pruning is best-effort and never fails a delivery that succeeded.
+
+**Files created:**
+- `backend/supabase/migrations/00028_create_user_devices_table.sql`
+- `backend/tests/test_multi_device_push.py`
+
+**Files modified:**
+- `backend/app/services/apns.py` — fan-out, aggregate result, `_is_dead_token`, `_prune_dead_tokens`
+- `backend/app/api/users.py` — upsert into `user_devices` keyed on the token
+- `backend/tests/test_notification_processing.py`, `backend/tests/test_notification_preferences_api.py` — autouse fixtures (see note)
+
+**Tests:** 24 new tests covering fan-out to N devices, partial success, a raising device not stopping its siblings, the unchanged `no_device_token` contract, a lookup failure staying transient rather than being mistaken for "no devices", the prune/don't-prune matrix per APNs reason, and — the important one — that a misconfigured sender 400ing every push prunes nothing. Full backend suite: 1488 passed, 622 skipped.
+
+**Verified end to end** against the live project: applied 00028 with `scripts/migrate.py apply`, registered both the phone and the Simulator, and sent one push — `device_count: 2, delivered_count: 2, pruned_count: 0`, with both devices receiving it.
+
+**Notes:**
+- **Five tests were failing before this change and had nothing to do with it.** `TestNotificationRecommendationGeneration` and `TestWebhookNotificationsDisabled` never mocked `is_apns_configured`, so their outcome depended on whether the developer had `APNS_*` set in a local `.env`: unset, the webhook skips push and marks the row sent; set, it attempts a real delivery for a fabricated `user_id`, finds no device, and cancels. Adding real APNs credentials to `.env` earlier in the session flipped them red — on `main` as well, verified directly. Both classes now pin `is_apns_configured` to False via an autouse fixture. A test whose result depends on machine configuration is worse than no test.
+- The old single-column design cannot be detected from the client side: the app registers successfully, the server returns 200, APNs returns 200, and the notification is delivered — to somebody else's device.
+- **The pruning rule was nearly a footgun.** The first version treated `BadDeviceToken` and `DeviceTokenNotForTopic` as dead, which *sounds* right — they read as terminal. But APNs returns both for **sender** misconfiguration: a wrong `APNS_USE_SANDBOX` or a mismatched bundle ID makes every push 400. That version would have deleted every row in `user_devices` on the first send after a bad deploy, with no way back short of every user relaunching the app on every device — and `no_device_token` would have cancelled their notifications permanently in the meantime. Narrowed to 410 `Unregistered` only, with a test for the misconfigured-sender case. **A destructive rule has to be safe when the sender is what is broken, not just when the device is.**
+- Partial delivery reports `success` deliberately. If one device 503s while another takes the push, returning failure would make QStash re-run the whole delivery and duplicate the notification on the device that already had it. A missed reminder on a second device beats a doubled one on the first; the shortfall is logged and exposed as `delivered_count` / `failed_count`. When *nothing* lands, a transient reason is surfaced in preference to a terminal one so the webhook retries rather than cancels.
+
+---
+
 ### Step 19.30 ✅ Notifications — No Loading Flash Before the Occasion Modal
 **Date:** 2026-08-31
 **Status:** Complete
@@ -7536,6 +7576,7 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 ---
 
 ## Next Steps
+
 
 ### Phase 13: Launch Preparation
 - [x] **Step 13.1:** Replace External APIs with Claude Search Agent

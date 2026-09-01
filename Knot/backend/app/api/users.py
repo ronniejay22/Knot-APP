@@ -61,12 +61,23 @@ async def register_device_token(
     Register or update the device token for push notifications.
 
     Called by the iOS app on every launch after the user grants
-    notification permissions. The token is stored in the users table
-    and used by Step 7.5 to deliver APNs push notifications.
+    notification permissions.
 
-    The endpoint uses the service role client to update the users
-    table directly, bypassing RLS (the authenticated user_id from
-    the JWT identifies which row to update).
+    The token is upserted into `user_devices`, keyed on the token itself, so a
+    user accumulates devices rather than replacing one with the next. Before
+    this, the token lived in a single `users.device_token` column and each
+    registration overwrote the last — a second device silently took over
+    notifications from the first, with nothing failing to signal it.
+
+    Keying the upsert on `device_token` (not `user_id`) also handles a device
+    changing hands: signing in as a different user MOVES the row rather than
+    leaving the previous account subscribed to a phone it no longer owns.
+
+    `users.device_token` is still written as a most-recently-seen convenience
+    for debugging, but delivery no longer reads it.
+
+    The endpoint uses the service role client, bypassing RLS (the authenticated
+    user_id from the JWT identifies the owner).
 
     Returns:
         200: Token registered/updated successfully.
@@ -77,11 +88,10 @@ async def register_device_token(
     """
     client = get_service_client()
 
-    # Check if user already has a device token stored
     try:
         existing = (
             client.table("users")
-            .select("device_token")
+            .select("id")
             .eq("id", user_id)
             .execute()
         )
@@ -99,11 +109,30 @@ async def register_device_token(
             detail="User not found.",
         )
 
-    previous_token = existing.data[0].get("device_token")
-    result_status = "updated" if previous_token else "registered"
-
-    # Upsert the device token
     try:
+        # Scoped to this user on purpose: the status describes the *caller's*
+        # relationship to the device. A phone changing accounts is a
+        # "registered" for its new owner even though the row already exists.
+        known = (
+            client.table("user_devices")
+            .select("id")
+            .eq("device_token", payload.device_token)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        result_status = "updated" if known.data else "registered"
+
+        client.table("user_devices").upsert(
+            {
+                "user_id": user_id,
+                "device_token": payload.device_token,
+                "platform": payload.platform,
+                "last_seen_at": datetime.now(timezone.utc).isoformat(),
+            },
+            on_conflict="device_token",
+        ).execute()
+
+        # Legacy mirror — not read by delivery, kept for debugging.
         client.table("users").update({
             "device_token": payload.device_token,
             "device_platform": payload.platform,
