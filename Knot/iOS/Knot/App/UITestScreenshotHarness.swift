@@ -93,29 +93,29 @@ enum UITestScreenshotHarness {
 /// backdrop treatment is invisible — blurring a gradient looks like the
 /// gradient — so a reviewer could not see how much the blur softens the content
 /// underneath. Real cards, images and text make it legible.
-/// Presented through `.fullScreenCover` + `.presentationBackground(.clear)`,
-/// exactly as `MilestoneRecommendationsCoverView` does it. A plain `ZStack`
-/// sibling would render the same layout but place the material in a different
-/// part of the tree, and a material samples whatever it is composited over — so
-/// the backdrop in the screenshot would not be the backdrop users see.
+/// Composed as a `ZStack` layer with the entrance animation off, matching
+/// `MilestoneRecommendationsCoverView`. It previously used a `.fullScreenCover`
+/// because production did; production now stacks the modal so it is on screen
+/// with the first frame, and a harness that presents it differently would be
+/// testing a composition the app no longer uses — a material samples whatever
+/// it is composited over, so the backdrop could differ from the real one.
 private struct OccasionModalScreenshotHarnessView: View {
-    @State private var showModal = true
-
     var body: some View {
-        MilestoneRecsScreenshotHarnessView()
-            .fullScreenCover(isPresented: $showModal) {
-                OccasionEntryModal(
-                    copy: OccasionCopy.resolve(
-                        category: "birthday",
-                        partnerName: "Jerry",
-                        daysUntil: 3,
-                        milestoneName: "Jerry's Birthday"
-                    ),
-                    onContinue: {},
-                    onClose: {}
-                )
-                .presentationBackground(.clear)
-            }
+        ZStack {
+            MilestoneRecsScreenshotHarnessView()
+
+            OccasionEntryModal(
+                copy: OccasionCopy.resolve(
+                    category: "birthday",
+                    partnerName: "Jerry",
+                    daysUntil: 3,
+                    milestoneName: "Jerry's Birthday"
+                ),
+                entranceAnimated: false,
+                onContinue: {},
+                onClose: {}
+            )
+        }
     }
 }
 

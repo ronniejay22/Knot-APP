@@ -58,38 +58,59 @@ struct MilestoneRecommendationsCoverView: View {
     var showsEntryModalOnAppear: Bool { display != nil }
 
     var body: some View {
-        NavigationStack {
-            RecommendationsView(
-                milestoneId: milestoneId,
-                milestoneContext: milestoneContext,
-                preferPregenerated: true,
-                isModal: true
-            )
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        onDismiss()
-                    } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+        // The modal is a layer here, NOT a nested `.fullScreenCover`. A cover
+        // inside a cover needs its own presentation cycle before it can draw,
+        // and this one is already the destination of a tap — so for a frame or
+        // two the recommendations screen showed through underneath. Stacking it
+        // puts the card on screen with the first frame. It sits outside the
+        // NavigationStack so it still covers the toolbar, exactly as the cover
+        // did.
+        ZStack {
+            NavigationStack {
+                RecommendationsView(
+                    milestoneId: milestoneId,
+                    milestoneContext: milestoneContext,
+                    preferPregenerated: true,
+                    isModal: true
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            onDismiss()
+                        } label: {
+                            Image(uiImage: Lucide.x)
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                        }
+                        .tint(Theme.textPrimary)
                     }
-                    .tint(Theme.textPrimary)
                 }
             }
-        }
-        .fullScreenCover(isPresented: $showEntryModal) {
-            OccasionEntryModal(
-                copy: entryCopy,
-                // Continue and close land in the same place — the picks are
-                // already behind the card. The X is "skip the framing", not
-                // "leave", which is what the toolbar X is for.
-                onContinue: { dismissEntryModal() },
-                onClose: { dismissEntryModal() }
-            )
-            .presentationBackground(.clear)
+            // A `.fullScreenCover` took the content underneath out of the
+            // accessibility tree and out of hit-testing for free; a `ZStack`
+            // does not. Without this, VoiceOver could swipe past the card onto
+            // the toolbar X and dismiss the whole tap-through while the modal
+            // was still on screen, and the nav bar is a real UIView sitting
+            // under a SwiftUI-drawn backdrop.
+            .accessibilityHidden(showEntryModal)
+            .allowsHitTesting(!showEntryModal)
+
+            if showEntryModal {
+                OccasionEntryModal(
+                    copy: entryCopy,
+                    // No entrance: the modal *is* what the notification opened,
+                    // so there is nothing to transition from, and a fade-in
+                    // would reveal the screen behind it while it played.
+                    entranceAnimated: false,
+                    // Continue and close land in the same place — the picks are
+                    // already behind the card. The X is "skip the framing", not
+                    // "leave", which is what the toolbar X is for.
+                    onContinue: { dismissEntryModal() },
+                    onClose: { dismissEntryModal() }
+                )
+            }
         }
         .task {
             if let notificationId {
@@ -110,9 +131,9 @@ struct MilestoneRecommendationsCoverView: View {
         )
     }
 
-    /// Tears the cover down with no animation — `OccasionEntryModal` has
-    /// already played its own exit by the time this runs, so the system's
-    /// bottom-slide would be a second, conflicting transition.
+    /// Removes the modal layer with no animation of its own —
+    /// `OccasionEntryModal` has already played its exit fade by the time this
+    /// runs, so any transition here would be a second, conflicting one.
     private func dismissEntryModal() {
         var transaction = Transaction()
         transaction.disablesAnimations = true

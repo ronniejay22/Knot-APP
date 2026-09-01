@@ -7497,6 +7497,44 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 
 ---
 
+### Step 19.30 ✅ Notifications — No Loading Flash Before the Occasion Modal
+**Date:** 2026-08-31
+**Status:** Complete
+
+*(Numbered 19.30: PR #58 was open and holding 19.29 when this was written.)*
+
+**Goal:** Tapping a milestone push should land on the occasion modal over the recommendations, with nothing in between. It was briefly showing the recommendation loading animation — progress bar and all — first.
+
+**Two separate faults, each wrong on its own:**
+
+**1. The wrong loading UI entirely.** `RecommendationsView`'s loading branch renders `ForYouLoadingView` — the *generation* animation, with drifting icons and "a progress bar that fills toward 95% over ~28s" (its own docstring). That is honest for onboarding and For You, which really do run the pipeline. The tap-through does not: `preferPregenerated` routes to `loadPregeneratedRecommendations()`, a single `GET /by-milestone/{id}` of rows already stored when the push fired. A sub-second read was rendering a 28-second progress bar. Even with no modal involved, that is a lie about what the app is doing.
+
+**2. The modal could not be on screen for the first frame.** It was a `.fullScreenCover` nested *inside* the cover view's own `.fullScreenCover`. A nested cover needs its own presentation cycle before it can draw, and then the modal animated in from `opacity 0` over a 0.4s spring — so whatever sat behind it was visible for that whole window.
+
+**What changed:**
+- `RecommendationsView`: the loading branch renders `Color.clear` instead of `ForYouLoadingView` while the **pre-generated read** is the operation in flight. The honest failure states are untouched — `pregeneratedMissing` (nothing was stored) and `errorState` (the fetch failed) still say so.
+- That decision tracks a `@State isPregeneratedRead` set in `loadContent()`, **not** the `preferPregenerated` constructor flag. The flag stays true for the whole tap-through, including when the user taps "Find picks now" from `pregeneratedMissingState` — which runs the real ~30s pipeline. Gating on the flag left them staring at a blank gradient for half a minute after explicitly opting into the wait. The rule lives in the pure `RecommendationsView.showsGenerationLoading(isPregeneratedRead:)` so it can be tested without rendering.
+- `MilestoneRecommendationsCoverView`: the modal is a `ZStack` layer wrapping the `NavigationStack`, not a nested cover. On screen with the first frame, and still over the toolbar because it sits outside the stack. `.presentationBackground(.clear)` is gone with the cover.
+- The layer underneath carries `.accessibilityHidden(showEntryModal)` and `.allowsHitTesting(!showEntryModal)`. A `.fullScreenCover` gave that isolation for free; a `ZStack` does not, and without it VoiceOver could swipe past the card onto the toolbar X and dismiss the whole tap-through while the modal was still visible.
+- `OccasionEntryModal` gained `entranceAnimated: Bool = true`. When false, `appeared` starts `true`, so the first frame is the finished card. The spring exists because `RelationshipLengthModal` and `MilestoneDateModal` are dialogs raised over a screen the user is already looking at — an entrance explains where the card came from. Here the modal *is* the destination; there is no "before" to transition from. The default is unchanged so those two are unaffected. Dismissal still animates.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift`
+- `iOS/Knot/Features/Recommendations/MilestoneRecommendationsCoverView.swift`
+- `iOS/Knot/Features/Recommendations/OccasionEntryModal.swift`
+- `iOS/Knot/App/UITestScreenshotHarness.swift`
+- `iOS/KnotTests/OccasionEntryModalTests.swift`
+- `docs/pr-screenshots/worktree-fix-tapthrough-loading-flash.png`
+
+**Tests:** 4 new — the entrance is skippable, the entrance still defaults to animated (so the onboarding dialogs keep theirs), the pre-generated read hides the generation animation, and a real generation still shows it. The last two go through the pure `showsGenerationLoading` helper; an earlier version scraped `RecommendationsView.swift` off `#filePath` and force-unwrapped a range, which would trap rather than fail and break anywhere that path didn't resolve. iOS Full plan green.
+
+**Notes:**
+- The PR screenshot is **identical** to the previous one, and that is the expected result: the destination did not change, only the path to it. A screenshot cannot show the absence of a flash — the on-device tap is what confirms it.
+- **The harness had to follow production again.** Step 19.28 changed it to present through `.fullScreenCover` specifically so it mirrored the app. Now that production stacks the modal, the harness stacks it too — otherwise it would be exercising a composition the app no longer uses. A harness that mirrors production has to be re-mirrored every time production moves.
+- `ForYouLoadingView` is untouched for onboarding and For You, where a ~30s generation genuinely is running.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation

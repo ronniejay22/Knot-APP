@@ -21,7 +21,33 @@ struct OccasionEntryModal: View {
     let onContinue: @MainActor () -> Void
     let onClose: @MainActor () -> Void
 
-    @State private var appeared = false
+    /// Whether the card animates in.
+    ///
+    /// `true` for a dialog raised over a screen the user is already looking
+    /// at — the entrance explains where the card came from. `false` when the
+    /// modal *is* the destination, as on the push tap-through: there is no
+    /// "before" to transition from, and animating in from `opacity 0` means
+    /// the loading state behind it is visible for the length of the spring.
+    ///
+    /// Dismissal always animates; that transition is still wanted.
+    let entranceAnimated: Bool
+
+    @State private var appeared: Bool
+
+    init(
+        copy: OccasionCopy,
+        entranceAnimated: Bool = true,
+        onContinue: @escaping @MainActor () -> Void,
+        onClose: @escaping @MainActor () -> Void
+    ) {
+        self.copy = copy
+        self.entranceAnimated = entranceAnimated
+        self.onContinue = onContinue
+        self.onClose = onClose
+        // Starts fully presented when there is no entrance, so the very first
+        // frame is the finished card rather than a transparent one.
+        _appeared = State(initialValue: !entranceAnimated)
+    }
 
     // Matched to `RelationshipLengthModal` so every centered dialog in the app
     // enters and leaves the same way.
@@ -57,6 +83,7 @@ struct OccasionEntryModal: View {
                 .opacity(appeared ? 1 : 0)
         }
         .onAppear {
+            guard entranceAnimated else { return }
             // Deferred a runloop tick so the animation runs from the collapsed
             // state instead of being coalesced into first render.
             Task { @MainActor in
