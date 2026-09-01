@@ -262,6 +262,65 @@ final class OccasionEntryModalRenderingTests: XCTestCase {
     }
 }
 
+// MARK: - No flash before the modal
+
+@MainActor
+final class OccasionEntryNoFlashTests: XCTestCase {
+
+    /// The modal opened by a notification has nothing to transition *from*, and
+    /// fading in from `opacity 0` let the recommendations screen show through
+    /// for the length of the spring.
+    func testEntranceIsSkippableSoTheFirstFrameIsTheFinishedCard() {
+        let modal = OccasionEntryModal(
+            copy: OccasionCopy.resolve(
+                category: "birthday", partnerName: "Jas",
+                daysUntil: 3, milestoneName: "Jas's Birthday"
+            ),
+            entranceAnimated: false,
+            onContinue: {},
+            onClose: {}
+        )
+
+        XCTAssertFalse(modal.entranceAnimated)
+        XCTAssertNotNil(UIHostingController(rootView: modal).view)
+    }
+
+    /// The onboarding dialogs share this component and DO want an entrance, so
+    /// the default must not change under them.
+    func testEntranceIsAnimatedByDefault() {
+        let modal = OccasionEntryModal(
+            copy: OccasionCopy.resolve(
+                category: "birthday", partnerName: "Jas",
+                daysUntil: 3, milestoneName: nil
+            ),
+            onContinue: {},
+            onClose: {}
+        )
+
+        XCTAssertTrue(modal.entranceAnimated)
+    }
+
+    /// `ForYouLoadingView` is the ~28-second generation animation, progress bar
+    /// and all. The tap-through only reads an already-stored batch, so showing
+    /// it is both a lie about the wait and the flash the user reported.
+    func testPregeneratedReadHidesTheGenerationAnimation() {
+        XCTAssertFalse(
+            RecommendationsView.showsGenerationLoading(isPregeneratedRead: true)
+        )
+    }
+
+    /// The decision must follow the load actually running, not the
+    /// `preferPregenerated` constructor flag — "Find picks now" reaches the
+    /// real ~30s pipeline with that flag still true, and blanking the screen
+    /// for half a minute after the user opted into the wait would be worse
+    /// than the flash this change removes.
+    func testARealGenerationStillShowsTheAnimation() {
+        XCTAssertTrue(
+            RecommendationsView.showsGenerationLoading(isPregeneratedRead: false)
+        )
+    }
+}
+
 // MARK: - Push payload
 
 @MainActor

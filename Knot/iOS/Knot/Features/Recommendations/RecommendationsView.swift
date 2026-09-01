@@ -85,6 +85,29 @@ struct RecommendationsView: View {
     /// an honest opt-in state rather than silently running a ~30s generation.
     @State private var pregeneratedMissing = false
 
+    /// True while the *currently running* load is the pre-generated read.
+    ///
+    /// Deliberately tracks the operation in flight rather than the
+    /// `preferPregenerated` constructor flag. That flag stays true for the
+    /// whole tap-through, including when the user taps "Find picks now" from
+    /// `pregeneratedMissingState` — which runs the real ~30s pipeline. Gating
+    /// on the flag would leave them staring at a blank gradient for half a
+    /// minute after explicitly opting into the wait.
+    @State private var isPregeneratedRead = false
+
+    /// Whether the ~28s generation animation belongs on screen.
+    ///
+    /// `ForYouLoadingView` is the *generation* animation — drifting icons and
+    /// a progress bar filling toward 95% over ~28s. Honest for onboarding and
+    /// For You, which really do run the pipeline; a lie for a single
+    /// `GET /by-milestone/{id}` of an already-stored batch, which also flashed
+    /// on screen before the entry modal covered it.
+    ///
+    /// Static and pure so the rule can be tested without a rendered view.
+    static func showsGenerationLoading(isPregeneratedRead: Bool) -> Bool {
+        !isPregeneratedRead
+    }
+
     /// True while the climax celebration is playing — between loading completing and
     /// recommendation cards appearing. Driven by `.onChange(of: viewModel.isLoading)`.
     @State private var isPlayingClimax = false
@@ -276,6 +299,7 @@ struct RecommendationsView: View {
     private func loadContent() async {
         if preferPregenerated, let mId = milestoneId {
             pregeneratedMissing = false
+            isPregeneratedRead = true
             let displayed = await viewModel.loadPregeneratedRecommendations(milestoneId: mId)
             if !displayed {
                 pregeneratedMissing = true
@@ -293,6 +317,10 @@ struct RecommendationsView: View {
     /// generation stays milestone-scoped ("major_milestone" occasion) instead of
     /// silently dropping the milestone.
     private func generateWithMilestoneContext() async {
+        // A real pipeline run, whatever the constructor flag says — the
+        // "Find picks now" retry reaches here with `preferPregenerated` still
+        // true. The user opted into the wait; show them the progress.
+        isPregeneratedRead = false
         if let mId = milestoneId {
             await viewModel.generateRecommendations(
                 occasionType: milestoneContext?.occasionType ?? "major_milestone",
@@ -381,7 +409,11 @@ struct RecommendationsView: View {
     @ViewBuilder
     private var suggestionsContent: some View {
         if viewModel.isLoading {
-            loadingState
+            if Self.showsGenerationLoading(isPregeneratedRead: isPregeneratedRead) {
+                loadingState
+            } else {
+                Color.clear
+            }
         } else if isPlayingClimax {
             ForYouClimaxView()
                 .transition(.opacity)
