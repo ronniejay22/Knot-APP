@@ -32,11 +32,19 @@ struct OccasionEntryModal: View {
     /// 350x160 in the comp — exactly 35:16.
     private let illustrationAspectRatio: CGFloat = 350.0 / 160.0
 
+    /// How much of the blurred layer to show. `.ultraThinMaterial` is already
+    /// the least opaque material SwiftUI offers, and materials expose no blur
+    /// radius, so softening the backdrop means blending the blurred layer with
+    /// the sharp one rather than reaching for a thinner material.
+    ///
+    /// The dim is applied separately at full strength — it is what keeps the
+    /// card legible, and dropping it along with the blur would leave the white
+    /// card floating on bright content.
+    private let backdropBlurOpacity: Double = 0.5
+
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Theme.overlayDim)
+            backdrop
                 .ignoresSafeArea()
                 .opacity(appeared ? 1 : 0)
                 .onTapGesture { animateOut(then: onClose) }
@@ -55,6 +63,19 @@ struct OccasionEntryModal: View {
                 await Task.yield()
                 withAnimation(appearAnimation) { appeared = true }
             }
+        }
+    }
+
+    // MARK: - Backdrop
+
+    /// Softened blur plus a full-strength dim. The two are separate layers so
+    /// the blur can be dialled back without also lightening the dim.
+    private var backdrop: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(backdropBlurOpacity)
+            Theme.overlayDim
         }
     }
 

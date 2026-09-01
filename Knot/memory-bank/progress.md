@@ -7473,6 +7473,30 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 
 ---
 
+### Step 19.28 ✅ Recommendations — Soften the Occasion Modal's Backdrop Blur
+**Date:** 2026-08-31
+**Status:** Complete
+
+**Goal:** The entry modal's backdrop obscured the screen underneath almost completely. Reduce the blur so the recommendations stay perceptible behind the card.
+
+**What changed:**
+- `OccasionEntryModal`'s backdrop is now two explicit layers: `.ultraThinMaterial` at `backdropBlurOpacity = 0.5`, with `Theme.overlayDim` on top at full strength.
+- The split matters. `.ultraThinMaterial` is already the least opaque material SwiftUI offers, and materials expose no blur radius — so there is no thinner material to reach for. Softening means blending the blurred layer with the sharp one. Keeping the dim separate means the blur can be dialled back without also lightening the dim, which is what keeps a white card legible over bright content.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/OccasionEntryModal.swift`
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `occasionModal` now renders over `MilestoneRecsScreenshotHarnessView` instead of a bare gradient
+- `docs/pr-screenshots/worktree-fix-modal-backdrop-blur.png`
+
+**Tests:** iOS Full plan (unit + UI) green. No new tests — the change is a rendering constant with no branching behaviour; the existing `OccasionEntryModalRenderingTests` still cover that every category renders.
+
+**Notes:**
+- **The screenshot harness had been lying by omission.** It rendered the modal over `Theme.backgroundGradient`, and a blurred flat gradient is indistinguishable from an unblurred one — so no backdrop change could ever have been reviewed from a PR screenshot. It now renders over the seeded recommendations screen, which is what the modal actually covers.
+- The harness also presents through `.fullScreenCover` + `.presentationBackground(.clear)`, mirroring `MilestoneRecommendationsCoverView`, rather than stacking the modal as a `ZStack` sibling. A material samples whatever it is composited over, so a lookalike composition could have shown a backdrop users never see. Checked both ways: the rendering is equivalent here, but the harness now matches production on that axis rather than relying on it.
+- **`MilestoneDateModal` and `RelationshipLengthModal` still use the original `.ultraThinMaterial` + `overlayDim` backdrop at full strength.** The three centred dialogs were deliberately identical, and this change diverges them. Left alone because the request was about this modal and those two are onboarding surfaces that were not under review — but if the softer backdrop is the preference, they should follow, and the value belongs in `Theme` rather than duplicated three times.
+
+---
+
 ## Next Steps
 
 ### Phase 13: Launch Preparation
