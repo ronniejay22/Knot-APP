@@ -40,7 +40,7 @@ struct OccasionEntryModal: View {
     /// The dim is applied separately at full strength — it is what keeps the
     /// card legible, and dropping it along with the blur would leave the white
     /// card floating on bright content.
-    private let backdropBlurOpacity: Double = 0.5
+    private let backdropBlurOpacity: Double = 0.65
 
     var body: some View {
         ZStack {

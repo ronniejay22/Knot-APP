@@ -7480,7 +7480,7 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 **Goal:** The entry modal's backdrop obscured the screen underneath almost completely. Reduce the blur so the recommendations stay perceptible behind the card.
 
 **What changed:**
-- `OccasionEntryModal`'s backdrop is now two explicit layers: `.ultraThinMaterial` at `backdropBlurOpacity = 0.5`, with `Theme.overlayDim` on top at full strength.
+- `OccasionEntryModal`'s backdrop is now two explicit layers: `.ultraThinMaterial` at `backdropBlurOpacity = 0.65`, with `Theme.overlayDim` on top at full strength.
 - The split matters. `.ultraThinMaterial` is already the least opaque material SwiftUI offers, and materials expose no blur radius — so there is no thinner material to reach for. Softening means blending the blurred layer with the sharp one. Keeping the dim separate means the blur can be dialled back without also lightening the dim, which is what keeps a white card legible over bright content.
 
 **Files modified:**
