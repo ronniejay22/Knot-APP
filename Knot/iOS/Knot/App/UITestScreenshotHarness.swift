@@ -83,27 +83,39 @@ enum UITestScreenshotHarness {
     }
 }
 
-/// Renders the occasion entry modal standalone over the app's background.
+/// Renders the occasion entry modal over the screen it actually covers.
 ///
 /// The real modal only appears after a milestone push tap-through, which a cold
 /// screenshot launch cannot reach — it needs an authenticated session, a stored
 /// milestone, and a delivered notification.
+///
+/// The recommendations sit behind it deliberately. Over a flat gradient the
+/// backdrop treatment is invisible — blurring a gradient looks like the
+/// gradient — so a reviewer could not see how much the blur softens the content
+/// underneath. Real cards, images and text make it legible.
+/// Presented through `.fullScreenCover` + `.presentationBackground(.clear)`,
+/// exactly as `MilestoneRecommendationsCoverView` does it. A plain `ZStack`
+/// sibling would render the same layout but place the material in a different
+/// part of the tree, and a material samples whatever it is composited over — so
+/// the backdrop in the screenshot would not be the backdrop users see.
 private struct OccasionModalScreenshotHarnessView: View {
-    var body: some View {
-        ZStack {
-            Theme.backgroundGradient.ignoresSafeArea()
+    @State private var showModal = true
 
-            OccasionEntryModal(
-                copy: OccasionCopy.resolve(
-                    category: "birthday",
-                    partnerName: "Jerry",
-                    daysUntil: 3,
-                    milestoneName: "Jerry's Birthday"
-                ),
-                onContinue: {},
-                onClose: {}
-            )
-        }
+    var body: some View {
+        MilestoneRecsScreenshotHarnessView()
+            .fullScreenCover(isPresented: $showModal) {
+                OccasionEntryModal(
+                    copy: OccasionCopy.resolve(
+                        category: "birthday",
+                        partnerName: "Jerry",
+                        daysUntil: 3,
+                        milestoneName: "Jerry's Birthday"
+                    ),
+                    onContinue: {},
+                    onClose: {}
+                )
+                .presentationBackground(.clear)
+            }
     }
 }
 
