@@ -447,6 +447,22 @@ class TestNotificationRecommendationGeneration:
     Uses mocks for QStash signature, vault loading, and pipeline.
     """
 
+    @pytest.fixture(autouse=True)
+    def _apns_unconfigured(self):
+        """
+        Pin APNs to unconfigured for this class.
+
+        These tests are about recommendation generation and queue status, not
+        push delivery, and they never mocked the delivery path. That made their
+        result depend on whether the developer happened to have APNS_* set in a
+        local `.env`: unset, the webhook skips push and marks the row sent;
+        set, it attempts a real delivery for a fabricated user_id, finds no
+        device, and cancels the notification instead. The suite passed or
+        failed based on machine configuration.
+        """
+        with patch("app.api.notifications.is_apns_configured", return_value=False):
+            yield
+
     def _build_signed_request(self, payload: dict) -> tuple[bytes, str]:
         """Build a signed QStash webhook request."""
         body = json.dumps(payload).encode()
