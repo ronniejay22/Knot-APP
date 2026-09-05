@@ -7575,7 +7575,174 @@ Only *mixed* batches broke. Three gifts worked; three ideas worked. That intermi
 
 ---
 
-### Step 19.31 ✅ Design System — DM Sans Is the Only Font Family
+### Step 19.31 ✅ Journal — Rename the For You Tab and Rebuild It as a Card Feed
+**Date:** 2026-09-05
+**Status:** Complete
+
+**Goal:** Rename the first tab to **Journal** and rebuild the screen to match a supplied
+mockup — large white artwork cards under a "YOUR JOURNAL" eyebrow, partner name, and avatar —
+replacing the vertical timeline (connecting line, urgency dot, capsule date badge, one-line
+title).
+
+**The artwork was already in the app.** `MilestoneItemResponse` has carried `occasionCategory`
+since Step 19.25 and the catalogue holds 21 occasion illustrations at
+`OccasionIllustrations/occasion-<slug>`, but the For You tab used neither — its only view of a
+milestone was type, name, date and countdown. `OccasionCopy.illustrationName(for:)` already
+slugifies a category and bundle-checks the asset, so per-milestone card art needed **no new
+assets, no new endpoint, and no new DTO field**.
+
+**What changed:**
+- **`App/MainTabView.swift`:** `AppTab.forYou` → `.journal` (raw value 0 unchanged, so a
+  persisted selection still points at the same tab), title "For You" → "Journal", and the SF
+  Symbol `sparkles` → `book`. `KnotTabBar` applies `.symbolVariant(.fill)` on selection and
+  `sparkles` has no fill variant — a weakness called out in Step 18.3's own notes — so the
+  rename also fixes a tab that had only ever differentiated by colour.
+- **`Features/ForYou/MilestoneCard.swift` (new):** the card — `KnotCard` wrapping 200pt artwork,
+  an uppercase letterspaced date opposite the countdown, a Fraunces SemiBold title, a divider,
+  and a footer of partner-initial avatar + "For {partner}" + the existing `RecommendationBadge`
+  button. Three pure statics carry the logic so it is testable without SwiftUI introspection:
+  `artwork(for:)` (→ `.illustration(name)` / `.placeholder`), `dateLabel(from:)` (uppercases the
+  view model's "MMM d"), and `countdownColor(for:)`. Also hosts `PartnerInitialAvatar`.
+- **`Features/ForYou/TimelineEntryView.swift`:** deleted. Its `partnerName` parameter had been
+  passed by both call sites and never read.
+- **`Features/ForYou/ForYouView.swift`:** gained the in-content `journalHeader` and an inline
+  `upcomingHeader` whose "View all" opens `MilestonesManagementView` in a `.fullScreenCover`
+  (refreshing milestones on dismiss, mirroring the existing `MilestoneFormSheet` pattern). The
+  navigation bar is hidden so the header starts at the safe-area top. The timeline `ForEach`
+  became `MilestoneCard`s; the empty state moved inside a `KnotCard`.
+
+**Deviations from the mock, and why:**
+- **"• 5 suggestions" omitted.** There is no batch count endpoint — a real number costs one
+  `GET /by-milestone/{id}` per card, and a fabricated one is worse than none.
+- **Bookmark icon omitted.** Milestones have no save concept anywhere in the app; a dead
+  control is worse than an absent one.
+- **"View calendar" renders as "View all."** There is no calendar screen; the nearest real
+  destination is the milestone list, and the label shouldn't promise otherwise.
+- **The avatar is decorative.** The app stores no user or partner photo at any layer (`avatar`
+  and `profileImage` return zero hits), so `PartnerInitialAvatar` renders the partner's initial
+  and is `.accessibilityHidden(true)` — announcing a control with nothing behind it is worse
+  than announcing nothing.
+- **The warm cream background was not adopted.** `Theme.backgroundTop`/`Bottom` is app-wide;
+  rewarming it would restyle every screen and is a separate, deliberate decision.
+- **`JustBecauseCard` stays above "Upcoming."** The mock goes header → Upcoming directly, but
+  Step 18.18 deliberately made that card render from frame one as the always-available
+  recommendation entry point. Burying it below the milestone list would undo that fix. This is
+  the one intentional structural deviation.
+
+**The urgency ramp was kept, not dropped.** The design renders every countdown in accent pink,
+which is right for the far-out dates it shows — but the timeline this replaced carried a
+five-tier urgency colour, and a milestone three days out should not read the same as one 175
+days out. `countdownColor(for:)` keeps accent for `upcoming`/`planning`/`distant` and deviates
+only for `critical`/`soon`, via `Theme.statusError` / `Theme.statusWarning` — the tokens Step
+18.8 added for exactly this, and which the old row had never adopted (it used raw `.red` /
+`.orange`). This also keeps `ForYouViewModel.urgencyLevel` a live, consumed API rather than
+leaving it and its 12 tests behind as dead code.
+
+**A `.fill` image pushed the whole screen sideways.** The artwork was first written as
+`Image(name).resizable().aspectRatio(contentMode: .fill)` with `.frame(maxWidth: .infinity)` /
+`.frame(height: 200)` / `.clipShape` after it. A `scaledToFill` image reports a size *larger
+than the proposal* to preserve its aspect ratio, and that overflow propagates into layout
+rather than being absorbed by the frame: the 1050×480 illustration made the card ~437pt wide
+inside a 402pt screen, so the `ScrollView` centred content that was too wide and the entire
+Journal rendered clipped on both edges — the header read "R JOURNAL", the title "hristmas".
+The fix is the idiom `SpotlightCard` already used (Step 18.45): compose the image as an
+overlay on `Color.clear`, which accepts whatever it is proposed, so the frame is authoritative
+and the image can only overflow *visually*, where `clipShape` catches it. **`clipShape` clips
+pixels; it does not constrain layout.**
+
+**A wrong PR screenshot passed green, and three things had to be fixed for that to be
+impossible.** The first capture returned an image of the **recommendation detail page** — an
+entirely different screen — while the UI test reported success:
+- **The screenshot test never asserted.** Both waits were `_ = app.staticTexts[…]
+  .waitForExistence(…)`, so the result was discarded. When the target screen never appeared,
+  the test still passed and `app.screenshot()` captured whatever was on screen — here a stale
+  app snapshot. Both waits are now `XCTAssertTrue` with messages naming the consequence. A
+  screenshot is only evidence if the test fails when it isn't.
+- **The harness ran the whole auth lifecycle underneath itself.** `ContentView.body` routes to
+  the harness first, but its `.task` still called `listenForAuthChanges()`. The Simulator's
+  Keychain survives app reinstalls, so a restored session fired
+  `requestPushNotificationPermission()` and the resulting SpringBoard alert covered the screen.
+  The `.task` now returns early when `UITestScreenshotHarness.activeScreen != nil`.
+- **`dismissSystemAlerts()` didn't know the alert it most needed to dismiss — and was
+  expensive enough to crash the runner.** Its label list was `["Not Now", "Cancel", "Dismiss",
+  "Later", "OK"]`; the push-permission prompt's buttons are "Don't Allow" / "Allow". Adding
+  "Don't Allow" was not sufficient. **Every accessibility query that misses makes XCTest
+  collect a full accessibility snapshot for failure triage**, and the helper polled all six
+  labels against SpringBoard unconditionally — so in the common case of no alert it produced a
+  burst of six waits and six snapshots, which crashed the test runner mid-test (twice, at
+  different query targets). It now does a **single non-retrying `exists`** on
+  `springboard.alerts.firstMatch` and looks for a dismissive button *inside* it, and the test
+  settles for 2s before any query so the first one hits. That took the test from crashing the
+  runner to passing in 10.5s.
+
+All three are in the shared screenshot path, so every future PR screenshot benefits.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift`
+- `iOS/KnotTests/MilestoneCardTests.swift`
+
+**Files deleted:**
+- `iOS/Knot/Features/ForYou/TimelineEntryView.swift`
+
+**Files modified:**
+- `iOS/Knot/App/MainTabView.swift`, `iOS/Knot/Features/ForYou/ForYouView.swift`
+- `iOS/Knot/App/ContentView.swift` — skip the auth lifecycle under the screenshot harness
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `forYouTimeline` → `journal`, and
+  `ForYouTimelineScreenshotHarnessView` → `JournalScreenshotHarnessView`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — asserting waits + "Don't Allow"
+- `iOS/KnotTests/TabNavigationTests.swift`
+- `docs/pr-screenshots/worktree-feat-journal-tab-redesign.png`
+
+**Tests:** iOS Unit plan green — **443 tests**, 0 failures (419 baseline + 24 new). New
+`MilestoneCardTests` cover artwork resolution (known category → namespaced asset, underscore
+slugification, `default` and unknown → placeholder), the date-label uppercasing, the countdown
+colour map, `PartnerInitialAvatar` with blank names, and render smoke tests across every
+milestone type and both artwork paths.
+
+**Full plan: 443 unit + 4 UI green, with `KnotUITests/testLaunchPerformance` skipped.** That
+test is a pre-existing Step 12.5 placeholder (`measure(metrics: [XCTApplicationLaunchMetric()])`)
+and is untouched by this change; it relaunches the app five times back to back, and on this
+machine the app that follows it fails to bootstrap — "Test crashed with signal kill before
+establishing connection" — taking down whichever test ran next. Verified it is the cause and
+not the redesign: `PRScreenshotTests` passes on its own in 10.5s, `testAppLaunches` and
+`testLaunch` pass in the same run, and the whole Full plan passes once that one test is
+skipped. Worth a separate look; it will keep failing runs for reasons unrelated to whatever is
+being shipped.
+
+**Notes:**
+- **The Swift type names did not change.** `ForYouView` / `ForYouViewModel` / the `ForYou/`
+  folder keep their names; only the user-visible strings and the `AppTab` case were renamed, to
+  keep the diff on the redesign. The type-name/label mismatch is documented here and in
+  `architecture.md` so the next reader doesn't go looking for a `JournalView`.
+- **The harness seeds an `occasionCategory` on every sample, which the old one did not.**
+  `ForYouTimelineScreenshotHarnessView` passed no category, so every milestone resolved to
+  `"default"` — harmless for a timeline row that showed no image, but it would have captured
+  three gradient placeholders on a design whose whole point is the artwork. A harness only
+  proves what it actually seeds.
+- **The pushed destination re-shows the navigation bar explicitly.** `RecommendationsView` has
+  no `NavigationStack` of its own and relies on the system back button, so
+  `.toolbar(.visible, for: .navigationBar)` is set on the `navigationDestination` content. Bar
+  visibility is per-view in a `NavigationStack` and should not have inherited the root's hidden
+  state, but a silently-missing back button strands the user on a full-screen push — worth one
+  explicit line rather than an assumption.
+- **`.toolbar(.hidden, for: .navigationBar)` is scoped to the scroll content, not the ZStack.**
+  Review flagged that the `.sheet` (`MilestoneFormSheet`) and `.fullScreenCover`
+  (`MilestonesManagementView`) hang off the same chain, and their own NavigationStack toolbars
+  carry the *only* Cancel/Save and back affordances those screens have — a hidden bar leaking
+  into them would leave the user unable to save a milestone or exit the cover. Rather than
+  argue that presentation contexts isolate toolbar state, the modifier was moved onto
+  `timelineContent` so the presentations are structurally outside the modified subtree. This
+  is the app's only `.toolbar(.hidden,…)`, so there was no precedent to lean on.
+- **The rename left copy behind.** `SavedView`'s empty state and `OnboardingCompletionView`'s
+  post-onboarding line both told the user to go to "the For You tab", and `KnotTabBar`'s
+  preview still built a "For You" / `sparkles` item. A tab rename is not just the tab.
+- **A real "N suggestions" count is the obvious follow-up** and needs a batch endpoint (e.g.
+  counts alongside `GET /api/v1/milestones`) — not N per-card round trips.
+- `AppTab.journal` keeps raw value 0 deliberately; `TabNavigationTests` pins it.
+
+---
+
+### Step 19.32 ✅ Design System — DM Sans Is the Only Font Family
 **Date:** 2026-09-05
 **Status:** Complete
 
@@ -7631,7 +7798,8 @@ A harness key was needed at all because both screens sit on the unauthenticated 
 - `onboardingSubHeader` and `modalTitle` are now byte-identical (DMSans-SemiBold 20). Both were kept — they carry different semantics and different Dynamic Type relations (`.title2` vs `.title3`), and collapsing them would mean auditing every call site for the scaling change.
 - **Light sans reads thinner than light serif at display sizes.** `heroDisplay` (42) and `sectionHeader` (28) are the two places to look at on a real device. Preserving weight 300 is the faithful reading of the request, but if it reads too fragile, switching `heroDisplay` / `sectionHeader` / `italicQuote` to `DMSans-Regular` is a three-line change in `Theme.swift` — and would let `DMSans-Light.ttf` be dropped entirely.
 - The Google Fonts static-download path the original four cuts came from is gone. **Any future DM Sans weight must be instanced from the variable font**, and its `name` table patched to the convention above, or `Font.custom` will not resolve it. The registration tests are what will catch a mistake there.
-- **Files created:** `iOS/Knot/Resources/Fonts/DMSans-Light.ttf`, and the `signIn` key + a `Theme.Typography.onboardingHeaderCompact` token noted above.
+- **Files created:** `iOS/Knot/Resources/Fonts/DMSans-Light.ttf`, plus the `login` harness key and the `Theme.Typography.onboardingHeaderCompact` token noted above.
+- **Step 19.31 landed on `main` while this was in flight and hardened the same failure from the other side.** Its `PRScreenshotTests` rework traced runner crashes to `dismissSystemAlerts()` polling six labels against SpringBoard unconditionally — each miss costing a wait plus a full accessibility-hierarchy snapshot for XCTest's triage. So the sign-in crashes here were probably that burst *plus* an expensive screen, not the photo grid alone. The merge takes main's version of the helper and the settle-before-query ordering; the `login` target is kept regardless, because a screenshot harness should be cheap to render whether or not the runner is fragile that week.
 - A screenshot run crashed the UI test with `signal kill` once, and the capture script failed once more with no `.xcresult` at all while the same test passed on a direct `test-without-building` run — both simulator flakes, not code faults. `xcrun simctl shutdown all` and a re-run captured cleanly each time.
 
 ---

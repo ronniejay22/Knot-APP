@@ -33,13 +33,20 @@ final class PRScreenshotTests: XCTestCase {
         // registers (the other four cuts already shipped on main).
         //
         // Sign-in shows two Light tokens and was tried first, but it runs
-        // `PhotoGridSection`'s continuously-redrawing 40-tile grid, which kept
-        // the app busy enough for the test runner to kill it at teardown.
+        // `PhotoGridSection`'s continuously-redrawing 40-tile grid; on every
+        // Full-plan run the runner killed the app at teardown, taking a
+        // neighbouring UI test with it. Login is static and costs nothing.
         app.launchArguments += ["-uiTestScreenshot", "login"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
         _ = app.wait(for: .runningForeground, timeout: 10)
+
+        // Let the harness draw before any accessibility query. Every query that
+        // misses makes XCTest collect a full accessibility snapshot for failure
+        // triage, and a burst of those is expensive enough to destabilise the
+        // runner — so it is worth settling first and then asking once.
+        Thread.sleep(forTimeInterval: 2.0)
 
         // Dismiss any transient SpringBoard system alert (e.g. the simulator's
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
@@ -47,13 +54,15 @@ final class PRScreenshotTests: XCTestCase {
 
         // Wait on the title — the `sectionHeader` (DMSans-Light 28) evidence.
         //
-        // Asserted rather than discarded: a discarded wait lets the test pass
-        // on whatever screen happens to be up, which is how an earlier run that
-        // landed on For You behind a system alert still reported success and
-        // produced a screenshot showing none of the change.
+        // This ASSERTS rather than discards its result. A discarded
+        // `waitForExistence` lets the test pass while the target screen never
+        // appeared — and `app.screenshot()` then captures whatever is on
+        // screen (a stale snapshot, a system alert), so a wrong image ships
+        // with a green test. Failing here is the only thing that makes the
+        // captured screenshot trustworthy.
         XCTAssertTrue(
-            app.staticTexts["Create Account"].waitForExistence(timeout: 15),
-            "Login title never appeared — the screenshot would not show the change"
+            app.staticTexts["Create Account"].waitForExistence(timeout: 10),
+            "Login harness never rendered — the captured screenshot would not show the change"
         )
 
         // Let the screen settle so the shot isn't caught mid-transition.
@@ -66,11 +75,29 @@ final class PRScreenshotTests: XCTestCase {
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
+    ///
+    /// Checks **once** whether an alert exists, then looks for a dismissive
+    /// button *inside it*. Nothing here polls.
+    ///
+    /// The previous version waited 2s on each of six labels against
+    /// SpringBoard, unconditionally. With no alert present — the common case —
+    /// every miss cost a wait plus a full accessibility-hierarchy snapshot for
+    /// XCTest's failure triage, and that burst was enough to crash the test
+    /// runner mid-test. A single non-retrying `exists` is all this needs: the
+    /// caller has already let the screen settle, so an alert that is going to
+    /// appear has appeared.
+    ///
+    /// "Don't Allow" is in the list because the push-permission prompt is the
+    /// alert most likely to cover a harness screen, and its buttons match none
+    /// of the labels this helper originally knew about.
     private func dismissSystemAlerts() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for label in ["Not Now", "Cancel", "Dismiss", "Later", "OK"] {
-            let button = springboard.buttons[label]
-            if button.waitForExistence(timeout: 2) {
+        let alert = springboard.alerts.firstMatch
+        guard alert.exists else { return }
+
+        for label in ["Not Now", "Don't Allow", "Cancel", "Dismiss", "Later", "OK"] {
+            let button = alert.buttons[label]
+            if button.exists {
                 button.tap()
                 return
             }

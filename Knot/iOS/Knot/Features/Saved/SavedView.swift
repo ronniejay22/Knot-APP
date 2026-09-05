@@ -126,7 +126,7 @@ struct SavedView: View {
                     .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("Save recommendations from For You to find them here later.")
+                Text("Save recommendations from Journal to find them here later.")
                     .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)

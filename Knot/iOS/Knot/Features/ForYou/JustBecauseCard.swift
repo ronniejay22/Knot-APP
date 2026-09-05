@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-/// Card displayed at the top of the For You timeline for "just because" recommendations.
+/// Card displayed near the top of the Journal tab for "just because" recommendations.
 struct JustBecauseCard: View {
 
     let partnerName: String
