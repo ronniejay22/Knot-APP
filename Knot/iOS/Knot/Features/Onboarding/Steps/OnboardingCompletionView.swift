@@ -400,7 +400,7 @@ struct OnboardingCompletionView: View {
                     .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("We'll have personalized picks waiting for you on the For You tab.")
+                Text("We'll have personalized picks waiting for you on the Journal tab.")
                     .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textTertiary)
                     .multilineTextAlignment(.center)

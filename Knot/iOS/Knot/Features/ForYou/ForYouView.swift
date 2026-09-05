@@ -3,18 +3,21 @@
 //  Knot
 //
 //  Created on March 20, 2026.
-//  Milestone timeline with integrated recommendation CTAs — the main For You tab.
+//  The Journal tab — a header plus a card feed of upcoming milestones.
 //
 
 import SwiftUI
 
-/// The main For You tab view combining a milestone timeline with recommendation entry points.
+/// The Journal tab (labelled "Journal" in `KnotTabBar`; the type keeps its
+/// original `ForYouView` name).
 ///
 /// Layout:
-/// - "Just Because" recommendation card at top
-/// - "Upcoming" section with chronological milestone timeline
-/// - Each milestone has a trailing recommendation icon button
-/// - Tapping the button pushes to `RecommendationsView` with milestone context
+/// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
+/// - "Just Because" recommendation card
+/// - "Upcoming" header with a "View all" link into milestone management
+/// - A `MilestoneCard` per upcoming milestone, each with a trailing
+///   recommendation icon button that pushes `RecommendationsView` with
+///   milestone context
 struct ForYouView: View {
 
     @State private var viewModel = ForYouViewModel()
@@ -22,6 +25,9 @@ struct ForYouView: View {
 
     /// Navigation destination for programmatic push.
     @State private var navigationDestination: RecommendationDestination?
+
+    /// Presents the full milestone list (add / edit / delete) from "View all".
+    @State private var showMilestoneManagement = false
 
     var body: some View {
         NavigationStack {
@@ -36,20 +42,27 @@ struct ForYouView: View {
                 // no tap target — the user experienced this as "buttons not
                 // responding" until milestones finished loading.
                 timelineContent
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("For You")
-                        .knotFont(Theme.Typography.cardTitle)
-                        .foregroundStyle(Theme.textPrimary)
-                }
+                    // The screen carries its own in-content header, so the
+                    // navigation bar stays hidden and the content starts at the
+                    // safe-area top.
+                    //
+                    // Scoped to the scroll content, NOT to the ZStack: the
+                    // `.sheet` and `.fullScreenCover` below hang off the ZStack,
+                    // and their own NavigationStack toolbars carry the only
+                    // Cancel/Save and back affordances those screens have.
+                    // Keeping the hidden-bar state off that chain means it
+                    // cannot reach them.
+                    .toolbar(.hidden, for: .navigationBar)
             }
             .navigationDestination(item: $navigationDestination) { destination in
                 RecommendationsView(
                     milestoneId: destination.milestoneId,
                     milestoneContext: destination.context
                 )
+                // `RecommendationsView` has no NavigationStack of its own and
+                // relies on the system back button, so the bar this screen
+                // hides must be explicitly restored on the pushed destination.
+                .toolbar(.visible, for: .navigationBar)
             }
             .task {
                 await viewModel.loadData()
@@ -62,14 +75,22 @@ struct ForYouView: View {
                         Task { await viewModel.refreshMilestones() }
                     }
             }
+            .fullScreenCover(isPresented: $showMilestoneManagement) {
+                MilestonesManagementView()
+                    .onDisappear {
+                        Task { await viewModel.refreshMilestones() }
+                    }
+            }
         }
     }
 
-    // MARK: - Timeline Content
+    // MARK: - Journal Content
 
     private var timelineContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                journalHeader
+
                 // "Just Because" card
                 JustBecauseCard(
                     partnerName: viewModel.partnerName,
@@ -99,7 +120,7 @@ struct ForYouView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.top, 16)
             .padding(.bottom, 80)
         }
         .refreshable {
@@ -107,25 +128,71 @@ struct ForYouView: View {
         }
     }
 
-    // MARK: - Milestone Timeline
+    // MARK: - Header
+
+    /// Eyebrow + partner name + initial avatar.
+    ///
+    /// The avatar is a decorative identity mark — the app stores no partner
+    /// photo at any layer, so `PartnerInitialAvatar` stands in for it.
+    private var journalHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("YOUR JOURNAL")
+                    .knotFont(Theme.Typography.label)
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.textSecondary)
+
+                Text(viewModel.partnerName)
+                    .knotFont(Theme.Typography.onboardingHeader)
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Spacer(minLength: 12)
+
+            PartnerInitialAvatar(name: viewModel.partnerName, diameter: 56)
+        }
+    }
+
+    /// Rendered inline rather than via `KnotSectionHeader`, whose `subhead`
+    /// style is DM Sans 17 — the design calls for the large Fraunces title
+    /// paired with a trailing accent link. `KnotSectionHeader` is shared by
+    /// ~10 other screens and is deliberately left untouched.
+    private var upcomingHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Upcoming")
+                .knotFont(Theme.Typography.sectionHeaderSemibold)
+                .foregroundStyle(Theme.textPrimary)
+
+            Spacer(minLength: 12)
+
+            Button {
+                showMilestoneManagement = true
+            } label: {
+                Text("View all")
+                    .knotFont(Theme.Typography.cta)
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("View all milestones")
+        }
+    }
+
+    // MARK: - Milestone Feed
 
     private var milestoneTimeline: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Section header
-            KnotSectionHeader<EmptyView>("Upcoming")
-                .padding(.bottom, 16)
+        VStack(alignment: .leading, spacing: 16) {
+            upcomingHeader
 
-            // Timeline entries
-            ForEach(Array(viewModel.milestones.enumerated()), id: \.element.id) { index, milestone in
+            ForEach(viewModel.milestones, id: \.id) { milestone in
                 let daysUntil = milestone.daysUntil ?? 365
-                let urgency = viewModel.urgencyLevel(for: daysUntil)
 
-                TimelineEntryView(
+                MilestoneCard(
                     milestone: milestone,
                     partnerName: viewModel.partnerName,
-                    isLast: index == viewModel.milestones.count - 1,
-                    urgency: urgency,
                     formattedDate: viewModel.formattedDate(milestone.milestoneDate),
+                    urgency: viewModel.urgencyLevel(for: daysUntil),
                     onGetRecommendations: {
                         navigationDestination = RecommendationDestination(
                             milestoneId: milestone.id,
@@ -146,6 +213,12 @@ struct ForYouView: View {
     // MARK: - Empty Timeline
 
     private var emptyTimeline: some View {
+        KnotCard(padding: .lg, radius: Theme.Radius.xl) {
+            emptyTimelineContent
+        }
+    }
+
+    private var emptyTimelineContent: some View {
         VStack(spacing: 16) {
             Image(systemName: "calendar.badge.plus")
                 .font(.system(size: 40))

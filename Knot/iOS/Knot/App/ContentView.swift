@@ -111,6 +111,13 @@ struct ContentView: View {
             consumePendingDeepLink()
         }
         .task {
+            // The screenshot harness renders one screen standalone. Running the
+            // auth lifecycle underneath it is pure interference: restoring a
+            // stored session (the Simulator's Keychain survives app reinstalls)
+            // fires the push-permission request, and the resulting SpringBoard
+            // alert covers the very screen being captured.
+            guard UITestScreenshotHarness.activeScreen == nil else { return }
+
             // COLD START: consume any pending deep link BEFORE starting the
             // auth listener — `listenForAuthChanges()` is a for-await over
             // `authStateChanges` that never returns, so any code placed after

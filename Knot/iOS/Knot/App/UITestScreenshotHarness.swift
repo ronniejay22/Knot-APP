@@ -37,8 +37,8 @@ enum UITestScreenshotHarness {
         switch key {
         case "forYou":
             ForYouView()
-        case "forYouTimeline":
-            ForYouTimelineScreenshotHarnessView()
+        case "journal":
+            JournalScreenshotHarnessView()
         case "interests":
             InterestsScreenshotHarnessView()
         case "recDetail":
@@ -373,15 +373,22 @@ private struct ForYouCardScreenshotHarnessView: View {
     }
 }
 
-/// Renders the For You "Upcoming" milestone timeline standalone with a handful of
-/// sample milestones, so a screenshot shows each row's new trailing recommendation
-/// icon button. The full ForYouView normally sits behind auth and a live backend
-/// milestone fetch (which a cold screenshot launch can't deterministically seed),
-/// so this composes the timeline directly with representative milestones and a
-/// non-nil recommendation action on every row.
-private struct ForYouTimelineScreenshotHarnessView: View {
+/// Renders the Journal tab's header + "Upcoming" milestone card feed standalone.
+/// The real `ForYouView` sits behind auth and a live backend milestone fetch,
+/// which a cold screenshot launch can't deterministically seed, so this composes
+/// the same header and `MilestoneCard` rows with representative milestones.
+///
+/// Every sample carries an `occasionCategory` that has bundled artwork, because
+/// the card's illustration is the point of the design — seeding no category
+/// resolves to `"default"`, which ships no illustration and would capture only
+/// the gradient placeholder.
+private struct JournalScreenshotHarnessView: View {
     private static func sample(
-        _ id: String, _ type: String, _ name: String, _ days: Int
+        _ id: String,
+        _ type: String,
+        _ name: String,
+        _ days: Int,
+        _ occasionCategory: String
     ) -> MilestoneItemResponse {
         MilestoneItemResponse(
             id: id,
@@ -391,40 +398,77 @@ private struct ForYouTimelineScreenshotHarnessView: View {
             recurrence: "yearly",
             budgetTier: nil,
             daysUntil: days,
-            createdAt: "2026-07-04"
+            createdAt: "2026-07-04",
+            occasionCategory: occasionCategory
         )
     }
 
-    // (milestone, formattedDate, urgency) — mirrors ForYouView's timeline inputs.
+    // (milestone, formattedDate, urgency) — mirrors ForYouView's card feed inputs.
     private let entries: [(MilestoneItemResponse, String, MilestoneUrgency)] = [
-        (sample("h1", "holiday", "Christmas", 175), "Dec 25", .distant),
-        (sample("h2", "holiday", "New Year's Eve", 181), "Dec 31", .distant),
-        (sample("h3", "birthday", "Jas's Birthday", 182), "Jan 1", .distant),
-        (sample("h4", "holiday", "Valentine's Day", 226), "Feb 14", .distant),
+        (sample("h1", "holiday", "Christmas", 175, "christmas"), "Dec 25", .distant),
+        (sample("h2", "holiday", "New Year's Eve", 181, "new_years"), "Dec 31", .distant),
+        (sample("h3", "birthday", "Jas's Birthday", 182, "birthday"), "Jan 1", .distant),
     ]
+
+    private let partnerName = "Jas"
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                KnotSectionHeader<EmptyView>("Upcoming")
-                    .padding(.bottom, 16)
+            VStack(alignment: .leading, spacing: 20) {
+                header
 
-                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
-                    TimelineEntryView(
-                        milestone: entry.0,
-                        partnerName: "Jas",
-                        isLast: index == entries.count - 1,
-                        urgency: entry.2,
-                        formattedDate: entry.1,
-                        onGetRecommendations: {}
-                    )
+                VStack(alignment: .leading, spacing: 16) {
+                    upcomingHeader
+
+                    ForEach(entries, id: \.0.id) { entry in
+                        MilestoneCard(
+                            milestone: entry.0,
+                            partnerName: partnerName,
+                            formattedDate: entry.1,
+                            urgency: entry.2,
+                            onGetRecommendations: {}
+                        )
+                    }
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.top, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("YOUR JOURNAL")
+                    .knotFont(Theme.Typography.label)
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.textSecondary)
+
+                Text(partnerName)
+                    .knotFont(Theme.Typography.onboardingHeader)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+
+            Spacer(minLength: 12)
+
+            PartnerInitialAvatar(name: partnerName, diameter: 56)
+        }
+    }
+
+    private var upcomingHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Upcoming")
+                .knotFont(Theme.Typography.sectionHeaderSemibold)
+                .foregroundStyle(Theme.textPrimary)
+
+            Spacer(minLength: 12)
+
+            Text("View all")
+                .knotFont(Theme.Typography.cta)
+                .foregroundStyle(Theme.accent)
+        }
     }
 }
 

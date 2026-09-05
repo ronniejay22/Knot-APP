@@ -24,28 +24,45 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The new surface is the occasion entry modal shown between tapping a
-        // milestone push and seeing the picks. The real thing needs an
-        // authenticated session, a stored milestone and a delivered
-        // notification, none of which a cold screenshot launch can reach — so
-        // render it standalone via the DEBUG harness (`occasionModal`).
-        app.launchArguments += ["-uiTestScreenshot", "occasionModal"]
+        // The changed surface is the redesigned Journal tab (header + card feed).
+        // The real `ForYouView` sits behind an authenticated session and a live
+        // milestone fetch, which a cold screenshot launch can't reach — so render
+        // the same header and `MilestoneCard` rows via the DEBUG harness.
+        app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
         _ = app.wait(for: .runningForeground, timeout: 10)
 
+        // Let the harness draw before any accessibility query. Every query that
+        // misses makes XCTest collect a full accessibility snapshot for failure
+        // triage, and a burst of those is expensive enough to destabilise the
+        // runner — so it is worth settling first and then asking once.
+        Thread.sleep(forTimeInterval: 2.0)
+
         // Dismiss any transient SpringBoard system alert (e.g. the simulator's
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only this modal shows: the occasion-specific
-        // headline and the CTA through to the recommendations.
-        _ = app.staticTexts["Happy Birthday to Jerry!"].waitForExistence(timeout: 10)
-        _ = app.buttons["See recommendations"].waitForExistence(timeout: 5)
+        // Wait for elements only the redesigned Journal shows: the header
+        // eyebrow and the first milestone card's title.
+        //
+        // These ASSERT rather than discard their result. A discarded
+        // `waitForExistence` lets the test pass while the target screen never
+        // appeared — and `app.screenshot()` then captures whatever is on
+        // screen (a stale snapshot, a system alert), so a wrong image ships
+        // with a green test. Failing here is the only thing that makes the
+        // captured screenshot trustworthy.
+        XCTAssertTrue(
+            app.staticTexts["YOUR JOURNAL"].waitForExistence(timeout: 10),
+            "Journal harness never rendered — the captured screenshot would not show the change"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Christmas"].waitForExistence(timeout: 5),
+            "First milestone card never rendered"
+        )
 
-        // The card animates in (scale + fade over ~0.4s); capturing immediately
-        // catches it mid-transition.
+        // Let the bundled illustrations decode and lay out before capturing.
         Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -55,11 +72,29 @@ final class PRScreenshotTests: XCTestCase {
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
+    ///
+    /// Checks **once** whether an alert exists, then looks for a dismissive
+    /// button *inside it*. Nothing here polls.
+    ///
+    /// The previous version waited 2s on each of six labels against
+    /// SpringBoard, unconditionally. With no alert present — the common case —
+    /// every miss cost a wait plus a full accessibility-hierarchy snapshot for
+    /// XCTest's failure triage, and that burst was enough to crash the test
+    /// runner mid-test. A single non-retrying `exists` is all this needs: the
+    /// caller has already let the screen settle, so an alert that is going to
+    /// appear has appeared.
+    ///
+    /// "Don't Allow" is in the list because the push-permission prompt is the
+    /// alert most likely to cover a harness screen, and its buttons match none
+    /// of the labels this helper originally knew about.
     private func dismissSystemAlerts() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for label in ["Not Now", "Cancel", "Dismiss", "Later", "OK"] {
-            let button = springboard.buttons[label]
-            if button.waitForExistence(timeout: 2) {
+        let alert = springboard.alerts.firstMatch
+        guard alert.exists else { return }
+
+        for label in ["Not Now", "Don't Allow", "Cancel", "Dismiss", "Later", "OK"] {
+            let button = alert.buttons[label]
+            if button.exists {
                 button.tap()
                 return
             }
