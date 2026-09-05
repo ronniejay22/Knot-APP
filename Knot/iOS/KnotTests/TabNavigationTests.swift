@@ -17,15 +17,18 @@ import SwiftUI
 final class MainTabViewTests: XCTestCase {
 
     /// Verify AppTab enum has correct raw values for all three tabs.
+    ///
+    /// The first tab was renamed `forYou` → `journal`; its raw value stays 0 so
+    /// any persisted selection keeps pointing at the same tab.
     func testAppTabRawValues() {
-        XCTAssertEqual(MainTabView.AppTab.forYou.rawValue, 0)
+        XCTAssertEqual(MainTabView.AppTab.journal.rawValue, 0)
         XCTAssertEqual(MainTabView.AppTab.saved.rawValue, 1)
         XCTAssertEqual(MainTabView.AppTab.profile.rawValue, 2)
     }
 
     /// Verify all three AppTab cases exist.
     func testAppTabHasThreeCases() {
-        let allCases: [MainTabView.AppTab] = [.forYou, .saved, .profile]
+        let allCases: [MainTabView.AppTab] = [.journal, .saved, .profile]
         XCTAssertEqual(allCases.count, 3)
     }
 

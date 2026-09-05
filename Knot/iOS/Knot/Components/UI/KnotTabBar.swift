@@ -112,7 +112,7 @@ struct KnotTabBar<ID: Hashable>: View {
         KnotTabBar(
             selection: $sel,
             items: [
-                .init(id: 0, title: "For You", systemImage: "sparkles"),
+                .init(id: 0, title: "Journal", systemImage: "book"),
                 .init(id: 1, title: "Saved", systemImage: "bookmark"),
                 .init(id: 2, title: "Profile", systemImage: "person.crop.circle"),
             ]
