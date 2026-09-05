@@ -7638,6 +7638,20 @@ only for `critical`/`soon`, via `Theme.statusError` / `Theme.statusWarning` — 
 `.orange`). This also keeps `ForYouViewModel.urgencyLevel` a live, consumed API rather than
 leaving it and its 12 tests behind as dead code.
 
+**The "Upcoming" header carries a count badge.** `KnotBadge("\(milestones.count)",
+variant: .accent, size: .sm)` beside the title, so the user can see how many upcoming
+milestones they have without counting cards. Unlike the per-card "N suggestions" the mock
+showed, this count is free — `viewModel.milestones` is the same array the feed below renders,
+so the badge cannot disagree with what is on screen and no request is made for it. Two things
+were wrong on the first attempt and only visible in a screenshot: `.secondary` fills with
+`Theme.surfaceElevated` (0.96 grey) on a 0.97 background, so the pill was invisible and the
+number read as stray text — `.accent` gives it the same tinted-pill treatment as
+`PartnerInitialAvatar` and the countdown; and `.firstTextBaseline` against a 28pt Fraunces
+title dropped the small pill below the title's midline, so the inner `HStack` centres instead.
+The title and badge are one VoiceOver element labelled by the pure, tested
+`ForYouView.upcomingAccessibilityLabel(count:)` ("Upcoming, 1 milestone" / "…, 3 milestones") —
+a badge announcing a bare "3" after "Upcoming" says nothing on its own.
+
 **A `.fill` image pushed the whole screen sideways.** The artwork was first written as
 `Image(name).resizable().aspectRatio(contentMode: .fill)` with `.frame(maxWidth: .infinity)` /
 `.frame(height: 200)` / `.clipShape` after it. A `scaledToFill` image reports a size *larger

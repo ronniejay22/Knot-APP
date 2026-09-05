@@ -459,9 +459,15 @@ private struct JournalScreenshotHarnessView: View {
 
     private var upcomingHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Upcoming")
-                .knotFont(Theme.Typography.sectionHeaderSemibold)
-                .foregroundStyle(Theme.textPrimary)
+            HStack(alignment: .center, spacing: 8) {
+                Text("Upcoming")
+                    .knotFont(Theme.Typography.sectionHeaderSemibold)
+                    .foregroundStyle(Theme.textPrimary)
+
+                // Mirrors ForYouView: the count comes from the seeded entries,
+                // so the screenshot shows the badge with a real number.
+                KnotBadge("\(entries.count)", variant: .accent, size: .sm)
+            }
 
             Spacer(minLength: 12)
 

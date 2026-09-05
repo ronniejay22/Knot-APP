@@ -161,9 +161,27 @@ struct ForYouView: View {
     /// ~10 other screens and is deliberately left untouched.
     private var upcomingHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Upcoming")
-                .knotFont(Theme.Typography.sectionHeaderSemibold)
-                .foregroundStyle(Theme.textPrimary)
+            // Title + count read as one element to VoiceOver — a bare "3"
+            // announced after "Upcoming" says nothing on its own.
+            HStack(alignment: .center, spacing: 8) {
+                Text("Upcoming")
+                    .knotFont(Theme.Typography.sectionHeaderSemibold)
+                    .foregroundStyle(Theme.textPrimary)
+
+                // `.accent`, not `.secondary`: the secondary variant fills with
+                // `surfaceElevated` (0.96 grey) on a 0.97 background, so the
+                // pill is invisible and the number reads as stray text. Accent
+                // gives it the same tinted-pill treatment as
+                // `PartnerInitialAvatar`. Centred rather than baseline-aligned —
+                // against a 28pt Fraunces title, matching baselines drops the
+                // small pill below the title's midline.
+                //
+                // The count is free: `milestones` is the same array the feed
+                // below renders, so the badge cannot disagree with it.
+                KnotBadge("\(viewModel.milestones.count)", variant: .accent, size: .sm)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Self.upcomingAccessibilityLabel(count: viewModel.milestones.count))
 
             Spacer(minLength: 12)
 
@@ -177,6 +195,14 @@ struct ForYouView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("View all milestones")
         }
+    }
+
+    /// VoiceOver label for the "Upcoming" header and its count badge.
+    ///
+    /// Pure and `static` so the singular/plural rule is testable without
+    /// rendering the screen.
+    static func upcomingAccessibilityLabel(count: Int) -> String {
+        count == 1 ? "Upcoming, 1 milestone" : "Upcoming, \(count) milestones"
     }
 
     // MARK: - Milestone Feed
