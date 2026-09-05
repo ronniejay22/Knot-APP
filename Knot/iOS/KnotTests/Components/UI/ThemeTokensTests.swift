@@ -121,6 +121,42 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Typography.onboardingSubHeader
     }
 
+    // MARK: - Font registration
+    //
+    // `Font.custom` falls back to San Francisco *silently* when a face isn't
+    // bundled or its PostScript name doesn't match, so the token tests above
+    // would still pass with no custom font loaded at all. These assert the
+    // faces actually registered — the failure `Theme.registerFonts()` prints
+    // about, now caught by the suite instead of only by reading the console.
+
+    func testDMSansIsTheOnlyBundledFontFamily() {
+        let families = Set(UIFont.familyNames)
+        XCTAssertTrue(
+            families.contains("DM Sans"),
+            "DM Sans is not registered — check Info.plist UIAppFonts and Copy Bundle Resources"
+        )
+        XCTAssertFalse(
+            families.contains("Fraunces"),
+            "Fraunces is still bundled — DM Sans should be the app's only font family"
+        )
+    }
+
+    func testEveryDMSansCutIsRegistered() {
+        let faces = Set(UIFont.fontNames(forFamilyName: "DM Sans"))
+        for postScriptName in [
+            "DMSans-Light",
+            "DMSans-Regular",
+            "DMSans-Medium",
+            "DMSans-SemiBold",
+            "DMSans-Bold"
+        ] {
+            XCTAssertTrue(
+                faces.contains(postScriptName),
+                "\(postScriptName) is not registered under the DM Sans family — faces: \(faces.sorted())"
+            )
+        }
+    }
+
     func testBrandPaletteLightModeRGB() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         assertRGB(Theme.colorPrimary, in: light, equals: (0.96, 0.26, 0.40), name: "colorPrimary")

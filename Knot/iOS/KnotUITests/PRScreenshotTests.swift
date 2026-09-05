@@ -24,12 +24,18 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The new surface is the occasion entry modal shown between tapping a
-        // milestone push and seeing the picks. The real thing needs an
-        // authenticated session, a stored milestone and a delivered
-        // notification, none of which a cold screenshot launch can reach — so
-        // render it standalone via the DEBUG harness (`occasionModal`).
-        app.launchArguments += ["-uiTestScreenshot", "occasionModal"]
+        // The change is a typography swap — Fraunces is gone and every heading
+        // token now resolves to a DM Sans cut. Login is the screen to capture:
+        // its "Create Account" title is `sectionHeader`, the most-used of the
+        // three tokens backed by `DMSans-Light.ttf` — the one face here that
+        // was hand-instanced from the variable font rather than shipped by
+        // Google, so it is the one needing proof it *renders* and not merely
+        // registers (the other four cuts already shipped on main).
+        //
+        // Sign-in shows two Light tokens and was tried first, but it runs
+        // `PhotoGridSection`'s continuously-redrawing 40-tile grid, which kept
+        // the app busy enough for the test runner to kill it at teardown.
+        app.launchArguments += ["-uiTestScreenshot", "login"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -39,13 +45,18 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only this modal shows: the occasion-specific
-        // headline and the CTA through to the recommendations.
-        _ = app.staticTexts["Happy Birthday to Jerry!"].waitForExistence(timeout: 10)
-        _ = app.buttons["See recommendations"].waitForExistence(timeout: 5)
+        // Wait on the title — the `sectionHeader` (DMSans-Light 28) evidence.
+        //
+        // Asserted rather than discarded: a discarded wait lets the test pass
+        // on whatever screen happens to be up, which is how an earlier run that
+        // landed on For You behind a system alert still reported success and
+        // produced a screenshot showing none of the change.
+        XCTAssertTrue(
+            app.staticTexts["Create Account"].waitForExistence(timeout: 15),
+            "Login title never appeared — the screenshot would not show the change"
+        )
 
-        // The card animates in (scale + fade over ~0.4s); capturing immediately
-        // catches it mid-transition.
+        // Let the screen settle so the shot isn't caught mid-transition.
         Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
