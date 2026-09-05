@@ -7638,20 +7638,6 @@ only for `critical`/`soon`, via `Theme.statusError` / `Theme.statusWarning` — 
 `.orange`). This also keeps `ForYouViewModel.urgencyLevel` a live, consumed API rather than
 leaving it and its 12 tests behind as dead code.
 
-**The "Upcoming" header carries a count badge.** `KnotBadge("\(milestones.count)",
-variant: .accent, size: .sm)` beside the title, so the user can see how many upcoming
-milestones they have without counting cards. Unlike the per-card "N suggestions" the mock
-showed, this count is free — `viewModel.milestones` is the same array the feed below renders,
-so the badge cannot disagree with what is on screen and no request is made for it. Two things
-were wrong on the first attempt and only visible in a screenshot: `.secondary` fills with
-`Theme.surfaceElevated` (0.96 grey) on a 0.97 background, so the pill was invisible and the
-number read as stray text — `.accent` gives it the same tinted-pill treatment as
-`PartnerInitialAvatar` and the countdown; and `.firstTextBaseline` against a 28pt Fraunces
-title dropped the small pill below the title's midline, so the inner `HStack` centres instead.
-The title and badge are one VoiceOver element labelled by the pure, tested
-`ForYouView.upcomingAccessibilityLabel(count:)` ("Upcoming, 1 milestone" / "…, 3 milestones") —
-a badge announcing a bare "3" after "Upcoming" says nothing on its own.
-
 **A `.fill` image pushed the whole screen sideways.** The artwork was first written as
 `Image(name).resizable().aspectRatio(contentMode: .fill)` with `.frame(maxWidth: .infinity)` /
 `.frame(height: 200)` / `.clipShape` after it. A `scaledToFill` image reports a size *larger
@@ -7815,6 +7801,61 @@ A harness key was needed at all because both screens sit on the unauthenticated 
 - **Files created:** `iOS/Knot/Resources/Fonts/DMSans-Light.ttf`, plus the `login` harness key and the `Theme.Typography.onboardingHeaderCompact` token noted above.
 - **Step 19.31 landed on `main` while this was in flight and hardened the same failure from the other side.** Its `PRScreenshotTests` rework traced runner crashes to `dismissSystemAlerts()` polling six labels against SpringBoard unconditionally — each miss costing a wait plus a full accessibility-hierarchy snapshot for XCTest's triage. So the sign-in crashes here were probably that burst *plus* an expensive screen, not the photo grid alone. The merge takes main's version of the helper and the settle-before-query ordering; the `login` target is kept regardless, because a screenshot harness should be cheap to render whether or not the runner is fragile that week.
 - A screenshot run crashed the UI test with `signal kill` once, and the capture script failed once more with no `.xcresult` at all while the same test passed on a direct `test-without-building` run — both simulator flakes, not code faults. `xcrun simctl shutdown all` and a re-run captured cleanly each time.
+
+---
+
+### Step 19.33 ✅ Journal — Show How Many Upcoming Milestones There Are
+**Date:** 2026-09-05
+**Status:** Complete
+
+*(Numbered 19.33: Step 19.32 landed on `main` while this branch was open.)*
+
+**Goal:** The Journal's "Upcoming" section gave no sense of scale — the user had to scroll and
+count cards to know how many milestones were coming up.
+
+**What changed:** a `KnotBadge("\(viewModel.milestones.count)", variant: .accent, size: .sm)`
+beside the "Upcoming" title in `ForYouView.upcomingHeader`, mirrored in
+`JournalScreenshotHarnessView` so the captured screenshot shows the badge with a real number.
+
+**The count is free.** It reads `viewModel.milestones` — the *same array* the feed below
+renders — so no request is made for it and the badge cannot disagree with what is on screen.
+That is the difference between this and the per-card "N suggestions" Step 19.31 deliberately
+omitted: that one has no batch endpoint behind it and would cost one
+`GET /by-milestone/{id}` per card.
+
+**Two things were wrong on the first attempt, and only the screenshot showed them:**
+- **`.secondary` was invisible.** That variant fills with `Theme.surfaceElevated` — rgb 0.96 —
+  against a 0.97 background, so the pill vanished and the number read as stray text floating
+  beside the title. `.accent` gives it the tinted-pill treatment already carried by
+  `PartnerInitialAvatar` and the per-card countdown. **A badge variant is only "quiet" if it
+  has contrast to be quiet against.**
+- **`.firstTextBaseline` sat the pill too low.** Against a 28pt title, aligning baselines drops
+  a 13pt pill below the title's midline. The inner `HStack` centres instead.
+
+**Accessibility:** the title and badge are one element, labelled by the pure
+`ForYouView.upcomingAccessibilityLabel(count:)` ("Upcoming, 1 milestone" / "Upcoming, 3
+milestones"). A badge announcing a bare "3" after "Upcoming" says nothing on its own. The
+singular/plural rule is unit-tested without rendering the screen.
+
+**Files modified:** `iOS/Knot/Features/ForYou/ForYouView.swift`,
+`iOS/Knot/App/UITestScreenshotHarness.swift`, `iOS/KnotUITests/PRScreenshotTests.swift`
+(navigation slot repointed at `journal`), `iOS/KnotTests/MilestoneCardTests.swift`,
+`docs/pr-screenshots/worktree-feat-journal-tab-redesign.png`.
+
+**Tests:** Unit plan **447 passed** (445 after merging `main`'s Step 19.32 font work + 2 new).
+Full plan **447 unit + 4 UI passed**, with `KnotUITests/testLaunchPerformance` skipped for the
+reason recorded in Step 19.31.
+
+**Notes:**
+- **Merged `origin/main` first**, which brought in Step 19.32 — Fraunces is gone and every
+  heading token now resolves to a DM Sans cut. The token *names* this screen uses
+  (`sectionHeaderSemibold`, `onboardingHeader`, `label`, `cta`) are unchanged, so nothing broke,
+  but the Journal now renders in DM Sans rather than the serif the original screenshot showed.
+  The PR image was re-captured after the merge so it shows the screen as it actually looks.
+- Step 19.32 independently adopted this branch's `dismissSystemAlerts()` and asserting-wait
+  fixes, and repointed the screenshot slot at its own `login` harness; this change points it
+  back at `journal`. **That slot is a shared single-target resource** — two concurrent branches
+  will always contend for it, and the merge resolves to whichever landed last.
 
 ---
 
