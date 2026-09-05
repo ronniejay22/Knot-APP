@@ -209,7 +209,7 @@ private struct BrandingSection: View {
                     .tracking(-1)
                     .padding(.bottom, 6)
 
-                // MARK: - Tagline (signature italic Fraunces brand moment)
+                // MARK: - Tagline (signature italic brand moment)
                 Text("Connect Deeply")
                     .knotFont(Theme.Typography.italicQuote)
                     .foregroundStyle(Theme.textSecondary)

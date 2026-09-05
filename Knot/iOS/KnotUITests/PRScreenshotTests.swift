@@ -24,11 +24,19 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The changed surface is the redesigned Journal tab (header + card feed).
-        // The real `ForYouView` sits behind an authenticated session and a live
-        // milestone fetch, which a cold screenshot launch can't reach — so render
-        // the same header and `MilestoneCard` rows via the DEBUG harness.
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // The change is a typography swap — Fraunces is gone and every heading
+        // token now resolves to a DM Sans cut. Login is the screen to capture:
+        // its "Create Account" title is `sectionHeader`, the most-used of the
+        // three tokens backed by `DMSans-Light.ttf` — the one face here that
+        // was hand-instanced from the variable font rather than shipped by
+        // Google, so it is the one needing proof it *renders* and not merely
+        // registers (the other four cuts already shipped on main).
+        //
+        // Sign-in shows two Light tokens and was tried first, but it runs
+        // `PhotoGridSection`'s continuously-redrawing 40-tile grid; on every
+        // Full-plan run the runner killed the app at teardown, taking a
+        // neighbouring UI test with it. Login is static and costs nothing.
+        app.launchArguments += ["-uiTestScreenshot", "login"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -44,25 +52,20 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait for elements only the redesigned Journal shows: the header
-        // eyebrow and the first milestone card's title.
+        // Wait on the title — the `sectionHeader` (DMSans-Light 28) evidence.
         //
-        // These ASSERT rather than discard their result. A discarded
+        // This ASSERTS rather than discards its result. A discarded
         // `waitForExistence` lets the test pass while the target screen never
         // appeared — and `app.screenshot()` then captures whatever is on
         // screen (a stale snapshot, a system alert), so a wrong image ships
         // with a green test. Failing here is the only thing that makes the
         // captured screenshot trustworthy.
         XCTAssertTrue(
-            app.staticTexts["YOUR JOURNAL"].waitForExistence(timeout: 10),
-            "Journal harness never rendered — the captured screenshot would not show the change"
-        )
-        XCTAssertTrue(
-            app.staticTexts["Christmas"].waitForExistence(timeout: 5),
-            "First milestone card never rendered"
+            app.staticTexts["Create Account"].waitForExistence(timeout: 10),
+            "Login harness never rendered — the captured screenshot would not show the change"
         )
 
-        // Let the bundled illustrations decode and lay out before capturing.
+        // Let the screen settle so the shot isn't caught mid-transition.
         Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
