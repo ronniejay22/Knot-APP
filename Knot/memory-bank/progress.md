@@ -7804,6 +7804,61 @@ A harness key was needed at all because both screens sit on the unauthenticated 
 
 ---
 
+### Step 19.33 ✅ Journal — Show How Many Upcoming Milestones There Are
+**Date:** 2026-09-05
+**Status:** Complete
+
+*(Numbered 19.33: Step 19.32 landed on `main` while this branch was open.)*
+
+**Goal:** The Journal's "Upcoming" section gave no sense of scale — the user had to scroll and
+count cards to know how many milestones were coming up.
+
+**What changed:** a `KnotBadge("\(viewModel.milestones.count)", variant: .accent, size: .sm)`
+beside the "Upcoming" title in `ForYouView.upcomingHeader`, mirrored in
+`JournalScreenshotHarnessView` so the captured screenshot shows the badge with a real number.
+
+**The count is free.** It reads `viewModel.milestones` — the *same array* the feed below
+renders — so no request is made for it and the badge cannot disagree with what is on screen.
+That is the difference between this and the per-card "N suggestions" Step 19.31 deliberately
+omitted: that one has no batch endpoint behind it and would cost one
+`GET /by-milestone/{id}` per card.
+
+**Two things were wrong on the first attempt, and only the screenshot showed them:**
+- **`.secondary` was invisible.** That variant fills with `Theme.surfaceElevated` — rgb 0.96 —
+  against a 0.97 background, so the pill vanished and the number read as stray text floating
+  beside the title. `.accent` gives it the tinted-pill treatment already carried by
+  `PartnerInitialAvatar` and the per-card countdown. **A badge variant is only "quiet" if it
+  has contrast to be quiet against.**
+- **`.firstTextBaseline` sat the pill too low.** Against a 28pt title, aligning baselines drops
+  a 13pt pill below the title's midline. The inner `HStack` centres instead.
+
+**Accessibility:** the title and badge are one element, labelled by the pure
+`ForYouView.upcomingAccessibilityLabel(count:)` ("Upcoming, 1 milestone" / "Upcoming, 3
+milestones"). A badge announcing a bare "3" after "Upcoming" says nothing on its own. The
+singular/plural rule is unit-tested without rendering the screen.
+
+**Files modified:** `iOS/Knot/Features/ForYou/ForYouView.swift`,
+`iOS/Knot/App/UITestScreenshotHarness.swift`, `iOS/KnotUITests/PRScreenshotTests.swift`
+(navigation slot repointed at `journal`), `iOS/KnotTests/MilestoneCardTests.swift`,
+`docs/pr-screenshots/worktree-feat-journal-tab-redesign.png`.
+
+**Tests:** Unit plan **447 passed** (445 after merging `main`'s Step 19.32 font work + 2 new).
+Full plan **447 unit + 4 UI passed**, with `KnotUITests/testLaunchPerformance` skipped for the
+reason recorded in Step 19.31.
+
+**Notes:**
+- **Merged `origin/main` first**, which brought in Step 19.32 — Fraunces is gone and every
+  heading token now resolves to a DM Sans cut. The token *names* this screen uses
+  (`sectionHeaderSemibold`, `onboardingHeader`, `label`, `cta`) are unchanged, so nothing broke,
+  but the Journal now renders in DM Sans rather than the serif the original screenshot showed.
+  The PR image was re-captured after the merge so it shows the screen as it actually looks.
+- Step 19.32 independently adopted this branch's `dismissSystemAlerts()` and asserting-wait
+  fixes, and repointed the screenshot slot at its own `login` harness; this change points it
+  back at `journal`. **That slot is a shared single-target resource** — two concurrent branches
+  will always contend for it, and the merge resolves to whichever landed last.
+
+---
+
 ## Next Steps
 
 

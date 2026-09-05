@@ -246,3 +246,23 @@ final class JournalViewRenderingTests: XCTestCase {
         XCTAssertNotNil(UIHostingController(rootView: ForYouView()).view)
     }
 }
+
+// MARK: - Upcoming Count Indicator
+
+@MainActor
+final class UpcomingCountLabelTests: XCTestCase {
+
+    /// The count badge is a bare number, so VoiceOver gets the whole header as
+    /// one label — and it has to say "milestone" or "milestones" correctly.
+    func testSingularAndPlural() {
+        XCTAssertEqual(ForYouView.upcomingAccessibilityLabel(count: 1), "Upcoming, 1 milestone")
+        XCTAssertEqual(ForYouView.upcomingAccessibilityLabel(count: 2), "Upcoming, 2 milestones")
+        XCTAssertEqual(ForYouView.upcomingAccessibilityLabel(count: 11), "Upcoming, 11 milestones")
+    }
+
+    /// The header only renders alongside a non-empty feed, but the label must
+    /// not read "1 milestone" for a zero it should never be handed.
+    func testZeroIsPlural() {
+        XCTAssertEqual(ForYouView.upcomingAccessibilityLabel(count: 0), "Upcoming, 0 milestones")
+    }
+}
