@@ -261,19 +261,14 @@ extension Theme {
         static let pill: CGFloat = 999
     }
 
-    /// Font family / PostScript names for the bundled custom font faces.
-    /// Fraunces is bundled as a single variable font — pick the weight axis
-    /// at the token level via `.weight(...)`. DM Sans uses static per-weight
-    /// cuts whose PostScript names match their filenames.
-    /// Verify any change via `Theme.registerFonts()`'s debug print.
+    /// PostScript names for the bundled custom font faces. DM Sans is the
+    /// app's only font family; it is bundled as static per-weight cuts whose
+    /// PostScript names match their filenames, so **weight belongs to the
+    /// chosen face, never to a `.weight(...)` chain** — see the `Typography`
+    /// docs below. Verify any change via `Theme.registerFonts()`'s debug print.
     private enum FontFamily {
-        /// Fraunces variable font: family name resolved by SwiftUI's
-        /// `Font.custom(...)`. Weight axis is selected per-token via
-        /// `.weight(...)`. The italic axis lives in a separate variable font
-        /// file we don't currently bundle, so italic-style tokens use the
-        /// upright family with `.italic()` synthesis.
-        static let fraunces = "Fraunces"
         enum DMSans {
+            static let light = "DMSans-Light"
             static let regular = "DMSans-Regular"
             static let medium = "DMSans-Medium"
             static let semibold = "DMSans-SemiBold"
@@ -281,55 +276,70 @@ extension Theme {
         }
     }
 
-    /// Semantic typography tokens, backed by the bundled Fraunces (serif,
-    /// display) and DM Sans (sans, body) families. Each token is built via
+    /// Semantic typography tokens, backed by the bundled DM Sans family — the
+    /// app's only typeface. Each token is built via
     /// `Font.custom(_:size:relativeTo:)` so it continues to scale with iOS
     /// Dynamic Type relative to the chosen system style.
     ///
-    /// For Fraunces (variable font), weight is selected here via `.weight(...)`
-    /// against the variable font's weight axis. For DM Sans (static cuts),
-    /// weight is baked into the chosen face. Either way, callers get a single
-    /// `Font` value and should apply it via `.knotFont(_:)` without further
-    /// chaining.
+    /// DM Sans ships as static per-weight cuts, so weight is baked into the
+    /// face a token names and **must not** be chained as `.weight(...)` /
+    /// `.fontWeight(...)` — chaining a weight the active family doesn't carry
+    /// makes iOS silently substitute the system font. Callers get a single
+    /// `Font` value and apply it via `.knotFont(_:)` without further chaining.
     ///
     /// Apply via the `View.knotFont(_:)` extension at the bottom of this file.
     enum Typography {
-        /// Fraunces (Light, 300) @ 42pt. Reserved for the sign-in wordmark
+        /// DMSans-Light (300) @ 42pt. Reserved for the sign-in wordmark
         /// and other hero-scale moments. Scales relative to `.largeTitle`.
-        static let heroDisplay: Font = .custom(FontFamily.fraunces, size: 42, relativeTo: .largeTitle).weight(.light)
+        static let heroDisplay: Font = .custom(FontFamily.DMSans.light, size: 42, relativeTo: .largeTitle)
 
-        /// Fraunces (Light, 300) @ 28pt. Page titles and prominent section
+        /// DMSans-Light (300) @ 28pt. Page titles and prominent section
         /// headers. Scales relative to `.title`.
-        static let sectionHeader: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.light)
+        static let sectionHeader: Font = .custom(FontFamily.DMSans.light, size: 28, relativeTo: .title)
 
-        /// Fraunces (SemiBold, 600) @ 28pt. Semibold variant of `sectionHeader`
-        /// for prominent detail titles. Scales relative to `.title`.
-        static let sectionHeaderSemibold: Font = .custom(FontFamily.fraunces, size: 28, relativeTo: .title).weight(.semibold)
+        /// DMSans-SemiBold (600) @ 28pt. Semibold variant of `sectionHeader`
+        /// for prominent detail titles.
+        /// Scales relative to `.title`.
+        static let sectionHeaderSemibold: Font = .custom(FontFamily.DMSans.semibold, size: 28, relativeTo: .title)
 
-        /// Fraunces (SemiBold, 600) @ 32pt. Onboarding page titles — a
+        /// DMSans-SemiBold (600) @ 32pt. Onboarding page titles — a
         /// slightly larger scale than `sectionHeader` (28pt) so the
         /// onboarding flow reads as a more deliberate brand moment.
         /// Scales relative to `.title`.
-        static let onboardingHeader: Font = .custom(FontFamily.fraunces, size: 32, relativeTo: .title).weight(.semibold)
+        static let onboardingHeader: Font = .custom(FontFamily.DMSans.semibold, size: 32, relativeTo: .title)
 
-        /// Fraunces (SemiBold, 600) @ 20pt. Onboarding sub-headers — the
+        /// DMSans-SemiBold (600) @ 28pt. The compact onboarding step header
+        /// (`OnboardingStepHeader`) — a step-specific override of the 32pt
+        /// `onboardingHeader`, which the Welcome hero and Completion screens
+        /// still use at full size.
+        ///
+        /// Same face, size, and Dynamic Type relation as `sectionHeaderSemibold`
+        /// today, but deliberately a separate token: ~15 onboarding step
+        /// headers read from this one and the recommendation detail title reads
+        /// from that one, so sharing would make a tweak to either silently
+        /// retype the other. Same reasoning as `onboardingHeader` vs
+        /// `sectionHeader`.
+        /// Scales relative to `.title`.
+        static let onboardingHeaderCompact: Font = .custom(FontFamily.DMSans.semibold, size: 28, relativeTo: .title)
+
+        /// DMSans-SemiBold (600) @ 20pt. Onboarding sub-headers — the
         /// page title on form-style onboarding screens (Birthday, Anniversary,
         /// PartnerName, Location, etc.) where a 20pt header reads better than
-        /// the 28pt `onboardingHeader`. Sister to `cardTitle`: same family,
-        /// size, and Dynamic Type relation, only the weight axis differs.
+        /// the 32pt `onboardingHeader`. Sister to `cardTitle`: same family,
+        /// size, and Dynamic Type relation, only the weight differs.
         /// Scales relative to `.title2`.
-        static let onboardingSubHeader: Font = .custom(FontFamily.fraunces, size: 20, relativeTo: .title2).weight(.semibold)
+        static let onboardingSubHeader: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
 
-        /// Fraunces (Regular, 400) @ 20pt. Card titles and secondary headings.
+        /// DMSans-Regular (400) @ 20pt. Card titles and secondary headings.
         /// Scales relative to `.title2`.
-        static let cardTitle: Font = .custom(FontFamily.fraunces, size: 20, relativeTo: .title2)
+        static let cardTitle: Font = .custom(FontFamily.DMSans.regular, size: 20, relativeTo: .title2)
 
-        /// Fraunces (Light, 300) @ 17pt with synthesized italic — brand-moment
+        /// DMSans-Light (300) @ 17pt with synthesized italic — brand-moment
         /// quotes, sign-in tagline, recommendation attributions. Synthesized
-        /// because the italic Fraunces variable font isn't currently bundled;
-        /// to upgrade to a true italic cut, add the italic VF and switch the
-        /// `.italic()` modifier for a dedicated PostScript name.
-        static let italicQuote: Font = .custom(FontFamily.fraunces, size: 17, relativeTo: .body).weight(.light).italic()
+        /// because no DM Sans italic cut is currently bundled; to upgrade to a
+        /// true italic, add `DMSans-LightItalic.ttf` and swap the `.italic()`
+        /// modifier for that dedicated PostScript name.
+        static let italicQuote: Font = .custom(FontFamily.DMSans.light, size: 17, relativeTo: .body).italic()
 
         /// DMSans-Regular @ 17pt. Default body / descriptive copy.
         /// Scales relative to `.body`.
@@ -347,12 +357,10 @@ extension Theme {
         /// Scales relative to `.body`.
         static let cta: Font = .custom(FontFamily.DMSans.semibold, size: 17, relativeTo: .body)
 
-        /// DMSans-SemiBold @ 20pt. Centered-dialog titles.
-        ///
-        /// Note this is a deliberate exception to the app's Fraunces-for-headings
-        /// convention — the occasion entry modal's comp specifies DM Sans
-        /// SemiBold 20 (Figma "Heading/Medium"), and a serif title fights the
-        /// photographic illustration directly beneath it.
+        /// DMSans-SemiBold @ 20pt. Centered-dialog titles (Figma
+        /// "Heading/Medium"). Same face and size as `onboardingSubHeader`;
+        /// kept separate because it scales relative to `.title3` rather than
+        /// `.title2` and carries a different semantic.
         /// Scales relative to `.title3`.
         static let modalTitle: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title3)
 
@@ -394,7 +402,7 @@ extension Theme {
 
     /// Font-weight scale aliasing SwiftUI's `Font.Weight`.
     ///
-    /// **Deprecated.** With custom fonts (Fraunces / DM Sans), weight is baked
+    /// **Deprecated.** With a custom font (DM Sans), weight is baked
     /// into the chosen face — chaining `.fontWeight(...)` after a
     /// `Theme.Typography.*` token can re-substitute the system font when the
     /// requested weight isn't in the active family. Pick the right
@@ -464,7 +472,7 @@ extension Theme {
     /// succeeded. Call once from `KnotApp.init()` under `#if DEBUG`.
     static func registerFonts() {
         #if DEBUG
-        let expectedFamilies = ["Fraunces", "DM Sans"]
+        let expectedFamilies = ["DM Sans"]
         let allFamilies = Set(UIFont.familyNames)
         print("🔤 [Theme.registerFonts] expecting:", expectedFamilies)
         for family in expectedFamilies {

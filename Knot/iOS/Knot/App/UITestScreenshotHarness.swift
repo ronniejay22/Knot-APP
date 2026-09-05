@@ -35,6 +35,21 @@ enum UITestScreenshotHarness {
     @MainActor
     static func rootView(for key: String) -> some View {
         switch key {
+        case "login":
+            // Login standalone — the "Create Account" title is
+            // `Theme.Typography.sectionHeader`, the most-used of the three
+            // tokens backed by `DMSans-Light.ttf`, so this screen is proof the
+            // Light cut renders and not just registers.
+            //
+            // Deliberately NOT `SignInView`, which shows two Light tokens but
+            // runs `PhotoGridSection` — 40 photo tiles redrawn continuously by
+            // a `TimelineView` (see Step 18.20). Under a UI test that kept the
+            // app busy enough that the runner killed it at teardown, taking a
+            // neighbouring UI test down with it on every run.
+            //
+            // `authViewModel` is injected by `ContentView`, already in scope.
+            // The `NavigationStack` mirrors how `SignInView` pushes this.
+            NavigationStack { LoginView() }
         case "forYou":
             ForYouView()
         case "journal":

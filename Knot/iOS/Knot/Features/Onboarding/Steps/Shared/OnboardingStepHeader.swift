@@ -18,11 +18,13 @@ struct OnboardingStepHeader: View {
     let title: String
     var subtitle: String? = nil
 
-    /// 28pt Fraunces SemiBold — a step-specific override of the 32pt
+    /// 28pt DM Sans SemiBold — a step-specific override of the 32pt
     /// `Theme.Typography.onboardingHeader` token (which the Welcome hero and
-    /// Completion screens still use at full size). Same family and Dynamic Type
-    /// relation as the token, only the point size differs.
-    private static let titleFont: Font = .custom("Fraunces", size: 28, relativeTo: .title).weight(.semibold)
+    /// Completion screens still use at full size). Same face and Dynamic Type
+    /// relation as that token, only the point size differs. Lives in `Theme` as
+    /// `onboardingHeaderCompact` rather than as a `Font.custom(...)` here, so
+    /// no font family name is spelled outside the design system.
+    private static let titleFont: Font = Theme.Typography.onboardingHeaderCompact
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
