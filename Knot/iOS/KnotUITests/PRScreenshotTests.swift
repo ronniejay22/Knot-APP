@@ -24,12 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change shrinks the headline inside each Journal `MilestoneCard`
-        // from 28pt to 20pt. The real `ForYouView` sits behind an authenticated
+        // The change shrinks the artwork inside each Journal `MilestoneCard`
+        // from 200pt to 140pt. The real `ForYouView` sits behind an authenticated
         // session and a live milestone fetch, which a cold screenshot launch
         // can't reach — so render the same card feed via the DEBUG harness,
-        // whose three seeded entries show the retyped headline against the
-        // unchanged 32pt partner name and the card's meta/footer labels.
+        // whose three seeded entries each carry a real occasion illustration.
+        // The shot has to show more than one card's artwork, which is the
+        // point of the reduction, so the harness feed is the right target.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -46,8 +47,8 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait on the header eyebrow and the first card's headline — the
-        // element this change retypes.
+        // Wait on the header eyebrow and the first card's headline — the card
+        // whose artwork this change resizes.
         //
         // These ASSERT rather than discard their result. A discarded
         // `waitForExistence` lets the test pass while the target screen never
@@ -61,7 +62,7 @@ final class PRScreenshotTests: XCTestCase {
         )
         XCTAssertTrue(
             app.staticTexts["Christmas"].waitForExistence(timeout: 5),
-            "The first milestone card's headline never rendered — the shot would not show the retyped title"
+            "The first milestone card never rendered — the shot would not show the resized artwork"
         )
 
         // Let the screen settle so the shot isn't caught mid-transition.

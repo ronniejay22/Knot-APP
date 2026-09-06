@@ -7918,6 +7918,66 @@ San-Francisco-fallback failure mode.
 
 ---
 
+### Step 19.35 ✅ Journal — Shrink the Artwork Inside Milestone Cards
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Each Journal card led with a **200pt** illustration. At that height one card
+and a sliver of the next filled the screen, so the feed read as a stack of posters
+rather than a scannable list of what is coming up. Reduced to **140pt**.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** `artworkHeight` 200 → 140, with the
+  reasoning in a doc comment so the next reader doesn't restore it blind.
+
+**Why 140.** The occasion illustrations are 1050×480 — roughly 2.2:1. A card's artwork
+is about 370pt wide inside the screen's margins and the card's `.md` padding, so 140pt
+lands near the art's native ratio and the crop keeps the figures whole; 200pt was
+cropping well inside them. It is a ~30% reduction, enough to get a second card's
+artwork on screen, which is the whole point.
+
+**Nothing else moved.** `artworkHeight` is `private` and read at exactly one call site.
+The Journal feed (`ForYouView`) and the `journal` screenshot harness both render
+`MilestoneCard` and nothing else does, so those two surfaces change together and no
+other screen is touched. Every other image height in the app —
+`RecommendationCard.heroHeight` (220), `SpotlightDeckView` (340),
+`OccasionEntryModal.illustrationAspectRatio` — is independently declared.
+
+**The `Color.clear` idiom was left alone, deliberately.** It is tempting to simplify
+`artwork` to a directly-sized `Image` while changing its height. Step 19.31 shows why
+not: a `scaledToFill` image reports a size *larger* than its proposal, and that
+overflow propagates into layout rather than being absorbed by the frame — it widened
+the card past the viewport and shifted the entire Journal sideways. `clipShape` clips
+pixels; it does not constrain layout. The smaller height simply crops more.
+
+**The placeholder still fits.** `artworkPlaceholder` (the `default` occasion category,
+the only one shipping no illustration) centres a 44pt glyph, which sits comfortably
+inside 140pt.
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — the constant and its rationale
+- `iOS/KnotUITests/PRScreenshotTests.swift` — the navigation slot already pointed at
+  the `journal` harness (Step 19.33); its comments and the second assertion message
+  now name the artwork rather than the headline, so a failure reads correctly
+- `docs/pr-screenshots/worktree-feat-journal-card-artwork-height.png`
+
+**Tests:** Unit plan **448 passed**, 0 failures; Full plan **448 unit + 5 UI passed**,
+with `KnotUITests/testLaunchPerformance` skipped for the reason recorded in Step 19.31.
+`MilestoneCardTests` (artwork resolution, date label, countdown colours, render smoke
+tests across every milestone type and both artwork paths) needed no change, since no
+test asserts a height.
+
+**Notes:**
+- A `CGFloat` constant has no inspectable value in a SwiftUI test, so **the screenshot
+  is the artifact that proves the size changed** — the same situation as Step 19.34's
+  font token. Asserting on it would mean introspecting the view tree, which this
+  codebase deliberately doesn't do.
+- If 140pt reads too small on a real device it is one number, and the doc comment on
+  the constant carries the constraint (the 1050×480 source ratio) that should shape
+  any future value.
+
+---
+
 ## Next Steps
 
 

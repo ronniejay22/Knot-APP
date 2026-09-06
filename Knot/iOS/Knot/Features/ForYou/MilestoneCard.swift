@@ -14,7 +14,7 @@ import SwiftUI
 ///
 /// ```
 /// ┌───────────────────────────────┐
-/// │  [ occasion artwork, 200pt ]  │
+/// │  [ occasion artwork, 140pt ]  │
 /// │  DEC 25            in 175 days│
 /// │  Christmas                    │
 /// │  ─────────────────────────────│
@@ -36,7 +36,11 @@ struct MilestoneCard: View {
     let urgency: MilestoneUrgency
     let onGetRecommendations: (() -> Void)?
 
-    private static let artworkHeight: CGFloat = 200
+    /// Was 200pt, which let only one card and a sliver of the next fit on screen —
+    /// the feed read as a stack of posters rather than a list of what's coming up.
+    /// The illustrations are 1050×480, so at this height the crop stays close to
+    /// their native aspect ratio and the figures aren't cut.
+    private static let artworkHeight: CGFloat = 140
 
     var body: some View {
         KnotCard(padding: .md, radius: Theme.Radius.xl) {
@@ -121,7 +125,7 @@ struct MilestoneCard: View {
 
     /// `cardTitleSemibold` (20pt), not `sectionHeaderSemibold` (28pt): 28 is a
     /// *page* title scale, and at that size the headline competed with the
-    /// 200pt artwork above it. The card-scale token keeps the semibold weight
+    /// artwork above it (then 200pt). The card-scale token keeps the semibold weight
     /// so the title still out-weights the meta row and the "For {partner}"
     /// footer, and lands on the same 20pt rung the rest of the app's card
     /// headings already use.
