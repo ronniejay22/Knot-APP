@@ -8089,6 +8089,64 @@ and the README's own `grep` matches exactly the placeholders it now claims.
 
 ---
 
+### Step 19.37 ✅ Legal — Fill the Last Two Placeholders (Operating Party + Effective Date)
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Close out the last two placeholders Steps 19.35–19.36 left open, so the documents are
+publishable. The owner elected to ship under their own legal name as a sole proprietor rather than
+wait weeks on an LLC — forming one is realistically a 2–6 week path once the Apple organization
+account and its D-U-N-S prerequisite are counted, and swapping an entity name in later is a
+two-minute find-and-replace. There was no reason for a revisable document to block a launch.
+
+**What changed:**
+- **`[Company Legal Name]` → `Ronald Jones Jr`** and **`[COMPANY LEGAL NAME]` → `RONALD JONES JR`**
+  (10 + 2 occurrences), and **`[Effective Date]` → `September 6, 2026`** (4), across
+  `privacy-policy.md`, `terms-of-service.md`, `privacy.html`, `terms.html`. **Zero placeholders
+  remain** in the four policy files.
+- **Terms §13/§14: `its` → `their`, and `contractors` added.** Substituting a natural person into
+  a template drafted for a company produced *"Ronald Jones Jr **or its** officers, employees, or
+  agents"* — corporate possessive applied to a person. `their` is correct for an individual and
+  stays correct if an entity is formed later, so the clause needs no second rewrite. `contractors`
+  was added because a sole proprietor's help is far likelier to be contract than employment, and
+  the liability cap and indemnity are the two clauses in the document that exist to protect the
+  operator. **This is the kind of defect a find-and-replace creates and a diff review catches:**
+  the placeholder was grammatically inert, the substituted value was not.
+- **`docs/legal/README.md`** — the "fill in these placeholders" section became **"Current values
+  (no placeholders remain)"**, recording what each value is and what to revisit: replace the name
+  if an entity is formed, bump the date on substantive revisions, restore the address for EU/UK,
+  and the standing ⚠️ that governing law needs a state. Also flagged that `privacy@knot-app.com`
+  must actually receive mail — with the postal address gone it is the sole contact channel and the
+  destination for GDPR/CCPA rights requests. The check `grep` was widened back to all four
+  placeholder names, since it is now a regression guard rather than a to-do list.
+
+**Files modified:**
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — name + date
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — name + date; §13/§14 pronoun fix
+- `docs/legal/README.md` — placeholder section replaced with current values + what to revisit
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, as with 19.35/19.36. Re-ran the same checks: **zero** bracketed
+placeholders remain in the four policy files (only the Markdown link labels `[Privacy Policy]` /
+`[Terms of Service]` match a bracket pattern, and they are links, not placeholders); the name
+landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML heading parity still
+`diff`-clean in both pairs; both HTML pages still parse with balanced tags.
+
+**Notes:**
+- **The documents are now publishable but not yet published.** Remaining before launch, none of
+  them code: host the two HTML pages at `knot-app.com/terms` and `/privacy`; make sure
+  `privacy@knot-app.com` receives mail; create `com.knot.premium.annual` / `.monthly` in App Store
+  Connect with 7-day intro offers (the standing Step 19.8 follow-up, and Terms §10 now states
+  those exact prices); and keep the App Privacy "nutrition label" consistent with the Privacy
+  Policy — no tracking SDKs, no ad identifiers, no payment data, no device permissions.
+- **⚠️ Governing law still names a country, not a state** (see Step 19.36). Unchanged here.
+- The name is a **sole proprietor**, not an entity — so "Knot" has no separate legal existence and
+  liability is personal. That is the actual argument for forming an LLC once the subscription is
+  taking recurring consumer money; it is a business decision, not a docs one, and deliberately did
+  not gate this work.
+
+---
+
 ## Next Steps
 
 

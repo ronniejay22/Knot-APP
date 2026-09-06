@@ -15,20 +15,18 @@ ready-to-publish web versions.
 > laws vary by jurisdiction and by App Store / Play Store requirements. Have a
 > qualified attorney review both documents before you publish or rely on them.
 
-## Before publishing: fill in these placeholders
+## Current values (no placeholders remain)
 
-Search all four documents for square-bracketed placeholders and replace them
-consistently. **Two remain:**
+All four bracketed placeholders have been resolved. What they became, and what to revisit:
 
-- `[Company Legal Name]` — the registered entity that operates Knot (e.g. `Knot, Inc.`
-  or `Knot LLC`). Note this also appears in **ALL-CAPS** form (`[COMPANY LEGAL NAME]`)
-  inside the all-caps Disclaimer and Limitation-of-Liability clauses of the Terms, so
-  do a case-insensitive replace to catch both.
-- `[Effective Date]` — the date each document takes effect (set the same date on both,
-  or per-document when you next revise).
-
-**Already resolved:**
-
+- **Operating party — `Ronald Jones Jr`**, the individual operating Knot as a sole
+  proprietor (there is no LLC). This is the definition every `we` / `us` / `our` in both
+  documents resolves to, and it is named outright in the Terms' Limitation-of-Liability
+  and Indemnification clauses. **If an entity is later formed, replace it everywhere**
+  (case-insensitively — the liability clause carries an ALL-CAPS `RONALD JONES JR`) and
+  bump the effective date.
+- **Effective date — `September 6, 2026`**, the same on all four documents. Bump it on
+  any substantive revision.
 - **Mailing address — deliberately omitted.** Contact is email-only. A postal address is
   not required by Apple's review, and CCPA/CPRA lets a business operating exclusively
   online with a direct customer relationship offer an email address alone for privacy
@@ -40,24 +38,26 @@ consistently. **Two remain:**
   court to work out which body of law applies, and "the courts of the United States"
   designates no particular venue — an exclusive-jurisdiction clause that names the whole
   country does not really select a forum. Replace both occurrences with a specific state
-  (normally where you live or where the entity is formed, e.g. `the State of Texas, USA`)
+  (normally where you live or where an entity is formed, e.g. `the State of Texas, USA`)
   before relying on the clause.
 
 The contact email is set to `privacy@knot-app.com` (the app already uses the
-`knot-app.com` domain). Change it if you prefer a different address.
+`knot-app.com` domain). Change it if you prefer a different address. **It must actually
+receive mail** — with the postal address gone it is the only contact channel, and it is
+where GDPR/CCPA rights requests are directed.
 
-Quick check that nothing was missed — this matches only the remaining placeholder names,
-so it won't fire on ordinary Markdown link labels like `[Privacy Policy](privacy-policy.md)`:
+Check that no placeholder was reintroduced (this pattern deliberately excludes the
+ordinary Markdown link labels `[Privacy Policy]` / `[Terms of Service]`):
 
 ```bash
-grep -rniE "\[(company legal name|effective date)\]" \
+grep -rniE "\[(company legal name|mailing address|governing-law state/country|effective date)\]" \
   docs/legal/privacy-policy.md docs/legal/terms-of-service.md \
   docs/legal/privacy.html docs/legal/terms.html
 ```
 
-It should print nothing once every placeholder has been replaced. (This README is
-deliberately excluded — it *names* the placeholders above, so globbing `docs/legal/*.md`
-would always match itself and the check could never come back clean.)
+It should print nothing. (This README is deliberately excluded from the paths — it
+*names* the placeholders above, so globbing `docs/legal/*.md` would always match itself
+and the check could never come back clean.)
 
 ## Publishing to the web
 

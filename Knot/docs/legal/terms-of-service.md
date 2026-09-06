@@ -1,9 +1,9 @@
 # Knot Terms of Service
 
-**Last updated: [Effective Date]**
+**Last updated: September 6, 2026**
 
 These Terms of Service ("Terms") are a legal agreement between you and
-**[Company Legal Name]** ("Knot," "we," "us," or "our") governing your use of the Knot
+**Ronald Jones Jr** ("Knot," "we," "us," or "our") governing your use of the Knot
 mobile application and related services (together, the "Service"). Please read them
 carefully.
 
@@ -185,8 +185,8 @@ ALLOW THE EXCLUSION OF CERTAIN WARRANTIES, THE ABOVE EXCLUSIONS MAY NOT APPLY TO
 
 ## 13. Limitation of liability
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL [COMPANY LEGAL NAME] OR ITS
-OFFICERS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL RONALD JONES JR OR THEIR
+OFFICERS, EMPLOYEES, CONTRACTORS, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
 CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR OTHER
 INTANGIBLE LOSSES, ARISING OUT OF OR RELATING TO YOUR USE OF (OR INABILITY TO USE) THE
 SERVICE. OUR TOTAL LIABILITY FOR ANY CLAIM RELATING TO THE SERVICE WILL NOT EXCEED THE
@@ -196,8 +196,8 @@ MAY NOT APPLY TO YOU.
 
 ## 14. Indemnification
 
-You agree to indemnify and hold harmless [Company Legal Name] and its officers,
-employees, and agents from any claims, damages, liabilities, and expenses (including
+You agree to indemnify and hold harmless Ronald Jones Jr and their officers,
+employees, contractors, and agents from any claims, damages, liabilities, and expenses (including
 reasonable legal fees) arising out of or related to Your Content, your use of the
 Service, or your violation of these Terms or applicable law.
 
@@ -238,5 +238,5 @@ revised Terms.
 
 Questions about these Terms? Contact us at:
 
-**[Company Legal Name]**
+**Ronald Jones Jr**
 Email: privacy@knot-app.com

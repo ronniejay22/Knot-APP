@@ -1,8 +1,8 @@
 # Knot Privacy Policy
 
-**Last updated: [Effective Date]**
+**Last updated: September 6, 2026**
 
-This Privacy Policy explains how **[Company Legal Name]** ("Knot," "we," "us," or
+This Privacy Policy explains how **Ronald Jones Jr** ("Knot," "we," "us," or
 "our") collects, uses, shares, and protects information when you use the Knot mobile
 application and related services (together, the "Service").
 
@@ -246,5 +246,5 @@ accept the revised policy.
 If you have questions or requests regarding this Privacy Policy or your information,
 contact us at:
 
-**[Company Legal Name]**
+**Ronald Jones Jr**
 Email: privacy@knot-app.com
