@@ -7859,6 +7859,65 @@ reason recorded in Step 19.31.
 
 ---
 
+### Step 19.34 ✅ Journal — Shrink the Headline Inside Milestone Cards
+**Date:** 2026-09-05
+**Status:** Complete
+
+**Goal:** The milestone name inside each Journal card rendered at
+`Theme.Typography.sectionHeaderSemibold` — **DMSans-SemiBold 28**. That is a *page* title
+scale (it is what the recommendation detail page uses for its own screen title), and inside a
+card that already leads with 200pt of artwork it competed with the artwork and with the 32pt
+partner name in the screen header above it. Reduced to card scale.
+
+**What changed:**
+- **New token `Theme.Typography.cardTitleSemibold`** — DMSans-SemiBold 20, `relativeTo:
+  .title2`. Sister to `cardTitle` (DMSans-Regular 20) in exactly the way `sectionHeaderSemibold`
+  is sister to `sectionHeader`: same family, size, and Dynamic Type relation, only the weight
+  differs.
+- **`Features/ForYou/MilestoneCard.swift`:** the `title` view reads the new token.
+
+**Why a new token rather than reusing `onboardingSubHeader`.** That token is already
+DMSans-SemiBold 20 and would have rendered identically — but it is an onboarding *page* title
+consumed by eight form-style step views, and pointing card headlines at it would mean a future
+tweak to either silently retypes the other. This is the same call Step 19.32 made for
+`onboardingHeaderCompact` vs `sectionHeaderSemibold`, and Step 18.23 for `onboardingSubHeader`
+vs `cardTitle`. Three tokens now share the DMSans-SemiBold-20 value and carry different
+semantics; that is the intended shape of this design system, not duplication to collapse.
+
+**The weight was kept deliberately.** Dropping to the plain `cardTitle` (Regular 20) was the
+one-word change and would have been a smaller diff, but the request was about *size*. Regular
+would also have flattened the card's internal hierarchy — the headline needs to out-weight the
+`label`-styled date, countdown, and "For {partner}" footer it sits between.
+
+**Scope is the card headline only.** `ForYouView`'s "Upcoming" section header (line 168) also
+reads `sectionHeaderSemibold` and is untouched — it is a section header on the screen, not a
+headline inside a card, and the screenshot shows the two now reading at distinct levels.
+`RecommendationDetailView`'s title, the third consumer of that token, is likewise unchanged.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — added `cardTitleSemibold`
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `title` retyped, with the rationale in a doc
+  comment so the next reader doesn't "fix" it back to the page-title token
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `testCardTitleSemiboldTokenExists`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — the slot already pointed at the `journal` harness
+  (Step 19.33); its comments and second assertion now name the card headline rather than the
+  count badge, so the wait fails on the element this change actually touches
+- `docs/pr-screenshots/worktree-feat-journal-card-headline-size.png`
+
+**Tests:** Unit plan **448 passed**, 0 failures (447 baseline + 1 new). Full plan run before
+shipping. The token test is existence-only, matching `testOnboardingSubHeaderTokenExists` — a
+`Font` exposes no inspectable size, so the screenshot is the artifact that proves the size
+actually changed. The registration guards Step 19.32 added still cover the silent
+San-Francisco-fallback failure mode.
+
+**Notes:**
+- No `.weight(...)` was chained at the call site. DM Sans ships static cuts, so weight belongs to
+  the PostScript name — the token carries SemiBold itself, per the standing rule in `Theme.swift`.
+- If 20pt reads too small against the 200pt artwork on a real device, the fix is one number in
+  `Theme.swift`; the call site stays as-is because it names a semantic, not a size.
+
+---
+
 ## Next Steps
 
 

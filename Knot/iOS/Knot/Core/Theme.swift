@@ -334,6 +334,19 @@ extension Theme {
         /// Scales relative to `.title2`.
         static let cardTitle: Font = .custom(FontFamily.DMSans.regular, size: 20, relativeTo: .title2)
 
+        /// DMSans-SemiBold (600) @ 20pt. Headline *inside* a content card —
+        /// the Journal tab's `MilestoneCard` title. Sister to `cardTitle`:
+        /// same family, size, and Dynamic Type relation, only the weight
+        /// differs, so the headline still out-weights the card's meta labels.
+        ///
+        /// Value-identical to `onboardingSubHeader` today, but deliberately a
+        /// separate token — those are onboarding *page* titles, these are card
+        /// headlines, and sharing would make a tweak to either silently retype
+        /// the other. Same reasoning as `onboardingHeaderCompact` vs
+        /// `sectionHeaderSemibold`.
+        /// Scales relative to `.title2`.
+        static let cardTitleSemibold: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
+
         /// DMSans-Light (300) @ 17pt with synthesized italic — brand-moment
         /// quotes, sign-in tagline, recommendation attributions. Synthesized
         /// because no DM Sans italic cut is currently bundled; to upgrade to a
