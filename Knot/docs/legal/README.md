@@ -18,33 +18,46 @@ ready-to-publish web versions.
 ## Before publishing: fill in these placeholders
 
 Search all four documents for square-bracketed placeholders and replace them
-consistently:
+consistently. **Two remain:**
 
 - `[Company Legal Name]` — the registered entity that operates Knot (e.g. `Knot, Inc.`
   or `Knot LLC`). Note this also appears in **ALL-CAPS** form (`[COMPANY LEGAL NAME]`)
   inside the all-caps Disclaimer and Limitation-of-Liability clauses of the Terms, so
   do a case-insensitive replace to catch both.
-- `[Mailing Address]` — the entity's contact/mailing address.
-- `[Governing-law State/Country]` — the jurisdiction whose law governs the Terms and
-  where disputes are venued (e.g. `the State of Delaware, USA`).
 - `[Effective Date]` — the date each document takes effect (set the same date on both,
   or per-document when you next revise).
+
+**Already resolved:**
+
+- **Mailing address — deliberately omitted.** Contact is email-only. A postal address is
+  not required by Apple's review, and CCPA/CPRA lets a business operating exclusively
+  online with a direct customer relationship offer an email address alone for privacy
+  requests. Add one back if Knot ships to the **EU/UK** — GDPR expects the controller's
+  postal contact details, and the EU DSA trader rules publish a name/address/phone/email
+  on the App Store listing anyway, so it stops being private at that point.
+- **Governing law — set to `the United States`** in Terms §16. ⚠️ **This should name a
+  state.** US contract law is state law, so "the laws of the United States" leaves a
+  court to work out which body of law applies, and "the courts of the United States"
+  designates no particular venue — an exclusive-jurisdiction clause that names the whole
+  country does not really select a forum. Replace both occurrences with a specific state
+  (normally where you live or where the entity is formed, e.g. `the State of Texas, USA`)
+  before relying on the clause.
 
 The contact email is set to `privacy@knot-app.com` (the app already uses the
 `knot-app.com` domain). Change it if you prefer a different address.
 
-Quick check that nothing was missed — this matches only the four placeholder names, so
-it won't fire on ordinary Markdown link labels like `[Privacy Policy](privacy-policy.md)`:
+Quick check that nothing was missed — this matches only the remaining placeholder names,
+so it won't fire on ordinary Markdown link labels like `[Privacy Policy](privacy-policy.md)`:
 
 ```bash
-grep -rniE "\[(company legal name|mailing address|governing-law state/country|effective date)\]" \
+grep -rniE "\[(company legal name|effective date)\]" \
   docs/legal/privacy-policy.md docs/legal/terms-of-service.md \
   docs/legal/privacy.html docs/legal/terms.html
 ```
 
 It should print nothing once every placeholder has been replaced. (This README is
-deliberately excluded — it *names* all four placeholders above, so globbing
-`docs/legal/*.md` would always match itself and the check could never come back clean.)
+deliberately excluded — it *names* the placeholders above, so globbing `docs/legal/*.md`
+would always match itself and the check could never come back clean.)
 
 ## Publishing to the web
 

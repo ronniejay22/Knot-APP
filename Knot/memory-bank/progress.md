@@ -8008,10 +8008,10 @@ Writing the corrected claims required reading `SubscriptionManager.swift`, `Onbo
 and `SettingsView.swift` — the docs now describe the shipped behavior, not the intended behavior.
 
 **Notes:**
-- **The placeholders are still unfilled**, deliberately. `[Company Legal Name]` (+ its ALL-CAPS
-  twin in §13/§14), `[Mailing Address]`, `[Governing-law State/Country]`, and `[Effective Date]`
-  need a decision only the owner can make, and holding the Apple-compliance fix for them would
-  have helped nobody. They are one case-insensitive find-and-replace away from done.
+- **The placeholders were left unfilled** by this step, deliberately — they need a decision only
+  the owner can make, and holding the Apple-compliance fix for them would have helped nobody.
+  **Step 19.36 (below) then resolved two of the four**; `[Company Legal Name]` (+ its ALL-CAPS
+  twin in §13/§14) and `[Effective Date]` remain.
 - **Three adjacent gaps left open on purpose**, all out of scope for a docs change, and all now
   reflected in the wording rather than papered over:
   1. **The pages are still unpublished.** The app links to `https://knot-app.com/terms` and
@@ -8031,6 +8031,61 @@ and `SettingsView.swift` — the docs now describe the shipped behavior, not the
 - The load-bearing invariant for whoever touches pricing next: **§10 and `Knot.storekit` must
   agree.** They are two hand-maintained copies of the same facts with no test between them —
   the same shape of gap that let "free of charge" survive four subscription steps.
+
+---
+
+### Step 19.36 ✅ Legal — Drop the Mailing Address and Set Governing Law
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Resolve two of the four placeholders Step 19.35 left open. The owner asked why a mailing
+address was required at all, and — on the answer that it mostly is not — chose to remove it and to
+set the governing-law jurisdiction to the United States.
+
+**What changed:**
+- **Mailing address removed** from the "Contact us" block of all four documents (Privacy §13,
+  Terms §18, and both HTML twins). Contact is now email-only at `privacy@knot-app.com`.
+- **Governing law set to "the United States"** in Terms §16 and `terms.html`. The venue sentence
+  was reworded from "the **state and federal courts located in** [X]" to "the **courts of** the
+  United States" — the original phrasing was written for a state-level value and reads as
+  nonsense at country scale.
+- **A consumer-rights carve-out was added to §16**, stating that a consumer entitled by local law
+  to sue in their own courts, or holding non-waivable protections, keeps those rights. Many
+  jurisdictions void an exclusive-forum clause against consumers anyway; saying so makes the
+  section survive contact with those rules instead of being struck wholesale.
+- **`docs/legal/README.md`** now lists only the two remaining placeholders, records *why* the
+  address was dropped and when it must come back, carries a ⚠️ on the governing-law value, and
+  its check `grep` was narrowed to `company legal name|effective date`.
+
+**Files modified:**
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — contact block, address line removed
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — contact block; §16 jurisdiction + carve-out
+- `docs/legal/README.md` — placeholder list split into remaining/resolved, rationale, narrowed check
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, same as Step 19.35; no code path touches these files. Re-ran the same
+checks: only `[Company Legal Name]` / `[COMPANY LEGAL NAME]` / `[Effective Date]` remain (16
+occurrences across the four policy files, zero `[Mailing Address]`, zero
+`[Governing-law State/Country]`), Markdown ↔ HTML
+heading parity still `diff`-clean in both pairs, both HTML pages still parse with balanced tags,
+and the README's own `grep` matches exactly the placeholders it now claims.
+
+**Notes:**
+- **⚠️ "The United States" is not a real governing-law choice and should be replaced with a
+  state.** US contract law is state law, so "the laws of the United States" leaves a court to
+  determine which body of law governs, and an exclusive-jurisdiction clause naming the entire
+  country selects no forum at all. This was the owner's explicit instruction and is recorded as
+  their decision; the defect is flagged in the README rather than silently fixed. The replacement
+  is normally the state of residence or of formation (`the State of X, USA`), in both §16
+  occurrences plus `terms.html`.
+- **Why dropping the address is defensible today:** Apple's review does not check for one, and
+  CCPA/CPRA lets a business operating exclusively online with a direct consumer relationship offer
+  an email address alone for privacy requests. **It must come back for EU/UK distribution** —
+  GDPR Art. 13 expects the controller's postal contact details, and the EU DSA trader rules
+  publish name/address/phone/email on the App Store listing regardless, so the privacy benefit of
+  omitting it disappears at that point. Recorded in the README so the trade-off is not re-derived.
+- The practical driver was that Knot has no legal entity yet, so the only address available was a
+  home address — which a published policy would have put on the open internet permanently.
 
 ---
 

@@ -248,4 +248,3 @@ contact us at:
 
 **[Company Legal Name]**
 Email: privacy@knot-app.com
-Mailing address: [Mailing Address]

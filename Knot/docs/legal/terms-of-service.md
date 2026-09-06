@@ -217,11 +217,15 @@ account or remove the app.
 
 ## 16. Governing law and disputes
 
-These Terms are governed by the laws of **[Governing-law State/Country]**, without
-regard to its conflict-of-laws rules. You agree that the state and federal courts
-located in **[Governing-law State/Country]** will have exclusive jurisdiction over any
-dispute arising out of or relating to these Terms or the Service, and you consent to
-their jurisdiction and venue, except where prohibited by applicable law.
+These Terms are governed by the laws of **the United States**, without regard to its
+conflict-of-laws rules. You agree that the courts of **the United States** will have
+exclusive jurisdiction over any dispute arising out of or relating to these Terms or the
+Service, and you consent to their jurisdiction and venue, except where prohibited by
+applicable law.
+
+If you are a consumer resident in a jurisdiction whose law entitles you to bring
+proceedings in your local courts, or grants you protections that cannot be waived by
+agreement, nothing in this section removes those rights.
 
 ## 17. Changes to these Terms
 
@@ -236,4 +240,3 @@ Questions about these Terms? Contact us at:
 
 **[Company Legal Name]**
 Email: privacy@knot-app.com
-Mailing address: [Mailing Address]
