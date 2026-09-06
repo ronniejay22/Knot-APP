@@ -7918,6 +7918,122 @@ San-Francisco-fallback failure mode.
 
 ---
 
+### Step 19.35 ✅ Legal — Bring the Terms & Privacy Policy Current With the Subscription
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** The legal documents (Step 19.5, written 2026-07-01) predate the subscription. Terms
+**§10 "Fees"** still read *"The Service is currently provided **free of charge**"* — but Steps
+19.8 / 19.14 / 19.19 / 19.23 shipped a real StoreKit 2 auto-renewing subscription in between.
+That is not cosmetic drift: App Review Guideline **3.1.2** requires the EULA/Terms linked from
+the app to disclose the subscription's title, length, content, price per period, that it
+auto-renews, and how to cancel. A Terms that says the app is free is a rejection, and Step 13.2
+(App Store Submission Preparation) is still open.
+
+**Root cause:** nothing ties the legal docs to the StoreKit catalogue. Four subscription steps
+landed without the policies being revisited, and no check would have caught it — the docs have no
+tests and are not read by any code path.
+
+**What changed:**
+- **Terms §10 rewritten** from a 3-line "Fees" paragraph into **"Subscriptions and billing"**
+  with eight subsections (a–h): plans + pricing table, 7-day free trial and its automatic
+  conversion, automatic renewal, payment via the Apple Account, cancelling, refunds (Apple's
+  Media Services Terms — we cannot issue them), price changes, and restoring a purchase. Every
+  price, period, plan name, and trial length is copied from `iOS/Knot/Knot.storekit`, not
+  paraphrased: `com.knot.premium.monthly` → "Knot Premium — Monthly", 1 month, US $9.99;
+  `com.knot.premium.annual` → "Knot Premium — 12 Months", 1 year, US $59.99; `P1W`/`free` intro
+  offer → "7-day free trial".
+- **Terms §15 (Termination)** gained the trap worth stating explicitly: **deleting your account
+  does not cancel your subscription.** Knot's account deletion is a backend soft-delete; the
+  subscription lives with Apple and keeps billing regardless.
+- **Privacy Policy §2 gained a new subsection f, "Subscription status"** — the app asks StoreKit
+  whether a subscription is active, and the policy states plainly that this is **not stored**
+  server-side or on-device. That is what the code does: `SubscriptionManager.isSubscribed` is an
+  in-memory `private(set) var` that is never persisted (Step 19.8 made that explicit so premium
+  could not leak across accounts on a shared device), and the backend has no subscription table
+  or column at all. The former §2f (device info) became **§2g**.
+- **Privacy §2f "device token" → plural.** Step 19.29 replaced the single `users.device_token`
+  column with the `user_devices` table (one row per device); the policy still described the
+  pre-19.29 one-device-per-user model.
+- **Privacy §2 "what we do not collect"** — the payment bullet said purchases "happen directly on
+  a merchant's own website", which was true when written and is now only half the story. It names
+  both paths (Apple for subscriptions, merchant for gifts/bookings) and keeps the substantive
+  claim, which is still accurate: the details never reach us.
+- **Privacy §6a** — added an **Apple (App Store / StoreKit)** row to the service-provider table;
+  the existing Apple (APNs) row's "Device token" became plural to match §2g.
+- **Privacy §8** — the Deletion right now cross-references the cancel-separately point from
+  Terms §15, so a user reading only the Privacy Policy still learns it.
+- **`docs/legal/README.md`** — corrected the link locations: the README claimed Settings **and**
+  the Sign-In screen, but Sign-In renders those as plain `Text`; the second real call site is
+  `OnboardingPaywallView.swift:113-114`, which is the one App Review cares about (subscription
+  terms must be reachable *before* purchase). Also noted the App Store Privacy-Policy-URL
+  requirement, replaced the placeholder-check `grep` with one matching only the four placeholder
+  names (the old `\[.*\]` also matches ordinary Markdown link labels) and scoped to the four
+  policy files rather than `docs/legal/*.md` — the README lists all four placeholder names, so a
+  self-globbing check could never come back clean — and added a **"Subscription terms are
+  load-bearing"** section naming `Knot.storekit` as §10's source of truth.
+- All five edits were mirrored into the standalone `privacy.html` / `terms.html` pages.
+  `terms.html` had no `h3` or table CSS (it had never needed either), so the `h3`,
+  `.table-scroll`, `table`, `th`, `td` rules were ported from `privacy.html` — same tokens, with
+  `min-width` 420px instead of 520px for the narrower 3-column pricing table.
+
+**Files modified:**
+- `docs/legal/terms-of-service.md` — §10 rewritten (a–h), §15 cancellation note
+- `docs/legal/terms.html` — same, mirrored; `h3` + table CSS added to the inline stylesheet
+- `docs/legal/privacy-policy.md` — new §2f, §2f→§2g, payment/device-token wording, §6a Apple row, §8 cross-reference
+- `docs/legal/privacy.html` — same, mirrored
+- `docs/legal/README.md` — link location, placeholder-check command, subscription-drift warning
+
+**Tests:** None — docs-only, no iOS or backend code touched, so no suite could exercise it and
+none was run (nothing in the diff can break a test). Verified instead by five direct checks:
+(1) the four `[Company Legal Name]` / `[Mailing Address]` / `[Governing-law State/Country]` /
+`[Effective Date]` placeholders are the only ones present and no new one was introduced;
+(2) Markdown ↔ HTML heading parity is exact in both pairs — Terms 1–18 with 10a–10h, Privacy
+1–13 with 2a–2g and 6a–6d, contiguous, no gaps; (3) every price, period, plan name, and trial
+length in §10 was diffed programmatically against `Knot.storekit` and matches exactly;
+(4) both HTML pages parse with all tags balanced, and the `/terms` ↔ `/privacy` cross-links
+resolve; (5) §10 was walked against Guideline 3.1.2's six required disclosures — all present.
+
+A `/code-review high` pass then caught eight issues, all of the same class and all fixed before
+commit: **the drafts asserted things the code does not do.** The Privacy Policy said we "record"
+subscription status (nothing persists it — see Notes); §10 said Premium "unlocks" features
+(nothing is entitlement-gated yet); §10(h) promised a Restore control on "the subscription
+screen" (it exists only on the onboarding paywall, and the Settings paywall entry is `#if DEBUG`);
+§10(a) promised the current price on the subscription screen (the paywall's plan cards hardcode
+USD `$59.99`/`$9.99`/`$119.88`, so only Apple's own sheet reliably shows the local price); the
+§6a Apple row claimed we "receive" the status server-side; §15's survival list never got §10
+added despite the new paragraph relying on it; and the README's own placeholder-check `grep`
+globbed the README, which lists all four placeholder names, so it could never come back clean.
+Writing the corrected claims required reading `SubscriptionManager.swift`, `OnboardingPaywallView.swift`
+and `SettingsView.swift` — the docs now describe the shipped behavior, not the intended behavior.
+
+**Notes:**
+- **The placeholders are still unfilled**, deliberately. `[Company Legal Name]` (+ its ALL-CAPS
+  twin in §13/§14), `[Mailing Address]`, `[Governing-law State/Country]`, and `[Effective Date]`
+  need a decision only the owner can make, and holding the Apple-compliance fix for them would
+  have helped nobody. They are one case-insensitive find-and-replace away from done.
+- **Three adjacent gaps left open on purpose**, all out of scope for a docs change, and all now
+  reflected in the wording rather than papered over:
+  1. **The pages are still unpublished.** The app links to `https://knot-app.com/terms` and
+     `/privacy` from both `SettingsView.swift` and `OnboardingPaywallView.swift`, and App Store
+     submission requires a live Privacy Policy URL. The HTML is self-contained and ready for any
+     static host — a deploy, not a code change.
+  2. **"Restore Purchases" is reachable only from the onboarding paywall.** The Settings paywall
+     entry is `#if DEBUG`, so a subscriber who reinstalls and already has a vault skips onboarding
+     and never sees the control. §10(h) was therefore written to lead with the fact that does
+     hold — the subscription follows the **Apple Account** — rather than promising a button that
+     may be out of reach. A Settings "Manage Subscription" row is the real fix.
+  3. **Nothing is entitlement-gated.** Step 19.8's own note says premium is unlocked at onboarding
+     but not gated anywhere, and the paywall can be dismissed straight into the full app. §10 was
+     therefore written to define the subscription by what the subscription screen says at purchase
+     time, not by a feature list the build does not enforce. **When gating does land, §10's first
+     paragraph should name the gated features.**
+- The load-bearing invariant for whoever touches pricing next: **§10 and `Knot.storekit` must
+  agree.** They are two hand-maintained copies of the same facts with no test between them —
+  the same shape of gap that let "free of charge" survive four subscription steps.
+
+---
+
 ## Next Steps
 
 

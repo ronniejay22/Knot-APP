@@ -33,17 +33,28 @@ consistently:
 The contact email is set to `privacy@knot-app.com` (the app already uses the
 `knot-app.com` domain). Change it if you prefer a different address.
 
-Quick check that nothing was missed:
+Quick check that nothing was missed — this matches only the four placeholder names, so
+it won't fire on ordinary Markdown link labels like `[Privacy Policy](privacy-policy.md)`:
 
 ```bash
-grep -rn "\[.*\]" docs/legal/*.md docs/legal/*.html
+grep -rniE "\[(company legal name|mailing address|governing-law state/country|effective date)\]" \
+  docs/legal/privacy-policy.md docs/legal/terms-of-service.md \
+  docs/legal/privacy.html docs/legal/terms.html
 ```
+
+It should print nothing once every placeholder has been replaced. (This README is
+deliberately excluded — it *names* all four placeholders above, so globbing
+`docs/legal/*.md` would always match itself and the check could never come back clean.)
 
 ## Publishing to the web
 
-The iOS app links to **`https://knot-app.com/terms`** and
-**`https://knot-app.com/privacy`** (see the Settings and Sign-In screens). Host the
-HTML files so those exact paths resolve:
+The iOS app hardcodes **`https://knot-app.com/terms`** and
+**`https://knot-app.com/privacy`** in **two** places — the **About** section of the
+Settings screen (`iOS/Knot/Features/Settings/SettingsView.swift`) and the onboarding
+paywall (`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`), where App
+Review expects the subscription terms to be reachable before purchase. Host the HTML
+files so those exact paths resolve — App Store submission also requires a working
+Privacy Policy URL:
 
 - Serve `terms.html` at `https://knot-app.com/terms`
 - Serve `privacy.html` at `https://knot-app.com/privacy`
@@ -66,3 +77,15 @@ If you change what data Knot collects, which third-party providers or AI models 
 uses, the authentication methods, the deletion/retention behavior, or the monetization
 model, update **both** the Markdown and the matching HTML so they stay in sync with the
 product and with what the App Store privacy "nutrition label" declares.
+
+### Subscription terms are load-bearing
+
+Terms **§10 (Subscriptions and billing)** states the plan names, lengths, and prices
+verbatim. Its single source of truth is `iOS/Knot/Knot.storekit` (and, once they exist,
+the matching products in App Store Connect) — currently `com.knot.premium.annual`
+($59.99/yr) and `com.knot.premium.monthly` ($9.99/mo), each with a 7-day free trial.
+
+**If a price, period, trial length, or plan changes, §10 must change with it.** App
+Review Guideline 3.1.2 requires the linked EULA/Terms to disclose the subscription's
+title, length, content, price per period, that it auto-renews, and how to cancel — a
+Terms that disagrees with what StoreKit is selling is a review rejection, not a typo.

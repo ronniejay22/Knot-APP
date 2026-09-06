@@ -101,9 +101,12 @@
       <h3>e. Recommendations and feedback</h3>
       <p>The suggestions the Service generates for you, and your interactions with them — for example ratings, saves, and whether you selected, refreshed, or dismissed a suggestion. We use this to improve the relevance of future recommendations.</p>
 
-      <h3>f. Device and technical information</h3>
+      <h3>f. Subscription status</h3>
+      <p>If you subscribe to Knot Premium, the app asks Apple's App Store (StoreKit) on your device whether your subscription is currently active. <strong>We do not store that status on our servers, and the app does not save it on your device</strong> — it is read from Apple each time it is needed. <strong>We never receive your payment card, bank, or other financial details</strong>, and we do not handle the payment itself (see "What we do <em>not</em> collect" below, and Section 10 of our <a href="/terms">Terms of Service</a>).</p>
+
+      <h3>g. Device and technical information</h3>
       <ul>
-        <li>An <strong>Apple Push Notification service (APNs) device token</strong> and your device platform, so we can send you the milestone reminders you enable;</li>
+        <li>One or more <strong>Apple Push Notification service (APNs) device tokens</strong> — one per device you sign in on — and the device platform, so we can send you the milestone reminders you enable;</li>
         <li>Your <strong>notification preferences and time zone</strong> (for example, quiet hours);</li>
         <li>Basic technical information necessarily exchanged when your app communicates with our servers over the internet.</li>
       </ul>
@@ -112,7 +115,7 @@
       <p>To be clear about our data minimization:</p>
       <ul>
         <li>We do <strong>not</strong> access your device's <strong>contacts, calendar, camera, photo library, precise/device location, or microphone</strong>. The app does not request these permissions.</li>
-        <li>We do <strong>not</strong> collect or store <strong>payment card or bank information</strong>. Knot does not process payments; purchases happen directly on a merchant's own website.</li>
+        <li>We do <strong>not</strong> collect or store <strong>payment card or bank information</strong>. Knot does not process payments: subscriptions are billed by Apple through your Apple Account, and gift or booking purchases happen directly on a merchant's own website. In both cases the payment details go to them, never to us.</li>
         <li>We do <strong>not</strong> use third-party <strong>advertising or analytics/tracking SDKs</strong> (for example, Facebook, Firebase Analytics, Amplitude, or Mixpanel) in the app.</li>
         <li>We do <strong>not</strong> sell your personal information (see Section 6).</li>
       </ul>
@@ -153,7 +156,8 @@
             <tr><td>Anthropic (Claude)</td><td>AI recommendations, ideas, search, and briefings</td><td>Partner profile, hints, occasion context</td></tr>
             <tr><td>Google Cloud / Vertex AI</td><td>Hint embeddings for search</td><td>Hint text</td></tr>
             <tr><td>Upstash (QStash)</td><td>Scheduling milestone notifications</td><td>Notification scheduling data</td></tr>
-            <tr><td>Apple (APNs)</td><td>Delivering push notifications</td><td>Device token, notification content</td></tr>
+            <tr><td>Apple (APNs)</td><td>Delivering push notifications</td><td>Device tokens, notification content</td></tr>
+            <tr><td>Apple (App Store / StoreKit)</td><td>Selling and billing the Knot Premium subscription</td><td>Handled entirely by Apple under your Apple Account; the app only reads back whether a subscription is active</td></tr>
             <tr><td>Brave Search</td><td>Finding recommendation candidates on the web</td><td>Interests, location, occasion context</td></tr>
             <tr><td>Yelp</td><td>Restaurant/local recommendations</td><td>Vibes, location, budget</td></tr>
             <tr><td>Ticketmaster</td><td>Event/concert recommendations</td><td>Interests, location, budget</td></tr>
@@ -183,7 +187,7 @@
       <ul>
         <li><strong>Access and export</strong> — you can export a copy of your data as a JSON file from within the app;</li>
         <li><strong>Correction</strong> — you can edit your partner profile, hints, and milestones at any time in the app;</li>
-        <li><strong>Deletion</strong> — you can delete your account from within the app; deletion follows the 60-day restore window described above, after which data is permanently removed;</li>
+        <li><strong>Deletion</strong> — you can delete your account from within the app; deletion follows the 60-day restore window described above, after which data is permanently removed. Note that deleting your account does <strong>not</strong> cancel a Knot Premium subscription — cancel that through Apple (Settings ▸ your Apple Account ▸ Subscriptions);</li>
         <li><strong>Restore</strong> — you can cancel a pending deletion within the grace period;</li>
         <li><strong>Notifications</strong> — you can turn notifications on or off and set quiet hours;</li>
         <li><strong>Sign out</strong> — signing out clears your session from the device's secure storage.</li>

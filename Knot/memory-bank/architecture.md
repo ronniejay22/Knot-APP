@@ -30,13 +30,23 @@ Markdown plus a self-contained, styled HTML page.
 
 | File | Purpose |
 |------|---------|
-| `privacy-policy.md` / `privacy.html` | Privacy Policy — data collected, AI processing (Anthropic Claude, Google Vertex AI), third-party service-provider sharing table, 60-day soft-delete/restore retention, and user rights. Published at `knot-app.com/privacy`. |
-| `terms-of-service.md` / `terms.html` | Terms of Service — eligibility (18+), accounts, user-content license, AI-content and affiliate-link disclaimers, liability, and governing law. Published at `knot-app.com/terms`. |
-| `README.md` | Placeholders to fill, "not legal advice" note, and publishing instructions. |
+| `privacy-policy.md` / `privacy.html` | Privacy Policy — data collected, AI processing (Anthropic Claude, Google Vertex AI), third-party service-provider sharing table, 60-day soft-delete/restore retention, and user rights. Published at `knot-app.com/privacy`. **Step 19.35:** added §2f "Subscription status" — states that the status is **not stored** server-side or on-device but read from StoreKit on demand, which is what `SubscriptionManager.isSubscribed` (an in-memory `private(set) var`, never persisted) and a backend with no subscription table actually do; the old §2f device info became §2g; device tokens went **plural** to match the `user_devices` table from Step 19.29; the "what we do not collect" payment bullet now names both billing paths (Apple for subscriptions, merchant for gifts); §6a gained an **Apple (App Store / StoreKit)** provider row; and §8's Deletion right cross-references that deleting an account does not cancel a subscription. |
+| `terms-of-service.md` / `terms.html` | Terms of Service — eligibility (18+), accounts, user-content license, AI-content and affiliate-link disclaimers, liability, and governing law. Published at `knot-app.com/terms`. **Step 19.35:** §10 changed from "Fees — provided free of charge" (true at Step 19.5, false once Steps 19.8–19.23 shipped StoreKit) to **"Subscriptions and billing"** — eight subsections covering plans/pricing, the 7-day trial and its auto-conversion, auto-renewal, Apple-Account payment, cancelling, Apple-governed refunds, price changes, and restore. §15 now states that deleting an account does not cancel the subscription. |
+| `README.md` | Placeholders to fill, "not legal advice" note, and publishing instructions. **Step 19.35:** corrected the link location to Settings ▸ About only (it also claimed the Sign-In screen, which does not link to them), replaced the `\[.*\]` placeholder check with one matching only the four placeholder names (the loose pattern now also hits ordinary Markdown link labels), and added the **"Subscription terms are load-bearing"** section. |
 
-The HTML pages cross-link via the canonical root paths `/privacy` and `/terms` — the
-same URLs hard-coded in `iOS/Knot/Features/Settings/SettingsView.swift` and the Sign-In
-screen — so no app code changes when the pages are hosted.
+The HTML pages cross-link via the canonical root paths `/privacy` and `/terms` — the same
+URLs hard-coded in **two** places, `iOS/Knot/Features/Settings/SettingsView.swift`
+(Settings ▸ About) and `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`
+(where App Review expects subscription terms reachable pre-purchase) — so no app code
+changes when the pages are hosted. `terms.html` carries `h3` + table CSS as of Step 19.35,
+ported from `privacy.html` for §10's subsections and pricing table.
+
+**Terms §10 and `iOS/Knot/Knot.storekit` are two hand-maintained copies of the same
+facts, with no test between them.** §10 states the plan names, lengths, prices, and trial
+length verbatim (`com.knot.premium.annual` $59.99/yr, `com.knot.premium.monthly` $9.99/mo,
+7-day `P1W` free trial each); App Review Guideline 3.1.2 requires the linked Terms to
+disclose exactly those. **Change one and you must change the other** — this gap is what
+let "provided free of charge" survive four subscription steps (19.8, 19.14, 19.19, 19.23).
 
 ### Claude Code Skills (`.claude/skills/`)
 
