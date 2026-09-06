@@ -119,9 +119,15 @@ struct MilestoneCard: View {
 
     // MARK: - Title
 
+    /// `cardTitleSemibold` (20pt), not `sectionHeaderSemibold` (28pt): 28 is a
+    /// *page* title scale, and at that size the headline competed with the
+    /// 200pt artwork above it. The card-scale token keeps the semibold weight
+    /// so the title still out-weights the meta row and the "For {partner}"
+    /// footer, and lands on the same 20pt rung the rest of the app's card
+    /// headings already use.
     private var title: some View {
         Text(milestone.milestoneName)
-            .knotFont(Theme.Typography.sectionHeaderSemibold)
+            .knotFont(Theme.Typography.cardTitleSemibold)
             .foregroundStyle(Theme.textPrimary)
             .lineLimit(2)
             .minimumScaleFactor(0.8)

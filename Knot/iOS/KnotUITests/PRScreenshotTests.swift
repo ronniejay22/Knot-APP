@@ -24,11 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change adds a count badge beside the Journal tab's "Upcoming"
-        // title. The real `ForYouView` sits behind an authenticated session and
-        // a live milestone fetch, which a cold screenshot launch can't reach —
-        // so render the same header and card feed via the DEBUG harness, whose
-        // seeded entries give the badge a real number to show.
+        // The change shrinks the headline inside each Journal `MilestoneCard`
+        // from 28pt to 20pt. The real `ForYouView` sits behind an authenticated
+        // session and a live milestone fetch, which a cold screenshot launch
+        // can't reach — so render the same card feed via the DEBUG harness,
+        // whose three seeded entries show the retyped headline against the
+        // unchanged 32pt partner name and the card's meta/footer labels.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -45,8 +46,8 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait on the header eyebrow and the "Upcoming" title the badge sits
-        // beside.
+        // Wait on the header eyebrow and the first card's headline — the
+        // element this change retypes.
         //
         // These ASSERT rather than discard their result. A discarded
         // `waitForExistence` lets the test pass while the target screen never
@@ -59,8 +60,8 @@ final class PRScreenshotTests: XCTestCase {
             "Journal harness never rendered — the captured screenshot would not show the change"
         )
         XCTAssertTrue(
-            app.staticTexts["Upcoming"].waitForExistence(timeout: 5),
-            "The Upcoming header the count badge sits beside never rendered"
+            app.staticTexts["Christmas"].waitForExistence(timeout: 5),
+            "The first milestone card's headline never rendered — the shot would not show the retyped title"
         )
 
         // Let the screen settle so the shot isn't caught mid-transition.
