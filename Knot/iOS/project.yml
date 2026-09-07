@@ -69,7 +69,20 @@ targets:
       - package: Supabase
         product: Supabase
       - package: GoogleSignIn
-    preBuildScripts: []
+    preBuildScripts:
+      # Warn when this checkout is behind origin/main, i.e. you are compiling
+      # source that a merged PR has already superseded. Merging on GitHub
+      # changes neither this checkout nor the device binary, so without this
+      # the staleness is silent. Warns only — never pulls, never fails the
+      # build. See iOS/scripts/check-main-current.sh.
+      - script: '"${SRCROOT}/scripts/check-main-current.sh"'
+        name: "Warn If Behind origin/main"
+        # Always run: whether the checkout is behind depends on the remote, not
+        # on any input file, so dependency-analysis skipping would silence the
+        # warning on exactly the incremental builds that need it.
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "${SRCROOT}/scripts/check-main-current.sh"
     postBuildScripts:
       # Inject the Mac's current LAN IP into the DEBUG Info.plist so the
       # simulator AND a physical device reach the local backend with no manual

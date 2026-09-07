@@ -8233,6 +8233,119 @@ recorded in Step 19.31. Backend untouched — no `pytest` run applies to this di
 
 ---
 
+### Step 19.39 ✅ Dev Tooling — Warn at Build Time When the Checkout Is Behind origin/main
+**Date:** 2026-09-06
+**Status:** Complete
+
+*(Numbered 19.39: the app-icon pair and the "See details" button took 19.36–19.38 on
+`main` while this branch was open — the same shared-numbering contention Steps 19.29
+and 19.33 recorded. Picking the next free number on merge, rather than the next
+sequential one at authoring time, is what keeps two in-flight branches from both
+landing the same heading.)*
+
+**Goal:** Step 19.35 shipped, was merged, and the change did not appear on the device.
+Nothing was wrong with it. The main checkout — the one Xcode compiles — was two
+commits behind `origin/main`, so the build used the old source. Make that impossible
+to miss.
+
+**Why it happens, and why it will keep happening.** All agent work happens in git
+worktrees, and PRs are merged on GitHub. Neither of those touches the main checkout:
+merging a PR updates the remote, not your working copy, and not the binary on the
+phone. The gap between "merged" and "running on the device" is two manual steps
+(`git pull`, rebuild) with **no feedback if you skip them** — the build succeeds, the
+app launches, and it silently behaves like the old code. That silence is the bug.
+
+**What changed:**
+- **`iOS/scripts/check-main-current.sh` (new):** emits a `warning:` when the checkout
+  is behind `origin/main`.
+- **`iOS/project.yml`:** wires it as a `preBuildScript` on the `Knot` target
+  ("Warn If Behind origin/main"), filling the previously empty `preBuildScripts: []`.
+
+**It warns and nothing else.** No pull, no working-tree write, no build failure. A
+guard that rewrote source mid-build could clobber work in progress, and one that
+failed the build would block you offline or when you are deliberately on an older
+commit — both cost more than the staleness they prevent. `KNOT_BUILD_GUARD=off`
+silences it; `=strict` promotes the warning to an error for anyone who wants the
+harder stop.
+
+**Gated to `main`.** A feature branch or worktree is behind `origin/main` by design;
+warning there would fire on every agent build and train you to ignore the one that
+matters.
+
+**It warns when it cannot check, too.** A guard that exits quietly on a failed fetch
+is indistinguishable from a clean checkout — so an expired credential or a dead
+network would produce *silence*, i.e. reassurance, at the exact moment the guard had
+stopped working. Unknown and current are different answers and it says which one it
+has.
+
+**The sandbox question was settled by testing, not reasoning.**
+`ENABLE_USER_SCRIPT_SANDBOXING` is on and build-phase scripts run under
+`sandbox-exec` with access limited to declared inputs/outputs, so whether a script
+could read `.git` at all — let alone let `git fetch` write to it — was genuinely
+unknown. Verified empirically before building anything on top of it: both succeed.
+Had they not, the approach was dead and a scheme pre-action or a background agent
+would have been needed instead.
+
+**Three bugs were found and fixed before this shipped, each of which would have made
+the guard quietly useless:**
+- **A 300-second fetch throttle blinded it at the only moment that matters.** Merge
+  the PR, rebuild immediately — that round trip is well under five minutes, so the
+  guard would have skipped the fetch and reported the checkout current. The throttle
+  was premature optimisation protecting a fraction of a second on a multi-second
+  build, and only on `main` at that. Removed entirely, which also deleted the stamp
+  file and a second bug with it.
+- **`<root>/.git/<stamp>` is an invalid path in a worktree**, where `.git` is a *file*
+  pointing elsewhere rather than a directory. Caught by the stamp simply never
+  appearing after a build. Moot now the throttle is gone, but it is why
+  `--absolute-git-dir` exists and why a naive `.git` path should be distrusted here.
+- **`HEAD..origin/main` counts only the behind side**, so a *diverged* `main` was
+  described as merely behind and prescribed `git pull --ff-only`, which aborts in
+  exactly that case. Now `rev-list --left-right --count HEAD...origin/main`, with the
+  remedy switching to `--rebase` when there are local commits.
+
+**The documented escape hatch did not work as documented.** Xcode run-script phases
+do not inherit the login shell's environment, so `export KNOT_BUILD_GUARD=off` in a
+shell profile has no effect on a GUI build — it must be a user-defined **build
+setting** (which Xcode does export into the script environment) or `launchctl setenv`.
+A plain env var works only for command-line `xcodebuild`. The header comment now says
+so; the original would have sent someone chasing a setting that silently did nothing.
+
+**The fetch needs an explicit refspec.** The comparison reads
+`refs/remotes/origin/main`; a fetch that only populated `FETCH_HEAD` would leave it
+comparing against a stale tracking ref — silently never warning, which is precisely
+the failure being guarded. It fetches `+main:refs/remotes/origin/main`, bounded by
+`http.lowSpeedLimit`/`lowSpeedTime` so a captive portal cannot hang the build.
+
+**Files created:**
+- `iOS/scripts/check-main-current.sh`
+
+**Files modified:**
+- `iOS/project.yml` — the `preBuildScripts` entry
+
+**Tests:** No automated test. This repo has no harness for shell build scripts
+(`dev.sh`, `inject-dev-host.sh`, `reset-storekit.sh` have none), and the behaviour is
+a build-phase side effect rather than app code. Verified instead by building:
+`bash -n` passes, the script runs under the sandbox on every build with no denials,
+`BUILD SUCCEEDED` with it wired in, and the fetch's write into the git dir was
+confirmed on disk (`FETCH_HEAD` updated). Full iOS plan green — 448 unit + 5 UI, 0
+failures.
+
+**Notes:**
+- The warn-path *message* was verified by inspection rather than execution — the
+  checkout was up to date at the time, and the honest ways to force the condition
+  either mutate the shared checkout or run a doctored copy of the script. The
+  arithmetic is one `rev-list` and a comparison, and the guard cannot break a build
+  even if the string is wrong. The next merge is the real proof.
+- **This does not remove the pull.** It makes forgetting it loud instead of silent. A
+  fully automatic sync was considered and rejected: the only place that could safely
+  happen is a background agent mutating the working tree without asking, which is a
+  worse trade than one warning in the Issue navigator.
+- Xcode prints a `note:` on every build saying the phase always runs, because
+  `basedOnDependencyAnalysis: false`. That is intentional and matches the existing
+  `inject-dev-host.sh` phase, which carries the same note for the same reason.
+
+---
+
 ## Next Steps
 
 
