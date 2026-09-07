@@ -33,18 +33,19 @@ All four bracketed placeholders have been resolved. What they became, and what t
   requests. Add one back if Knot ships to the **EU/UK** — GDPR expects the controller's
   postal contact details, and the EU DSA trader rules publish a name/address/phone/email
   on the App Store listing anyway, so it stops being private at that point.
-- **Governing law — set to `the United States`** in Terms §16. ⚠️ **This should name a
-  state.** US contract law is state law, so "the laws of the United States" leaves a
-  court to work out which body of law applies, and "the courts of the United States"
-  designates no particular venue — an exclusive-jurisdiction clause that names the whole
-  country does not really select a forum. Replace both occurrences with a specific state
-  (normally where you live or where an entity is formed, e.g. `the State of Texas, USA`)
-  before relying on the clause.
+- **Governing law — `the State of California, USA`** in Terms §16, where the operator
+  lives. The venue sentence names "the state and federal courts located in" that state,
+  which is the correct construction for a state-level choice. Note that California
+  consumer protections are largely non-waivable, which is why §16 keeps a carve-out
+  preserving a consumer's right to sue locally — a forum clause that ignores that is
+  more likely to be struck than honored.
 
-The contact email is set to `privacy@knot-app.com` (the app already uses the
-`knot-app.com` domain). Change it if you prefer a different address. **It must actually
-receive mail** — with the postal address gone it is the only contact channel, and it is
-where GDPR/CCPA rights requests are directed.
+The contact email is **`knottheapp@gmail.com`**. **It must actually receive mail** —
+with the postal address gone it is the only contact channel in either document, and it
+is where GDPR/CCPA rights requests are directed. It is deliberately *not* an
+`@knot-app.com` address: **that domain is owned by a third party** (registered through
+GMO, resolving to an unrelated host whose TLS certificate does not even match the name).
+If a domain is acquired later, move the address to it and update both policies.
 
 Check that no placeholder was reintroduced (this pattern deliberately excludes the
 ordinary Markdown link labels `[Privacy Policy]` / `[Terms of Service]`):
@@ -61,28 +62,50 @@ and the check could never come back clean.)
 
 ## Publishing to the web
 
-The iOS app hardcodes **`https://knot-app.com/terms`** and
-**`https://knot-app.com/privacy`** in **two** places — the **About** section of the
-Settings screen (`iOS/Knot/Features/Settings/SettingsView.swift`) and the onboarding
-paywall (`iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift`), where App
-Review expects the subscription terms to be reachable before purchase. Host the HTML
-files so those exact paths resolve — App Store submission also requires a working
-Privacy Policy URL:
+> ⛔ **`knot-app.com` is NOT ours.** The domain is registered to a third party
+> (GMO nameservers, resolving to `160.251.148.124`, with a TLS certificate that does not
+> match the hostname). Nothing may be published there, and every hardcoded reference to
+> it is a bug, not a configuration step. See "Outstanding: the knot-app.com references"
+> below.
 
-- Serve `terms.html` at `https://knot-app.com/terms`
-- Serve `privacy.html` at `https://knot-app.com/privacy`
+App Store submission requires a **publicly reachable Privacy Policy URL**, and Guideline
+3.1.2 additionally expects the subscription Terms to be reachable *before* purchase —
+so both pages must be hosted somewhere real before submitting.
 
-Both HTML files are fully self-contained (inline CSS, no external assets), so they can
-be dropped onto any static host — including a Vercel static deployment for the
-`knot-app.com` root domain, GitHub Pages, or an S3/Cloudflare bucket. If your host
-serves files by extension, either configure clean-URL rewrites (`/terms` →
-`/terms.html`) or rename the files to extension-less objects with an
-`text/html` content type.
+Both HTML files are fully self-contained (inline CSS, no external assets, no scripts),
+so they drop onto any static host. Given the repo is public, **GitHub Pages is the
+zero-cost option that needs no domain**: enable Pages on `ronniejay22/Knot-APP` and the
+files are served straight out of `docs/`. Netlify, Cloudflare Pages, and an S3/Cloudflare
+bucket all work equally well. A Google Drive or Docs link is *possible* but a known App
+Review friction point — reviewers want a directly viewable page, not a PDF wrapped in a
+Drive viewer that may prompt a mobile app-open.
 
-The two pages cross-link each other using the canonical root paths `/terms` and
-`/privacy` (the same URLs the app uses), so publish them at the domain root as above.
-When previewing locally from the filesystem, view each page on its own — the
-cross-links point at site-absolute paths and won't resolve over `file://`.
+**Whatever host is chosen, two things must line up:**
+
+1. **The cross-links.** Each page links the other with the site-absolute paths `/terms`
+   and `/privacy`, which only resolve when the pages sit at a **domain root**. On a host
+   that serves from a subdirectory (GitHub Pages project sites do: `/Knot-APP/…`), change
+   the two `href`s to relative (`terms.html` / `privacy.html`) or configure rewrites.
+   This is also why the pages don't cross-link correctly when opened over `file://`.
+2. **The in-app links must point at the same place.** They are hardcoded in two Swift
+   files — see below.
+
+## Outstanding: the knot-app.com references
+
+These are live references to a domain we do not control, and each needs to change before
+release:
+
+| File | Reference | Problem |
+| --- | --- | --- |
+| `iOS/Knot/Features/Settings/SettingsView.swift` | `knot-app.com/terms`, `/privacy` | Sends users and App Review to a stranger's site |
+| `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` | `knot-app.com/terms`, `/privacy` | Same, on the screen where 3.1.2 requires reachable terms |
+| `iOS/Knot/Core/Constants.swift` | `baseURL = https://api.knot-app.com` | **`api.knot-app.com` does not resolve** — a release build cannot reach the backend at all |
+| `iOS/Knot/Knot.entitlements` | `applinks:api.knot-app.com` | Universal Links bound to a domain we cannot serve an AASA from |
+| `backend/app/core/config.py` | `APP_DOMAIN` default `api.knot-app.com` | AASA + web-fallback are generated for that host |
+
+The first two are what block *these documents* from being publishable. The rest are a
+separate, launch-blocking infrastructure problem: acquiring a domain (or moving to the
+deployment's own hostname) resolves all five at once.
 
 ## Keeping the docs accurate
 

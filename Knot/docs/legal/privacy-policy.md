@@ -247,4 +247,4 @@ If you have questions or requests regarding this Privacy Policy or your informat
 contact us at:
 
 **Ronald Jones Jr**
-Email: privacy@knot-app.com
+Email: knottheapp@gmail.com

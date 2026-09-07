@@ -8147,6 +8147,68 @@ landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML headin
 
 ---
 
+### Step 19.38 ✅ Legal — California Governing Law, Real Contact Email, and the knot-app.com Discovery
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Resolve the governing-law state left ⚠️ by Step 19.36, and fix the contact email. While
+checking where to host the pages (the owner reported `knot-app.com` "doesn't exist"), a DNS check
+turned up something worse than a missing page.
+
+**Root cause / discovery: `knot-app.com` belongs to a third party.** It is registered through GMO
+(`ns-rs1.gmoserver.jp`), resolves to `160.251.148.124`, and presents a TLS certificate that does
+not match the hostname; the owner confirmed they hold no Knot-related domain. `api.knot-app.com`
+does not resolve at all. Every hardcoded reference in the app therefore points at a domain we do
+not control — including **`privacy@knot-app.com`**, which Steps 19.35–19.37 had left as the *sole*
+contact channel after the postal address was removed. The privacy policy was directing GDPR/CCPA
+rights requests to a mailbox that cannot exist.
+
+**What changed:**
+- **Terms §16 governing law → `the State of California, USA`** (where the operator lives), in both
+  the Markdown and HTML. The venue sentence was restored to **"the state and federal courts located
+  in"** — the original construction, which was only reworded in 19.36 because a country-scale value
+  made it nonsense. A state makes it correct again. The consumer carve-out from 19.36 stays, and
+  matters more here than elsewhere: California consumer protections are largely non-waivable, so a
+  forum clause that ignores them invites being struck rather than honored.
+- **Contact email → `knottheapp@gmail.com`** in all four documents (4 occurrences; the HTML carries
+  it twice per page as `mailto:` href + link text). Deliberately a Gmail address, not a
+  vanity-domain one, because there is no domain to host it on.
+- **`docs/legal/README.md`** — the governing-law ⚠️ was replaced with the settled value and the
+  California non-waivability note; the email section now records that `@knot-app.com` is a third
+  party's domain; the "Publishing to the web" section was rewritten (it had instructed the reader
+  to publish at `knot-app.com`, i.e. at a domain we cannot use) around host-agnostic guidance,
+  GitHub Pages as the zero-cost option given the repo is public, and the cross-link caveat; and a
+  new **"Outstanding: the knot-app.com references"** table enumerates all five live references.
+
+**Files modified:**
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — §16 governing law + venue; email
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — email
+- `docs/legal/README.md` — governing law, email provenance, publishing rewrite, references table
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, as with 19.35–19.37. Re-verified: zero `knot-app.com` references
+remain in `docs/legal/` outside the deliberate warnings; zero placeholders; Markdown ↔ HTML heading
+parity still `diff`-clean in both pairs; both HTML pages still parse with balanced tags.
+
+**Notes:**
+- **The documents are still not publishable, but for a new reason.** The blocker moved from "fill
+  the placeholders" to "there is nowhere to host them and the app links to a stranger's domain."
+  The two in-app link sites (`SettingsView.swift`, `OnboardingPaywallView.swift`) must be repointed
+  at wherever the pages actually land — deliberately **not** done here, because the host has not
+  been chosen and guessing would just move the wrong URL somewhere else.
+- **Separately launch-blocking, and worse:** `Constants.swift` sets the production
+  `baseURL = https://api.knot-app.com`, a host that does not resolve — **a release build cannot
+  reach the backend at all.** `Knot.entitlements` binds Universal Links to the same host, and
+  `config.py`'s `APP_DOMAIN` defaults to it. Acquiring a domain (or switching to the deployment's
+  own hostname) fixes all of these together. Out of scope for a legal-docs change, but it should
+  not be discovered a second time — hence the table in the README.
+- **Cross-links are host-shaped.** The pages link each other via site-absolute `/terms` and
+  `/privacy`, which only resolve at a domain root. A GitHub Pages *project* site serves from
+  `/Knot-APP/`, so that choice requires switching the two `href`s to relative paths. Worth settling
+  before publishing rather than after a reviewer finds a dead link.
+
+---
+
 ## Next Steps
 
 

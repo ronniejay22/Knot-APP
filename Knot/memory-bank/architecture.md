@@ -30,10 +30,18 @@ Markdown plus a self-contained, styled HTML page.
 
 **As of Step 19.37 no placeholders remain** — the operating party is `Ronald Jones Jr`
 (an individual sole proprietor; there is no entity, so every `we`/`us`/`our` in both
-documents resolves to that person) and the effective date is `September 6, 2026`. Two
-values are still worth revisiting and are flagged in `README.md`: the governing law names
-a country rather than a state, and the mailing address is deliberately absent and must
-return for EU/UK distribution. The pages are publishable but **not yet hosted**.
+documents resolves to that person) and the effective date is `September 6, 2026`.
+**Step 19.38** set governing law to `the State of California, USA` and the contact email
+to `knottheapp@gmail.com`. The mailing address is deliberately absent and must return for
+EU/UK distribution (see `README.md`).
+
+⛔ **`knot-app.com` is a third party's domain** — registered through GMO, resolving to an
+unrelated host whose TLS certificate does not match, and `api.knot-app.com` does not
+resolve at all. The legal pages therefore have **no host yet**, and five live references
+in the app and backend point at that domain; `README.md` carries the full table. The most
+serious is `Constants.swift`'s production `baseURL = https://api.knot-app.com`, which
+means a release build cannot reach the backend — a separate, launch-blocking issue that
+acquiring a domain resolves alongside the rest.
 
 | File | Purpose |
 |------|---------|
