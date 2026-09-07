@@ -744,6 +744,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D10DDB872687C6D0BB12D5EC /* Build configuration list for PBXNativeTarget "Knot" */;
 			buildPhases = (
+				0CF9B4BA24B021406B98BB74 /* Warn If Behind origin/main */,
 				CE62A06FC865DCCEF0079FE5 /* Sources */,
 				3ADA82AA7453A90ABA0CF94E /* Resources */,
 				544E748129BA10AA36F56048 /* Frameworks */,
@@ -877,6 +878,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		0CF9B4BA24B021406B98BB74 /* Warn If Behind origin/main */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${SRCROOT}/scripts/check-main-current.sh",
+			);
+			name = "Warn If Behind origin/main";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/check-main-current.sh\"";
+		};
 		1DD9D6196D8668E7680F47D2 /* Inject Dev API Host (Debug) */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
