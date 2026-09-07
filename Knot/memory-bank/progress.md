@@ -8042,6 +8042,103 @@ the reason in note 139.
 
 ---
 
+### Step 19.37 ✅ Branding — Make the App Icon Submission-Ready
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Step 19.36 got the icon rendering; this makes it *shippable*. Cleared the
+five findings the review raised against it — two App Store validation blockers in
+`Info.plist`, and three problems with the PNG itself (size, embedded generation
+metadata, no color tag).
+
+**What changed:**
+
+- **`Knot/Info.plist` — added top-level `CFBundleIconName`.** `actool` already writes
+  the nested `CFBundleIcons/CFBundlePrimaryIcon/CFBundleIconName` into the built plist,
+  which is why the icon renders correctly everywhere. But App Store upload validates the
+  **top-level** key and rejects the build without it (ITMS-90713), so the omission only
+  ever surfaces at submission — the worst time to find it. Value must stay in sync with
+  `ASSETCATALOG_COMPILER_APPICON_NAME` in `iOS/project.yml`.
+- **`Knot/Info.plist` — `UIRequiredDeviceCapabilities` `armv7` → `arm64`.** `armv7` is
+  the 32-bit ARM instruction set; no device supporting it can run iOS 11, let alone this
+  app's iOS 17 deployment target. Declaring it asks the App Store to restrict
+  distribution to hardware the app cannot install on. It came from Apple's old project
+  template, where it was the correct default in the 32-bit era, and had simply never been
+  revisited.
+- **`AppIcon.png` — stripped four `tEXt` chunks.** The file carried a `Creation Time`, an
+  `Author` string, the full generation prompt in a `Description`, and an XMP packet with a
+  `DigImageGUID` and `DigitalSourceType = trainedAlgorithmicMedia`. None of it belongs in
+  a permanent brand mark shipped inside the app bundle.
+- **`AppIcon.png` — tagged sRGB.** The file had **no** color chunk at all: no `iCCP`, no
+  `sRGB`, no `gAMA`, no `cHRM`. Untagged RGB is *assumed* sRGB by Apple's pipeline, which
+  is why it looked correct, but an assumption is not a guarantee. It now carries an
+  explicit `sRGB` chunk (intent 0) plus the `gAMA` 45455 the spec pairs with it.
+- **`AppIcon.png` — 1.88 MB → 934 KB** via 256-color palette quantization (`colortype 2`
+  → `colortype 3`).
+- **`AppIcon.appiconset/Contents.json` — added a dark `appearances` entry** pointing at the
+  same `AppIcon.png`, so dark mode shows the light artwork rather than a system-derived dark
+  treatment of it.
+- **`docs/pr-screenshots/worktree-feat-app-icon.png` — 2.32 MB → 653 KB** by downscaling
+  the 2x retina capture (1206×2622) to 1x and keeping truecolor. Re-shot from a build
+  carrying the re-encoded icon, so the artifact matches the asset it documents.
+
+**Why the two images were optimized differently.** The obvious move is to run both through
+the same palette quantizer, and for the screenshot that is wrong. The icon is one mark in
+two color families, so 256 palette entries are spent entirely on it: measured against the
+original, **99.2% of pixels land within 8/255**, mean error is 0.90, and the only visible
+difference at 8× zoom is a single dark grain fleck lightening. A whole home screen is a
+different problem — the wallpaper gradient and a dozen third-party icons must *share* those
+256 entries, which bands the gradient and pulls the Knot icon's coral visibly toward
+magenta. That would have made the screenshot misrepresent the exact thing it exists to
+document. Downscaling instead removes redundancy (GitHub renders it far smaller inline
+anyway) with no color distortion at all. Together: **4.20 MB → 1.59 MB**, a 62% cut.
+
+**The film grain was deliberately kept.** Flattening it would shrink the file much further
+— it is what makes the image incompressible, and it is invisible below ~180px. But it is
+visible at 1024, which is the size the App Store product page renders, and removing it is a
+**design** decision about the artwork rather than an encoding one. Quantization preserves
+the texture exactly; if a flatter mark is ever wanted, that should be a new export from the
+designer, not a lossy transform applied in a build-hygiene pass.
+
+**Files modified:**
+- `iOS/Knot/Info.plist` — `CFBundleIconName` added; `UIRequiredDeviceCapabilities` corrected
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — re-encoded
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — re-encoded at 1x
+
+**Tests:** iOS Full plan **453 passed**, 0 failures, 0 skipped. Verified beyond the suite,
+since no test can assert on an icon or a plist key: the built `Knot.app/Info.plist` carries
+`CFBundleIconName = AppIcon` at the top level, the re-encoded PNG still reports 1024×1024
+with `hasAlpha: no`, its chunk list is `IHDR / sRGB / gAMA / PLTE / IDAT… / IEND` with no
+`tEXt` remaining, and the icon still renders correctly on the simulator home screen.
+
+Both plist keys were additionally confirmed in a **device** build
+(`-destination 'generic/platform=iOS'`), since that is the configuration that actually gets
+submitted: `UIRequiredDeviceCapabilities => [arm64]` and `CFBundleIconName => AppIcon`.
+
+**Notes:**
+- **Provenance was not resolved, only the metadata.** Stripping the `Author` and
+  `DigitalSourceType` tags removes the record from the file; it does not settle rights in
+  an AI-generated brand mark. That is a legal question for the owner, and it is worth
+  settling before the mark appears on an App Store listing.
+- **The icon is pinned to the light artwork in dark mode.** `Contents.json` now carries a
+  second entry with `appearances: [{ appearance: luminosity, value: dark }]` pointing at the
+  **same** `AppIcon.png`. Without it, iOS renders a system-derived dark treatment that turns
+  the cream ground muddy brown and desaturates the coral. There is deliberately no separate
+  dark artwork — one mark, both appearances.
+- **SpringBoard caches app icons, and it will lie to you.** After changing an appiconset,
+  the home screen can keep showing the previous icon even after `simctl uninstall` +
+  `install` — during this step that produced a screenshot of the *old* dark rendering from a
+  build that already had the fix, which read as "the fix didn't work." Relaunch SpringBoard
+  (`xcrun simctl launch booted com.apple.springboard`) and compare both appearances back to
+  back before concluding anything. The authoritative check is the compiled catalog:
+  `xcrun assetutil --info Knot.app/Assets.car` should list two `AppIcon` renditions, one with
+  `"Appearance": "UIAppearanceDark"`, both naming the same file at the same `SizeOnDisk`.
+- The launch screen is **still** blank — `UILaunchScreen` continues to name a `LaunchIcon`
+  image and `LaunchScreenBackground` color that do not exist. Called out in Step 19.36 and
+  deliberately still out of scope here; this step was scoped to the icon's own findings.
+
+---
+
 ## Next Steps
 
 
@@ -8343,3 +8440,7 @@ the reason in note 139.
 138. **Full backend test suite: 1659 passed, 18 skipped, 0 failed (Step 12.2):** The 18 skipped tests are gated by `@requires_supabase` or `@requires_vertex_ai` markers and skip when credentials are not configured. The 1659 passed tests cover all backend functionality: database schema (34 files), API endpoints (12 files), LangGraph agents (8 files), external integrations (8 files), notifications (6 files), and performance (1 file).
 
 139. **`xcodebuild test` in a worktree can fail at CodeSign with "resource fork, Finder information, or similar detritus not allowed" (Step 19.36):** The repo lives under `~/Documents`, which macOS File Provider (iCloud Drive) manages, and it stamps `com.apple.FinderInfo` + `com.apple.fileprovider.fpfs#P` onto directories it syncs — including `iOS/build/DerivedData/.../Knot.app` and the nested `PlugIns/KnotTests.xctest`. `codesign` refuses to sign a bundle carrying `FinderInfo`, so the **build** succeeds and the **test** run dies at the CodeSign phase of `KnotTests`, with no compile error and nothing wrong with the code. It is environmental and intermittent (it depends on whether the sync daemon has touched the build directory), so it can look like a change broke the suite when it did not. Two fixes: point the run at derived data outside the synced tree (`-derivedDataPath /tmp/...`, what Step 19.36 used), or `xattr -cr iOS/build/DerivedData` before re-running. Related but distinct: **image assets downloaded from a browser carry `com.apple.quarantine` / `kMDItemWhereFroms` xattrs** — strip them with `xattr -c <file>` after copying anything into `Assets.xcassets`, since git does not track xattrs and a polluted file makes a local-only failure that no reviewer can reproduce.
+
+140. **Ship-blocking Info.plist keys are invisible until upload (Step 19.37):** Two classes of App Store rejection cannot be caught by building, running, or testing, because the app works perfectly with them wrong — `CFBundleIconName` missing from the **top level** of the hand-written `Info.plist` (ITMS-90713; `actool` writes only the nested copy under `CFBundleIcons`, which satisfies the OS but not the validator) and a stale `UIRequiredDeviceCapabilities` of `armv7` on an arm64-only app. Both were present from the initial project template and survived every build and test run. When touching submission-facing config, check the built `Knot.app/Info.plist` directly (`plutil -p`) rather than trusting a green suite. `GENERATE_INFOPLIST_FILE: false` in `iOS/project.yml`, so `Knot/Info.plist` is authoritative and hand-edits there are safe from XcodeGen. **Inspect with `plutil -p`, never `plutil -extract`:** `plutil -extract <keypath> <fmt> <file>` writes its result **back into the file** unless you pass `-o -`, so using it to "check a value" silently replaces the whole `Info.plist` with just that value. Doing this to a built `Knot.app` corrupts the bundle (`simctl install` then fails with "Missing bundle ID") and, worse, makes the *next* check report the key as missing — which reads as a broken build rather than a broken command.
+
+141. **Palette-quantize a single mark, downscale a screenshot — not the reverse (Step 19.37):** 256-color PNG quantization is near-lossless for the app icon (99.2% of pixels within 8/255) because the whole palette is spent on one two-family mark, halving the file with the film grain intact. The same treatment on a full home-screen capture is visibly wrong: the wallpaper gradient and every third-party icon compete for those 256 entries, banding the gradient and shifting the Knot coral toward magenta — corrupting the one detail the screenshot documents. For UI captures, downscale the 2x retina image to 1x and keep truecolor instead (GitHub renders PR images far smaller inline anyway). On metadata: Pillow does **not** carry `tEXt`/`zTXt`/`iTXt` across a re-encode, which is what strips generation prompts and XMP — but it is not a blanket scrubber. It *does* re-emit `iCCP`, `pHYs`, `eXIf`, and `tRNS` from `im.info`, so an ICC- or EXIF-tagged source keeps those unless they are dropped explicitly. Anything wanted in the output (here `sRGB` + `gAMA`) must be added deliberately via `PngInfo`. Confirm the result by dumping the chunk list rather than assuming.
