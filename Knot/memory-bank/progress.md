@@ -7978,6 +7978,70 @@ test asserts a height.
 
 ---
 
+### Step 19.36 ✅ Branding — Give the App a Real Home-Screen Icon
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** `AppIcon.appiconset` had a `Contents.json` declaring a single universal
+1024×1024 iOS slot and **no image file behind it**, so every build since Step 1
+installed with the blank default icon. Dropped in the coral "K" knot monogram so the
+app is identifiable on the home screen.
+
+**What changed:**
+- **`Assets.xcassets/AppIcon.appiconset/AppIcon.png` (new):** the 1024×1024 artwork —
+  a coral-pink lowercase-`k` monogram whose bowl and leg cross into a knot, set on a
+  warm cream paper-textured ground. The palette is *adjacent* to the brand palette but
+  not identical to it — the mark samples around `#EC4636` against `Theme.colorPrimary`'s
+  `#F54266`, and the ground around `#D8C9AD` against `Theme.colorSecondary`'s `#FFF0E0`.
+  Same family, warmer and more muted, which is what the paper texture is doing. Close
+  enough that the icon and the sign-in screen read as one product; not a token match,
+  so don't treat the icon as a source of truth for either token.
+- **`Assets.xcassets/AppIcon.appiconset/Contents.json`:** added the `filename` key to
+  the existing universal 1024×1024 iOS entry. The entry itself was already correct —
+  only the image was missing.
+
+**No build settings changed.** `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` has been
+in `iOS/project.yml`'s base settings since the project was first generated, so the
+catalog was already wired to this appiconset and simply had nothing to compile.
+
+**The source image was already in the shape iOS requires** — exactly 1024×1024 and
+**opaque** (`hasAlpha: no`). Both matter: the single-size universal slot is the modern
+format (Xcode derives every smaller size itself, and the built bundle here shows
+`AppIcon60x60@2x.png` + `AppIcon76x76@2x~ipad.png` generated from it), and App Store
+submission rejects an icon carrying an alpha channel. No pre-processing was needed and
+none should be added — re-exporting through a tool that introduces transparency would
+break the upload later, not the build now.
+
+**Files created:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — the 1024×1024 icon
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — the simulator home screen showing it
+
+**Files modified:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json` — `filename` key
+
+**Tests:** No test touches the asset catalog, and an app icon has no inspectable value
+from inside the app — **the home-screen screenshot is the artifact that proves it
+landed**, the same situation as Steps 19.34/19.35. Verification was the build product
+itself: `xcodebuild` succeeds, the built `Knot.app` contains the two derived PNGs, and
+its `Info.plist` carries `CFBundleIconName = AppIcon`. Full plan **453 passed**, 0
+failures, 0 skipped, run with `-derivedDataPath` outside the iCloud-synced tree for
+the reason in note 139.
+
+**Notes:**
+- **The launch screen is still blank, and this change did not fix it.** `Info.plist`'s
+  `UILaunchScreen` names `UIImageName = LaunchIcon` and `UIColorName =
+  LaunchScreenBackground`, and **neither asset exists** in `Assets.xcassets` — iOS
+  silently falls back to a blank screen when a launch-screen asset name doesn't
+  resolve, which is why it has gone unnoticed. Adding a `LaunchIcon.imageset` and a
+  `LaunchScreenBackground.colorset` (the cream, to match the icon) is the natural
+  follow-up and is a genuinely separate change.
+- The icon has no dark or tinted variant. iOS 18+ lets an appiconset carry `appearances`
+  entries for those; without them the system auto-generates a tinted version from this
+  artwork. Worth revisiting if the auto-generated tint reads badly, but it is not
+  required and adding placeholder variants now would be worse than the default.
+
+---
+
 ## Next Steps
 
 
@@ -8277,3 +8341,5 @@ test asserts a height.
 137. **Pipeline performance test mocks private aggregation functions (Step 12.5):** The `aggregate_external_data` node internally calls `_fetch_gift_candidates()` and `_fetch_experience_candidates()`. These are the correct patch targets — not public function names like `fetch_amazon_products` which don't exist. The `_` prefix does not prevent patching with `unittest.mock.patch()`.
 
 138. **Full backend test suite: 1659 passed, 18 skipped, 0 failed (Step 12.2):** The 18 skipped tests are gated by `@requires_supabase` or `@requires_vertex_ai` markers and skip when credentials are not configured. The 1659 passed tests cover all backend functionality: database schema (34 files), API endpoints (12 files), LangGraph agents (8 files), external integrations (8 files), notifications (6 files), and performance (1 file).
+
+139. **`xcodebuild test` in a worktree can fail at CodeSign with "resource fork, Finder information, or similar detritus not allowed" (Step 19.36):** The repo lives under `~/Documents`, which macOS File Provider (iCloud Drive) manages, and it stamps `com.apple.FinderInfo` + `com.apple.fileprovider.fpfs#P` onto directories it syncs — including `iOS/build/DerivedData/.../Knot.app` and the nested `PlugIns/KnotTests.xctest`. `codesign` refuses to sign a bundle carrying `FinderInfo`, so the **build** succeeds and the **test** run dies at the CodeSign phase of `KnotTests`, with no compile error and nothing wrong with the code. It is environmental and intermittent (it depends on whether the sync daemon has touched the build directory), so it can look like a change broke the suite when it did not. Two fixes: point the run at derived data outside the synced tree (`-derivedDataPath /tmp/...`, what Step 19.36 used), or `xattr -cr iOS/build/DerivedData` before re-running. Related but distinct: **image assets downloaded from a browser carry `com.apple.quarantine` / `kMDItemWhereFroms` xattrs** — strip them with `xattr -c <file>` after copying anything into `Assets.xcassets`, since git does not track xattrs and a polluted file makes a local-only failure that no reviewer can reproduce.
