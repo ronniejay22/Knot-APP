@@ -9,6 +9,7 @@ ready-to-publish web versions.
 | `terms-of-service.md` | Source-of-truth Terms of Service (Markdown) |
 | `privacy.html` | Standalone, self-contained web page for the Privacy Policy |
 | `terms.html` | Standalone, self-contained web page for the Terms of Service |
+| `build-pdfs.sh` | Renders both HTML pages to PDF (headless Chrome) for Drive hosting |
 
 > ⚠️ **These are drafts, not legal advice.** They were written to accurately reflect
 > what the Knot app and backend actually do, and they are a solid starting point — but
@@ -70,25 +71,47 @@ and the check could never come back clean.)
 
 App Store submission requires a **publicly reachable Privacy Policy URL**, and Guideline
 3.1.2 additionally expects the subscription Terms to be reachable *before* purchase —
-so both pages must be hosted somewhere real before submitting.
+so both documents must be hosted somewhere real before submitting.
 
-Both HTML files are fully self-contained (inline CSS, no external assets, no scripts),
-so they drop onto any static host. Given the repo is public, **GitHub Pages is the
-zero-cost option that needs no domain**: enable Pages on `ronniejay22/Knot-APP` and the
-files are served straight out of `docs/`. Netlify, Cloudflare Pages, and an S3/Cloudflare
-bucket all work equally well. A Google Drive or Docs link is *possible* but a known App
-Review friction point — reviewers want a directly viewable page, not a PDF wrapped in a
-Drive viewer that may prompt a mobile app-open.
+### Current plan: PDFs on Google Drive
 
-**Whatever host is chosen, two things must line up:**
+`./build-pdfs.sh` renders both HTML pages to PDF with headless Chrome. The HTML stays the
+source of truth — the script renders a temporary copy and never edits the originals.
 
-1. **The cross-links.** Each page links the other with the site-absolute paths `/terms`
-   and `/privacy`, which only resolve when the pages sit at a **domain root**. On a host
-   that serves from a subdirectory (GitHub Pages project sites do: `/Knot-APP/…`), change
-   the two `href`s to relative (`terms.html` / `privacy.html`) or configure rewrites.
-   This is also why the pages don't cross-link correctly when opened over `file://`.
-2. **The in-app links must point at the same place.** They are hardcoded in two Swift
-   files — see below.
+```bash
+# proof render (cross-links between the two PDFs will be dead)
+./build-pdfs.sh
+
+# real render, once both Drive links exist
+./build-pdfs.sh ./build "<privacy-drive-url>" "<terms-drive-url>"
+```
+
+**Three things have to be true or the documents are not actually published:**
+
+1. **Sharing must be "Anyone with the link".** A Drive file defaults to private. An App
+   Store Privacy Policy URL that prompts for a Google sign-in is a rejection — the
+   reviewer cannot open it. This has to be set by hand in the Drive UI; it is not
+   something the file inherits.
+2. **Re-render with both URLs before publishing.** Each page cross-links the other with
+   the site-absolute paths `/privacy` and `/terms`, which resolve only at a domain root
+   and are therefore dead inside a standalone PDF. Passing both URLs to the script
+   rewrites them to point at each other on Drive.
+3. **The in-app links must point at the same two URLs.** They are hardcoded in two Swift
+   files — see the table below.
+
+**Re-run the script and re-upload whenever the documents change.** A PDF on Drive is a
+copy, not a view: unlike a hosted HTML page, editing the Markdown here does not update
+what a user or reviewer sees. This is the main cost of the Drive route.
+
+### If a domain is acquired later
+
+Both HTML files are self-contained (inline CSS, no external assets, no scripts), so they
+drop onto any static host — Vercel, Netlify, Cloudflare Pages, S3, or GitHub Pages (free,
+and the repo is already public). Serving the HTML directly is strictly better than PDFs:
+the pages update in place, `/privacy` and `/terms` resolve natively, and there is no
+viewer chrome between the reviewer and the text. Note that a GitHub Pages *project* site
+serves from a subdirectory (`/Knot-APP/…`), so the site-absolute cross-links would need
+to become relative there.
 
 ## Outstanding: the knot-app.com references
 

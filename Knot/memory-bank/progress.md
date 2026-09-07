@@ -8209,6 +8209,116 @@ parity still `diff`-clean in both pairs; both HTML pages still parse with balanc
 
 ---
 
+### Step 19.39 ✅ Legal — Render the Policies to PDF for Google Drive Hosting
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** Step 19.38 established that `knot-app.com` belongs to a third party, so the two policy
+pages have nowhere to live — and App Store submission requires a publicly reachable Privacy Policy
+URL, with Guideline 3.1.2 additionally expecting the subscription Terms to be reachable *before*
+purchase. Asked to choose a host, the owner picked **Google Drive**. Give the repo a reproducible
+way to turn the HTML into the PDFs Drive serves, and record what that route costs.
+
+**Recommendation on the record, and overruled:** GitHub Pages was the recommendation — free, no
+domain needed, real HTTPS, and no viewer interstitial, which is the specific thing that makes
+Drive-hosted policies a known App Review friction point (a reviewer wants a directly viewable
+page, not a PDF behind a viewer that may prompt a mobile app-open). The owner chose Drive; this
+step implements Drive and keeps the HTML host-agnostic so the decision is reversible.
+
+**What changed:**
+- **`docs/legal/build-pdfs.sh` (new):** renders both HTML pages to PDF with headless Chrome
+  (`--headless=new --no-pdf-header-footer --print-to-pdf`). No dependency beyond Chrome. It applies
+  exactly two transformations, and **only to a temp copy** — the committed HTML is never edited, so
+  the repo stays host-agnostic:
+  1. **Fonts.** The pages use the `-apple-system` stack, which resolves to SF Pro and gets
+     embedded, producing ~700KB PDFs. Substituting Helvetica cuts roughly 25% (697KB → 519KB)
+     with no visible difference at body sizes. Chrome still embeds a *subset* of Helvetica
+     rather than relying on the reader's base-14 copy — the saving is that Helvetica's subset
+     is far smaller than SF Pro's, not that the font is left out.
+  2. **Cross-links.** Each page links the other via the site-absolute paths `/privacy` and
+     `/terms`, which resolve only at a domain root and are therefore **dead inside a standalone
+     PDF**. Passing the two hosted URLs rewrites them so the PDFs point at each other wherever
+     they actually live.
+  The script takes `[out-dir] [privacy-url] [terms-url]` and **refuses a single URL** — a
+  half-rewritten pair leaves one dead link, which is worse than two, so it is both or neither.
+  Omitting both is allowed and prints a warning: fine for a proof render, not for anything
+  published.
+- **`docs/legal/README.md`:** the publishing section became **"Current plan: PDFs on Google
+  Drive"**, with the three conditions that have to hold or the documents are not actually
+  published — (1) sharing must be set to **"Anyone with the link"** by hand in the Drive UI (a
+  Drive file defaults to private, and a policy URL that prompts for a Google sign-in is a
+  rejection, because the reviewer cannot open it); (2) re-render with both URLs before publishing;
+  (3) the in-app links must point at the same two URLs. It also records the standing cost of this
+  route: **a PDF on Drive is a copy, not a view** — unlike a hosted HTML page, editing the Markdown
+  here does not change what a user or reviewer sees, so every revision means re-render and
+  re-upload. The prior host-agnostic guidance was kept as an "If a domain is acquired later"
+  section, since serving the HTML directly is strictly better and the pages are still ready for it.
+
+**Files created:**
+- `docs/legal/build-pdfs.sh`
+
+**Files modified:**
+- `docs/legal/README.md` — publishing section rewritten around the Drive route
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — a Bash script plus docs; no Swift or Python is touched, so no suite could
+exercise it and nothing in the diff can break one (same posture as Steps 19.35–19.38). Verified
+directly instead: `bash -n` parses clean; a real run produced two valid PDFs (`%PDF` magic, 8 pages
+each, 508KB / 428KB) and a `qlmanage` render confirmed correct branding, operating party, and
+effective date; `privacy.html` and `terms.html` are **byte-identical before and after** (shasum
+match), proving the temp-copy discipline holds; the both-or-neither guard rejects a single-URL
+invocation with exit 1; `docs/legal/build/` is already covered by `.gitignore:12` (`build/`), so
+output can never be committed; and the placeholder regression grep still prints nothing.
+
+A `/code-review high` pass then found **four** issues in the script, all real and all fixed before
+commit. Three were failure modes that stay silent — the worst class for a script whose output goes
+straight to a published URL:
+1. **`&` in a URL corrupted the rewritten href.** Drive share links routinely carry one
+   (`?usp=sharing&…`), and on the right-hand side of a `sed s|||` an unescaped `&` expands to the
+   *whole match* — reproduced with a real Drive URL, which produced
+   `<a href="https://drive.google.com/open?id=ABChref="/privacy"usp=drive_copy">`. The script still
+   exited 0, so the broken cross-link would have shipped. Fixed with a `sed_replacement()` helper
+   escaping `\`, `&`, and the `|` delimiter.
+2. **A failed render was reported as success.** Chrome exits 0 even when it cannot write the PDF,
+   stderr was discarded, and the `du` inside a command substitution does not trip `set -e` — so a
+   failed *re-render* printed the size of the **stale PDF from the previous run**, and that stale
+   file is what would have been uploaded. `render()` now deletes any previous output first and
+   verifies the result is non-empty and starts with `%PDF`, exiting 1 otherwise.
+3. **The both-or-neither guard was asymmetric.** It only caught privacy-without-terms;
+   `./build-pdfs.sh out "" <terms-url>` passed, skipped the rewrite entirely, and printed the
+   "rendered without hosted URLs" note — silently dropping a URL the caller had supplied. Now
+   checked in both directions.
+4. **A factual error in the rationale**, repeated in all three files: Helvetica was described as a
+   base-14 face "the reader already has", implying it isn't embedded. Inspecting the output shows
+   a subsetted `AAAAAA+Helvetica` — it *is* embedded. The ~25% saving is real (697,016 → 518,587
+   bytes); the reason is that Helvetica's subset is much smaller than SF Pro's. Corrected in the
+   script comment, `architecture.md`, and here.
+
+Re-verified after the fixes: the guard now rejects a lone terms URL, a Drive-style URL containing
+`&` rewrites into a single well-formed `href`, and the rendered PDFs still open with correct
+branding, operating party, and effective date.
+
+**Notes:**
+- **The remaining work is not code and cannot be done from here.** Upload both PDFs to Drive and
+  set sharing to "Anyone with the link" — `share_file` on the Drive connector can only share with a
+  *named email*, so link-sharing is a manual UI step. Then the two URLs need to come back for the
+  re-render and for the in-app links.
+- **The in-app links are still wrong and are the actual submission blocker.** Four hardcoded
+  `knot-app.com` URLs remain — `SettingsView.swift:301,311` and `OnboardingPaywallView.swift:113-114`
+  — and the paywall pair is the one Guideline 3.1.2 cares about, since terms must be reachable
+  before purchase. They were deliberately not repointed: the Drive URLs do not exist yet, and
+  guessing would only move a wrong URL somewhere else.
+- **Separately launch-blocking, and worse:** `Constants.swift` still ships
+  `baseURL = https://api.knot-app.com`, a host that does not resolve — **a release build cannot
+  reach the backend at all.** `Knot.entitlements` binds Universal Links to the same host and
+  `config.py`'s `APP_DOMAIN` defaults to it. Acquiring a domain fixes all five references at once
+  and would also make the PDF route unnecessary. The full table is in `docs/legal/README.md`.
+- Chrome is the only renderer used because it is already on the machine and produces faithful
+  output from the same CSS the pages ship. `wkhtmltopdf` and `cupsfilter` were checked and are not
+  installed; adding a dependency for a script run a handful of times was not worth it.
+
+---
+
 ## Next Steps
 
 
