@@ -8075,6 +8075,9 @@ metadata, no color tag).
   explicit `sRGB` chunk (intent 0) plus the `gAMA` 45455 the spec pairs with it.
 - **`AppIcon.png` — 1.88 MB → 934 KB** via 256-color palette quantization (`colortype 2`
   → `colortype 3`).
+- **`AppIcon.appiconset/Contents.json` — added a dark `appearances` entry** pointing at the
+  same `AppIcon.png`, so dark mode shows the light artwork rather than a system-derived dark
+  treatment of it.
 - **`docs/pr-screenshots/worktree-feat-app-icon.png` — 2.32 MB → 653 KB** by downscaling
   the 2x retina capture (1206×2622) to 1x and keeping truecolor. Re-shot from a build
   carrying the re-encoded icon, so the artifact matches the asset it documents.
@@ -8117,15 +8120,19 @@ submitted: `UIRequiredDeviceCapabilities => [arm64]` and `CFBundleIconName => Ap
   `DigitalSourceType` tags removes the record from the file; it does not settle rights in
   an AI-generated brand mark. That is a legal question for the owner, and it is worth
   settling before the mark appears on an App Store listing.
-- **The auto-derived dark-mode icon looks bad, and someone should decide about it.** Step
-  19.36 noted the appiconset carries no dark or tinted `appearances` variant and assumed the
-  system default would be acceptable. Capturing the home screen with the simulator in dark
-  appearance (`xcrun simctl ui booted appearance dark`) shows what that actually produces:
-  iOS darkens the light artwork, so the cream ground turns muddy brown and the coral loses
-  most of its saturation — noticeably worse than the light rendering, and a large share of
-  users run dark mode permanently. Fixing it means supplying a purpose-made dark variant
-  (most likely the coral mark on the app's own deep-plum `backgroundTop` rather than a
-  dimmed cream), which is a **design** decision and so deliberately not made here.
+- **The icon is pinned to the light artwork in dark mode.** `Contents.json` now carries a
+  second entry with `appearances: [{ appearance: luminosity, value: dark }]` pointing at the
+  **same** `AppIcon.png`. Without it, iOS renders a system-derived dark treatment that turns
+  the cream ground muddy brown and desaturates the coral. There is deliberately no separate
+  dark artwork — one mark, both appearances.
+- **SpringBoard caches app icons, and it will lie to you.** After changing an appiconset,
+  the home screen can keep showing the previous icon even after `simctl uninstall` +
+  `install` — during this step that produced a screenshot of the *old* dark rendering from a
+  build that already had the fix, which read as "the fix didn't work." Relaunch SpringBoard
+  (`xcrun simctl launch booted com.apple.springboard`) and compare both appearances back to
+  back before concluding anything. The authoritative check is the compiled catalog:
+  `xcrun assetutil --info Knot.app/Assets.car` should list two `AppIcon` renditions, one with
+  `"Appearance": "UIAppearanceDark"`, both naming the same file at the same `SizeOnDisk`.
 - The launch screen is **still** blank — `UILaunchScreen` continues to name a `LaunchIcon`
   image and `LaunchScreenBackground` color that do not exist. Called out in Step 19.36 and
   deliberately still out of scope here; this step was scoped to the icon's own findings.
