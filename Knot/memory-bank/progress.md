@@ -7978,6 +7978,100 @@ test asserts a height.
 
 ---
 
+### Step 19.36 ✅ Journal — "See details" Button on Event Cards
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Give each Journal event card a labelled way in. Its footer carried exactly one
+control — the unlabelled pink bubble-and-sparkle icon — and nothing on the card said what
+that icon did or offered any way to look at the event itself.
+
+**Scope decision:** the detail screen's design is coming separately, so this change is the
+**button and the seam it opens into**, not the destination's design.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** new `onSeeDetails: (() -> Void)?` (the same
+  optional-closure shape as `onGetRecommendations`, so the card still renders without it),
+  rendered in the footer as `KnotButton("See details", .outline, .sm, .pill)` **beside**
+  the existing icon. The two are different destinations — the button opens the event, the
+  icon asks for ideas for it — so both stay.
+- **`Features/ForYou/ForYouView.swift`:** `@State detailMilestone: MilestoneItemResponse?`
+  driving a `.fullScreenCover(item:)`. `MilestoneItemResponse` is already `Identifiable`,
+  so no wrapper type was needed.
+- **`Features/ForYou/MilestoneDetailView.swift` (new, placeholder):** an honest destination
+  so the button isn't inert. Renders only fields already on `MilestoneItemResponse` —
+  artwork, name, full date, countdown, recurrence, occasion, budget — reusing
+  `MilestoneCard.artwork(for:)`, `MilestonesViewModel.iconName(for:)` /
+  `.daysUntilText(_:)` / `.budgetTierLabel(_:)`, and `KnotListRow.info`. Its file header
+  says plainly that it is to be replaced wholesale and names the seam.
+- **`App/UITestScreenshotHarness.swift`:** the `journal` harness now mirrors
+  `ForYouView`'s cover seam (`@State detailMilestone` + `.fullScreenCover(item:)`) rather
+  than handing the card a dead `{}`, and seeds a `budgetTier` — the column is `NOT NULL`
+  in the DB, so a real milestone always has one and the Budget row was showing a "—" that
+  production never shows. A harness only proves what it actually seeds.
+
+**Three things worth recording:**
+- **`.outline`, not `.primary` or `.secondary`.** A second pink *fill* would compete with
+  the countdown and the accent icon on the same row. `.secondary` was the wrong tool for
+  the reason Step 19.33 recorded about the "Upcoming" count badge: that variant fills with
+  `surfaceElevated`, which has almost no contrast against the card's own surface.
+- **The footer now carries three controls on one variable-width line.** The button takes
+  `.fixedSize()` + `.layoutPriority(1)` and "For {partner}" gains a `minimumScaleFactor`,
+  so the *name* compresses under pressure and the button never truncates — the same
+  anti-jank recipe `BudgetTierSliderCard` (18.36) and `LoveLanguageCard` (18.39) use.
+- **The `default` occasion category is short-circuited in `occasionLabel(for:)`.** It *is*
+  in `MilestoneOccasionOption`, but its display name is "Something Else" — written as a
+  picker choice, not a label. Every milestone written before migration 00027 resolves to
+  `default` on read, so a legacy Christmas would have read "Occasion: Something Else"
+  where "Occasion: Holiday" is both true and useful. A test caught this; the first draft
+  asserted the fallback fired and it didn't.
+
+**Three review findings, all fixed before commit:**
+- **`KnotListRow` inside a `KnotCard` double-drew its chrome.** The row primitive already
+  owns its surface fill, border and `Radius.md` corner, so the wrapping card produced
+  doubled rules, pinched corners, and a 12pt-vs-18pt radius mismatch. Now a bare
+  `VStack(spacing: 10)`, matching every other `KnotListRow` call site.
+- **`onSeeDetails` was missing `@MainActor`** — the build's only strict-concurrency
+  warning, and a divergence from `JustBecauseCard.onGenerate` / `KnotIconButton.action` /
+  this change's own `onDismiss`. The build is warning-free again.
+- **`fullDate`'s documented fallback couldn't deliver its guarantee.** It fell back to
+  `ForYouViewModel.formattedDate(_:)`, which returns the *raw* stored string on exactly
+  the same parse failure — so an unparseable date still leaked `2000-MM-DD` to the UI, and
+  the test hid it by passing a `"Dec 25"` literal instead of the composed value. The
+  parameter is gone (`fullDate` already parses the stored date itself, so it was
+  redundant), unparseable input now renders `"—"`, and the test asserts the storage format
+  can never appear.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — placeholder detail destination
+- `docs/pr-screenshots/worktree-feat-journal-see-details-button.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `onSeeDetails` + footer button
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — detail cover seam and wiring
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — the `journal` harness presents the detail
+  cover for real and seeds a `budgetTier`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — second assertion now waits on the button this
+  change adds, matched by label prefix (each button is labelled "See details for {name}")
+- `iOS/KnotTests/MilestoneCardTests.swift` — 13 new cases
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate` for the new file
+
+**Tests:** iOS Unit plan **461 passed**, 0 failures (448 baseline + 13 new). Full plan
+**461 unit + 4 UI passed**, with `KnotUITests/testLaunchPerformance` skipped for the reason
+recorded in Step 19.31. Backend untouched — no `pytest` run applies to this diff.
+
+**Notes:**
+- The new tests cover both footer callbacks firing, the card rendering with either control
+  absent, a long partner name against the three-control row, and the detail view's pure
+  helpers (`fullDate` expansion and its fallbacks, recurrence labels, the occasion
+  fallbacks). As with Steps 19.34 and 19.35, the suite does no view introspection, so the
+  **screenshot is the artifact that proves the button renders**.
+- **Open question for when the detail designs land:** whether "Get ideas" should move
+  *into* the detail page, leaving the card with a single button. Cheap either way — the
+  icon is one `if let` in `footerRow`.
+
+---
+
 ## Next Steps
 
 
