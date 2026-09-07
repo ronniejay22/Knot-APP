@@ -8,6 +8,14 @@
     <string>Knot</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
+    <!-- Names the asset-catalog icon set. actool already writes the nested
+         CFBundleIcons/CFBundlePrimaryIcon/CFBundleIconName into the built
+         plist, but App Store upload validates the TOP-LEVEL key and rejects
+         the build without it (ITMS-90713) — the icon renders correctly on
+         device either way, so the omission only ever surfaces at submission.
+         Must match ASSETCATALOG_COMPILER_APPICON_NAME in iOS/project.yml. -->
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -34,9 +42,15 @@
         <key>UIImageName</key>
         <string>LaunchIcon</string>
     </dict>
+    <!-- arm64, not armv7. armv7 is the 32-bit ARM instruction set, and no
+         device that supports it can run iOS 11, let alone this app's iOS 17
+         deployment target — declaring it asks the App Store to restrict
+         distribution to hardware the app cannot install on, which fails
+         validation. It came from Apple's old project template, where armv7
+         was the correct default in the 32-bit era. -->
     <key>UIRequiredDeviceCapabilities</key>
     <array>
-        <string>armv7</string>
+        <string>arm64</string>
     </array>
     <key>NSAppTransportSecurity</key>
     <dict>
