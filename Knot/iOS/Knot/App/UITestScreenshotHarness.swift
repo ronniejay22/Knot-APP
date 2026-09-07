@@ -410,8 +410,11 @@ private struct JournalScreenshotHarnessView: View {
             milestoneType: type,
             milestoneName: name,
             milestoneDate: "2026-12-25",
+            // `budget_tier` is NOT NULL in the DB, so a real milestone always
+            // carries one. Seeding it keeps the detail screen's Budget row
+            // showing what production shows rather than the "—" placeholder.
             recurrence: "yearly",
-            budgetTier: nil,
+            budgetTier: "major_milestone",
             daysUntil: days,
             createdAt: "2026-07-04",
             occasionCategory: occasionCategory
@@ -427,6 +430,10 @@ private struct JournalScreenshotHarnessView: View {
 
     private let partnerName = "Jas"
 
+    /// Mirrors `ForYouView.detailMilestone` so the harness exercises the real
+    /// button → cover path rather than handing the card a dead `{}` closure.
+    @State private var detailMilestone: MilestoneItemResponse?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -441,6 +448,7 @@ private struct JournalScreenshotHarnessView: View {
                             partnerName: partnerName,
                             formattedDate: entry.1,
                             urgency: entry.2,
+                            onSeeDetails: { detailMilestone = entry.0 },
                             onGetRecommendations: {}
                         )
                     }
@@ -451,6 +459,13 @@ private struct JournalScreenshotHarnessView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
+        .fullScreenCover(item: $detailMilestone) { milestone in
+            MilestoneDetailView(
+                milestone: milestone,
+                partnerName: partnerName,
+                onDismiss: { detailMilestone = nil }
+            )
+        }
     }
 
     private var header: some View {

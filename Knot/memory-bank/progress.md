@@ -7978,9 +7978,270 @@ test asserts a height.
 
 ---
 
-### Step 19.36 ✅ Dev Tooling — Warn at Build Time When the Checkout Is Behind origin/main
+### Step 19.36 ✅ Branding — Give the App a Real Home-Screen Icon
 **Date:** 2026-09-06
 **Status:** Complete
+
+**Goal:** `AppIcon.appiconset` had a `Contents.json` declaring a single universal
+1024×1024 iOS slot and **no image file behind it**, so every build since Step 1
+installed with the blank default icon. Dropped in the coral "K" knot monogram so the
+app is identifiable on the home screen.
+
+**What changed:**
+- **`Assets.xcassets/AppIcon.appiconset/AppIcon.png` (new):** the 1024×1024 artwork —
+  a coral-pink lowercase-`k` monogram whose bowl and leg cross into a knot, set on a
+  warm cream paper-textured ground. The palette is *adjacent* to the brand palette but
+  not identical to it — the mark samples around `#EC4636` against `Theme.colorPrimary`'s
+  `#F54266`, and the ground around `#D8C9AD` against `Theme.colorSecondary`'s `#FFF0E0`.
+  Same family, warmer and more muted, which is what the paper texture is doing. Close
+  enough that the icon and the sign-in screen read as one product; not a token match,
+  so don't treat the icon as a source of truth for either token.
+- **`Assets.xcassets/AppIcon.appiconset/Contents.json`:** added the `filename` key to
+  the existing universal 1024×1024 iOS entry. The entry itself was already correct —
+  only the image was missing.
+
+**No build settings changed.** `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` has been
+in `iOS/project.yml`'s base settings since the project was first generated, so the
+catalog was already wired to this appiconset and simply had nothing to compile.
+
+**The source image was already in the shape iOS requires** — exactly 1024×1024 and
+**opaque** (`hasAlpha: no`). Both matter: the single-size universal slot is the modern
+format (Xcode derives every smaller size itself, and the built bundle here shows
+`AppIcon60x60@2x.png` + `AppIcon76x76@2x~ipad.png` generated from it), and App Store
+submission rejects an icon carrying an alpha channel. No pre-processing was needed and
+none should be added — re-exporting through a tool that introduces transparency would
+break the upload later, not the build now.
+
+**Files created:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — the 1024×1024 icon
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — the simulator home screen showing it
+
+**Files modified:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json` — `filename` key
+
+**Tests:** No test touches the asset catalog, and an app icon has no inspectable value
+from inside the app — **the home-screen screenshot is the artifact that proves it
+landed**, the same situation as Steps 19.34/19.35. Verification was the build product
+itself: `xcodebuild` succeeds, the built `Knot.app` contains the two derived PNGs, and
+its `Info.plist` carries `CFBundleIconName = AppIcon`. Full plan **453 passed**, 0
+failures, 0 skipped, run with `-derivedDataPath` outside the iCloud-synced tree for
+the reason in note 139.
+
+**Notes:**
+- **The launch screen is still blank, and this change did not fix it.** `Info.plist`'s
+  `UILaunchScreen` names `UIImageName = LaunchIcon` and `UIColorName =
+  LaunchScreenBackground`, and **neither asset exists** in `Assets.xcassets` — iOS
+  silently falls back to a blank screen when a launch-screen asset name doesn't
+  resolve, which is why it has gone unnoticed. Adding a `LaunchIcon.imageset` and a
+  `LaunchScreenBackground.colorset` (the cream, to match the icon) is the natural
+  follow-up and is a genuinely separate change.
+- The icon has no dark or tinted variant. iOS 18+ lets an appiconset carry `appearances`
+  entries for those; without them the system auto-generates a tinted version from this
+  artwork. Worth revisiting if the auto-generated tint reads badly, but it is not
+  required and adding placeholder variants now would be worse than the default.
+
+---
+
+### Step 19.37 ✅ Branding — Make the App Icon Submission-Ready
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Step 19.36 got the icon rendering; this makes it *shippable*. Cleared the
+five findings the review raised against it — two App Store validation blockers in
+`Info.plist`, and three problems with the PNG itself (size, embedded generation
+metadata, no color tag).
+
+**What changed:**
+
+- **`Knot/Info.plist` — added top-level `CFBundleIconName`.** `actool` already writes
+  the nested `CFBundleIcons/CFBundlePrimaryIcon/CFBundleIconName` into the built plist,
+  which is why the icon renders correctly everywhere. But App Store upload validates the
+  **top-level** key and rejects the build without it (ITMS-90713), so the omission only
+  ever surfaces at submission — the worst time to find it. Value must stay in sync with
+  `ASSETCATALOG_COMPILER_APPICON_NAME` in `iOS/project.yml`.
+- **`Knot/Info.plist` — `UIRequiredDeviceCapabilities` `armv7` → `arm64`.** `armv7` is
+  the 32-bit ARM instruction set; no device supporting it can run iOS 11, let alone this
+  app's iOS 17 deployment target. Declaring it asks the App Store to restrict
+  distribution to hardware the app cannot install on. It came from Apple's old project
+  template, where it was the correct default in the 32-bit era, and had simply never been
+  revisited.
+- **`AppIcon.png` — stripped four `tEXt` chunks.** The file carried a `Creation Time`, an
+  `Author` string, the full generation prompt in a `Description`, and an XMP packet with a
+  `DigImageGUID` and `DigitalSourceType = trainedAlgorithmicMedia`. None of it belongs in
+  a permanent brand mark shipped inside the app bundle.
+- **`AppIcon.png` — tagged sRGB.** The file had **no** color chunk at all: no `iCCP`, no
+  `sRGB`, no `gAMA`, no `cHRM`. Untagged RGB is *assumed* sRGB by Apple's pipeline, which
+  is why it looked correct, but an assumption is not a guarantee. It now carries an
+  explicit `sRGB` chunk (intent 0) plus the `gAMA` 45455 the spec pairs with it.
+- **`AppIcon.png` — 1.88 MB → 934 KB** via 256-color palette quantization (`colortype 2`
+  → `colortype 3`).
+- **`AppIcon.appiconset/Contents.json` — added a dark `appearances` entry** pointing at the
+  same `AppIcon.png`, so dark mode shows the light artwork rather than a system-derived dark
+  treatment of it.
+- **`docs/pr-screenshots/worktree-feat-app-icon.png` — 2.32 MB → 653 KB** by downscaling
+  the 2x retina capture (1206×2622) to 1x and keeping truecolor. Re-shot from a build
+  carrying the re-encoded icon, so the artifact matches the asset it documents.
+
+**Why the two images were optimized differently.** The obvious move is to run both through
+the same palette quantizer, and for the screenshot that is wrong. The icon is one mark in
+two color families, so 256 palette entries are spent entirely on it: measured against the
+original, **99.2% of pixels land within 8/255**, mean error is 0.90, and the only visible
+difference at 8× zoom is a single dark grain fleck lightening. A whole home screen is a
+different problem — the wallpaper gradient and a dozen third-party icons must *share* those
+256 entries, which bands the gradient and pulls the Knot icon's coral visibly toward
+magenta. That would have made the screenshot misrepresent the exact thing it exists to
+document. Downscaling instead removes redundancy (GitHub renders it far smaller inline
+anyway) with no color distortion at all. Together: **4.20 MB → 1.59 MB**, a 62% cut.
+
+**The film grain was deliberately kept.** Flattening it would shrink the file much further
+— it is what makes the image incompressible, and it is invisible below ~180px. But it is
+visible at 1024, which is the size the App Store product page renders, and removing it is a
+**design** decision about the artwork rather than an encoding one. Quantization preserves
+the texture exactly; if a flatter mark is ever wanted, that should be a new export from the
+designer, not a lossy transform applied in a build-hygiene pass.
+
+**Files modified:**
+- `iOS/Knot/Info.plist` — `CFBundleIconName` added; `UIRequiredDeviceCapabilities` corrected
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — re-encoded
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — re-encoded at 1x
+
+**Tests:** iOS Full plan **453 passed**, 0 failures, 0 skipped. Verified beyond the suite,
+since no test can assert on an icon or a plist key: the built `Knot.app/Info.plist` carries
+`CFBundleIconName = AppIcon` at the top level, the re-encoded PNG still reports 1024×1024
+with `hasAlpha: no`, its chunk list is `IHDR / sRGB / gAMA / PLTE / IDAT… / IEND` with no
+`tEXt` remaining, and the icon still renders correctly on the simulator home screen.
+
+Both plist keys were additionally confirmed in a **device** build
+(`-destination 'generic/platform=iOS'`), since that is the configuration that actually gets
+submitted: `UIRequiredDeviceCapabilities => [arm64]` and `CFBundleIconName => AppIcon`.
+
+**Notes:**
+- **Provenance was not resolved, only the metadata.** Stripping the `Author` and
+  `DigitalSourceType` tags removes the record from the file; it does not settle rights in
+  an AI-generated brand mark. That is a legal question for the owner, and it is worth
+  settling before the mark appears on an App Store listing.
+- **The icon is pinned to the light artwork in dark mode.** `Contents.json` now carries a
+  second entry with `appearances: [{ appearance: luminosity, value: dark }]` pointing at the
+  **same** `AppIcon.png`. Without it, iOS renders a system-derived dark treatment that turns
+  the cream ground muddy brown and desaturates the coral. There is deliberately no separate
+  dark artwork — one mark, both appearances.
+- **SpringBoard caches app icons, and it will lie to you.** After changing an appiconset,
+  the home screen can keep showing the previous icon even after `simctl uninstall` +
+  `install` — during this step that produced a screenshot of the *old* dark rendering from a
+  build that already had the fix, which read as "the fix didn't work." Relaunch SpringBoard
+  (`xcrun simctl launch booted com.apple.springboard`) and compare both appearances back to
+  back before concluding anything. The authoritative check is the compiled catalog:
+  `xcrun assetutil --info Knot.app/Assets.car` should list two `AppIcon` renditions, one with
+  `"Appearance": "UIAppearanceDark"`, both naming the same file at the same `SizeOnDisk`.
+- The launch screen is **still** blank — `UILaunchScreen` continues to name a `LaunchIcon`
+  image and `LaunchScreenBackground` color that do not exist. Called out in Step 19.36 and
+  deliberately still out of scope here; this step was scoped to the icon's own findings.
+
+---
+
+### Step 19.38 ✅ Journal — "See details" Button on Event Cards
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Give each Journal event card a labelled way in. Its footer carried exactly one
+control — the unlabelled pink bubble-and-sparkle icon — and nothing on the card said what
+that icon did or offered any way to look at the event itself.
+
+**Scope decision:** the detail screen's design is coming separately, so this change is the
+**button and the seam it opens into**, not the destination's design.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** new `onSeeDetails: (() -> Void)?` (the same
+  optional-closure shape as `onGetRecommendations`, so the card still renders without it),
+  rendered in the footer as `KnotButton("See details", .outline, .sm, .pill)` **beside**
+  the existing icon. The two are different destinations — the button opens the event, the
+  icon asks for ideas for it — so both stay.
+- **`Features/ForYou/ForYouView.swift`:** `@State detailMilestone: MilestoneItemResponse?`
+  driving a `.fullScreenCover(item:)`. `MilestoneItemResponse` is already `Identifiable`,
+  so no wrapper type was needed.
+- **`Features/ForYou/MilestoneDetailView.swift` (new, placeholder):** an honest destination
+  so the button isn't inert. Renders only fields already on `MilestoneItemResponse` —
+  artwork, name, full date, countdown, recurrence, occasion, budget — reusing
+  `MilestoneCard.artwork(for:)`, `MilestonesViewModel.iconName(for:)` /
+  `.daysUntilText(_:)` / `.budgetTierLabel(_:)`, and `KnotListRow.info`. Its file header
+  says plainly that it is to be replaced wholesale and names the seam.
+- **`App/UITestScreenshotHarness.swift`:** the `journal` harness now mirrors
+  `ForYouView`'s cover seam (`@State detailMilestone` + `.fullScreenCover(item:)`) rather
+  than handing the card a dead `{}`, and seeds a `budgetTier` — the column is `NOT NULL`
+  in the DB, so a real milestone always has one and the Budget row was showing a "—" that
+  production never shows. A harness only proves what it actually seeds.
+
+**Three things worth recording:**
+- **`.outline`, not `.primary` or `.secondary`.** A second pink *fill* would compete with
+  the countdown and the accent icon on the same row. `.secondary` was the wrong tool for
+  the reason Step 19.33 recorded about the "Upcoming" count badge: that variant fills with
+  `surfaceElevated`, which has almost no contrast against the card's own surface.
+- **The footer now carries three controls on one variable-width line.** The button takes
+  `.fixedSize()` + `.layoutPriority(1)` and "For {partner}" gains a `minimumScaleFactor`,
+  so the *name* compresses under pressure and the button never truncates — the same
+  anti-jank recipe `BudgetTierSliderCard` (18.36) and `LoveLanguageCard` (18.39) use.
+- **The `default` occasion category is short-circuited in `occasionLabel(for:)`.** It *is*
+  in `MilestoneOccasionOption`, but its display name is "Something Else" — written as a
+  picker choice, not a label. Every milestone written before migration 00027 resolves to
+  `default` on read, so a legacy Christmas would have read "Occasion: Something Else"
+  where "Occasion: Holiday" is both true and useful. A test caught this; the first draft
+  asserted the fallback fired and it didn't.
+
+**Three review findings, all fixed before commit:**
+- **`KnotListRow` inside a `KnotCard` double-drew its chrome.** The row primitive already
+  owns its surface fill, border and `Radius.md` corner, so the wrapping card produced
+  doubled rules, pinched corners, and a 12pt-vs-18pt radius mismatch. Now a bare
+  `VStack(spacing: 10)`, matching every other `KnotListRow` call site.
+- **`onSeeDetails` was missing `@MainActor`** — the build's only strict-concurrency
+  warning, and a divergence from `JustBecauseCard.onGenerate` / `KnotIconButton.action` /
+  this change's own `onDismiss`. The build is warning-free again.
+- **`fullDate`'s documented fallback couldn't deliver its guarantee.** It fell back to
+  `ForYouViewModel.formattedDate(_:)`, which returns the *raw* stored string on exactly
+  the same parse failure — so an unparseable date still leaked `2000-MM-DD` to the UI, and
+  the test hid it by passing a `"Dec 25"` literal instead of the composed value. The
+  parameter is gone (`fullDate` already parses the stored date itself, so it was
+  redundant), unparseable input now renders `"—"`, and the test asserts the storage format
+  can never appear.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — placeholder detail destination
+- `docs/pr-screenshots/worktree-feat-journal-see-details-button.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `onSeeDetails` + footer button
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — detail cover seam and wiring
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — the `journal` harness presents the detail
+  cover for real and seeds a `budgetTier`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — second assertion now waits on the button this
+  change adds, matched by label prefix (each button is labelled "See details for {name}")
+- `iOS/KnotTests/MilestoneCardTests.swift` — 13 new cases
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate` for the new file
+
+**Tests:** iOS Unit plan **461 passed**, 0 failures (448 baseline + 13 new). Full plan
+**461 unit + 4 UI passed**, with `KnotUITests/testLaunchPerformance` skipped for the reason
+recorded in Step 19.31. Backend untouched — no `pytest` run applies to this diff.
+
+**Notes:**
+- The new tests cover both footer callbacks firing, the card rendering with either control
+  absent, a long partner name against the three-control row, and the detail view's pure
+  helpers (`fullDate` expansion and its fallbacks, recurrence labels, the occasion
+  fallbacks). As with Steps 19.34 and 19.35, the suite does no view introspection, so the
+  **screenshot is the artifact that proves the button renders**.
+- **Open question for when the detail designs land:** whether "Get ideas" should move
+  *into* the detail page, leaving the card with a single button. Cheap either way — the
+  icon is one `if let` in `footerRow`.
+
+---
+
+### Step 19.39 ✅ Dev Tooling — Warn at Build Time When the Checkout Is Behind origin/main
+**Date:** 2026-09-06
+**Status:** Complete
+
+*(Numbered 19.39: the app-icon pair and the "See details" button took 19.36–19.38 on
+`main` while this branch was open — the same shared-numbering contention Steps 19.29
+and 19.33 recorded. Picking the next free number on merge, rather than the next
+sequential one at authoring time, is what keeps two in-flight branches from both
+landing the same heading.)*
 
 **Goal:** Step 19.35 shipped, was merged, and the change did not appear on the device.
 Nothing was wrong with it. The main checkout — the one Xcode compiles — was two
@@ -8384,3 +8645,9 @@ failures.
 137. **Pipeline performance test mocks private aggregation functions (Step 12.5):** The `aggregate_external_data` node internally calls `_fetch_gift_candidates()` and `_fetch_experience_candidates()`. These are the correct patch targets — not public function names like `fetch_amazon_products` which don't exist. The `_` prefix does not prevent patching with `unittest.mock.patch()`.
 
 138. **Full backend test suite: 1659 passed, 18 skipped, 0 failed (Step 12.2):** The 18 skipped tests are gated by `@requires_supabase` or `@requires_vertex_ai` markers and skip when credentials are not configured. The 1659 passed tests cover all backend functionality: database schema (34 files), API endpoints (12 files), LangGraph agents (8 files), external integrations (8 files), notifications (6 files), and performance (1 file).
+
+139. **`xcodebuild test` in a worktree can fail at CodeSign with "resource fork, Finder information, or similar detritus not allowed" (Step 19.36):** The repo lives under `~/Documents`, which macOS File Provider (iCloud Drive) manages, and it stamps `com.apple.FinderInfo` + `com.apple.fileprovider.fpfs#P` onto directories it syncs — including `iOS/build/DerivedData/.../Knot.app` and the nested `PlugIns/KnotTests.xctest`. `codesign` refuses to sign a bundle carrying `FinderInfo`, so the **build** succeeds and the **test** run dies at the CodeSign phase of `KnotTests`, with no compile error and nothing wrong with the code. It is environmental and intermittent (it depends on whether the sync daemon has touched the build directory), so it can look like a change broke the suite when it did not. Two fixes: point the run at derived data outside the synced tree (`-derivedDataPath /tmp/...`, what Step 19.36 used), or `xattr -cr iOS/build/DerivedData` before re-running. Related but distinct: **image assets downloaded from a browser carry `com.apple.quarantine` / `kMDItemWhereFroms` xattrs** — strip them with `xattr -c <file>` after copying anything into `Assets.xcassets`, since git does not track xattrs and a polluted file makes a local-only failure that no reviewer can reproduce.
+
+140. **Ship-blocking Info.plist keys are invisible until upload (Step 19.37):** Two classes of App Store rejection cannot be caught by building, running, or testing, because the app works perfectly with them wrong — `CFBundleIconName` missing from the **top level** of the hand-written `Info.plist` (ITMS-90713; `actool` writes only the nested copy under `CFBundleIcons`, which satisfies the OS but not the validator) and a stale `UIRequiredDeviceCapabilities` of `armv7` on an arm64-only app. Both were present from the initial project template and survived every build and test run. When touching submission-facing config, check the built `Knot.app/Info.plist` directly (`plutil -p`) rather than trusting a green suite. `GENERATE_INFOPLIST_FILE: false` in `iOS/project.yml`, so `Knot/Info.plist` is authoritative and hand-edits there are safe from XcodeGen. **Inspect with `plutil -p`, never `plutil -extract`:** `plutil -extract <keypath> <fmt> <file>` writes its result **back into the file** unless you pass `-o -`, so using it to "check a value" silently replaces the whole `Info.plist` with just that value. Doing this to a built `Knot.app` corrupts the bundle (`simctl install` then fails with "Missing bundle ID") and, worse, makes the *next* check report the key as missing — which reads as a broken build rather than a broken command.
+
+141. **Palette-quantize a single mark, downscale a screenshot — not the reverse (Step 19.37):** 256-color PNG quantization is near-lossless for the app icon (99.2% of pixels within 8/255) because the whole palette is spent on one two-family mark, halving the file with the film grain intact. The same treatment on a full home-screen capture is visibly wrong: the wallpaper gradient and every third-party icon compete for those 256 entries, banding the gradient and shifting the Knot coral toward magenta — corrupting the one detail the screenshot documents. For UI captures, downscale the 2x retina image to 1x and keep truecolor instead (GitHub renders PR images far smaller inline anyway). On metadata: Pillow does **not** carry `tEXt`/`zTXt`/`iTXt` across a re-encode, which is what strips generation prompts and XMP — but it is not a blanket scrubber. It *does* re-emit `iCCP`, `pHYs`, `eXIf`, and `tRNS` from `im.info`, so an ICC- or EXIF-tagged source keeps those unless they are dropped explicitly. Anything wanted in the output (here `sRGB` + `gAMA`) must be added deliberately via `PngInfo`. Confirm the result by dumping the chunk list rather than assuming.

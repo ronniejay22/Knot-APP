@@ -24,13 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change shrinks the artwork inside each Journal `MilestoneCard`
-        // from 200pt to 140pt. The real `ForYouView` sits behind an authenticated
-        // session and a live milestone fetch, which a cold screenshot launch
-        // can't reach — so render the same card feed via the DEBUG harness,
-        // whose three seeded entries each carry a real occasion illustration.
-        // The shot has to show more than one card's artwork, which is the
-        // point of the reduction, so the harness feed is the right target.
+        // The change adds a labeled "See details" button to each Journal
+        // `MilestoneCard` footer, beside the existing recommendation icon. The
+        // real `ForYouView` sits behind an authenticated session and a live
+        // milestone fetch, which a cold screenshot launch can't reach — so
+        // render the same card feed via the DEBUG harness, whose three seeded
+        // entries now each pass an `onSeeDetails` closure so the button renders.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -47,8 +46,8 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait on the header eyebrow and the first card's headline — the card
-        // whose artwork this change resizes.
+        // Wait on the header eyebrow and then on the button this change adds —
+        // if the button never renders, the shot cannot show the change.
         //
         // These ASSERT rather than discard their result. A discarded
         // `waitForExistence` lets the test pass while the target screen never
@@ -60,9 +59,15 @@ final class PRScreenshotTests: XCTestCase {
             app.staticTexts["YOUR JOURNAL"].waitForExistence(timeout: 10),
             "Journal harness never rendered — the captured screenshot would not show the change"
         )
+        // Matched by prefix rather than exact label: each button is labelled
+        // "See details for {milestone name}" for VoiceOver, so the milestone
+        // name is part of the label and a `==` match would be brittle.
+        let seeDetails = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "See details"))
+            .firstMatch
         XCTAssertTrue(
-            app.staticTexts["Christmas"].waitForExistence(timeout: 5),
-            "The first milestone card never rendered — the shot would not show the resized artwork"
+            seeDetails.waitForExistence(timeout: 5),
+            "No \"See details\" button rendered — the shot would not show the change"
         )
 
         // Let the screen settle so the shot isn't caught mid-transition.

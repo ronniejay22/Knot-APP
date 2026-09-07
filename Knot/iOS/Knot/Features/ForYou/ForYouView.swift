@@ -15,8 +15,9 @@ import SwiftUI
 /// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
 /// - "Just Because" recommendation card
 /// - "Upcoming" header with a "View all" link into milestone management
-/// - A `MilestoneCard` per upcoming milestone, each with a trailing
-///   recommendation icon button that pushes `RecommendationsView` with
+/// - A `MilestoneCard` per upcoming milestone, whose footer carries two
+///   destinations: a "See details" button opening `MilestoneDetailView` for that
+///   event, and a recommendation icon button pushing `RecommendationsView` with
 ///   milestone context
 struct ForYouView: View {
 
@@ -28,6 +29,12 @@ struct ForYouView: View {
 
     /// Presents the full milestone list (add / edit / delete) from "View all".
     @State private var showMilestoneManagement = false
+
+    /// The event whose detail screen is open, set by a card's "See details".
+    ///
+    /// `MilestoneItemResponse` is already `Identifiable`, so this drives
+    /// `.fullScreenCover(item:)` directly with no wrapper type.
+    @State private var detailMilestone: MilestoneItemResponse?
 
     var body: some View {
         NavigationStack {
@@ -80,6 +87,16 @@ struct ForYouView: View {
                     .onDisappear {
                         Task { await viewModel.refreshMilestones() }
                     }
+            }
+            // Hangs off the ZStack alongside the presentations above, NOT off
+            // `timelineContent` — that subtree carries `.toolbar(.hidden,…)`,
+            // which a presentation attached inside it would inherit.
+            .fullScreenCover(item: $detailMilestone) { milestone in
+                MilestoneDetailView(
+                    milestone: milestone,
+                    partnerName: viewModel.partnerName,
+                    onDismiss: { detailMilestone = nil }
+                )
             }
         }
     }
@@ -219,6 +236,7 @@ struct ForYouView: View {
                     partnerName: viewModel.partnerName,
                     formattedDate: viewModel.formattedDate(milestone.milestoneDate),
                     urgency: viewModel.urgencyLevel(for: daysUntil),
+                    onSeeDetails: { detailMilestone = milestone },
                     onGetRecommendations: {
                         navigationDestination = RecommendationDestination(
                             milestoneId: milestone.id,
