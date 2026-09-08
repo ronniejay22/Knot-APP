@@ -22,22 +22,19 @@ Knot/
 └── backend/                   # Python/FastAPI backend
 ```
 
-### Legal Documents (`docs/legal/`) — SUPERSEDED, not the shipping copy
+### Legal Documents (`docs/legal/`) — source of truth, but not what ships directly
 
-**Step 19.40:** the app's four legal links now open **Google Drive PDFs** the owner
-maintains outside this repo. Knot is a mobile app with no website; the earlier plan to
-host these pages at `knot-app.com` was abandoned (that domain was never ours). The files
-below are a **draft that no longer ships** — they still carry `[Company Legal Name]` and
-`[Effective Date]` placeholders and dead `knot-app.com` links. Do not "fix" them expecting
-the app to pick the changes up, and do not treat them as the source of truth.
+Public-facing Terms of Service and Privacy Policy, written from the actual data
+practices of the app and backend (**Step 19.5**). Each policy exists as source-of-truth
+Markdown plus a self-contained, styled HTML page.
 
-The live URLs are the only ones that matter, and they live in exactly four **tappable**
-call sites (see the `SettingsView.swift` and `OnboardingPaywallView.swift` rows below).
-There is a fifth *surface* that is not a link: `SignInView.swift`'s
-"Terms & Conditions • Privacy Policy" is accent-coloured plain `Text` with no action, so
-it reads as tappable and does nothing. That is pre-existing and deliberately untouched
-here; wiring it up is a behavior change, but it is the obvious next place these URLs
-belong if it is ever made interactive.
+**Step 19.40 — the app's four legal links open Google Drive PDFs.** Knot is a mobile app
+with no website; the earlier plan to host these pages at `knot-app.com` was abandoned
+(that domain was never ours). Those PDFs are rendered **from the HTML in this directory**
+by `build-pdfs.sh` and uploaded by hand, so these files stay the source of truth — but
+they are not what a user or a reviewer reads. **A PDF on Drive is a copy, not a view:**
+editing the Markdown here changes nothing that ships until the PDFs are re-rendered and
+re-uploaded. Never assume a fix to these files has reached anybody.
 
 | Document | Live URL |
 |----------|----------|
@@ -48,11 +45,44 @@ Both Drive files must stay shared "Anyone with the link can view" — a restrict
 sends the user to a Google sign-in wall, and App Store Review rejects a Privacy Policy
 URL that is not publicly reachable.
 
+The live URLs sit in exactly four **tappable** call sites (see the `SettingsView.swift`
+and `OnboardingPaywallView.swift` rows below). There is a fifth *surface* that is not a
+link: `SignInView.swift`'s "Terms & Conditions • Privacy Policy" is accent-coloured plain
+`Text` with no action, so it reads as tappable and does nothing. That is pre-existing and
+deliberately untouched; wiring it up is a behavior change, but it is the obvious next
+place these URLs belong if it is ever made interactive.
+
+**As of Step 19.44 no placeholders remain** — the operating party is `Ronald Jones Jr`
+(an individual sole proprietor; there is no entity, so every `we`/`us`/`our` in both
+documents resolves to that person) and the effective date is `September 6, 2026`.
+**Step 19.45** set governing law to `the State of California, USA` and the contact email
+to `knottheapp@gmail.com`. The mailing address is deliberately absent and must return for
+EU/UK distribution (see `README.md`).
+
+⛔ **`knot-app.com` is a third party's domain** — registered through GMO, resolving to an
+unrelated host whose TLS certificate does not match, and `api.knot-app.com` does not
+resolve at all. Five live references in the app and backend point at that domain;
+`README.md` carries the full table. The most serious is `Constants.swift`'s production
+`baseURL = https://api.knot-app.com`, which means a release build cannot reach the
+backend — a separate, launch-blocking issue that acquiring a domain resolves alongside
+the rest.
+
+**Step 19.46 — the chosen host is Google Drive (PDFs).** `build-pdfs.sh` renders the two
+HTML pages to PDF; the owner uploads them and sets sharing to "Anyone with the link" by
+hand (a Drive file defaults to private, and a policy URL that prompts for a Google sign-in
+is an App Review rejection). GitHub Pages was recommended and overruled — serving the HTML
+directly is strictly better (the pages update in place, `/privacy` and `/terms` resolve
+natively, and there is no viewer chrome between the reviewer and the text), so the HTML is
+kept host-agnostic and the decision stays reversible. The in-app links were repointed at
+the two Drive URLs in **Step 19.40**, which closed the Guideline 3.1.2 blocker: the
+paywall pair must be reachable before purchase.
+
 | File | Purpose |
 |------|---------|
-| `privacy-policy.md` / `privacy.html` | **Superseded draft.** Privacy Policy — data collected, AI processing (Anthropic Claude, Google Vertex AI), third-party service-provider sharing table, 60-day soft-delete/restore retention, and user rights. |
-| `terms-of-service.md` / `terms.html` | **Superseded draft.** Terms of Service — eligibility (18+), accounts, user-content license, AI-content and affiliate-link disclaimers, liability, and governing law. |
-| `README.md` | Placeholders to fill, "not legal advice" note, and (now obsolete) publishing instructions. |
+| `privacy-policy.md` / `privacy.html` | Privacy Policy — data collected, AI processing (Anthropic Claude, Google Vertex AI), third-party service-provider sharing table, 60-day soft-delete/restore retention, and user rights. Rendered to the Drive PDF above; the `knot-app.com/privacy` URL it was originally written for was never ours and does not resolve. **Step 19.43:** the mailing address was dropped from §13 — contact is email-only (`privacy@knot-app.com`); it must return for EU/UK distribution, see the README. **Step 19.42:** added §2f "Subscription status" — states that the status is **not stored** server-side or on-device but read from StoreKit on demand, which is what `SubscriptionManager.isSubscribed` (an in-memory `private(set) var`, never persisted) and a backend with no subscription table actually do; the old §2f device info became §2g; device tokens went **plural** to match the `user_devices` table from Step 19.29; the "what we do not collect" payment bullet now names both billing paths (Apple for subscriptions, merchant for gifts); §6a gained an **Apple (App Store / StoreKit)** provider row; and §8's Deletion right cross-references that deleting an account does not cancel a subscription. |
+| `terms-of-service.md` / `terms.html` | Terms of Service — eligibility (18+), accounts, user-content license, AI-content and affiliate-link disclaimers, liability, and governing law. Rendered to the Drive PDF above; the `knot-app.com/terms` URL it was originally written for was never ours and does not resolve. **Step 19.42:** §10 changed from "Fees — provided free of charge" (true at Step 19.5, false once Steps 19.8–19.23 shipped StoreKit) to **"Subscriptions and billing"** — eight subsections covering plans/pricing, the 7-day trial and its auto-conversion, auto-renewal, Apple-Account payment, cancelling, Apple-governed refunds, price changes, and restore. §15 now states that deleting an account does not cancel the subscription. **Step 19.43:** the mailing address was dropped from §18 (contact is email-only) and §16's jurisdiction set to "the United States" with the venue phrase reworded from "state and federal courts located in" to "courts of" and a consumer-rights carve-out added — a country is not a valid governing-law choice, so **Step 19.45** replaced it with `the State of California, USA`. |
+| `README.md` | Placeholders to fill, "not legal advice" note, and publishing instructions. **Step 19.42:** corrected the link locations (it claimed the Sign-In screen, which renders them as plain `Text`; the real second call site is `OnboardingPaywallView`), replaced the `\[.*\]` placeholder check with one matching only the placeholder names (the loose pattern also hits ordinary Markdown link labels), and added the **"Subscription terms are load-bearing"** section. **Step 19.43:** split the list into *remaining* and *resolved*, recording why the mailing address was dropped and the EU/UK condition under which it must return, plus a ⚠️ that the governing-law value needs a state. **Step 19.44:** with the last placeholders filled, the section became **"Current values (no placeholders remain)"** — what each value is and what to revisit (replace the name if an entity is formed, bump the date on revisions, restore the address for EU/UK, name a state), plus a note that the sole contact address must actually receive mail (**Step 19.45** moved it off the dead `knot-app.com` domain to `knottheapp@gmail.com`). The check `grep` widened back to all four names as a regression guard. **Step 19.46:** the "Publishing to the web" section became **"Current plan: PDFs on Google Drive"** — the `build-pdfs.sh` usage, the three conditions that must hold for the documents to actually be published (link-sharing set by hand in the Drive UI, re-render with both URLs, repoint the in-app links), and the standing cost that a Drive PDF is a copy rather than a view. The prior host-agnostic guidance was kept as an "If a domain is acquired later" section. |
+| `build-pdfs.sh` | **New (Step 19.46).** Renders both HTML pages to PDF via headless Chrome for Drive hosting: `./build-pdfs.sh [out-dir] [privacy-url] [terms-url]`. The committed HTML stays the source of truth — the script edits a **temp copy only**, so the repo remains host-agnostic. Two transformations, both load-bearing: (1) substitutes Helvetica for the `-apple-system` stack, cutting ~25% (697KB → 519KB) — Chrome still embeds a *subset* of Helvetica rather than leaning on the reader's base-14 copy, so the saving is that Helvetica's subset is far smaller than SF Pro's, not that the font is omitted; (2) rewrites the site-absolute `/privacy` ↔ `/terms` cross-links to the hosted URLs, since those paths resolve only at a domain root and are dead inside a standalone PDF — the replacement is escaped via `sed_replacement()` because Drive share links routinely carry `&`, which sed would otherwise expand to the whole match and silently corrupt the href. **Both URLs or neither** — supplying exactly one exits 1 in either direction, because a half-rewritten pair leaves one dead link; omitting both is allowed for a proof render and warns. `render()` verifies the output exists and starts with `%PDF` (and deletes any previous file first), since **Chrome exits 0 even when it fails to write the PDF** — without the check a failed re-render would report a stale file's size as success and that stale PDF would be the one uploaded. Output goes to `docs/legal/build/` by default, which `.gitignore`'s `build/` rule already covers. Requires Google Chrome; no other dependency. |
 
 ### Claude Code Skills (`.claude/skills/`)
 

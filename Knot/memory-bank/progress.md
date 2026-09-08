@@ -8378,6 +8378,14 @@ They are now **superseded**: still placeholder-laden (`[Company Legal Name]`,
 than deleted, but `architecture.md` now marks them as not-the-shipping-copy so nobody edits
 them expecting the app to follow.
 
+> **Corrected by Steps 19.42–19.46, which were written earlier but merged later.** The
+> placeholders and the dead-domain links were already gone on that branch, and the two PDFs
+> this step points at were rendered *from* those same HTML files by `build-pdfs.sh`. So the
+> files are the **source of truth** after all — what stays true is the operational half of
+> the warning: a Drive PDF is a copy, so editing them changes nothing a user or reviewer
+> sees until the PDFs are re-rendered and re-uploaded. See `architecture.md`'s Legal
+> Documents section, which is written to the corrected state.
+
 **Files modified:**
 - `iOS/Knot/Features/Settings/SettingsView.swift` — two About-row URLs
 - `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` — `termsURL` / `privacyURL`
@@ -8519,6 +8527,413 @@ and an app icon are all uninspectable from inside the app; see Steps 19.34/19.35
 - **A screenshot of the home screen is not evidence about a banner.** They resolve the
   icon through different paths, and this bug is the proof: one was right while the
   other was wrong, on the same install, for a day.
+
+---
+
+### Step 19.42 ✅ Legal — Bring the Terms & Privacy Policy Current With the Subscription
+**Date:** 2026-09-06
+**Status:** Complete
+
+> **Numbering note — Steps 19.42–19.46 are out of date order on purpose.** This run of legal
+> work was authored as 19.35–19.39 on 2026-09-06/07, but sat unmerged long enough for `main`
+> to claim 19.35–19.41 for unrelated Journal, branding, dev-tooling and screenshot steps. The
+> already-merged numbers win, so this branch renumbered on the way in rather than rewriting
+> shipped history. Read 19.42–19.46 as having happened *before* 19.40.
+
+**Goal:** The legal documents (Step 19.5, written 2026-07-01) predate the subscription. Terms
+**§10 "Fees"** still read *"The Service is currently provided **free of charge**"* — but Steps
+19.8 / 19.14 / 19.19 / 19.23 shipped a real StoreKit 2 auto-renewing subscription in between.
+That is not cosmetic drift: App Review Guideline **3.1.2** requires the EULA/Terms linked from
+the app to disclose the subscription's title, length, content, price per period, that it
+auto-renews, and how to cancel. A Terms that says the app is free is a rejection, and Step 13.2
+(App Store Submission Preparation) is still open.
+
+**Root cause:** nothing ties the legal docs to the StoreKit catalogue. Four subscription steps
+landed without the policies being revisited, and no check would have caught it — the docs have no
+tests and are not read by any code path.
+
+**What changed:**
+- **Terms §10 rewritten** from a 3-line "Fees" paragraph into **"Subscriptions and billing"**
+  with eight subsections (a–h): plans + pricing table, 7-day free trial and its automatic
+  conversion, automatic renewal, payment via the Apple Account, cancelling, refunds (Apple's
+  Media Services Terms — we cannot issue them), price changes, and restoring a purchase. Every
+  price, period, plan name, and trial length is copied from `iOS/Knot/Knot.storekit`, not
+  paraphrased: `com.knot.premium.monthly` → "Knot Premium — Monthly", 1 month, US $9.99;
+  `com.knot.premium.annual` → "Knot Premium — 12 Months", 1 year, US $59.99; `P1W`/`free` intro
+  offer → "7-day free trial".
+- **Terms §15 (Termination)** gained the trap worth stating explicitly: **deleting your account
+  does not cancel your subscription.** Knot's account deletion is a backend soft-delete; the
+  subscription lives with Apple and keeps billing regardless.
+- **Privacy Policy §2 gained a new subsection f, "Subscription status"** — the app asks StoreKit
+  whether a subscription is active, and the policy states plainly that this is **not stored**
+  server-side or on-device. That is what the code does: `SubscriptionManager.isSubscribed` is an
+  in-memory `private(set) var` that is never persisted (Step 19.8 made that explicit so premium
+  could not leak across accounts on a shared device), and the backend has no subscription table
+  or column at all. The former §2f (device info) became **§2g**.
+- **Privacy §2f "device token" → plural.** Step 19.29 replaced the single `users.device_token`
+  column with the `user_devices` table (one row per device); the policy still described the
+  pre-19.29 one-device-per-user model.
+- **Privacy §2 "what we do not collect"** — the payment bullet said purchases "happen directly on
+  a merchant's own website", which was true when written and is now only half the story. It names
+  both paths (Apple for subscriptions, merchant for gifts/bookings) and keeps the substantive
+  claim, which is still accurate: the details never reach us.
+- **Privacy §6a** — added an **Apple (App Store / StoreKit)** row to the service-provider table;
+  the existing Apple (APNs) row's "Device token" became plural to match §2g.
+- **Privacy §8** — the Deletion right now cross-references the cancel-separately point from
+  Terms §15, so a user reading only the Privacy Policy still learns it.
+- **`docs/legal/README.md`** — corrected the link locations: the README claimed Settings **and**
+  the Sign-In screen, but Sign-In renders those as plain `Text`; the second real call site is
+  `OnboardingPaywallView.swift:113-114`, which is the one App Review cares about (subscription
+  terms must be reachable *before* purchase). Also noted the App Store Privacy-Policy-URL
+  requirement, replaced the placeholder-check `grep` with one matching only the four placeholder
+  names (the old `\[.*\]` also matches ordinary Markdown link labels) and scoped to the four
+  policy files rather than `docs/legal/*.md` — the README lists all four placeholder names, so a
+  self-globbing check could never come back clean — and added a **"Subscription terms are
+  load-bearing"** section naming `Knot.storekit` as §10's source of truth.
+- All five edits were mirrored into the standalone `privacy.html` / `terms.html` pages.
+  `terms.html` had no `h3` or table CSS (it had never needed either), so the `h3`,
+  `.table-scroll`, `table`, `th`, `td` rules were ported from `privacy.html` — same tokens, with
+  `min-width` 420px instead of 520px for the narrower 3-column pricing table.
+
+**Files modified:**
+- `docs/legal/terms-of-service.md` — §10 rewritten (a–h), §15 cancellation note
+- `docs/legal/terms.html` — same, mirrored; `h3` + table CSS added to the inline stylesheet
+- `docs/legal/privacy-policy.md` — new §2f, §2f→§2g, payment/device-token wording, §6a Apple row, §8 cross-reference
+- `docs/legal/privacy.html` — same, mirrored
+- `docs/legal/README.md` — link location, placeholder-check command, subscription-drift warning
+
+**Tests:** None — docs-only, no iOS or backend code touched, so no suite could exercise it and
+none was run (nothing in the diff can break a test). Verified instead by five direct checks:
+(1) the four `[Company Legal Name]` / `[Mailing Address]` / `[Governing-law State/Country]` /
+`[Effective Date]` placeholders are the only ones present and no new one was introduced;
+(2) Markdown ↔ HTML heading parity is exact in both pairs — Terms 1–18 with 10a–10h, Privacy
+1–13 with 2a–2g and 6a–6d, contiguous, no gaps; (3) every price, period, plan name, and trial
+length in §10 was diffed programmatically against `Knot.storekit` and matches exactly;
+(4) both HTML pages parse with all tags balanced, and the `/terms` ↔ `/privacy` cross-links
+resolve; (5) §10 was walked against Guideline 3.1.2's six required disclosures — all present.
+
+A `/code-review high` pass then caught eight issues, all of the same class and all fixed before
+commit: **the drafts asserted things the code does not do.** The Privacy Policy said we "record"
+subscription status (nothing persists it — see Notes); §10 said Premium "unlocks" features
+(nothing is entitlement-gated yet); §10(h) promised a Restore control on "the subscription
+screen" (it exists only on the onboarding paywall, and the Settings paywall entry is `#if DEBUG`);
+§10(a) promised the current price on the subscription screen (the paywall's plan cards hardcode
+USD `$59.99`/`$9.99`/`$119.88`, so only Apple's own sheet reliably shows the local price); the
+§6a Apple row claimed we "receive" the status server-side; §15's survival list never got §10
+added despite the new paragraph relying on it; and the README's own placeholder-check `grep`
+globbed the README, which lists all four placeholder names, so it could never come back clean.
+Writing the corrected claims required reading `SubscriptionManager.swift`, `OnboardingPaywallView.swift`
+and `SettingsView.swift` — the docs now describe the shipped behavior, not the intended behavior.
+
+**Notes:**
+- **The placeholders were left unfilled** by this step, deliberately — they need a decision only
+  the owner can make, and holding the Apple-compliance fix for them would have helped nobody.
+  **Step 19.43 (below) then resolved two of the four**; `[Company Legal Name]` (+ its ALL-CAPS
+  twin in §13/§14) and `[Effective Date]` remain.
+- **Three adjacent gaps left open on purpose**, all out of scope for a docs change, and all now
+  reflected in the wording rather than papered over:
+  1. **The pages are still unpublished.** The app links to `https://knot-app.com/terms` and
+     `/privacy` from both `SettingsView.swift` and `OnboardingPaywallView.swift`, and App Store
+     submission requires a live Privacy Policy URL. The HTML is self-contained and ready for any
+     static host — a deploy, not a code change.
+  2. **"Restore Purchases" is reachable only from the onboarding paywall.** The Settings paywall
+     entry is `#if DEBUG`, so a subscriber who reinstalls and already has a vault skips onboarding
+     and never sees the control. §10(h) was therefore written to lead with the fact that does
+     hold — the subscription follows the **Apple Account** — rather than promising a button that
+     may be out of reach. A Settings "Manage Subscription" row is the real fix.
+  3. **Nothing is entitlement-gated.** Step 19.8's own note says premium is unlocked at onboarding
+     but not gated anywhere, and the paywall can be dismissed straight into the full app. §10 was
+     therefore written to define the subscription by what the subscription screen says at purchase
+     time, not by a feature list the build does not enforce. **When gating does land, §10's first
+     paragraph should name the gated features.**
+- The load-bearing invariant for whoever touches pricing next: **§10 and `Knot.storekit` must
+  agree.** They are two hand-maintained copies of the same facts with no test between them —
+  the same shape of gap that let "free of charge" survive four subscription steps.
+
+---
+
+### Step 19.43 ✅ Legal — Drop the Mailing Address and Set Governing Law
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Resolve two of the four placeholders Step 19.42 left open. The owner asked why a mailing
+address was required at all, and — on the answer that it mostly is not — chose to remove it and to
+set the governing-law jurisdiction to the United States.
+
+**What changed:**
+- **Mailing address removed** from the "Contact us" block of all four documents (Privacy §13,
+  Terms §18, and both HTML twins). Contact is now email-only at `privacy@knot-app.com`.
+- **Governing law set to "the United States"** in Terms §16 and `terms.html`. The venue sentence
+  was reworded from "the **state and federal courts located in** [X]" to "the **courts of** the
+  United States" — the original phrasing was written for a state-level value and reads as
+  nonsense at country scale.
+- **A consumer-rights carve-out was added to §16**, stating that a consumer entitled by local law
+  to sue in their own courts, or holding non-waivable protections, keeps those rights. Many
+  jurisdictions void an exclusive-forum clause against consumers anyway; saying so makes the
+  section survive contact with those rules instead of being struck wholesale.
+- **`docs/legal/README.md`** now lists only the two remaining placeholders, records *why* the
+  address was dropped and when it must come back, carries a ⚠️ on the governing-law value, and
+  its check `grep` was narrowed to `company legal name|effective date`.
+
+**Files modified:**
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — contact block, address line removed
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — contact block; §16 jurisdiction + carve-out
+- `docs/legal/README.md` — placeholder list split into remaining/resolved, rationale, narrowed check
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, same as Step 19.42; no code path touches these files. Re-ran the same
+checks: only `[Company Legal Name]` / `[COMPANY LEGAL NAME]` / `[Effective Date]` remain (16
+occurrences across the four policy files, zero `[Mailing Address]`, zero
+`[Governing-law State/Country]`), Markdown ↔ HTML
+heading parity still `diff`-clean in both pairs, both HTML pages still parse with balanced tags,
+and the README's own `grep` matches exactly the placeholders it now claims.
+
+**Notes:**
+- **⚠️ "The United States" is not a real governing-law choice and should be replaced with a
+  state.** US contract law is state law, so "the laws of the United States" leaves a court to
+  determine which body of law governs, and an exclusive-jurisdiction clause naming the entire
+  country selects no forum at all. This was the owner's explicit instruction and is recorded as
+  their decision; the defect is flagged in the README rather than silently fixed. The replacement
+  is normally the state of residence or of formation (`the State of X, USA`), in both §16
+  occurrences plus `terms.html`.
+- **Why dropping the address is defensible today:** Apple's review does not check for one, and
+  CCPA/CPRA lets a business operating exclusively online with a direct consumer relationship offer
+  an email address alone for privacy requests. **It must come back for EU/UK distribution** —
+  GDPR Art. 13 expects the controller's postal contact details, and the EU DSA trader rules
+  publish name/address/phone/email on the App Store listing regardless, so the privacy benefit of
+  omitting it disappears at that point. Recorded in the README so the trade-off is not re-derived.
+- The practical driver was that Knot has no legal entity yet, so the only address available was a
+  home address — which a published policy would have put on the open internet permanently.
+
+---
+
+### Step 19.44 ✅ Legal — Fill the Last Two Placeholders (Operating Party + Effective Date)
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Close out the last two placeholders Steps 19.42–19.43 left open, so the documents are
+publishable. The owner elected to ship under their own legal name as a sole proprietor rather than
+wait weeks on an LLC — forming one is realistically a 2–6 week path once the Apple organization
+account and its D-U-N-S prerequisite are counted, and swapping an entity name in later is a
+two-minute find-and-replace. There was no reason for a revisable document to block a launch.
+
+**What changed:**
+- **`[Company Legal Name]` → `Ronald Jones Jr`** and **`[COMPANY LEGAL NAME]` → `RONALD JONES JR`**
+  (10 + 2 occurrences), and **`[Effective Date]` → `September 6, 2026`** (4), across
+  `privacy-policy.md`, `terms-of-service.md`, `privacy.html`, `terms.html`. **Zero placeholders
+  remain** in the four policy files.
+- **Terms §13/§14: `its` → `their`, and `contractors` added.** Substituting a natural person into
+  a template drafted for a company produced *"Ronald Jones Jr **or its** officers, employees, or
+  agents"* — corporate possessive applied to a person. `their` is correct for an individual and
+  stays correct if an entity is formed later, so the clause needs no second rewrite. `contractors`
+  was added because a sole proprietor's help is far likelier to be contract than employment, and
+  the liability cap and indemnity are the two clauses in the document that exist to protect the
+  operator. **This is the kind of defect a find-and-replace creates and a diff review catches:**
+  the placeholder was grammatically inert, the substituted value was not.
+- **`docs/legal/README.md`** — the "fill in these placeholders" section became **"Current values
+  (no placeholders remain)"**, recording what each value is and what to revisit: replace the name
+  if an entity is formed, bump the date on substantive revisions, restore the address for EU/UK,
+  and the standing ⚠️ that governing law needs a state. Also flagged that `privacy@knot-app.com`
+  must actually receive mail — with the postal address gone it is the sole contact channel and the
+  destination for GDPR/CCPA rights requests. The check `grep` was widened back to all four
+  placeholder names, since it is now a regression guard rather than a to-do list.
+
+**Files modified:**
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — name + date
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — name + date; §13/§14 pronoun fix
+- `docs/legal/README.md` — placeholder section replaced with current values + what to revisit
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, as with 19.42/19.43. Re-ran the same checks: **zero** bracketed
+placeholders remain in the four policy files (only the Markdown link labels `[Privacy Policy]` /
+`[Terms of Service]` match a bracket pattern, and they are links, not placeholders); the name
+landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML heading parity still
+`diff`-clean in both pairs; both HTML pages still parse with balanced tags.
+
+**Notes:**
+- **The documents are now publishable but not yet published.** Remaining before launch, none of
+  them code: host the two HTML pages at `knot-app.com/terms` and `/privacy`; make sure
+  `privacy@knot-app.com` receives mail; create `com.knot.premium.annual` / `.monthly` in App Store
+  Connect with 7-day intro offers (the standing Step 19.8 follow-up, and Terms §10 now states
+  those exact prices); and keep the App Privacy "nutrition label" consistent with the Privacy
+  Policy — no tracking SDKs, no ad identifiers, no payment data, no device permissions.
+- **⚠️ Governing law still names a country, not a state** (see Step 19.43). Unchanged here.
+- The name is a **sole proprietor**, not an entity — so "Knot" has no separate legal existence and
+  liability is personal. That is the actual argument for forming an LLC once the subscription is
+  taking recurring consumer money; it is a business decision, not a docs one, and deliberately did
+  not gate this work.
+
+---
+
+### Step 19.45 ✅ Legal — California Governing Law, Real Contact Email, and the knot-app.com Discovery
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Resolve the governing-law state left ⚠️ by Step 19.43, and fix the contact email. While
+checking where to host the pages (the owner reported `knot-app.com` "doesn't exist"), a DNS check
+turned up something worse than a missing page.
+
+**Root cause / discovery: `knot-app.com` belongs to a third party.** It is registered through GMO
+(`ns-rs1.gmoserver.jp`), resolves to `160.251.148.124`, and presents a TLS certificate that does
+not match the hostname; the owner confirmed they hold no Knot-related domain. `api.knot-app.com`
+does not resolve at all. Every hardcoded reference in the app therefore points at a domain we do
+not control — including **`privacy@knot-app.com`**, which Steps 19.42–19.44 had left as the *sole*
+contact channel after the postal address was removed. The privacy policy was directing GDPR/CCPA
+rights requests to a mailbox that cannot exist.
+
+**What changed:**
+- **Terms §16 governing law → `the State of California, USA`** (where the operator lives), in both
+  the Markdown and HTML. The venue sentence was restored to **"the state and federal courts located
+  in"** — the original construction, which was only reworded in 19.43 because a country-scale value
+  made it nonsense. A state makes it correct again. The consumer carve-out from 19.43 stays, and
+  matters more here than elsewhere: California consumer protections are largely non-waivable, so a
+  forum clause that ignores them invites being struck rather than honored.
+- **Contact email → `knottheapp@gmail.com`** in all four documents (4 occurrences; the HTML carries
+  it twice per page as `mailto:` href + link text). Deliberately a Gmail address, not a
+  vanity-domain one, because there is no domain to host it on.
+- **`docs/legal/README.md`** — the governing-law ⚠️ was replaced with the settled value and the
+  California non-waivability note; the email section now records that `@knot-app.com` is a third
+  party's domain; the "Publishing to the web" section was rewritten (it had instructed the reader
+  to publish at `knot-app.com`, i.e. at a domain we cannot use) around host-agnostic guidance,
+  GitHub Pages as the zero-cost option given the repo is public, and the cross-link caveat; and a
+  new **"Outstanding: the knot-app.com references"** table enumerates all five live references.
+
+**Files modified:**
+- `docs/legal/terms-of-service.md`, `docs/legal/terms.html` — §16 governing law + venue; email
+- `docs/legal/privacy-policy.md`, `docs/legal/privacy.html` — email
+- `docs/legal/README.md` — governing law, email provenance, publishing rewrite, references table
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — docs-only, as with 19.42–19.44. Re-verified: zero `knot-app.com` references
+remain in `docs/legal/` outside the deliberate warnings; zero placeholders; Markdown ↔ HTML heading
+parity still `diff`-clean in both pairs; both HTML pages still parse with balanced tags.
+
+**Notes:**
+- **The documents are still not publishable, but for a new reason.** The blocker moved from "fill
+  the placeholders" to "there is nowhere to host them and the app links to a stranger's domain."
+  The two in-app link sites (`SettingsView.swift`, `OnboardingPaywallView.swift`) must be repointed
+  at wherever the pages actually land — deliberately **not** done here, because the host has not
+  been chosen and guessing would just move the wrong URL somewhere else.
+- **Separately launch-blocking, and worse:** `Constants.swift` sets the production
+  `baseURL = https://api.knot-app.com`, a host that does not resolve — **a release build cannot
+  reach the backend at all.** `Knot.entitlements` binds Universal Links to the same host, and
+  `config.py`'s `APP_DOMAIN` defaults to it. Acquiring a domain (or switching to the deployment's
+  own hostname) fixes all of these together. Out of scope for a legal-docs change, but it should
+  not be discovered a second time — hence the table in the README.
+- **Cross-links are host-shaped.** The pages link each other via site-absolute `/terms` and
+  `/privacy`, which only resolve at a domain root. A GitHub Pages *project* site serves from
+  `/Knot-APP/`, so that choice requires switching the two `href`s to relative paths. Worth settling
+  before publishing rather than after a reviewer finds a dead link.
+
+---
+
+### Step 19.46 ✅ Legal — Render the Policies to PDF for Google Drive Hosting
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** Step 19.45 established that `knot-app.com` belongs to a third party, so the two policy
+pages have nowhere to live — and App Store submission requires a publicly reachable Privacy Policy
+URL, with Guideline 3.1.2 additionally expecting the subscription Terms to be reachable *before*
+purchase. Asked to choose a host, the owner picked **Google Drive**. Give the repo a reproducible
+way to turn the HTML into the PDFs Drive serves, and record what that route costs.
+
+**Recommendation on the record, and overruled:** GitHub Pages was the recommendation — free, no
+domain needed, real HTTPS, and no viewer interstitial, which is the specific thing that makes
+Drive-hosted policies a known App Review friction point (a reviewer wants a directly viewable
+page, not a PDF behind a viewer that may prompt a mobile app-open). The owner chose Drive; this
+step implements Drive and keeps the HTML host-agnostic so the decision is reversible.
+
+**What changed:**
+- **`docs/legal/build-pdfs.sh` (new):** renders both HTML pages to PDF with headless Chrome
+  (`--headless=new --no-pdf-header-footer --print-to-pdf`). No dependency beyond Chrome. It applies
+  exactly two transformations, and **only to a temp copy** — the committed HTML is never edited, so
+  the repo stays host-agnostic:
+  1. **Fonts.** The pages use the `-apple-system` stack, which resolves to SF Pro and gets
+     embedded, producing ~700KB PDFs. Substituting Helvetica cuts roughly 25% (697KB → 519KB)
+     with no visible difference at body sizes. Chrome still embeds a *subset* of Helvetica
+     rather than relying on the reader's base-14 copy — the saving is that Helvetica's subset
+     is far smaller than SF Pro's, not that the font is left out.
+  2. **Cross-links.** Each page links the other via the site-absolute paths `/privacy` and
+     `/terms`, which resolve only at a domain root and are therefore **dead inside a standalone
+     PDF**. Passing the two hosted URLs rewrites them so the PDFs point at each other wherever
+     they actually live.
+  The script takes `[out-dir] [privacy-url] [terms-url]` and **refuses a single URL** — a
+  half-rewritten pair leaves one dead link, which is worse than two, so it is both or neither.
+  Omitting both is allowed and prints a warning: fine for a proof render, not for anything
+  published.
+- **`docs/legal/README.md`:** the publishing section became **"Current plan: PDFs on Google
+  Drive"**, with the three conditions that have to hold or the documents are not actually
+  published — (1) sharing must be set to **"Anyone with the link"** by hand in the Drive UI (a
+  Drive file defaults to private, and a policy URL that prompts for a Google sign-in is a
+  rejection, because the reviewer cannot open it); (2) re-render with both URLs before publishing;
+  (3) the in-app links must point at the same two URLs. It also records the standing cost of this
+  route: **a PDF on Drive is a copy, not a view** — unlike a hosted HTML page, editing the Markdown
+  here does not change what a user or reviewer sees, so every revision means re-render and
+  re-upload. The prior host-agnostic guidance was kept as an "If a domain is acquired later"
+  section, since serving the HTML directly is strictly better and the pages are still ready for it.
+
+**Files created:**
+- `docs/legal/build-pdfs.sh`
+
+**Files modified:**
+- `docs/legal/README.md` — publishing section rewritten around the Drive route
+- `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
+
+**Tests:** None — a Bash script plus docs; no Swift or Python is touched, so no suite could
+exercise it and nothing in the diff can break one (same posture as Steps 19.42–19.45). Verified
+directly instead: `bash -n` parses clean; a real run produced two valid PDFs (`%PDF` magic, 8 pages
+each, 508KB / 428KB) and a `qlmanage` render confirmed correct branding, operating party, and
+effective date; `privacy.html` and `terms.html` are **byte-identical before and after** (shasum
+match), proving the temp-copy discipline holds; the both-or-neither guard rejects a single-URL
+invocation with exit 1; `docs/legal/build/` is already covered by `.gitignore:12` (`build/`), so
+output can never be committed; and the placeholder regression grep still prints nothing.
+
+A `/code-review high` pass then found **four** issues in the script, all real and all fixed before
+commit. Three were failure modes that stay silent — the worst class for a script whose output goes
+straight to a published URL:
+1. **`&` in a URL corrupted the rewritten href.** Drive share links routinely carry one
+   (`?usp=sharing&…`), and on the right-hand side of a `sed s|||` an unescaped `&` expands to the
+   *whole match* — reproduced with a real Drive URL, which produced
+   `<a href="https://drive.google.com/open?id=ABChref="/privacy"usp=drive_copy">`. The script still
+   exited 0, so the broken cross-link would have shipped. Fixed with a `sed_replacement()` helper
+   escaping `\`, `&`, and the `|` delimiter.
+2. **A failed render was reported as success.** Chrome exits 0 even when it cannot write the PDF,
+   stderr was discarded, and the `du` inside a command substitution does not trip `set -e` — so a
+   failed *re-render* printed the size of the **stale PDF from the previous run**, and that stale
+   file is what would have been uploaded. `render()` now deletes any previous output first and
+   verifies the result is non-empty and starts with `%PDF`, exiting 1 otherwise.
+3. **The both-or-neither guard was asymmetric.** It only caught privacy-without-terms;
+   `./build-pdfs.sh out "" <terms-url>` passed, skipped the rewrite entirely, and printed the
+   "rendered without hosted URLs" note — silently dropping a URL the caller had supplied. Now
+   checked in both directions.
+4. **A factual error in the rationale**, repeated in all three files: Helvetica was described as a
+   base-14 face "the reader already has", implying it isn't embedded. Inspecting the output shows
+   a subsetted `AAAAAA+Helvetica` — it *is* embedded. The ~25% saving is real (697,016 → 518,587
+   bytes); the reason is that Helvetica's subset is much smaller than SF Pro's. Corrected in the
+   script comment, `architecture.md`, and here.
+
+Re-verified after the fixes: the guard now rejects a lone terms URL, a Drive-style URL containing
+`&` rewrites into a single well-formed `href`, and the rendered PDFs still open with correct
+branding, operating party, and effective date.
+
+**Notes:**
+- **The remaining work is not code and cannot be done from here.** Upload both PDFs to Drive and
+  set sharing to "Anyone with the link" — `share_file` on the Drive connector can only share with a
+  *named email*, so link-sharing is a manual UI step. Then the two URLs need to come back for the
+  re-render and for the in-app links.
+- **The in-app links are still wrong and are the actual submission blocker.** Four hardcoded
+  `knot-app.com` URLs remain — `SettingsView.swift:301,311` and `OnboardingPaywallView.swift:113-114`
+  — and the paywall pair is the one Guideline 3.1.2 cares about, since terms must be reachable
+  before purchase. They were deliberately not repointed: the Drive URLs do not exist yet, and
+  guessing would only move a wrong URL somewhere else.
+- **Separately launch-blocking, and worse:** `Constants.swift` still ships
+  `baseURL = https://api.knot-app.com`, a host that does not resolve — **a release build cannot
+  reach the backend at all.** `Knot.entitlements` binds Universal Links to the same host and
+  `config.py`'s `APP_DOMAIN` defaults to it. Acquiring a domain fixes all five references at once
+  and would also make the PDF route unnecessary. The full table is in `docs/legal/README.md`.
+- Chrome is the only renderer used because it is already on the machine and produces faithful
+  output from the same CSS the pages ship. `wkhtmltopdf` and `cupsfilter` were checked and are not
+  installed; adding a dependency for a script run a handful of times was not worth it.
 
 ---
 
