@@ -8346,7 +8346,81 @@ failures.
 
 ---
 
-### Step 19.40 ✅ Screenshots — Capture the Notification Banner, Not Just the Home Screen
+### Step 19.40 ✅ Legal — Point the Four Footer Links at the Drive PDFs
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** The app's Terms of Service and Privacy Policy links opened
+`https://knot-app.com/terms` and `/privacy`. **That domain was never ours** — it resolves
+to an unrelated parked host with a mismatched TLS certificate. Every tap was a dead link,
+including the Privacy Policy link App Store Review will check. Point all four at the PDFs
+the owner maintains in Google Drive.
+
+**What changed — four string literals, two files:**
+
+| File | Line | Now opens |
+|---|---|---|
+| `Features/Settings/SettingsView.swift` | 301 | Terms PDF |
+| `Features/Settings/SettingsView.swift` | 311 | Privacy PDF |
+| `Features/Onboarding/Steps/OnboardingPaywallView.swift` | 113 | Terms PDF (`termsURL`) |
+| `Features/Onboarding/Steps/OnboardingPaywallView.swift` | 114 | Privacy PDF (`privacyURL`) |
+
+- Terms: `https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view`
+- Privacy: `https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view`
+
+Lines 301/311 keep their `if let` guard; 113/114 keep their `URL(string:)!` force-unwrap,
+which stays safe because both literals are valid absolute URLs.
+
+**Knot has no website, and does not need one.** The `docs/legal/` Markdown + HTML drafts
+(Step 19.5) were written on the assumption the policies would be hosted at `knot-app.com`.
+They are now **superseded**: still placeholder-laden (`[Company Legal Name]`,
+`[Effective Date]`) and still pointing at the dead domain. They are left in the repo rather
+than deleted, but `architecture.md` now marks them as not-the-shipping-copy so nobody edits
+them expecting the app to follow.
+
+**Files modified:**
+- `iOS/Knot/Features/Settings/SettingsView.swift` — two About-row URLs
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` — `termsURL` / `privacyURL`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot repointed at the `settings`
+  harness (Step 19.12) with a scroll to the About section
+- `docs/pr-screenshots/worktree-fix-legal-links-drive-pdfs.png`
+
+**Tests:** iOS Unit plan **461 passed**, 0 failures. No test asserted these URLs, so none
+needed changing, and adding one would only pin a literal to itself.
+
+**Notes:**
+- **The screenshot cannot prove the fix.** A URL lives behind a tap, so the captured image
+  shows only that the two About rows render. The real verification is tapping each link on
+  a device and landing on the PDF. Same class of limitation as Steps 19.34/19.35, where a
+  font token and a `CGFloat` were likewise not introspectable.
+- **The scroll loop drives on `isHittable`, not `exists`.** A row scrolled off-screen inside
+  a `ScrollView` still reports `exists == true`, so an `exists` loop exits immediately and
+  captures the top of the list. This repeats the gotcha recorded in Step 19.23. The loop
+  also has a swipe-*down* recovery pass, because About is not the bottom of the scroll view
+  — the DEBUG-only Developer section sits below it, and DEBUG is the only configuration the
+  harness runs in, so a momentum swipe can carry the rows past the top of the screen where a
+  purely upward loop could never get them back.
+- **⚠️ At the time of this commit both Drive files were NOT publicly viewable.** An
+  anonymous fetch of each `/view` URL returned **401** and redirected to a Google sign-in
+  page, while a bogus file id returned 404 — so the files exist and are access-restricted,
+  not missing. Signed-out users and App Store Review would hit "You need access" instead of
+  the policy. **Both files must be set to "Anyone with the link — Viewer" before this
+  ships.** This is the single external dependency of the legal links, it lives outside the
+  repo, and nothing in the codebase can detect it breaking.
+- The review that caught the 401 is the reason this note exists. The original draft of this
+  entry asserted the sharing requirement as a caveat without checking it, which would have
+  shipped a dead link with a note claiming it was fine.
+- **Deliberately no `Constants.Legal` refactor.** Four literals in two files is small enough
+  that indirection would cost more than the duplication; `architecture.md` records that
+  these four are the complete set.
+- **Still unresolved and unrelated to this change:** the release build points
+  `Constants.API.baseURL` at `https://api.knot-app.com`, which also does not resolve. Nothing
+  is deployed anywhere, so a Release/TestFlight build cannot create a vault or generate a
+  recommendation. That is the real blocker for user testing and is untouched here.
+
+---
+
+### Step 19.41 ✅ Screenshots — Capture the Notification Banner, Not Just the Home Screen
 **Date:** 2026-09-07
 **Status:** Complete
 
