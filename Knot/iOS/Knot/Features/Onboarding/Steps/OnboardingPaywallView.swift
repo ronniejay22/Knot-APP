@@ -110,8 +110,8 @@ struct OnboardingPaywallView: View {
         "Thoughtful nudges that keep your relationship a priority."
     ]
 
-    private let termsURL = URL(string: "https://knot-app.com/terms")!
-    private let privacyURL = URL(string: "https://knot-app.com/privacy")!
+    private let termsURL = URL(string: "https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view")!
+    private let privacyURL = URL(string: "https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view")!
 
     var body: some View {
         ZStack {

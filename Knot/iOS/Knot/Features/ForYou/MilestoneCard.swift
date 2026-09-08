@@ -14,13 +14,16 @@ import SwiftUI
 ///
 /// ```
 /// ┌───────────────────────────────┐
-/// │  [ occasion artwork, 200pt ]  │
+/// │  [ occasion artwork, 140pt ]  │
 /// │  DEC 25            in 175 days│
 /// │  Christmas                    │
 /// │  ─────────────────────────────│
-/// │  (J) For Jas              [✦] │
+/// │  (J) For Jas  [See details][✦]│
 /// └───────────────────────────────┘
 /// ```
+///
+/// The two footer controls are different destinations: "See details" opens the
+/// event itself, the sparkle icon asks for ideas for it.
 ///
 /// The artwork comes from the occasion illustrations already bundled for
 /// `OccasionEntryModal` (Step 19.25), keyed by the milestone's
@@ -34,9 +37,21 @@ struct MilestoneCard: View {
     /// Pre-formatted "MMM d" date from `ForYouViewModel.formattedDate(_:)`.
     let formattedDate: String
     let urgency: MilestoneUrgency
+    /// Opens the milestone's own detail screen. Optional so the card still
+    /// renders where no destination is wired (previews, harnesses).
+    ///
+    /// `@MainActor` matches the convention `JustBecauseCard.onGenerate` and
+    /// `KnotIconButton.action` already use — without it, handing the closure to
+    /// `KnotButton` (whose `action` is `@MainActor`) is a non-Sendable
+    /// conversion warning under strict concurrency.
+    let onSeeDetails: (@MainActor () -> Void)?
     let onGetRecommendations: (() -> Void)?
 
-    private static let artworkHeight: CGFloat = 200
+    /// Was 200pt, which let only one card and a sliver of the next fit on screen —
+    /// the feed read as a stack of posters rather than a list of what's coming up.
+    /// The illustrations are 1050×480, so at this height the crop stays close to
+    /// their native aspect ratio and the figures aren't cut.
+    private static let artworkHeight: CGFloat = 140
 
     var body: some View {
         KnotCard(padding: .md, radius: Theme.Radius.xl) {
@@ -121,7 +136,7 @@ struct MilestoneCard: View {
 
     /// `cardTitleSemibold` (20pt), not `sectionHeaderSemibold` (28pt): 28 is a
     /// *page* title scale, and at that size the headline competed with the
-    /// 200pt artwork above it. The card-scale token keeps the semibold weight
+    /// artwork above it (then 200pt). The card-scale token keeps the semibold weight
     /// so the title still out-weights the meta row and the "For {partner}"
     /// footer, and lands on the same 20pt rung the rest of the app's card
     /// headings already use.
@@ -137,6 +152,11 @@ struct MilestoneCard: View {
 
     // MARK: - Footer
 
+    /// Three controls share this row and "For {partner}" is variable-length, so
+    /// the button takes `.fixedSize()` + `.layoutPriority(1)` and the name gains
+    /// a scale floor: the *name* compresses under pressure, never the button —
+    /// the same anti-jank recipe `BudgetTierSliderCard` and `LoveLanguageCard`
+    /// already use.
     private var footerRow: some View {
         HStack(spacing: 8) {
             PartnerInitialAvatar(name: partnerName, diameter: 22)
@@ -145,8 +165,27 @@ struct MilestoneCard: View {
                 .knotFont(Theme.Typography.label)
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
             Spacer(minLength: 8)
+
+            // `.outline`, not `.primary`: a second pink fill would compete with
+            // the countdown and the accent icon on this same row. `.secondary`
+            // fills with `surfaceElevated`, which has almost no contrast against
+            // the card's own surface (the reason the "Upcoming" count badge is
+            // `.accent` rather than `.secondary`).
+            if let action = onSeeDetails {
+                KnotButton(
+                    "See details",
+                    variant: .outline,
+                    size: .sm,
+                    shape: .pill,
+                    action: action
+                )
+                .fixedSize()
+                .layoutPriority(1)
+                .accessibilityLabel("See details for \(milestone.milestoneName)")
+            }
 
             // The 34pt asset already carries the design's 5pt inset around a
             // 24pt icon, so no extra padding is applied here.
@@ -270,6 +309,7 @@ struct PartnerInitialAvatar: View {
                 partnerName: "Jas",
                 formattedDate: "Dec 25",
                 urgency: .distant,
+                onSeeDetails: {},
                 onGetRecommendations: {}
             )
 
@@ -288,6 +328,7 @@ struct PartnerInitialAvatar: View {
                 partnerName: "Jas",
                 formattedDate: "Mar 2",
                 urgency: .upcoming,
+                onSeeDetails: {},
                 onGetRecommendations: {}
             )
         }

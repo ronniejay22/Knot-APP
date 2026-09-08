@@ -96,8 +96,10 @@ source of truth — the script renders a temporary copy and never edits the orig
    the site-absolute paths `/privacy` and `/terms`, which resolve only at a domain root
    and are therefore dead inside a standalone PDF. Passing both URLs to the script
    rewrites them to point at each other on Drive.
-3. **The in-app links must point at the same two URLs.** They are hardcoded in two Swift
-   files — see the table below.
+3. ~~**The in-app links must point at the same two URLs.**~~ **Done in Step 19.40** — all
+   four call sites in `SettingsView.swift` (lines 301/311) and `OnboardingPaywallView.swift`
+   (lines 113/114) now open the Drive URLs. Re-point them again if the files are ever
+   replaced rather than overwritten, because a new upload gets a new file ID.
 
 **Re-run the script and re-upload whenever the documents change.** A PDF on Drive is a
 copy, not a view: unlike a hosted HTML page, editing the Markdown here does not update
@@ -116,19 +118,20 @@ to become relative there.
 ## Outstanding: the knot-app.com references
 
 These are live references to a domain we do not control, and each needs to change before
-release:
+release. The two that pointed users and App Review at that domain — the About rows in
+`SettingsView.swift` and the paywall fine print in `OnboardingPaywallView.swift` — were
+repointed at the Drive PDFs in **Step 19.40** and are no longer listed here. What remains
+is infrastructure:
 
 | File | Reference | Problem |
 | --- | --- | --- |
-| `iOS/Knot/Features/Settings/SettingsView.swift` | `knot-app.com/terms`, `/privacy` | Sends users and App Review to a stranger's site |
-| `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` | `knot-app.com/terms`, `/privacy` | Same, on the screen where 3.1.2 requires reachable terms |
 | `iOS/Knot/Core/Constants.swift` | `baseURL = https://api.knot-app.com` | **`api.knot-app.com` does not resolve** — a release build cannot reach the backend at all |
 | `iOS/Knot/Knot.entitlements` | `applinks:api.knot-app.com` | Universal Links bound to a domain we cannot serve an AASA from |
 | `backend/app/core/config.py` | `APP_DOMAIN` default `api.knot-app.com` | AASA + web-fallback are generated for that host |
 
-The first two are what block *these documents* from being publishable. The rest are a
-separate, launch-blocking infrastructure problem: acquiring a domain (or moving to the
-deployment's own hostname) resolves all five at once.
+These three are a separate, launch-blocking infrastructure problem, independent of the
+policies: acquiring a domain (or moving to the deployment's own hostname) resolves all
+three at once, and would also make the Drive PDF route unnecessary.
 
 ## Keeping the docs accurate
 

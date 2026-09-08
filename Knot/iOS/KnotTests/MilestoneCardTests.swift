@@ -138,6 +138,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             partnerName: "Jas",
             formattedDate: "Dec 25",
             urgency: .distant,
+            onSeeDetails: {},
             onGetRecommendations: {}
         )
         XCTAssertNotNil(UIHostingController(rootView: view).view)
@@ -153,6 +154,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             partnerName: "Jas",
             formattedDate: "Mar 2",
             urgency: .planning,
+            onSeeDetails: {},
             onGetRecommendations: {}
         )
         XCTAssertNotNil(UIHostingController(rootView: view).view)
@@ -165,6 +167,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             partnerName: "Jas",
             formattedDate: "Dec 25",
             urgency: .distant,
+            onSeeDetails: {},
             onGetRecommendations: {}
         )
         XCTAssertNotNil(UIHostingController(rootView: view).view)
@@ -177,6 +180,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             partnerName: "Jas",
             formattedDate: "Dec 25",
             urgency: .distant,
+            onSeeDetails: {},
             onGetRecommendations: nil
         )
         XCTAssertNotNil(UIHostingController(rootView: view).view)
@@ -189,6 +193,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
                 partnerName: "Jas",
                 formattedDate: "Jan 1",
                 urgency: .distant,
+                onSeeDetails: {},
                 onGetRecommendations: {}
             )
             XCTAssertNotNil(
@@ -196,6 +201,62 @@ final class MilestoneCardRenderingTests: XCTestCase {
                 "MilestoneCard should render for milestone type '\(type)'"
             )
         }
+    }
+
+    /// "See details" is optional; the card must render without it, leaving the
+    /// recommendation icon as the footer's only control.
+    func testCardRendersWithoutSeeDetailsAction() {
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: nil,
+            onGetRecommendations: {}
+        )
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
+    }
+
+    /// Both footer controls present — the layout this change actually ships.
+    func testCardRendersWithBothFooterActions() {
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: {},
+            onGetRecommendations: {}
+        )
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
+    }
+
+    /// The footer now carries three controls on one line, and "For {partner}"
+    /// is the variable-length part. A long name must not break the row.
+    func testCardRendersWithLongPartnerName() {
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Alexandria Wellington-Fitzgerald",
+            formattedDate: "Dec 25",
+            urgency: .critical,
+            onSeeDetails: {},
+            onGetRecommendations: {}
+        )
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
+    }
+
+    /// The "See details" button fires the host's closure.
+    func testSeeDetailsCallbackFires() {
+        var fired = false
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: { fired = true },
+            onGetRecommendations: {}
+        )
+        view.onSeeDetails?()
+        XCTAssertTrue(fired)
     }
 
     /// The recommendation button fires the host's closure.
@@ -206,6 +267,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             partnerName: "Jas",
             formattedDate: "Dec 25",
             urgency: .distant,
+            onSeeDetails: {},
             onGetRecommendations: { fired = true }
         )
         view.onGetRecommendations?()
@@ -233,6 +295,97 @@ final class PartnerInitialAvatarTests: XCTestCase {
         XCTAssertNotNil(
             UIHostingController(rootView: PartnerInitialAvatar(name: "", diameter: 22)).view
         )
+    }
+}
+
+// MARK: - Milestone Detail (placeholder destination)
+
+@MainActor
+final class MilestoneDetailViewTests: XCTestCase {
+
+    func testFullDateExpandsStoredDate() {
+        XCTAssertEqual(MilestoneDetailView.fullDate(from: "2000-12-25"), "December 25")
+    }
+
+    /// An unparseable stored date must never surface the raw "2000-MM-DD"
+    /// storage format. Deliberately not falling back to
+    /// `ForYouViewModel.formattedDate(_:)`, which returns that raw string on
+    /// exactly the same failure.
+    func testFullDateShowsPlaceholderWhenUnparseable() {
+        for raw in ["not-a-date", "", "2000-12"] {
+            let shown = MilestoneDetailView.fullDate(from: raw)
+            XCTAssertEqual(shown, "—", "Unparseable date '\(raw)' should render the placeholder")
+            XCTAssertFalse(shown.contains("2000"), "The storage format must never reach the UI")
+        }
+    }
+
+    /// Out-of-range months make `formattedMilestoneDate` return "", which must
+    /// not reach the UI as a blank row.
+    func testFullDateShowsPlaceholderOnOutOfRangeMonth() {
+        XCTAssertEqual(MilestoneDetailView.fullDate(from: "2000-13-25"), "—")
+    }
+
+    func testRecurrenceLabels() {
+        XCTAssertEqual(MilestoneDetailView.recurrenceLabel("yearly"), "Every year")
+        XCTAssertEqual(MilestoneDetailView.recurrenceLabel("one_time"), "Once")
+        // An unrecognised value is humanised rather than shown as a raw slug.
+        XCTAssertFalse(MilestoneDetailView.recurrenceLabel("every_other_year").contains("_"))
+    }
+
+    /// Every milestone written before migration 00027 resolves to the `default`
+    /// occasion category, whose catalogue name is the picker phrasing
+    /// "Something Else". The detail row must show the milestone type instead.
+    func testOccasionLabelFallsBackToTypeForDefaultCategory() {
+        XCTAssertEqual(
+            MilestoneDetailView.occasionLabel(
+                for: makeMilestone(type: "custom", occasionCategory: "default")
+            ),
+            "Custom"
+        )
+        XCTAssertEqual(
+            MilestoneDetailView.occasionLabel(
+                for: makeMilestone(type: "holiday", occasionCategory: "default")
+            ),
+            "Holiday"
+        )
+    }
+
+    /// A category the client's catalogue doesn't know (added on the backend
+    /// before the app ships its option) must not render as a bare slug.
+    func testOccasionLabelFallsBackToTypeForUnlistedCategory() {
+        XCTAssertEqual(
+            MilestoneDetailView.occasionLabel(
+                for: makeMilestone(type: "holiday", occasionCategory: "st_patricks_day")
+            ),
+            "Holiday"
+        )
+    }
+
+    func testOccasionLabelUsesCatalogueName() {
+        let label = MilestoneDetailView.occasionLabel(
+            for: makeMilestone(type: "holiday", occasionCategory: "christmas")
+        )
+        XCTAssertEqual(label, MilestoneOccasionOption.option(id: "christmas")?.displayName)
+    }
+
+    func testDetailViewRenders() {
+        let view = MilestoneDetailView(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            onDismiss: {}
+        )
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
+    }
+
+    /// The `default` category ships no illustration — the placeholder artwork
+    /// path must render too.
+    func testDetailViewRendersWithPlaceholderArtwork() {
+        let view = MilestoneDetailView(
+            milestone: makeMilestone(type: "custom", occasionCategory: "default"),
+            partnerName: "Jas",
+            onDismiss: {}
+        )
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
     }
 }
 

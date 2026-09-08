@@ -122,6 +122,7 @@
 		A8A62B3DDAF2B1B6B91C0F91 /* RecommendationChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27246AF7688E6B7BC72E6000 /* RecommendationChips.swift */; };
 		A8A74F998ADC8DB98A086507 /* RecommendationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFE262DAE19130A6305235A /* RecommendationDetailView.swift */; };
 		A90162CB42367B5B0DE1ACC1 /* URL+SearchLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F945062D421B65461D8F6D /* URL+SearchLink.swift */; };
+		A92EC53078866745DFA89BCF /* MilestoneDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84650B8BC9759700F136CF67 /* MilestoneDetailView.swift */; };
 		AB8A884D6F0B4D808482D6AD /* KnotButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE385E616111A330CB02F728 /* KnotButton.swift */; };
 		AC47CFEA2B0497DAD41D0906 /* EditBudgetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F8B078B8DD86126BD9BD9A /* EditBudgetSheet.swift */; };
 		AEFDC8C9D224AD50EF1DD35C /* OnboardingParenthoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01120E8C75105C36CE98AFFD /* OnboardingParenthoodView.swift */; };
@@ -264,6 +265,7 @@
 		82BE88375DDF73B77B8B093B /* OnboardingPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPaywallView.swift; sourceTree = "<group>"; };
 		82D8C028DEC10B2C02A3FB2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		842768D146B565195D8F3390 /* Knot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Knot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		84650B8BC9759700F136CF67 /* MilestoneDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneDetailView.swift; sourceTree = "<group>"; };
 		85E9D910606429BBE05C784F /* KnotIconButtonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotIconButtonTests.swift; sourceTree = "<group>"; };
 		8706879774F71CFAE5954F25 /* KnotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTests.swift; sourceTree = "<group>"; };
 		895BB12C98DC5494E602BCFC /* PurchasePromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchasePromptSheet.swift; sourceTree = "<group>"; };
@@ -483,6 +485,7 @@
 				C8E024DDF822D8F0F3C33EA2 /* ForYouViewModel.swift */,
 				05A7815F2B2C9C27BB332CCA /* JustBecauseCard.swift */,
 				7FDD9BD5C8A55C0F96AF4009 /* MilestoneCard.swift */,
+				84650B8BC9759700F136CF67 /* MilestoneDetailView.swift */,
 			);
 			path = ForYou;
 			sourceTree = "<group>";
@@ -744,6 +747,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D10DDB872687C6D0BB12D5EC /* Build configuration list for PBXNativeTarget "Knot" */;
 			buildPhases = (
+				0CF9B4BA24B021406B98BB74 /* Warn If Behind origin/main */,
 				CE62A06FC865DCCEF0079FE5 /* Sources */,
 				3ADA82AA7453A90ABA0CF94E /* Resources */,
 				544E748129BA10AA36F56048 /* Frameworks */,
@@ -877,6 +881,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		0CF9B4BA24B021406B98BB74 /* Warn If Behind origin/main */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${SRCROOT}/scripts/check-main-current.sh",
+			);
+			name = "Warn If Behind origin/main";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/check-main-current.sh\"";
+		};
 		1DD9D6196D8668E7680F47D2 /* Inject Dev API Host (Debug) */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -1004,6 +1028,7 @@
 				06E32ABD04AF539C4A1541CC /* MerchantHandoffService.swift in Sources */,
 				652D8B417ACD4A4924CAFA0A /* MilestoneCard.swift in Sources */,
 				F223B5BB78F2F177EC4EBDA1 /* MilestoneDateModal.swift in Sources */,
+				A92EC53078866745DFA89BCF /* MilestoneDetailView.swift in Sources */,
 				A30ECD1A121679BD61BE0D09 /* MilestoneLocal.swift in Sources */,
 				1BEAC9C70B49E8B8752E99E1 /* MilestoneOccasionOption.swift in Sources */,
 				BD8620E466755ABD2D40FA83 /* MilestonePickers.swift in Sources */,

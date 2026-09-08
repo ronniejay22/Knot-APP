@@ -7918,9 +7918,627 @@ San-Francisco-fallback failure mode.
 
 ---
 
-### Step 19.35 ✅ Legal — Bring the Terms & Privacy Policy Current With the Subscription
+### Step 19.35 ✅ Journal — Shrink the Artwork Inside Milestone Cards
 **Date:** 2026-09-06
 **Status:** Complete
+
+**Goal:** Each Journal card led with a **200pt** illustration. At that height one card
+and a sliver of the next filled the screen, so the feed read as a stack of posters
+rather than a scannable list of what is coming up. Reduced to **140pt**.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** `artworkHeight` 200 → 140, with the
+  reasoning in a doc comment so the next reader doesn't restore it blind.
+
+**Why 140.** The occasion illustrations are 1050×480 — roughly 2.2:1. A card's artwork
+is about 370pt wide inside the screen's margins and the card's `.md` padding, so 140pt
+lands near the art's native ratio and the crop keeps the figures whole; 200pt was
+cropping well inside them. It is a ~30% reduction, enough to get a second card's
+artwork on screen, which is the whole point.
+
+**Nothing else moved.** `artworkHeight` is `private` and read at exactly one call site.
+The Journal feed (`ForYouView`) and the `journal` screenshot harness both render
+`MilestoneCard` and nothing else does, so those two surfaces change together and no
+other screen is touched. Every other image height in the app —
+`RecommendationCard.heroHeight` (220), `SpotlightDeckView` (340),
+`OccasionEntryModal.illustrationAspectRatio` — is independently declared.
+
+**The `Color.clear` idiom was left alone, deliberately.** It is tempting to simplify
+`artwork` to a directly-sized `Image` while changing its height. Step 19.31 shows why
+not: a `scaledToFill` image reports a size *larger* than its proposal, and that
+overflow propagates into layout rather than being absorbed by the frame — it widened
+the card past the viewport and shifted the entire Journal sideways. `clipShape` clips
+pixels; it does not constrain layout. The smaller height simply crops more.
+
+**The placeholder still fits.** `artworkPlaceholder` (the `default` occasion category,
+the only one shipping no illustration) centres a 44pt glyph, which sits comfortably
+inside 140pt.
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — the constant and its rationale
+- `iOS/KnotUITests/PRScreenshotTests.swift` — the navigation slot already pointed at
+  the `journal` harness (Step 19.33); its comments and the second assertion message
+  now name the artwork rather than the headline, so a failure reads correctly
+- `docs/pr-screenshots/worktree-feat-journal-card-artwork-height.png`
+
+**Tests:** Unit plan **448 passed**, 0 failures; Full plan **448 unit + 5 UI passed**,
+with `KnotUITests/testLaunchPerformance` skipped for the reason recorded in Step 19.31.
+`MilestoneCardTests` (artwork resolution, date label, countdown colours, render smoke
+tests across every milestone type and both artwork paths) needed no change, since no
+test asserts a height.
+
+**Notes:**
+- A `CGFloat` constant has no inspectable value in a SwiftUI test, so **the screenshot
+  is the artifact that proves the size changed** — the same situation as Step 19.34's
+  font token. Asserting on it would mean introspecting the view tree, which this
+  codebase deliberately doesn't do.
+- If 140pt reads too small on a real device it is one number, and the doc comment on
+  the constant carries the constraint (the 1050×480 source ratio) that should shape
+  any future value.
+
+---
+
+### Step 19.36 ✅ Branding — Give the App a Real Home-Screen Icon
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** `AppIcon.appiconset` had a `Contents.json` declaring a single universal
+1024×1024 iOS slot and **no image file behind it**, so every build since Step 1
+installed with the blank default icon. Dropped in the coral "K" knot monogram so the
+app is identifiable on the home screen.
+
+**What changed:**
+- **`Assets.xcassets/AppIcon.appiconset/AppIcon.png` (new):** the 1024×1024 artwork —
+  a coral-pink lowercase-`k` monogram whose bowl and leg cross into a knot, set on a
+  warm cream paper-textured ground. The palette is *adjacent* to the brand palette but
+  not identical to it — the mark samples around `#EC4636` against `Theme.colorPrimary`'s
+  `#F54266`, and the ground around `#D8C9AD` against `Theme.colorSecondary`'s `#FFF0E0`.
+  Same family, warmer and more muted, which is what the paper texture is doing. Close
+  enough that the icon and the sign-in screen read as one product; not a token match,
+  so don't treat the icon as a source of truth for either token.
+- **`Assets.xcassets/AppIcon.appiconset/Contents.json`:** added the `filename` key to
+  the existing universal 1024×1024 iOS entry. The entry itself was already correct —
+  only the image was missing.
+
+**No build settings changed.** `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` has been
+in `iOS/project.yml`'s base settings since the project was first generated, so the
+catalog was already wired to this appiconset and simply had nothing to compile.
+
+**The source image was already in the shape iOS requires** — exactly 1024×1024 and
+**opaque** (`hasAlpha: no`). Both matter: the single-size universal slot is the modern
+format (Xcode derives every smaller size itself, and the built bundle here shows
+`AppIcon60x60@2x.png` + `AppIcon76x76@2x~ipad.png` generated from it), and App Store
+submission rejects an icon carrying an alpha channel. No pre-processing was needed and
+none should be added — re-exporting through a tool that introduces transparency would
+break the upload later, not the build now.
+
+**Files created:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — the 1024×1024 icon
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — the simulator home screen showing it
+
+**Files modified:**
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json` — `filename` key
+
+**Tests:** No test touches the asset catalog, and an app icon has no inspectable value
+from inside the app — **the home-screen screenshot is the artifact that proves it
+landed**, the same situation as Steps 19.34/19.35. Verification was the build product
+itself: `xcodebuild` succeeds, the built `Knot.app` contains the two derived PNGs, and
+its `Info.plist` carries `CFBundleIconName = AppIcon`. Full plan **453 passed**, 0
+failures, 0 skipped, run with `-derivedDataPath` outside the iCloud-synced tree for
+the reason in note 139.
+
+**Notes:**
+- **The launch screen is still blank, and this change did not fix it.** `Info.plist`'s
+  `UILaunchScreen` names `UIImageName = LaunchIcon` and `UIColorName =
+  LaunchScreenBackground`, and **neither asset exists** in `Assets.xcassets` — iOS
+  silently falls back to a blank screen when a launch-screen asset name doesn't
+  resolve, which is why it has gone unnoticed. Adding a `LaunchIcon.imageset` and a
+  `LaunchScreenBackground.colorset` (the cream, to match the icon) is the natural
+  follow-up and is a genuinely separate change.
+- The icon has no dark or tinted variant. iOS 18+ lets an appiconset carry `appearances`
+  entries for those; without them the system auto-generates a tinted version from this
+  artwork. Worth revisiting if the auto-generated tint reads badly, but it is not
+  required and adding placeholder variants now would be worse than the default.
+
+---
+
+### Step 19.37 ✅ Branding — Make the App Icon Submission-Ready
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Step 19.36 got the icon rendering; this makes it *shippable*. Cleared the
+five findings the review raised against it — two App Store validation blockers in
+`Info.plist`, and three problems with the PNG itself (size, embedded generation
+metadata, no color tag).
+
+**What changed:**
+
+- **`Knot/Info.plist` — added top-level `CFBundleIconName`.** `actool` already writes
+  the nested `CFBundleIcons/CFBundlePrimaryIcon/CFBundleIconName` into the built plist,
+  which is why the icon renders correctly everywhere. But App Store upload validates the
+  **top-level** key and rejects the build without it (ITMS-90713), so the omission only
+  ever surfaces at submission — the worst time to find it. Value must stay in sync with
+  `ASSETCATALOG_COMPILER_APPICON_NAME` in `iOS/project.yml`.
+- **`Knot/Info.plist` — `UIRequiredDeviceCapabilities` `armv7` → `arm64`.** `armv7` is
+  the 32-bit ARM instruction set; no device supporting it can run iOS 11, let alone this
+  app's iOS 17 deployment target. Declaring it asks the App Store to restrict
+  distribution to hardware the app cannot install on. It came from Apple's old project
+  template, where it was the correct default in the 32-bit era, and had simply never been
+  revisited.
+- **`AppIcon.png` — stripped four `tEXt` chunks.** The file carried a `Creation Time`, an
+  `Author` string, the full generation prompt in a `Description`, and an XMP packet with a
+  `DigImageGUID` and `DigitalSourceType = trainedAlgorithmicMedia`. None of it belongs in
+  a permanent brand mark shipped inside the app bundle.
+- **`AppIcon.png` — tagged sRGB.** The file had **no** color chunk at all: no `iCCP`, no
+  `sRGB`, no `gAMA`, no `cHRM`. Untagged RGB is *assumed* sRGB by Apple's pipeline, which
+  is why it looked correct, but an assumption is not a guarantee. It now carries an
+  explicit `sRGB` chunk (intent 0) plus the `gAMA` 45455 the spec pairs with it.
+- **`AppIcon.png` — 1.88 MB → 934 KB** via 256-color palette quantization (`colortype 2`
+  → `colortype 3`).
+- **`AppIcon.appiconset/Contents.json` — added a dark `appearances` entry** pointing at the
+  same `AppIcon.png`, so dark mode shows the light artwork rather than a system-derived dark
+  treatment of it.
+- **`docs/pr-screenshots/worktree-feat-app-icon.png` — 2.32 MB → 653 KB** by downscaling
+  the 2x retina capture (1206×2622) to 1x and keeping truecolor. Re-shot from a build
+  carrying the re-encoded icon, so the artifact matches the asset it documents.
+
+**Why the two images were optimized differently.** The obvious move is to run both through
+the same palette quantizer, and for the screenshot that is wrong. The icon is one mark in
+two color families, so 256 palette entries are spent entirely on it: measured against the
+original, **99.2% of pixels land within 8/255**, mean error is 0.90, and the only visible
+difference at 8× zoom is a single dark grain fleck lightening. A whole home screen is a
+different problem — the wallpaper gradient and a dozen third-party icons must *share* those
+256 entries, which bands the gradient and pulls the Knot icon's coral visibly toward
+magenta. That would have made the screenshot misrepresent the exact thing it exists to
+document. Downscaling instead removes redundancy (GitHub renders it far smaller inline
+anyway) with no color distortion at all. Together: **4.20 MB → 1.59 MB**, a 62% cut.
+
+**The film grain was deliberately kept.** Flattening it would shrink the file much further
+— it is what makes the image incompressible, and it is invisible below ~180px. But it is
+visible at 1024, which is the size the App Store product page renders, and removing it is a
+**design** decision about the artwork rather than an encoding one. Quantization preserves
+the texture exactly; if a flatter mark is ever wanted, that should be a new export from the
+designer, not a lossy transform applied in a build-hygiene pass.
+
+**Files modified:**
+- `iOS/Knot/Info.plist` — `CFBundleIconName` added; `UIRequiredDeviceCapabilities` corrected
+- `iOS/Knot/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` — re-encoded
+- `docs/pr-screenshots/worktree-feat-app-icon.png` — re-encoded at 1x
+
+**Tests:** iOS Full plan **453 passed**, 0 failures, 0 skipped. Verified beyond the suite,
+since no test can assert on an icon or a plist key: the built `Knot.app/Info.plist` carries
+`CFBundleIconName = AppIcon` at the top level, the re-encoded PNG still reports 1024×1024
+with `hasAlpha: no`, its chunk list is `IHDR / sRGB / gAMA / PLTE / IDAT… / IEND` with no
+`tEXt` remaining, and the icon still renders correctly on the simulator home screen.
+
+Both plist keys were additionally confirmed in a **device** build
+(`-destination 'generic/platform=iOS'`), since that is the configuration that actually gets
+submitted: `UIRequiredDeviceCapabilities => [arm64]` and `CFBundleIconName => AppIcon`.
+
+**Notes:**
+- **Provenance was not resolved, only the metadata.** Stripping the `Author` and
+  `DigitalSourceType` tags removes the record from the file; it does not settle rights in
+  an AI-generated brand mark. That is a legal question for the owner, and it is worth
+  settling before the mark appears on an App Store listing.
+- **The icon is pinned to the light artwork in dark mode.** `Contents.json` now carries a
+  second entry with `appearances: [{ appearance: luminosity, value: dark }]` pointing at the
+  **same** `AppIcon.png`. Without it, iOS renders a system-derived dark treatment that turns
+  the cream ground muddy brown and desaturates the coral. There is deliberately no separate
+  dark artwork — one mark, both appearances.
+- **SpringBoard caches app icons, and it will lie to you.** After changing an appiconset,
+  the home screen can keep showing the previous icon even after `simctl uninstall` +
+  `install` — during this step that produced a screenshot of the *old* dark rendering from a
+  build that already had the fix, which read as "the fix didn't work." Relaunch SpringBoard
+  (`xcrun simctl launch booted com.apple.springboard`) and compare both appearances back to
+  back before concluding anything. The authoritative check is the compiled catalog:
+  `xcrun assetutil --info Knot.app/Assets.car` should list two `AppIcon` renditions, one with
+  `"Appearance": "UIAppearanceDark"`, both naming the same file at the same `SizeOnDisk`.
+- The launch screen is **still** blank — `UILaunchScreen` continues to name a `LaunchIcon`
+  image and `LaunchScreenBackground` color that do not exist. Called out in Step 19.36 and
+  deliberately still out of scope here; this step was scoped to the icon's own findings.
+
+---
+
+### Step 19.38 ✅ Journal — "See details" Button on Event Cards
+**Date:** 2026-09-06
+**Status:** Complete
+
+**Goal:** Give each Journal event card a labelled way in. Its footer carried exactly one
+control — the unlabelled pink bubble-and-sparkle icon — and nothing on the card said what
+that icon did or offered any way to look at the event itself.
+
+**Scope decision:** the detail screen's design is coming separately, so this change is the
+**button and the seam it opens into**, not the destination's design.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** new `onSeeDetails: (() -> Void)?` (the same
+  optional-closure shape as `onGetRecommendations`, so the card still renders without it),
+  rendered in the footer as `KnotButton("See details", .outline, .sm, .pill)` **beside**
+  the existing icon. The two are different destinations — the button opens the event, the
+  icon asks for ideas for it — so both stay.
+- **`Features/ForYou/ForYouView.swift`:** `@State detailMilestone: MilestoneItemResponse?`
+  driving a `.fullScreenCover(item:)`. `MilestoneItemResponse` is already `Identifiable`,
+  so no wrapper type was needed.
+- **`Features/ForYou/MilestoneDetailView.swift` (new, placeholder):** an honest destination
+  so the button isn't inert. Renders only fields already on `MilestoneItemResponse` —
+  artwork, name, full date, countdown, recurrence, occasion, budget — reusing
+  `MilestoneCard.artwork(for:)`, `MilestonesViewModel.iconName(for:)` /
+  `.daysUntilText(_:)` / `.budgetTierLabel(_:)`, and `KnotListRow.info`. Its file header
+  says plainly that it is to be replaced wholesale and names the seam.
+- **`App/UITestScreenshotHarness.swift`:** the `journal` harness now mirrors
+  `ForYouView`'s cover seam (`@State detailMilestone` + `.fullScreenCover(item:)`) rather
+  than handing the card a dead `{}`, and seeds a `budgetTier` — the column is `NOT NULL`
+  in the DB, so a real milestone always has one and the Budget row was showing a "—" that
+  production never shows. A harness only proves what it actually seeds.
+
+**Three things worth recording:**
+- **`.outline`, not `.primary` or `.secondary`.** A second pink *fill* would compete with
+  the countdown and the accent icon on the same row. `.secondary` was the wrong tool for
+  the reason Step 19.33 recorded about the "Upcoming" count badge: that variant fills with
+  `surfaceElevated`, which has almost no contrast against the card's own surface.
+- **The footer now carries three controls on one variable-width line.** The button takes
+  `.fixedSize()` + `.layoutPriority(1)` and "For {partner}" gains a `minimumScaleFactor`,
+  so the *name* compresses under pressure and the button never truncates — the same
+  anti-jank recipe `BudgetTierSliderCard` (18.36) and `LoveLanguageCard` (18.39) use.
+- **The `default` occasion category is short-circuited in `occasionLabel(for:)`.** It *is*
+  in `MilestoneOccasionOption`, but its display name is "Something Else" — written as a
+  picker choice, not a label. Every milestone written before migration 00027 resolves to
+  `default` on read, so a legacy Christmas would have read "Occasion: Something Else"
+  where "Occasion: Holiday" is both true and useful. A test caught this; the first draft
+  asserted the fallback fired and it didn't.
+
+**Three review findings, all fixed before commit:**
+- **`KnotListRow` inside a `KnotCard` double-drew its chrome.** The row primitive already
+  owns its surface fill, border and `Radius.md` corner, so the wrapping card produced
+  doubled rules, pinched corners, and a 12pt-vs-18pt radius mismatch. Now a bare
+  `VStack(spacing: 10)`, matching every other `KnotListRow` call site.
+- **`onSeeDetails` was missing `@MainActor`** — the build's only strict-concurrency
+  warning, and a divergence from `JustBecauseCard.onGenerate` / `KnotIconButton.action` /
+  this change's own `onDismiss`. The build is warning-free again.
+- **`fullDate`'s documented fallback couldn't deliver its guarantee.** It fell back to
+  `ForYouViewModel.formattedDate(_:)`, which returns the *raw* stored string on exactly
+  the same parse failure — so an unparseable date still leaked `2000-MM-DD` to the UI, and
+  the test hid it by passing a `"Dec 25"` literal instead of the composed value. The
+  parameter is gone (`fullDate` already parses the stored date itself, so it was
+  redundant), unparseable input now renders `"—"`, and the test asserts the storage format
+  can never appear.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — placeholder detail destination
+- `docs/pr-screenshots/worktree-feat-journal-see-details-button.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `onSeeDetails` + footer button
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — detail cover seam and wiring
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — the `journal` harness presents the detail
+  cover for real and seeds a `budgetTier`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — second assertion now waits on the button this
+  change adds, matched by label prefix (each button is labelled "See details for {name}")
+- `iOS/KnotTests/MilestoneCardTests.swift` — 13 new cases
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate` for the new file
+
+**Tests:** iOS Unit plan **461 passed**, 0 failures (448 baseline + 13 new). Full plan
+**461 unit + 4 UI passed**, with `KnotUITests/testLaunchPerformance` skipped for the reason
+recorded in Step 19.31. Backend untouched — no `pytest` run applies to this diff.
+
+**Notes:**
+- The new tests cover both footer callbacks firing, the card rendering with either control
+  absent, a long partner name against the three-control row, and the detail view's pure
+  helpers (`fullDate` expansion and its fallbacks, recurrence labels, the occasion
+  fallbacks). As with Steps 19.34 and 19.35, the suite does no view introspection, so the
+  **screenshot is the artifact that proves the button renders**.
+- **Open question for when the detail designs land:** whether "Get ideas" should move
+  *into* the detail page, leaving the card with a single button. Cheap either way — the
+  icon is one `if let` in `footerRow`.
+
+---
+
+### Step 19.39 ✅ Dev Tooling — Warn at Build Time When the Checkout Is Behind origin/main
+**Date:** 2026-09-06
+**Status:** Complete
+
+*(Numbered 19.39: the app-icon pair and the "See details" button took 19.36–19.38 on
+`main` while this branch was open — the same shared-numbering contention Steps 19.29
+and 19.33 recorded. Picking the next free number on merge, rather than the next
+sequential one at authoring time, is what keeps two in-flight branches from both
+landing the same heading.)*
+
+**Goal:** Step 19.35 shipped, was merged, and the change did not appear on the device.
+Nothing was wrong with it. The main checkout — the one Xcode compiles — was two
+commits behind `origin/main`, so the build used the old source. Make that impossible
+to miss.
+
+**Why it happens, and why it will keep happening.** All agent work happens in git
+worktrees, and PRs are merged on GitHub. Neither of those touches the main checkout:
+merging a PR updates the remote, not your working copy, and not the binary on the
+phone. The gap between "merged" and "running on the device" is two manual steps
+(`git pull`, rebuild) with **no feedback if you skip them** — the build succeeds, the
+app launches, and it silently behaves like the old code. That silence is the bug.
+
+**What changed:**
+- **`iOS/scripts/check-main-current.sh` (new):** emits a `warning:` when the checkout
+  is behind `origin/main`.
+- **`iOS/project.yml`:** wires it as a `preBuildScript` on the `Knot` target
+  ("Warn If Behind origin/main"), filling the previously empty `preBuildScripts: []`.
+
+**It warns and nothing else.** No pull, no working-tree write, no build failure. A
+guard that rewrote source mid-build could clobber work in progress, and one that
+failed the build would block you offline or when you are deliberately on an older
+commit — both cost more than the staleness they prevent. `KNOT_BUILD_GUARD=off`
+silences it; `=strict` promotes the warning to an error for anyone who wants the
+harder stop.
+
+**Gated to `main`.** A feature branch or worktree is behind `origin/main` by design;
+warning there would fire on every agent build and train you to ignore the one that
+matters.
+
+**It warns when it cannot check, too.** A guard that exits quietly on a failed fetch
+is indistinguishable from a clean checkout — so an expired credential or a dead
+network would produce *silence*, i.e. reassurance, at the exact moment the guard had
+stopped working. Unknown and current are different answers and it says which one it
+has.
+
+**The sandbox question was settled by testing, not reasoning.**
+`ENABLE_USER_SCRIPT_SANDBOXING` is on and build-phase scripts run under
+`sandbox-exec` with access limited to declared inputs/outputs, so whether a script
+could read `.git` at all — let alone let `git fetch` write to it — was genuinely
+unknown. Verified empirically before building anything on top of it: both succeed.
+Had they not, the approach was dead and a scheme pre-action or a background agent
+would have been needed instead.
+
+**Three bugs were found and fixed before this shipped, each of which would have made
+the guard quietly useless:**
+- **A 300-second fetch throttle blinded it at the only moment that matters.** Merge
+  the PR, rebuild immediately — that round trip is well under five minutes, so the
+  guard would have skipped the fetch and reported the checkout current. The throttle
+  was premature optimisation protecting a fraction of a second on a multi-second
+  build, and only on `main` at that. Removed entirely, which also deleted the stamp
+  file and a second bug with it.
+- **`<root>/.git/<stamp>` is an invalid path in a worktree**, where `.git` is a *file*
+  pointing elsewhere rather than a directory. Caught by the stamp simply never
+  appearing after a build. Moot now the throttle is gone, but it is why
+  `--absolute-git-dir` exists and why a naive `.git` path should be distrusted here.
+- **`HEAD..origin/main` counts only the behind side**, so a *diverged* `main` was
+  described as merely behind and prescribed `git pull --ff-only`, which aborts in
+  exactly that case. Now `rev-list --left-right --count HEAD...origin/main`, with the
+  remedy switching to `--rebase` when there are local commits.
+
+**The documented escape hatch did not work as documented.** Xcode run-script phases
+do not inherit the login shell's environment, so `export KNOT_BUILD_GUARD=off` in a
+shell profile has no effect on a GUI build — it must be a user-defined **build
+setting** (which Xcode does export into the script environment) or `launchctl setenv`.
+A plain env var works only for command-line `xcodebuild`. The header comment now says
+so; the original would have sent someone chasing a setting that silently did nothing.
+
+**The fetch needs an explicit refspec.** The comparison reads
+`refs/remotes/origin/main`; a fetch that only populated `FETCH_HEAD` would leave it
+comparing against a stale tracking ref — silently never warning, which is precisely
+the failure being guarded. It fetches `+main:refs/remotes/origin/main`, bounded by
+`http.lowSpeedLimit`/`lowSpeedTime` so a captive portal cannot hang the build.
+
+**Files created:**
+- `iOS/scripts/check-main-current.sh`
+
+**Files modified:**
+- `iOS/project.yml` — the `preBuildScripts` entry
+
+**Tests:** No automated test. This repo has no harness for shell build scripts
+(`dev.sh`, `inject-dev-host.sh`, `reset-storekit.sh` have none), and the behaviour is
+a build-phase side effect rather than app code. Verified instead by building:
+`bash -n` passes, the script runs under the sandbox on every build with no denials,
+`BUILD SUCCEEDED` with it wired in, and the fetch's write into the git dir was
+confirmed on disk (`FETCH_HEAD` updated). Full iOS plan green — 448 unit + 5 UI, 0
+failures.
+
+**Notes:**
+- The warn-path *message* was verified by inspection rather than execution — the
+  checkout was up to date at the time, and the honest ways to force the condition
+  either mutate the shared checkout or run a doctored copy of the script. The
+  arithmetic is one `rev-list` and a comparison, and the guard cannot break a build
+  even if the string is wrong. The next merge is the real proof.
+- **This does not remove the pull.** It makes forgetting it loud instead of silent. A
+  fully automatic sync was considered and rejected: the only place that could safely
+  happen is a background agent mutating the working tree without asking, which is a
+  worse trade than one warning in the Issue navigator.
+- Xcode prints a `note:` on every build saying the phase always runs, because
+  `basedOnDependencyAnalysis: false`. That is intentional and matches the existing
+  `inject-dev-host.sh` phase, which carries the same note for the same reason.
+
+---
+
+### Step 19.40 ✅ Legal — Point the Four Footer Links at the Drive PDFs
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** The app's Terms of Service and Privacy Policy links opened
+`https://knot-app.com/terms` and `/privacy`. **That domain was never ours** — it resolves
+to an unrelated parked host with a mismatched TLS certificate. Every tap was a dead link,
+including the Privacy Policy link App Store Review will check. Point all four at the PDFs
+the owner maintains in Google Drive.
+
+**What changed — four string literals, two files:**
+
+| File | Line | Now opens |
+|---|---|---|
+| `Features/Settings/SettingsView.swift` | 301 | Terms PDF |
+| `Features/Settings/SettingsView.swift` | 311 | Privacy PDF |
+| `Features/Onboarding/Steps/OnboardingPaywallView.swift` | 113 | Terms PDF (`termsURL`) |
+| `Features/Onboarding/Steps/OnboardingPaywallView.swift` | 114 | Privacy PDF (`privacyURL`) |
+
+- Terms: `https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view`
+- Privacy: `https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view`
+
+Lines 301/311 keep their `if let` guard; 113/114 keep their `URL(string:)!` force-unwrap,
+which stays safe because both literals are valid absolute URLs.
+
+**Knot has no website, and does not need one.** The `docs/legal/` Markdown + HTML drafts
+(Step 19.5) were written on the assumption the policies would be hosted at `knot-app.com`.
+They are now **superseded**: still placeholder-laden (`[Company Legal Name]`,
+`[Effective Date]`) and still pointing at the dead domain. They are left in the repo rather
+than deleted, but `architecture.md` now marks them as not-the-shipping-copy so nobody edits
+them expecting the app to follow.
+
+> **Corrected by Steps 19.42–19.46, which were written earlier but merged later.** The
+> placeholders and the dead-domain links were already gone on that branch, and the two PDFs
+> this step points at were rendered *from* those same HTML files by `build-pdfs.sh`. So the
+> files are the **source of truth** after all — what stays true is the operational half of
+> the warning: a Drive PDF is a copy, so editing them changes nothing a user or reviewer
+> sees until the PDFs are re-rendered and re-uploaded. See `architecture.md`'s Legal
+> Documents section, which is written to the corrected state.
+
+**Files modified:**
+- `iOS/Knot/Features/Settings/SettingsView.swift` — two About-row URLs
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingPaywallView.swift` — `termsURL` / `privacyURL`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot repointed at the `settings`
+  harness (Step 19.12) with a scroll to the About section
+- `docs/pr-screenshots/worktree-fix-legal-links-drive-pdfs.png`
+
+**Tests:** iOS Unit plan **461 passed**, 0 failures. No test asserted these URLs, so none
+needed changing, and adding one would only pin a literal to itself.
+
+**Notes:**
+- **The screenshot cannot prove the fix.** A URL lives behind a tap, so the captured image
+  shows only that the two About rows render. The real verification is tapping each link on
+  a device and landing on the PDF. Same class of limitation as Steps 19.34/19.35, where a
+  font token and a `CGFloat` were likewise not introspectable.
+- **The scroll loop drives on `isHittable`, not `exists`.** A row scrolled off-screen inside
+  a `ScrollView` still reports `exists == true`, so an `exists` loop exits immediately and
+  captures the top of the list. This repeats the gotcha recorded in Step 19.23. The loop
+  also has a swipe-*down* recovery pass, because About is not the bottom of the scroll view
+  — the DEBUG-only Developer section sits below it, and DEBUG is the only configuration the
+  harness runs in, so a momentum swipe can carry the rows past the top of the screen where a
+  purely upward loop could never get them back.
+- **⚠️ At the time of this commit both Drive files were NOT publicly viewable.** An
+  anonymous fetch of each `/view` URL returned **401** and redirected to a Google sign-in
+  page, while a bogus file id returned 404 — so the files exist and are access-restricted,
+  not missing. Signed-out users and App Store Review would hit "You need access" instead of
+  the policy. **Both files must be set to "Anyone with the link — Viewer" before this
+  ships.** This is the single external dependency of the legal links, it lives outside the
+  repo, and nothing in the codebase can detect it breaking.
+- The review that caught the 401 is the reason this note exists. The original draft of this
+  entry asserted the sharing requirement as a caveat without checking it, which would have
+  shipped a dead link with a note claiming it was fine.
+- **Deliberately no `Constants.Legal` refactor.** Four literals in two files is small enough
+  that indirection would cost more than the duplication; `architecture.md` records that
+  these four are the complete set.
+- **Still unresolved and unrelated to this change:** the release build points
+  `Constants.API.baseURL` at `https://api.knot-app.com`, which also does not resolve. Nothing
+  is deployed anywhere, so a Release/TestFlight build cannot create a vault or generate a
+  recommendation. That is the real blocker for user testing and is untouched here.
+
+---
+
+### Step 19.41 ✅ Screenshots — Capture the Notification Banner, Not Just the Home Screen
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** Every notification banner on a real iPhone drew the generic grid placeholder
+where the app icon should be, while the home-screen tile on the same device showed the
+coral `k` correctly. Find out why, and make the answer provable rather than argued.
+
+**The bug was device state, not the repo.** The appiconset, `CFBundleIconName`,
+`ASSETCATALOG_COMPILER_APPICON_NAME`, the compiled `Assets.car` renditions and the
+notification code were all correct throughout, and are unchanged by this step. The
+phone was serving a stale IconServices record for `com.ronniejay.knot` — a bundle
+that had existed on it since long before Step 19.36 gave it an icon, so "no icon" was
+what iOS had cached. Every attempted fix before this was an **overwrite install**,
+which refreshes the home-screen tile but not the notification icon record. Only
+uninstall → reboot → fresh install rebuilds it.
+
+**Why it took four wrong answers to get there.** The first three were reasoned from
+the repo and the DerivedData product without ever rendering a banner: "the build is
+stale" (it wasn't — the device build carried the icon), and then "the opaque
+`luminosity: dark` entry from `77a37a5` breaks the banner path" (it doesn't). Reading
+an asset catalog cannot tell you what SpringBoard draws. The A/B that killed the
+second hypothesis is worth recording:
+
+| Arm | Icon set | Device banner |
+|---|---|---|
+| A | `main` as-is (dark `appearances` entry present) | placeholder |
+| B | dark entry removed | placeholder |
+| Simulator | `main` as-is | **coral `k`** |
+| C | `main` as-is, after uninstall + reboot + fresh install | **coral `k`** |
+
+Arm B was built and run against a scratch copy in `/tmp`, then reverted — the
+appiconset in the repo was never changed. The simulator row is what proved the asset
+was innocent: same catalog, correct banner, so the difference was the device's record.
+
+**What ships: a harness that can see a banner.** `capture-ui-screenshot.sh` has only
+ever been able to photograph in-app screens and the home screen, so a banner could not
+appear in a PR at all — Step 19.36's own screenshot showed a correct home-screen tile
+while every banner on that same build was broken.
+
+**What it does NOT do, stated plainly:** it would not have caught *this* bug. The
+simulator drew the icon correctly on every arm of the A/B above, including the broken
+ones, because the fault was a device-side icon record. `capture-ui-screenshot.sh` runs
+on a simulator, so the committed PR image cannot detect a device-only regression. The
+test itself is destination-agnostic and was run against the phone by hand
+(`-destination 'platform=iOS,id=<udid>'`), which is how the four rows above were
+produced — that is the mode that has diagnostic value, and it is manual.
+
+- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** new `notificationBanner` key →
+  `NotificationBannerScreenshotHarnessView`. It requests notification permission
+  itself, then schedules the real `knot.recs.loading` request from its `scenePhase`
+  observer when the app backgrounds — same identifier, copy and 1s trigger as
+  `RecommendationsViewModel.scheduleStillLoadingNotification()`, and scheduled from
+  the same moment. That method is private and gated behind loading state a harness
+  cannot honestly enter, so it is reproduced rather than called.
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** taps **Allow** on the permission
+  prompt — deliberately *not* `dismissSystemAlerts()` first, which taps "Don't Allow"
+  and would deny the very permission the shot depends on — waits for the harness to
+  report itself armed, presses Home via `XCUIDevice.shared.press(.home)`, asserts the
+  banner text on `springboard`, and attaches `XCUIScreen.main.screenshot()`.
+  `app.screenshot()` cannot see a banner drawn while the app is backgrounded.
+
+**Scheduling on the background transition, not on a foreground timer.** The first
+version started a fixed timer in the foreground and hoped it outlasted everything the
+test did before pressing Home. It did not, and the way it failed is the point: firing
+early is *silent*. The notification lands while the app is still active,
+`AppDelegate.userNotificationCenter(_:willPresent:)` returns `.banner`, the app draws
+it in-app, and SpringBoard never draws it at all — so the test reports "no banner" and
+the failure message blames Focus mode. Keying off `scenePhase` removes the race and is
+simultaneously more faithful, because production schedules this notification from
+exactly the same moment. The UI suite went from a 149s failure to a 42s pass.
+
+**The one remaining environmental failure** is named in the assertion message because
+it cost a debugging cycle here: **Focus / Do Not Disturb on a real device** suppresses
+the banner entirely and produces a screen recording of an app that looks like it did
+nothing. On a simulator, notification permission denied by an earlier run has the same
+effect — uninstall the app to reset it — but that now fails at the armed-status
+assertion, which says so, rather than at the banner.
+
+**Files modified:**
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `notificationBanner` key + harness view
+- `iOS/KnotUITests/PRScreenshotTests.swift` — banner capture path
+- `memory-bank/architecture.md` — harness and `KnotUITests/` rows
+- `docs/pr-screenshots/worktree-fix-notification-banner-icon.png`
+
+**Tests:** iOS Full plan green. The PR screenshot is the artifact — it shows the
+banner carrying the coral `k`, which no unit test can assert (a `Font`, a `CGFloat`
+and an app icon are all uninspectable from inside the app; see Steps 19.34/19.35).
+
+**Notes:**
+- **The appiconset is unchanged and the dark entry stays.** Step 19.37 added it for a
+  real reason (iOS otherwise derives a muddy dark treatment of the cream ground) and
+  Arm B proved it is not implicated in the banner.
+- **The operational fix, for when this recurs:** delete the app from the device,
+  reboot it, then install. An overwrite install is not sufficient and is why this
+  looked unfixable for a day.
+- **A screenshot of the home screen is not evidence about a banner.** They resolve the
+  icon through different paths, and this bug is the proof: one was right while the
+  other was wrong, on the same install, for a day.
+
+---
+
+### Step 19.42 ✅ Legal — Bring the Terms & Privacy Policy Current With the Subscription
+**Date:** 2026-09-06
+**Status:** Complete
+
+> **Numbering note — Steps 19.42–19.46 are out of date order on purpose.** This run of legal
+> work was authored as 19.35–19.39 on 2026-09-06/07, but sat unmerged long enough for `main`
+> to claim 19.35–19.41 for unrelated Journal, branding, dev-tooling and screenshot steps. The
+> already-merged numbers win, so this branch renumbered on the way in rather than rewriting
+> shipped history. Read 19.42–19.46 as having happened *before* 19.40.
 
 **Goal:** The legal documents (Step 19.5, written 2026-07-01) predate the subscription. Terms
 **§10 "Fees"** still read *"The Service is currently provided **free of charge**"* — but Steps
@@ -8010,7 +8628,7 @@ and `SettingsView.swift` — the docs now describe the shipped behavior, not the
 **Notes:**
 - **The placeholders were left unfilled** by this step, deliberately — they need a decision only
   the owner can make, and holding the Apple-compliance fix for them would have helped nobody.
-  **Step 19.36 (below) then resolved two of the four**; `[Company Legal Name]` (+ its ALL-CAPS
+  **Step 19.43 (below) then resolved two of the four**; `[Company Legal Name]` (+ its ALL-CAPS
   twin in §13/§14) and `[Effective Date]` remain.
 - **Three adjacent gaps left open on purpose**, all out of scope for a docs change, and all now
   reflected in the wording rather than papered over:
@@ -8034,11 +8652,11 @@ and `SettingsView.swift` — the docs now describe the shipped behavior, not the
 
 ---
 
-### Step 19.36 ✅ Legal — Drop the Mailing Address and Set Governing Law
+### Step 19.43 ✅ Legal — Drop the Mailing Address and Set Governing Law
 **Date:** 2026-09-06
 **Status:** Complete
 
-**Goal:** Resolve two of the four placeholders Step 19.35 left open. The owner asked why a mailing
+**Goal:** Resolve two of the four placeholders Step 19.42 left open. The owner asked why a mailing
 address was required at all, and — on the answer that it mostly is not — chose to remove it and to
 set the governing-law jurisdiction to the United States.
 
@@ -8063,7 +8681,7 @@ set the governing-law jurisdiction to the United States.
 - `docs/legal/README.md` — placeholder list split into remaining/resolved, rationale, narrowed check
 - `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
 
-**Tests:** None — docs-only, same as Step 19.35; no code path touches these files. Re-ran the same
+**Tests:** None — docs-only, same as Step 19.42; no code path touches these files. Re-ran the same
 checks: only `[Company Legal Name]` / `[COMPANY LEGAL NAME]` / `[Effective Date]` remain (16
 occurrences across the four policy files, zero `[Mailing Address]`, zero
 `[Governing-law State/Country]`), Markdown ↔ HTML
@@ -8089,11 +8707,11 @@ and the README's own `grep` matches exactly the placeholders it now claims.
 
 ---
 
-### Step 19.37 ✅ Legal — Fill the Last Two Placeholders (Operating Party + Effective Date)
+### Step 19.44 ✅ Legal — Fill the Last Two Placeholders (Operating Party + Effective Date)
 **Date:** 2026-09-06
 **Status:** Complete
 
-**Goal:** Close out the last two placeholders Steps 19.35–19.36 left open, so the documents are
+**Goal:** Close out the last two placeholders Steps 19.42–19.43 left open, so the documents are
 publishable. The owner elected to ship under their own legal name as a sole proprietor rather than
 wait weeks on an LLC — forming one is realistically a 2–6 week path once the Apple organization
 account and its D-U-N-S prerequisite are counted, and swapping an entity name in later is a
@@ -8126,7 +8744,7 @@ two-minute find-and-replace. There was no reason for a revisable document to blo
 - `docs/legal/README.md` — placeholder section replaced with current values + what to revisit
 - `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
 
-**Tests:** None — docs-only, as with 19.35/19.36. Re-ran the same checks: **zero** bracketed
+**Tests:** None — docs-only, as with 19.42/19.43. Re-ran the same checks: **zero** bracketed
 placeholders remain in the four policy files (only the Markdown link labels `[Privacy Policy]` /
 `[Terms of Service]` match a bracket pattern, and they are links, not placeholders); the name
 landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML heading parity still
@@ -8139,7 +8757,7 @@ landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML headin
   Connect with 7-day intro offers (the standing Step 19.8 follow-up, and Terms §10 now states
   those exact prices); and keep the App Privacy "nutrition label" consistent with the Privacy
   Policy — no tracking SDKs, no ad identifiers, no payment data, no device permissions.
-- **⚠️ Governing law still names a country, not a state** (see Step 19.36). Unchanged here.
+- **⚠️ Governing law still names a country, not a state** (see Step 19.43). Unchanged here.
 - The name is a **sole proprietor**, not an entity — so "Knot" has no separate legal existence and
   liability is personal. That is the actual argument for forming an LLC once the subscription is
   taking recurring consumer money; it is a business decision, not a docs one, and deliberately did
@@ -8147,11 +8765,11 @@ landed in all 12 slots including both ALL-CAPS clauses; Markdown ↔ HTML headin
 
 ---
 
-### Step 19.38 ✅ Legal — California Governing Law, Real Contact Email, and the knot-app.com Discovery
+### Step 19.45 ✅ Legal — California Governing Law, Real Contact Email, and the knot-app.com Discovery
 **Date:** 2026-09-06
 **Status:** Complete
 
-**Goal:** Resolve the governing-law state left ⚠️ by Step 19.36, and fix the contact email. While
+**Goal:** Resolve the governing-law state left ⚠️ by Step 19.43, and fix the contact email. While
 checking where to host the pages (the owner reported `knot-app.com` "doesn't exist"), a DNS check
 turned up something worse than a missing page.
 
@@ -8159,15 +8777,15 @@ turned up something worse than a missing page.
 (`ns-rs1.gmoserver.jp`), resolves to `160.251.148.124`, and presents a TLS certificate that does
 not match the hostname; the owner confirmed they hold no Knot-related domain. `api.knot-app.com`
 does not resolve at all. Every hardcoded reference in the app therefore points at a domain we do
-not control — including **`privacy@knot-app.com`**, which Steps 19.35–19.37 had left as the *sole*
+not control — including **`privacy@knot-app.com`**, which Steps 19.42–19.44 had left as the *sole*
 contact channel after the postal address was removed. The privacy policy was directing GDPR/CCPA
 rights requests to a mailbox that cannot exist.
 
 **What changed:**
 - **Terms §16 governing law → `the State of California, USA`** (where the operator lives), in both
   the Markdown and HTML. The venue sentence was restored to **"the state and federal courts located
-  in"** — the original construction, which was only reworded in 19.36 because a country-scale value
-  made it nonsense. A state makes it correct again. The consumer carve-out from 19.36 stays, and
+  in"** — the original construction, which was only reworded in 19.43 because a country-scale value
+  made it nonsense. A state makes it correct again. The consumer carve-out from 19.43 stays, and
   matters more here than elsewhere: California consumer protections are largely non-waivable, so a
   forum clause that ignores them invites being struck rather than honored.
 - **Contact email → `knottheapp@gmail.com`** in all four documents (4 occurrences; the HTML carries
@@ -8186,7 +8804,7 @@ rights requests to a mailbox that cannot exist.
 - `docs/legal/README.md` — governing law, email provenance, publishing rewrite, references table
 - `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
 
-**Tests:** None — docs-only, as with 19.35–19.37. Re-verified: zero `knot-app.com` references
+**Tests:** None — docs-only, as with 19.42–19.44. Re-verified: zero `knot-app.com` references
 remain in `docs/legal/` outside the deliberate warnings; zero placeholders; Markdown ↔ HTML heading
 parity still `diff`-clean in both pairs; both HTML pages still parse with balanced tags.
 
@@ -8209,11 +8827,11 @@ parity still `diff`-clean in both pairs; both HTML pages still parse with balanc
 
 ---
 
-### Step 19.39 ✅ Legal — Render the Policies to PDF for Google Drive Hosting
+### Step 19.46 ✅ Legal — Render the Policies to PDF for Google Drive Hosting
 **Date:** 2026-09-07
 **Status:** Complete
 
-**Goal:** Step 19.38 established that `knot-app.com` belongs to a third party, so the two policy
+**Goal:** Step 19.45 established that `knot-app.com` belongs to a third party, so the two policy
 pages have nowhere to live — and App Store submission requires a publicly reachable Privacy Policy
 URL, with Guideline 3.1.2 additionally expecting the subscription Terms to be reachable *before*
 purchase. Asked to choose a host, the owner picked **Google Drive**. Give the repo a reproducible
@@ -8262,7 +8880,7 @@ step implements Drive and keeps the HTML host-agnostic so the decision is revers
 - `memory-bank/progress.md`, `memory-bank/architecture.md` — this entry and the `docs/legal/` rows
 
 **Tests:** None — a Bash script plus docs; no Swift or Python is touched, so no suite could
-exercise it and nothing in the diff can break one (same posture as Steps 19.35–19.38). Verified
+exercise it and nothing in the diff can break one (same posture as Steps 19.42–19.45). Verified
 directly instead: `bash -n` parses clean; a real run produced two valid PDFs (`%PDF` magic, 8 pages
 each, 508KB / 428KB) and a `qlmanage` render confirmed correct branding, operating party, and
 effective date; `privacy.html` and `terms.html` are **byte-identical before and after** (shasum
@@ -8618,3 +9236,9 @@ branding, operating party, and effective date.
 137. **Pipeline performance test mocks private aggregation functions (Step 12.5):** The `aggregate_external_data` node internally calls `_fetch_gift_candidates()` and `_fetch_experience_candidates()`. These are the correct patch targets — not public function names like `fetch_amazon_products` which don't exist. The `_` prefix does not prevent patching with `unittest.mock.patch()`.
 
 138. **Full backend test suite: 1659 passed, 18 skipped, 0 failed (Step 12.2):** The 18 skipped tests are gated by `@requires_supabase` or `@requires_vertex_ai` markers and skip when credentials are not configured. The 1659 passed tests cover all backend functionality: database schema (34 files), API endpoints (12 files), LangGraph agents (8 files), external integrations (8 files), notifications (6 files), and performance (1 file).
+
+139. **`xcodebuild test` in a worktree can fail at CodeSign with "resource fork, Finder information, or similar detritus not allowed" (Step 19.36):** The repo lives under `~/Documents`, which macOS File Provider (iCloud Drive) manages, and it stamps `com.apple.FinderInfo` + `com.apple.fileprovider.fpfs#P` onto directories it syncs — including `iOS/build/DerivedData/.../Knot.app` and the nested `PlugIns/KnotTests.xctest`. `codesign` refuses to sign a bundle carrying `FinderInfo`, so the **build** succeeds and the **test** run dies at the CodeSign phase of `KnotTests`, with no compile error and nothing wrong with the code. It is environmental and intermittent (it depends on whether the sync daemon has touched the build directory), so it can look like a change broke the suite when it did not. Two fixes: point the run at derived data outside the synced tree (`-derivedDataPath /tmp/...`, what Step 19.36 used), or `xattr -cr iOS/build/DerivedData` before re-running. Related but distinct: **image assets downloaded from a browser carry `com.apple.quarantine` / `kMDItemWhereFroms` xattrs** — strip them with `xattr -c <file>` after copying anything into `Assets.xcassets`, since git does not track xattrs and a polluted file makes a local-only failure that no reviewer can reproduce.
+
+140. **Ship-blocking Info.plist keys are invisible until upload (Step 19.37):** Two classes of App Store rejection cannot be caught by building, running, or testing, because the app works perfectly with them wrong — `CFBundleIconName` missing from the **top level** of the hand-written `Info.plist` (ITMS-90713; `actool` writes only the nested copy under `CFBundleIcons`, which satisfies the OS but not the validator) and a stale `UIRequiredDeviceCapabilities` of `armv7` on an arm64-only app. Both were present from the initial project template and survived every build and test run. When touching submission-facing config, check the built `Knot.app/Info.plist` directly (`plutil -p`) rather than trusting a green suite. `GENERATE_INFOPLIST_FILE: false` in `iOS/project.yml`, so `Knot/Info.plist` is authoritative and hand-edits there are safe from XcodeGen. **Inspect with `plutil -p`, never `plutil -extract`:** `plutil -extract <keypath> <fmt> <file>` writes its result **back into the file** unless you pass `-o -`, so using it to "check a value" silently replaces the whole `Info.plist` with just that value. Doing this to a built `Knot.app` corrupts the bundle (`simctl install` then fails with "Missing bundle ID") and, worse, makes the *next* check report the key as missing — which reads as a broken build rather than a broken command.
+
+141. **Palette-quantize a single mark, downscale a screenshot — not the reverse (Step 19.37):** 256-color PNG quantization is near-lossless for the app icon (99.2% of pixels within 8/255) because the whole palette is spent on one two-family mark, halving the file with the film grain intact. The same treatment on a full home-screen capture is visibly wrong: the wallpaper gradient and every third-party icon compete for those 256 entries, banding the gradient and shifting the Knot coral toward magenta — corrupting the one detail the screenshot documents. For UI captures, downscale the 2x retina image to 1x and keep truecolor instead (GitHub renders PR images far smaller inline anyway). On metadata: Pillow does **not** carry `tEXt`/`zTXt`/`iTXt` across a re-encode, which is what strips generation prompts and XMP — but it is not a blanket scrubber. It *does* re-emit `iCCP`, `pHYs`, `eXIf`, and `tRNS` from `im.info`, so an ICC- or EXIF-tagged source keeps those unless they are dropped explicitly. Anything wanted in the output (here `sRGB` + `gAMA`) must be added deliberately via `PngInfo`. Confirm the result by dumping the chunk list rather than assuming.

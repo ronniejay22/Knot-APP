@@ -15,6 +15,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 #if DEBUG
 enum UITestScreenshotHarness {
@@ -92,9 +93,112 @@ enum UITestScreenshotHarness {
             MilestoneRecsMissingScreenshotHarnessView()
         case "occasionModal":
             OccasionModalScreenshotHarnessView()
+        case "notificationBanner":
+            NotificationBannerScreenshotHarnessView()
         default:
             EmptyView()
         }
+    }
+}
+
+/// Schedules the real "Still working on it…" local notification so the PR
+/// screenshot can capture the **banner** SpringBoard draws for it — with the
+/// app icon SpringBoard resolves for that banner.
+///
+/// This exists because the home screen and a notification banner resolve the
+/// app icon through different paths, and a screenshot of the home screen proves
+/// nothing about the banner: the icon rendered correctly on the home screen
+/// while every banner showed the generic placeholder. No unit test can see an
+/// icon, and a simulator cannot draw a Knot banner at all without notification
+/// permission, which the app only requests after sign-in. So this harness asks
+/// for permission itself, schedules the notification a few seconds out, and the
+/// UI test presses Home so the banner is drawn by SpringBoard exactly as in
+/// production, then screenshots the whole screen.
+///
+/// Mirrors `RecommendationsViewModel.scheduleStillLoadingNotification()` — same
+/// copy, same identifier, same trigger, and scheduled from the same moment (the
+/// app being backgrounded). That method is private and guarded by loading state
+/// a harness cannot honestly enter, so it is reproduced rather than called.
+private struct NotificationBannerScreenshotHarnessView: View {
+    /// Matches `scheduleStillLoadingNotification()`'s trigger. It only has to
+    /// outlast the backgrounding transition itself, not anything the test does.
+    private static let fireDelay: TimeInterval = 1
+
+    @Environment(\.scenePhase) private var scenePhase
+
+    @State private var status = "Requesting notification permission…"
+    @State private var isReady = false
+    @State private var hasScheduled = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Notification banner harness")
+                .knotFont(Theme.Typography.cardTitle)
+                .foregroundStyle(Theme.textPrimary)
+            Text(status)
+                .knotFont(Theme.Typography.body)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.backgroundGradient.ignoresSafeArea())
+        .task { await requestPermission() }
+        // Schedule on the way out, exactly as production does, rather than on a
+        // timer started in the foreground. A foreground timer has to be guessed
+        // long enough to outlast everything the test does before pressing Home,
+        // and guessing short fails silently: the notification fires while the
+        // app is still active, `AppDelegate`'s `willPresent` returns `.banner`,
+        // and the app draws it in-app — SpringBoard never does, so the test
+        // sees no banner and blames Focus mode. Keying off the background
+        // transition removes the race entirely.
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .background, isReady, !hasScheduled else { return }
+            hasScheduled = true
+            scheduleBanner()
+        }
+    }
+
+    /// `@MainActor` because both paths write `@State`. Without it this is a
+    /// nonisolated `async` method on a plain struct, so under Swift 6 strict
+    /// concurrency the writes after the `await` can resume off the main actor.
+    @MainActor
+    private func requestPermission() async {
+        let center = UNUserNotificationCenter.current()
+        // Options match `AuthViewModel.requestPushNotificationPermission()`
+        // exactly. The first grant on a device sticks, so asking for a narrower
+        // set here would silently leave the app without badge authorization for
+        // anyone who ran this harness before signing in.
+        let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+        guard granted else {
+            status = "Notification permission denied — the banner cannot be captured."
+            return
+        }
+        isReady = true
+        // `PRScreenshotTests` waits on this exact prefix before pressing Home.
+        // It is the signal that permission was granted and the `scenePhase`
+        // observer is armed; without it the test could background the app while
+        // the permission prompt is still up, and nothing would ever schedule.
+        status = "Ready — press Home to fire the banner."
+    }
+
+    /// Mirrors `RecommendationsViewModel.scheduleStillLoadingNotification()`,
+    /// which is private and guarded by loading state a harness cannot honestly
+    /// enter. Deliberately synchronous and fire-and-forget: this runs during the
+    /// background transition, where an `await` risks the continuation not
+    /// resuming before the app suspends.
+    private func scheduleBanner() {
+        let content = UNMutableNotificationContent()
+        content.title = "Still working on it…"
+        content.body = "Your recommendations are loading in the background."
+        content.sound = .none
+
+        let request = UNNotificationRequest(
+            identifier: "knot.recs.loading",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.fireDelay, repeats: false)
+        )
+        UNUserNotificationCenter.current().add(request)
     }
 }
 
@@ -410,8 +514,11 @@ private struct JournalScreenshotHarnessView: View {
             milestoneType: type,
             milestoneName: name,
             milestoneDate: "2026-12-25",
+            // `budget_tier` is NOT NULL in the DB, so a real milestone always
+            // carries one. Seeding it keeps the detail screen's Budget row
+            // showing what production shows rather than the "—" placeholder.
             recurrence: "yearly",
-            budgetTier: nil,
+            budgetTier: "major_milestone",
             daysUntil: days,
             createdAt: "2026-07-04",
             occasionCategory: occasionCategory
@@ -427,6 +534,10 @@ private struct JournalScreenshotHarnessView: View {
 
     private let partnerName = "Jas"
 
+    /// Mirrors `ForYouView.detailMilestone` so the harness exercises the real
+    /// button → cover path rather than handing the card a dead `{}` closure.
+    @State private var detailMilestone: MilestoneItemResponse?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -441,6 +552,7 @@ private struct JournalScreenshotHarnessView: View {
                             partnerName: partnerName,
                             formattedDate: entry.1,
                             urgency: entry.2,
+                            onSeeDetails: { detailMilestone = entry.0 },
                             onGetRecommendations: {}
                         )
                     }
@@ -451,6 +563,13 @@ private struct JournalScreenshotHarnessView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
+        .fullScreenCover(item: $detailMilestone) { milestone in
+            MilestoneDetailView(
+                milestone: milestone,
+                partnerName: partnerName,
+                onDismiss: { detailMilestone = nil }
+            )
+        }
     }
 
     private var header: some View {

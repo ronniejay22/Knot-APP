@@ -298,7 +298,7 @@ struct SettingsView: View {
                 icon: Lucide.fileText,
                 title: "Terms of Service",
                 action: {
-                    if let url = URL(string: "https://knot-app.com/terms") {
+                    if let url = URL(string: "https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view") {
                         UIApplication.shared.open(url)
                     }
                 }
@@ -308,7 +308,7 @@ struct SettingsView: View {
                 icon: Lucide.shield,
                 title: "Privacy Policy",
                 action: {
-                    if let url = URL(string: "https://knot-app.com/privacy") {
+                    if let url = URL(string: "https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view") {
                         UIApplication.shared.open(url)
                     }
                 }
