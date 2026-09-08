@@ -24,13 +24,12 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change adds a labeled "See details" button to each Journal
-        // `MilestoneCard` footer, beside the existing recommendation icon. The
-        // real `ForYouView` sits behind an authenticated session and a live
-        // milestone fetch, which a cold screenshot launch can't reach — so
-        // render the same card feed via the DEBUG harness, whose three seeded
-        // entries now each pass an `onSeeDetails` closure so the button renders.
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // The change repoints the Terms of Service and Privacy Policy links at
+        // the Google Drive PDFs. Two of the four call sites are the About rows
+        // in Settings (the other two are the paywall fine print, which opens
+        // the same two URLs). Settings sits behind an authenticated session, so
+        // render it standalone via the DEBUG harness added in Step 19.12.
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         // Give the view a moment to render (fonts, gradient, async layout).
@@ -46,8 +45,8 @@ final class PRScreenshotTests: XCTestCase {
         // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
         dismissSystemAlerts()
 
-        // Wait on the header eyebrow and then on the button this change adds —
-        // if the button never renders, the shot cannot show the change.
+        // Wait on a row that proves Settings rendered, then scroll the two
+        // changed rows into view.
         //
         // These ASSERT rather than discard their result. A discarded
         // `waitForExistence` lets the test pass while the target screen never
@@ -56,18 +55,40 @@ final class PRScreenshotTests: XCTestCase {
         // with a green test. Failing here is the only thing that makes the
         // captured screenshot trustworthy.
         XCTAssertTrue(
-            app.staticTexts["YOUR JOURNAL"].waitForExistence(timeout: 10),
-            "Journal harness never rendered — the captured screenshot would not show the change"
+            app.buttons["Sign Out"].waitForExistence(timeout: 10),
+            "Settings harness never rendered — the captured screenshot would not show the change"
         )
-        // Matched by prefix rather than exact label: each button is labelled
-        // "See details for {milestone name}" for VoiceOver, so the milestone
-        // name is part of the label and a `==` match would be brittle.
-        let seeDetails = app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "See details"))
-            .firstMatch
+
+        // Scroll the About section into view. Drive this on `isHittable`, not
+        // `exists`: a row still scrolled off-screen inside a ScrollView reports
+        // `exists == true`, so an `exists` loop exits immediately and the shot
+        // captures the top of the list.
+        //
+        // About is NOT the bottom of the scroll view — the DEBUG-only Developer
+        // section renders below it, and DEBUG is the only configuration this
+        // harness exists in. So a momentum `swipeUp()` can carry the rows past
+        // the top of the screen, which a purely upward loop can never undo.
+        // Hence the second pass: overshoot is recoverable, and only a genuine
+        // failure to find the rows reaches the assert.
+        let terms = app.buttons["Terms of Service"]
+        let privacy = app.buttons["Privacy Policy"]
+        var bothVisible: Bool { terms.isHittable && privacy.isHittable }
+
+        var scrolls = 0
+        while !bothVisible && scrolls < 8 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        // Recover from an overshoot.
+        scrolls = 0
+        while !bothVisible && scrolls < 4 {
+            app.swipeDown()
+            scrolls += 1
+        }
+
         XCTAssertTrue(
-            seeDetails.waitForExistence(timeout: 5),
-            "No \"See details\" button rendered — the shot would not show the change"
+            bothVisible,
+            "About rows never became visible — the shot would not show the changed links"
         )
 
         // Let the screen settle so the shot isn't caught mid-transition.
