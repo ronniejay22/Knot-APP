@@ -8420,6 +8420,108 @@ needed changing, and adding one would only pin a literal to itself.
 
 ---
 
+### Step 19.41 ✅ Screenshots — Capture the Notification Banner, Not Just the Home Screen
+**Date:** 2026-09-07
+**Status:** Complete
+
+**Goal:** Every notification banner on a real iPhone drew the generic grid placeholder
+where the app icon should be, while the home-screen tile on the same device showed the
+coral `k` correctly. Find out why, and make the answer provable rather than argued.
+
+**The bug was device state, not the repo.** The appiconset, `CFBundleIconName`,
+`ASSETCATALOG_COMPILER_APPICON_NAME`, the compiled `Assets.car` renditions and the
+notification code were all correct throughout, and are unchanged by this step. The
+phone was serving a stale IconServices record for `com.ronniejay.knot` — a bundle
+that had existed on it since long before Step 19.36 gave it an icon, so "no icon" was
+what iOS had cached. Every attempted fix before this was an **overwrite install**,
+which refreshes the home-screen tile but not the notification icon record. Only
+uninstall → reboot → fresh install rebuilds it.
+
+**Why it took four wrong answers to get there.** The first three were reasoned from
+the repo and the DerivedData product without ever rendering a banner: "the build is
+stale" (it wasn't — the device build carried the icon), and then "the opaque
+`luminosity: dark` entry from `77a37a5` breaks the banner path" (it doesn't). Reading
+an asset catalog cannot tell you what SpringBoard draws. The A/B that killed the
+second hypothesis is worth recording:
+
+| Arm | Icon set | Device banner |
+|---|---|---|
+| A | `main` as-is (dark `appearances` entry present) | placeholder |
+| B | dark entry removed | placeholder |
+| Simulator | `main` as-is | **coral `k`** |
+| C | `main` as-is, after uninstall + reboot + fresh install | **coral `k`** |
+
+Arm B was built and run against a scratch copy in `/tmp`, then reverted — the
+appiconset in the repo was never changed. The simulator row is what proved the asset
+was innocent: same catalog, correct banner, so the difference was the device's record.
+
+**What ships: a harness that can see a banner.** `capture-ui-screenshot.sh` has only
+ever been able to photograph in-app screens and the home screen, so a banner could not
+appear in a PR at all — Step 19.36's own screenshot showed a correct home-screen tile
+while every banner on that same build was broken.
+
+**What it does NOT do, stated plainly:** it would not have caught *this* bug. The
+simulator drew the icon correctly on every arm of the A/B above, including the broken
+ones, because the fault was a device-side icon record. `capture-ui-screenshot.sh` runs
+on a simulator, so the committed PR image cannot detect a device-only regression. The
+test itself is destination-agnostic and was run against the phone by hand
+(`-destination 'platform=iOS,id=<udid>'`), which is how the four rows above were
+produced — that is the mode that has diagnostic value, and it is manual.
+
+- **`iOS/Knot/App/UITestScreenshotHarness.swift`:** new `notificationBanner` key →
+  `NotificationBannerScreenshotHarnessView`. It requests notification permission
+  itself, then schedules the real `knot.recs.loading` request from its `scenePhase`
+  observer when the app backgrounds — same identifier, copy and 1s trigger as
+  `RecommendationsViewModel.scheduleStillLoadingNotification()`, and scheduled from
+  the same moment. That method is private and gated behind loading state a harness
+  cannot honestly enter, so it is reproduced rather than called.
+- **`iOS/KnotUITests/PRScreenshotTests.swift`:** taps **Allow** on the permission
+  prompt — deliberately *not* `dismissSystemAlerts()` first, which taps "Don't Allow"
+  and would deny the very permission the shot depends on — waits for the harness to
+  report itself armed, presses Home via `XCUIDevice.shared.press(.home)`, asserts the
+  banner text on `springboard`, and attaches `XCUIScreen.main.screenshot()`.
+  `app.screenshot()` cannot see a banner drawn while the app is backgrounded.
+
+**Scheduling on the background transition, not on a foreground timer.** The first
+version started a fixed timer in the foreground and hoped it outlasted everything the
+test did before pressing Home. It did not, and the way it failed is the point: firing
+early is *silent*. The notification lands while the app is still active,
+`AppDelegate.userNotificationCenter(_:willPresent:)` returns `.banner`, the app draws
+it in-app, and SpringBoard never draws it at all — so the test reports "no banner" and
+the failure message blames Focus mode. Keying off `scenePhase` removes the race and is
+simultaneously more faithful, because production schedules this notification from
+exactly the same moment. The UI suite went from a 149s failure to a 42s pass.
+
+**The one remaining environmental failure** is named in the assertion message because
+it cost a debugging cycle here: **Focus / Do Not Disturb on a real device** suppresses
+the banner entirely and produces a screen recording of an app that looks like it did
+nothing. On a simulator, notification permission denied by an earlier run has the same
+effect — uninstall the app to reset it — but that now fails at the armed-status
+assertion, which says so, rather than at the banner.
+
+**Files modified:**
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `notificationBanner` key + harness view
+- `iOS/KnotUITests/PRScreenshotTests.swift` — banner capture path
+- `memory-bank/architecture.md` — harness and `KnotUITests/` rows
+- `docs/pr-screenshots/worktree-fix-notification-banner-icon.png`
+
+**Tests:** iOS Full plan green. The PR screenshot is the artifact — it shows the
+banner carrying the coral `k`, which no unit test can assert (a `Font`, a `CGFloat`
+and an app icon are all uninspectable from inside the app; see Steps 19.34/19.35).
+
+**Notes:**
+- **The appiconset is unchanged and the dark entry stays.** Step 19.37 added it for a
+  real reason (iOS otherwise derives a muddy dark treatment of the cream ground) and
+  Arm B proved it is not implicated in the banner.
+- **The operational fix, for when this recurs:** delete the app from the device,
+  reboot it, then install. An overwrite install is not sufficient and is why this
+  looked unfixable for a day.
+- **A screenshot of the home screen is not evidence about a banner.** They resolve the
+  icon through different paths, and this bug is the proof: one was right while the
+  other was wrong, on the same install, for a day.
+
+---
+
 ## Next Steps
 
 

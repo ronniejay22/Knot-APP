@@ -24,80 +24,90 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change repoints the Terms of Service and Privacy Policy links at
-        // the Google Drive PDFs. Two of the four call sites are the About rows
-        // in Settings (the other two are the paywall fine print, which opens
-        // the same two URLs). Settings sits behind an authenticated session, so
-        // render it standalone via the DEBUG harness added in Step 19.12.
-        app.launchArguments += ["-uiTestScreenshot", "settings"]
+        // The change is to the app icon as it appears on a **notification
+        // banner** — the home screen rendered the icon correctly while every
+        // banner showed the generic placeholder, so a home-screen shot proves
+        // nothing here. The `notificationBanner` harness requests notification
+        // permission, then schedules the real "Still working on it…" local
+        // notification when the app is backgrounded, as production does. This
+        // test accepts the prompt, presses Home so SpringBoard draws the banner
+        // exactly as a user sees it, waits for it, and screenshots the whole
+        // screen (the app is in the background, so `app.screenshot()` would
+        // miss it).
+        app.launchArguments += ["-uiTestScreenshot", "notificationBanner"]
         app.launch()
 
-        // Give the view a moment to render (fonts, gradient, async layout).
         _ = app.wait(for: .runningForeground, timeout: 10)
 
-        // Let the harness draw before any accessibility query. Every query that
-        // misses makes XCTest collect a full accessibility snapshot for failure
-        // triage, and a burst of those is expensive enough to destabilise the
-        // runner — so it is worth settling first and then asking once.
+        // Let the harness draw and fire its permission request before any
+        // accessibility query — every miss costs a full hierarchy snapshot.
         Thread.sleep(forTimeInterval: 2.0)
 
-        // Dismiss any transient SpringBoard system alert (e.g. the simulator's
-        // "Apple Account Verification" iCloud prompt) so it doesn't cover the shot.
-        dismissSystemAlerts()
-
-        // Wait on a row that proves Settings rendered, then scroll the two
-        // changed rows into view.
-        //
-        // These ASSERT rather than discard their result. A discarded
-        // `waitForExistence` lets the test pass while the target screen never
-        // appeared — and `app.screenshot()` then captures whatever is on
-        // screen (a stale snapshot, a system alert), so a wrong image ships
-        // with a green test. Failing here is the only thing that makes the
-        // captured screenshot trustworthy.
-        XCTAssertTrue(
-            app.buttons["Sign Out"].waitForExistence(timeout: 10),
-            "Settings harness never rendered — the captured screenshot would not show the change"
-        )
-
-        // Scroll the About section into view. Drive this on `isHittable`, not
-        // `exists`: a row still scrolled off-screen inside a ScrollView reports
-        // `exists == true`, so an `exists` loop exits immediately and the shot
-        // captures the top of the list.
-        //
-        // About is NOT the bottom of the scroll view — the DEBUG-only Developer
-        // section renders below it, and DEBUG is the only configuration this
-        // harness exists in. So a momentum `swipeUp()` can carry the rows past
-        // the top of the screen, which a purely upward loop can never undo.
-        // Hence the second pass: overshoot is recoverable, and only a genuine
-        // failure to find the rows reaches the assert.
-        let terms = app.buttons["Terms of Service"]
-        let privacy = app.buttons["Privacy Policy"]
-        var bothVisible: Bool { terms.isHittable && privacy.isHittable }
-
-        var scrolls = 0
-        while !bothVisible && scrolls < 8 {
-            app.swipeUp()
-            scrolls += 1
-        }
-        // Recover from an overshoot.
-        scrolls = 0
-        while !bothVisible && scrolls < 4 {
-            app.swipeDown()
-            scrolls += 1
+        // Accept the permission prompt. Deliberately NOT `dismissSystemAlerts()`
+        // unconditionally: that helper taps "Don't Allow", which would deny the
+        // very permission this shot depends on. But an unrelated SpringBoard
+        // alert (the simulator's iCloud prompt) would otherwise BE
+        // `alerts.firstMatch`, so the prompt is never found and that alert also
+        // lands in the screenshot — so dismiss a non-permission alert first,
+        // then look again. When permission is already granted no prompt appears
+        // at all, which is fine; the gate is the ready-status wait below.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if !acceptNotificationPrompt(on: springboard) {
+            dismissSystemAlerts()
+            _ = acceptNotificationPrompt(on: springboard)
         }
 
+        // ASSERT the harness is armed before backgrounding. The harness
+        // schedules the notification *from* the background transition, so
+        // pressing Home while the permission prompt is still up would arm
+        // nothing and the banner assertion below would then blame the wrong
+        // thing. This is also what proves permission was granted.
         XCTAssertTrue(
-            bothVisible,
-            "About rows never became visible — the shot would not show the changed links"
+            app.staticTexts
+                .matching(NSPredicate(format: "label BEGINSWITH %@", "Ready"))
+                .firstMatch
+                .waitForExistence(timeout: 15),
+            "Harness never became ready — notification permission was denied, so the shot cannot show the notification icon"
         )
 
-        // Let the screen settle so the shot isn't caught mid-transition.
+        // Background the app. This is both what makes SpringBoard (not the
+        // app's own foreground presenter) draw the banner, and what triggers
+        // the harness to schedule it — the same order as production, where the
+        // notification is scheduled by the backgrounding that starts the
+        // background task.
+        XCUIDevice.shared.press(.home)
+
+        // ASSERT the banner appeared (see Step 19.31 — a discarded wait lets a
+        // wrong screenshot ship green).
+        let banner = springboard.staticTexts
+            .matching(NSPredicate(format: "label CONTAINS %@", "Still working on it"))
+            .firstMatch
+        XCTAssertTrue(
+            banner.waitForExistence(timeout: 20),
+            "No \"Still working on it…\" banner appeared on SpringBoard — the shot cannot show the notification icon. On a real device, check that Focus / Do Not Disturb is off; it suppresses the banner entirely."
+        )
+
+        // Let the banner's entrance animation finish.
         Thread.sleep(forTimeInterval: 1.0)
 
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// Tap "Allow" if the frontmost SpringBoard alert is the notification
+    /// permission prompt. Returns whether it did.
+    ///
+    /// A single non-retrying `exists`, not a timed wait: the caller has already
+    /// let the screen settle, and a timed wait here would burn the harness's
+    /// fire delay in the common case where permission is already granted and no
+    /// prompt is coming.
+    private func acceptNotificationPrompt(on springboard: XCUIApplication) -> Bool {
+        let allow = springboard.alerts.firstMatch.buttons["Allow"]
+        guard allow.exists else { return false }
+        allow.tap()
+        return true
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
