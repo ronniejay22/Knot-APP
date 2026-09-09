@@ -654,9 +654,9 @@ private struct JournalScreenshotHarnessView: View {
 
     private let partnerName = "Jas"
 
-    /// Mirrors `ForYouView.detailMilestone` so the harness exercises the real
-    /// button → cover path rather than handing the card a dead `{}` closure.
-    @State private var detailMilestone: MilestoneItemResponse?
+    /// Mirrors `ForYouView.sheetMilestone` so the harness exercises the real
+    /// button → sheet path rather than handing the card a dead `{}` closure.
+    @State private var sheetMilestone: MilestoneItemResponse?
 
     var body: some View {
         ScrollView {
@@ -672,7 +672,7 @@ private struct JournalScreenshotHarnessView: View {
                             partnerName: partnerName,
                             formattedDate: entry.1,
                             urgency: entry.2,
-                            onSeeDetails: { detailMilestone = entry.0 },
+                            onSeeDetails: { sheetMilestone = entry.0 },
                             onGetRecommendations: {}
                         )
                     }
@@ -683,13 +683,16 @@ private struct JournalScreenshotHarnessView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
-        .fullScreenCover(item: $detailMilestone) { milestone in
-            MilestoneDetailView(
+        // Presented exactly as production presents it — a stock `.sheet`, not a
+        // cover. A harness that composes a modal differently from the app is
+        // testing a composition the app doesn't use (Steps 19.28, 19.30).
+        .sheet(item: $sheetMilestone) { milestone in
+            MilestoneRecommendationSheet(
                 milestone: milestone,
                 partnerName: partnerName,
-                urgency: .distant,
-                onGetIdeas: {},
-                onDismiss: { detailMilestone = nil }
+                formattedDate: entries.first { $0.0.id == milestone.id }?.1 ?? "",
+                onGetRecommendations: {},
+                onDismiss: { sheetMilestone = nil }
             )
         }
     }

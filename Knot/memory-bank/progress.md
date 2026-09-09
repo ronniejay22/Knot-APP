@@ -9161,6 +9161,126 @@ backend, DTO, endpoint or migration change, so no `pytest` run applies to this d
 
 ---
 
+### Step 19.49 ✅ Journal — "See details" Raises a Bottom Sheet
+**Date:** 2026-09-08
+**Status:** Complete
+
+**Goal:** A Journal card's "See details" opened `MilestoneDetailView` in a full-screen cover
+(Step 19.48). Per Figma node `259:554` it should instead raise a small bottom sheet that names the
+occasion, says what will happen, and offers **Get recommendations** / **Not now**.
+
+**Confirmed with the user before building:** "See details" → the sheet, and the sheet's CTA pushes
+that event's recommendations. So both footer controls now reach the same destination but frame it
+differently — the button explains first, the sparkle icon goes straight through.
+
+**`MilestoneDetailView` is now unreachable from the Journal, and is kept rather than deleted.**
+`ForYouView` was its only production caller. It, `MilestoneDetailViewModel`, `SavedIdeaCard` and
+`MilestoneDetailScreenshotHarnessView` remain wired to the `milestoneDetail` harness key and
+covered by `MilestoneDetailViewTests` (22 cases) — the disposition `SpotlightDeckView` and
+`RecommendationCard` already have. Only the presenting wiring was removed, so nothing is
+half-dead. It was built one commit ago; deleting it was not the ask.
+
+**What changed:**
+
+*The sheet is a stock `.sheet`, not a hand-rolled cover.* Every bottom sheet in the app is
+`.sheet` + `.presentationDetents` + `.presentationDragIndicator` (12 call sites); the
+`fullScreenCover` + `presentationBackground(.clear)` + `disablesAnimations` apparatus in
+`RelationshipLengthModal` / `MilestoneDateModal` / `OccasionEntryModal` exists to defeat the
+sheet's bottom-slide so a card can float *centered*, and `architecture.md` says so outright. Using
+it here would have hand-rolled what `.sheet` does natively — including drag-to-dismiss — and added
+a fourth copy of machinery the memory bank already flags as duplicated. It also matters that a
+UIKit modal presents above the presenting controller's *entire* view, so it covers the
+`KnotTabBar` that `MainTabView` mounts via `.safeAreaInset`; a `ZStack` layer inside `ForYouView`
+could not, since the bar lives outside it.
+
+*The height hugs the content.* `.medium` is ~half the screen regardless of what's in it, and a
+magic `.height(N)` breaks the moment the 26pt headline wraps to three lines or Dynamic Type grows.
+The sheet measures its own content through a `PreferenceKey` and feeds
+`.presentationDetents([.height(measured)])`. Three things make that safe:
+
+- **`.fixedSize(horizontal: false, vertical: true)` on the content stack is load-bearing.** On the
+  first pass the sheet is only the seed height; without it the stack lays out against that
+  proposal, the title truncates, and the measurement reports the *truncated* height — so the sheet
+  would shrink instead of growing.
+- **The detent adds `safeAreaInsets.bottom`**, read from a `GeometryReader` that
+  `.ignoresSafeArea(.container, edges: .bottom)`. Set to the bare content height, "Not now" lands
+  under the home indicator and the sheet is scrollable ~34pt at rest.
+- **One detent whose value changes, never a changing detent set** (UIKit resolves a changed set by
+  snapping), with the first correction applied inside a `disablesAnimations` transaction so the
+  sheet doesn't visibly jump off its seed, and a `> 0.5` delta gate so sub-point churn can't start
+  a resize loop.
+
+*The push reuses Step 19.48's machinery unchanged.* `showIdeas(for:)` / `pendingIdeasMilestone` /
+`pushPendingIdeas` already solve "dismiss, *then* push onto the NavigationStack the presentation
+sits above" — `.sheet(item:onDismiss:)` fires `onDismiss` after the transition completes exactly as
+`.fullScreenCover` did. `recommendationDestination(for:)` stays the single builder shared with the
+sparkle icon so the two entry points cannot drift. `pushPendingIdeas`'s existing `guard let` also
+makes the new swipe-to-dismiss route a correct no-op.
+
+**Two gaps in the design system this exposed, both filled additively:**
+
+- **`Theme.Typography.sheetTitle`** — DMSans-Bold 26. It is the only Bold token at a display size;
+  every heading token is Light or SemiBold and `numeric` is Bold but 17pt. Bold is what makes a
+  sheet read as a prompt rather than another section header, so it gets its own token per the
+  standing precedent (18.22, 18.23, 19.32, 19.34) rather than borrowing `sectionHeaderSemibold`.
+- **`KnotButton.Variant.outlineNeutral`** — transparent fill, `textPrimary` label,
+  `textPrimary.opacity(0.5)` border. The comp's "Not now" is a *neutral* outlined button and
+  neither existing variant could be it: `.outline` is accent-on-accent and would read as a second
+  call to action beside the pink CTA, and `.secondary` fills with `surfaceElevated` (#F5F5F7 on a
+  white sheet — a ~1.04:1 contrast ratio, i.e. an invisible button shape), which is the same
+  no-contrast trap Steps 19.33 and 19.38 both recorded. A neutral decline is pure chrome and
+  squarely a primitive's concern, so extending the primitive beat a local snowflake. The case is
+  purely additive — no existing call site changes.
+
+**Copy diverges from the comp, deliberately.** The mock reads "…based on **her wishlist and past
+gifts**". The app has no wishlist and no purchase history (recommendations come from interests,
+hints, vibes and love languages), and it never collects a gender — every other partner-facing
+string in the app avoids pronouns for that reason. Shipped: "We'll find personalized
+recommendations for {partner} based on their interests and the hints you've saved." A test pins
+this so the mock's wording can't be "restored" later. Title and badge are verbatim.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneRecommendationSheet.swift` — the sheet, its self-measuring
+  presentation, and the pure copy helpers
+- `iOS/KnotTests/MilestoneRecommendationSheetTests.swift` — 19 cases
+- `docs/pr-screenshots/worktree-feat-journal-see-details-sheet.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — `detailMilestone` → `sheetMilestone`, the cover
+  swapped for `.sheet(item:onDismiss: pushPendingIdeas)`, doc comments
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — doc comments only; no API or visual change
+- `iOS/Knot/Core/Theme.swift` — `Typography.sheetTitle`
+- `iOS/Knot/Components/UI/KnotButton.swift` — `Variant.outlineNeutral` + a `borderColor` helper
+- `iOS/Knot/Features/Recommendations/OccasionCopy.swift` — `emoji(for:)` and its 21-entry map
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — the `journal` harness presents the sheet as
+  production does
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot repointed at `journal`, scripting the tap
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**Tests:** iOS Full plan green — **493 unit + 5 UI, 0 failures, 0 skipped**
+(474 unit baseline + 19 new). `KnotUITests/testLaunchPerformance` passed this run rather than
+needing the skip recorded in Steps 19.31/19.33/19.35, so that flake remains intermittent. No
+backend, DTO, endpoint or migration change, so no `pytest` run applies to this diff.
+
+**Notes:**
+- **The screenshot test scripts the tap** rather than presenting the sheet statically — that is
+  what proves "See details" actually opens it, which is the whole change (the same reason Step
+  19.9 scripted a tap for the Saved detail). The `journal` harness needed no new key; its existing
+  `@State` seam was simply repointed, which also keeps it mirroring production (Steps 19.28/19.30).
+- **`OccasionCopy.emoji(for:)` has no `default` entry on purpose.** That category means "we don't
+  know what this occasion is" and there is no honest glyph for it, so the badge degrades to
+  "Christmas · Dec 25" — the same rule `illustrationName(for:)` follows. A test pins the map
+  against `knownCategories`, so an occasion added to the copy catalogue can't ship without a glyph.
+- **The comp's `#f54266` was not adopted**; the CTA is `Theme.accent` like every other primary
+  button, per the call Step 19.25 made for `OccasionEntryModal`. Likewise the buttons take
+  `KnotButton`'s 12pt `Radius.md` rather than the comp's 8pt.
+- **The comp's background screen still shows the pre-19.31 vertical timeline.** That is a stale
+  mock, not a request to revert the card feed.
+- Worth verifying on a device: the sheet's height across a short and a long milestone name, and on
+  a home-button device where `safeAreaInsets.bottom` is 0.
+
+---
+
 ## Next Steps
 
 

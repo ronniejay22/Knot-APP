@@ -24,13 +24,15 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change is the Journal event detail screen behind "See details".
-        // The real screen needs auth, a live milestone and a saved idea already
-        // attributed to it, none of which a cold launch can reach — so the
-        // `milestoneDetail` harness renders it against an in-memory store
-        // seeded with three ideas saved for a Christmas milestone (plus one
-        // saved for a different event, which must not appear).
-        app.launchArguments += ["-uiTestScreenshot", "milestoneDetail"]
+        // The change is the bottom sheet a Journal card's "See details" now
+        // raises. The real Journal sits behind auth and a live milestone fetch,
+        // so the `journal` harness renders the same card feed with seeded
+        // milestones and presents the sheet exactly as `ForYouView` does.
+        //
+        // The tap is scripted rather than presenting the sheet statically: that
+        // is what proves the button actually opens it, which is the whole change
+        // (the same reason Step 19.9 scripted a tap for the Saved detail).
+        app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -41,17 +43,24 @@ final class PRScreenshotTests: XCTestCase {
         Thread.sleep(forTimeInterval: 2.0)
         dismissSystemAlerts()
 
-        // ASSERT both waits. A discarded wait lets a screenshot of an entirely
+        // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
+        let seeDetails = app.buttons["See details for Christmas"]
         XCTAssertTrue(
-            app.staticTexts["Christmas"].waitForExistence(timeout: 15),
-            "Event detail header never appeared — the screenshot would capture the wrong screen"
+            seeDetails.waitForExistence(timeout: 15),
+            "The Christmas card's \"See details\" button never appeared — the Journal feed did not render"
         )
+        seeDetails.tap()
+
         XCTAssertTrue(
-            app.staticTexts["Saved ideas"].waitForExistence(timeout: 10),
-            "The \"Saved ideas\" section never appeared — the shot cannot show the change"
+            app.staticTexts["Get gift ideas for Christmas?"].waitForExistence(timeout: 10),
+            "The recommendation sheet never appeared after tapping \"See details\" — the shot cannot show the change"
         )
+
+        // Let the sheet finish its presentation animation before capturing, or
+        // the image catches it mid-slide.
+        Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

@@ -347,6 +347,18 @@ extension Theme {
         /// Scales relative to `.title2`.
         static let cardTitleSemibold: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
 
+        /// DMSans-Bold (700) @ 26pt. The headline of a bottom sheet that asks
+        /// the user a question — currently the Journal's "Get gift ideas for
+        /// {event}?" sheet.
+        ///
+        /// The only Bold token at a display size: every other heading is Light
+        /// or SemiBold, and `numeric` is Bold but only 17pt. Bold is what makes
+        /// a sheet read as a prompt rather than as another section header, so
+        /// it gets its own token rather than borrowing `sectionHeaderSemibold`
+        /// — same reasoning as `cardTitleSemibold` vs `onboardingSubHeader`.
+        /// Scales relative to `.title`.
+        static let sheetTitle: Font = .custom(FontFamily.DMSans.bold, size: 26, relativeTo: .title)
+
         /// DMSans-Light (300) @ 17pt with synthesized italic — brand-moment
         /// quotes, sign-in tagline, recommendation attributions. Synthesized
         /// because no DM Sans italic cut is currently bundled; to upgrade to a
