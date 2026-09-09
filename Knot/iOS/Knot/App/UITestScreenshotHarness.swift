@@ -654,8 +654,10 @@ private struct JournalScreenshotHarnessView: View {
 
     private let partnerName = "Jas"
 
-    /// Mirrors `ForYouView.sheetMilestone` so the harness exercises the real
-    /// button → sheet path rather than handing the card a dead `{}` closure.
+    /// Mirror `ForYouView`'s two presentation seams so the harness exercises the
+    /// real button → destination paths rather than handing the card dead `{}`
+    /// closures.
+    @State private var detailMilestone: MilestoneItemResponse?
     @State private var sheetMilestone: MilestoneItemResponse?
 
     var body: some View {
@@ -672,8 +674,8 @@ private struct JournalScreenshotHarnessView: View {
                             partnerName: partnerName,
                             formattedDate: entry.1,
                             urgency: entry.2,
-                            onSeeDetails: { sheetMilestone = entry.0 },
-                            onGetRecommendations: {}
+                            onSeeDetails: { detailMilestone = entry.0 },
+                            onGetRecommendations: { sheetMilestone = entry.0 }
                         )
                     }
                 }
@@ -683,6 +685,15 @@ private struct JournalScreenshotHarnessView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.backgroundGradient.ignoresSafeArea())
+        .fullScreenCover(item: $detailMilestone) { milestone in
+            MilestoneDetailView(
+                milestone: milestone,
+                partnerName: partnerName,
+                urgency: .distant,
+                onGetIdeas: {},
+                onDismiss: { detailMilestone = nil }
+            )
+        }
         // Presented exactly as production presents it — a stock `.sheet`, not a
         // cover. A harness that composes a modal differently from the app is
         // testing a composition the app doesn't use (Steps 19.28, 19.30).

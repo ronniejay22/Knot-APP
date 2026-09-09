@@ -9161,24 +9161,22 @@ backend, DTO, endpoint or migration change, so no `pytest` run applies to this d
 
 ---
 
-### Step 19.49 ✅ Journal — "See details" Raises a Bottom Sheet
+### Step 19.49 ✅ Journal — The Recommendation Icon Asks Before It Generates
 **Date:** 2026-09-08
 **Status:** Complete
 
-**Goal:** A Journal card's "See details" opened `MilestoneDetailView` in a full-screen cover
-(Step 19.48). Per Figma node `259:554` it should instead raise a small bottom sheet that names the
-occasion, says what will happen, and offers **Get recommendations** / **Not now**.
+**Goal:** A Journal card's pink sparkle icon pushed straight into `RecommendationsView`, which runs
+a ~30s generation. The icon carries no label, so nothing on the card said what it was about to do.
+Per Figma node `259:554` it now raises a bottom sheet that names the occasion, says what will
+happen, and offers **Get recommendations** / **Not now**. "See details" is unchanged — it still
+opens `MilestoneDetailView` (Step 19.48).
 
-**Confirmed with the user before building:** "See details" → the sheet, and the sheet's CTA pushes
-that event's recommendations. So both footer controls now reach the same destination but frame it
-differently — the button explains first, the sparkle icon goes straight through.
-
-**`MilestoneDetailView` is now unreachable from the Journal, and is kept rather than deleted.**
-`ForYouView` was its only production caller. It, `MilestoneDetailViewModel`, `SavedIdeaCard` and
-`MilestoneDetailScreenshotHarnessView` remain wired to the `milestoneDetail` harness key and
-covered by `MilestoneDetailViewTests` (22 cases) — the disposition `SpotlightDeckView` and
-`RecommendationCard` already have. Only the presenting wiring was removed, so nothing is
-half-dead. It was built one commit ago; deleting it was not the ask.
+**The routing was got wrong first and corrected on review.** The sheet was initially wired to
+"See details", which both buried the event detail screen shipped one commit earlier and left the
+sheet's own copy — *"Get gift ideas for Christmas?"* — attached to a control that isn't asking for
+ideas. The sheet belongs to the icon; the icon is the unlabelled control that needed explaining.
+The two footer controls remain what they always were: **different destinations**, the button
+opening the event, the icon asking for ideas for it.
 
 **What changed:**
 
@@ -9213,9 +9211,12 @@ The sheet measures its own content through a `PreferenceKey` and feeds
 *The push reuses Step 19.48's machinery unchanged.* `showIdeas(for:)` / `pendingIdeasMilestone` /
 `pushPendingIdeas` already solve "dismiss, *then* push onto the NavigationStack the presentation
 sits above" — `.sheet(item:onDismiss:)` fires `onDismiss` after the transition completes exactly as
-`.fullScreenCover` did. `recommendationDestination(for:)` stays the single builder shared with the
-sparkle icon so the two entry points cannot drift. `pushPendingIdeas`'s existing `guard let` also
-makes the new swipe-to-dismiss route a correct no-op.
+`.fullScreenCover` does. `ForYouView` now carries **both** presentations, and since only one can be
+open at a time (they are raised by two different controls on the same card) `showIdeas(for:)` nils
+both and one helper serves the sheet's "Get recommendations" and the detail screen's "Get more
+ideas" alike. `recommendationDestination(for:)` stays the single builder behind both, so they
+cannot drift. `pushPendingIdeas`'s existing `guard let` also makes the sheet's new
+swipe-to-dismiss route a correct no-op.
 
 **Two gaps in the design system this exposed, both filled additively:**
 
@@ -9246,8 +9247,10 @@ this so the mock's wording can't be "restored" later. Title and badge are verbat
 - `docs/pr-screenshots/worktree-feat-journal-see-details-sheet.png`
 
 **Files modified:**
-- `iOS/Knot/Features/ForYou/ForYouView.swift` — `detailMilestone` → `sheetMilestone`, the cover
-  swapped for `.sheet(item:onDismiss: pushPendingIdeas)`, doc comments
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — added `sheetMilestone` + a
+  `.sheet(item:onDismiss: pushPendingIdeas)` alongside the existing detail cover; the card's
+  `onGetRecommendations` now raises the sheet instead of pushing; `showIdeas(for:)` nils both
+  presentations; doc comments
 - `iOS/Knot/Features/ForYou/MilestoneCard.swift` — doc comments only; no API or visual change
 - `iOS/Knot/Core/Theme.swift` — `Typography.sheetTitle`
 - `iOS/Knot/Components/UI/KnotButton.swift` — `Variant.outlineNeutral` + a `borderColor` helper
@@ -9264,9 +9267,12 @@ backend, DTO, endpoint or migration change, so no `pytest` run applies to this d
 
 **Notes:**
 - **The screenshot test scripts the tap** rather than presenting the sheet statically — that is
-  what proves "See details" actually opens it, which is the whole change (the same reason Step
-  19.9 scripted a tap for the Saved detail). The `journal` harness needed no new key; its existing
-  `@State` seam was simply repointed, which also keeps it mirroring production (Steps 19.28/19.30).
+  what proves the icon actually opens it, which is the whole change (the same reason Step 19.9
+  scripted a tap for the Saved detail). The `journal` harness needed no new key; it gained a second
+  `@State` seam so it now mirrors *both* of production's presentations (Steps 19.28/19.30).
+- **The icon's accessibility label was already "Get recommendations for {name}"** and stayed
+  accurate through the rewiring, which is what let the screenshot test target it without touching
+  `MilestoneCard`.
 - **`OccasionCopy.emoji(for:)` has no `default` entry on purpose.** That category means "we don't
   know what this occasion is" and there is no honest glyph for it, so the badge degrades to
   "Christmas · Dec 25" — the same rule `illustrationName(for:)` follows. A test pins the map

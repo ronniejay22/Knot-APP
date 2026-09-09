@@ -24,13 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change is the bottom sheet a Journal card's "See details" now
-        // raises. The real Journal sits behind auth and a live milestone fetch,
-        // so the `journal` harness renders the same card feed with seeded
+        // The change is the bottom sheet a Journal card's recommendation icon
+        // now raises. The real Journal sits behind auth and a live milestone
+        // fetch, so the `journal` harness renders the same card feed with seeded
         // milestones and presents the sheet exactly as `ForYouView` does.
         //
         // The tap is scripted rather than presenting the sheet statically: that
-        // is what proves the button actually opens it, which is the whole change
+        // is what proves the icon actually opens it, which is the whole change
         // (the same reason Step 19.9 scripted a tap for the Saved detail).
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
@@ -46,16 +46,16 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        let seeDetails = app.buttons["See details for Christmas"]
+        let getIdeas = app.buttons["Get recommendations for Christmas"]
         XCTAssertTrue(
-            seeDetails.waitForExistence(timeout: 15),
-            "The Christmas card's \"See details\" button never appeared — the Journal feed did not render"
+            getIdeas.waitForExistence(timeout: 15),
+            "The Christmas card's recommendation icon never appeared — the Journal feed did not render"
         )
-        seeDetails.tap()
+        getIdeas.tap()
 
         XCTAssertTrue(
             app.staticTexts["Get gift ideas for Christmas?"].waitForExistence(timeout: 10),
-            "The recommendation sheet never appeared after tapping \"See details\" — the shot cannot show the change"
+            "The recommendation sheet never appeared after tapping the icon — the shot cannot show the change"
         )
 
         // Let the sheet finish its presentation animation before capturing, or
