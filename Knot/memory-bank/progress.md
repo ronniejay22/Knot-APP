@@ -8937,9 +8937,95 @@ branding, operating party, and effective date.
 
 ---
 
-### Step 19.47 ✅ Journal — The Real Event Detail Screen, With That Event's Saved Ideas
+### Step 19.47 ✅ Recommendations — Remove the Match Tags From the Detail Page
 **Date:** 2026-09-08
 **Status:** Complete
+
+**Goal:** The "Why Knot picked this for {partner}" card on the recommendation detail page
+ended in a wrapped row of six colour-coded tag pills — `✧ Vintage`, `✧ Minimalist`,
+`✋ Receiving Gifts`, `✋ Quality Time`, `♥ travel`, `♥ games`. Removed.
+
+**Why.** They restate in tags what the note directly above already says in prose — the
+note in the reported screenshot reads *"Jas loves travel and minimalist aesthetics…"* and
+is then followed by pills saying `travel` and `Minimalist`. On a richly-matched
+recommendation the row wraps to two or three lines and pushes "About" down the page. This
+is the same decluttering Step 19.18 applied to `SpotlightCard`, which dropped its tag row
+for the same reason; the detail page was the last surface still carrying them.
+
+**The Figma file was already ahead of the code.** Frame `779:924` "Recommendation Detail —
+Experience" contains a `Chips` group that is **hidden**. The designer had switched the row
+off; this is the code catching up.
+
+**What changed — one file, one view:**
+- **`Features/Recommendations/RecommendationDetailView.swift`,** `whyBlock`: deleted the
+  `RecommendationDisplayChip.build(vibes:loveLanguages:interests:)` binding and the
+  `FlowLayout` of `MatchingFactorChip`s. The `VStack` is now the header plus the quoted
+  note.
+- **The render guard is now note-only.** It read
+  `if (note?.isEmpty == false) || !chips.isEmpty`. Carrying that second condition forward
+  would have left the card rendering for an item that has matched factors but no
+  `personalization_note` — an empty accent-tinted box containing nothing but the "Why Knot
+  picked this for …" header. It is now `if let note, !note.isEmpty`, so the note *is* the
+  block.
+- The file-header layout comment also still described the meta line as
+  `price · merchant · location`, which has been three stacked icon+text rows since Step
+  18.55. Corrected in the same paragraph.
+
+**Deliberately a call-site removal, not a deletion.** `RecommendationChips.swift`
+(`MatchingFactorChip`, `RecommendationDisplayChip`) and `Components/FlowLayout.swift` stay
+— `RecommendationCard.swift:364–375` still builds and renders them and is covered by
+`RecommendationCardTests`. Same disposition Step 19.18 recorded. `RecommendationCard` is
+now their **only** consumer; if that legacy card is ever removed, both go with it.
+
+**Also untouched:** the hero `GIFT` type badge (a different element — scoped labelling on
+the photo, not clutter in the rationale card) and the meta-row leading glyphs (store / `$`
+/ pin), which are icons on text rows rather than tags.
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot
+- `docs/pr-screenshots/worktree-feat-detail-remove-match-tags.png`
+
+**Tests:** Unit plan **461 passed**, 0 failures, no new warnings. Full plan **466 passed**
+(461 unit + 5 UI), **0 failures, 0 skipped** — `KnotUITests/testLaunchPerformance` passed
+on its own this run rather than needing the skip recorded in Steps 19.31/19.33/19.35, so
+that flake is intermittent rather than permanent. No test needed correcting:
+`RecommendationDetailCTATests` covers the CTA state machine and the render tests only
+construct the view — none asserted on chip content. Those render tests remain the
+construction regression guard.
+
+The suite does no view introspection, so it cannot assert the *absence* of a subview —
+**the PR screenshot is the artifact that proves the removal**, the same limitation
+recorded in Steps 19.18, 19.34, 19.35 and 19.38.
+
+**Notes:**
+- **The screenshot slot moved back to an in-app capture.** It was pointing at Step 19.41's
+  `notificationBanner` flow (launch → accept permission → press Home → photograph
+  SpringBoard). It now uses the `recDetail` harness and asserts on the "Why Knot picked
+  this" header before `app.screenshot()`. The fixture behind that key carries a
+  personalization note **and** all three matched-factor arrays, so the captured frame is
+  one that *would* have shown the tag row — a harness that seeds no matched factors would
+  produce an image that looks identical before and after, proving nothing. A harness only
+  proves what it actually seeds (Step 19.31).
+- **`acceptNotificationPrompt(on:)` was deleted, not left uncalled.** It existed only for
+  the banner path. Its one non-obvious rule — tap **Allow** directly, never call
+  `dismissSystemAlerts()` first, because that helper taps "Don't Allow" and denies the
+  permission the shot depends on — is recorded in Step 19.41 and in `architecture.md`, so
+  deleting the code does not lose the lesson. `dismissSystemAlerts()` stays; the new slot
+  calls it.
+- Scope was confirmed with the user mid-plan: the ask was the **tags**, not the hero badge.
+  Removing that badge too is a four-line deletion plus dropping the now-dead
+  `typeIconLucide` / `typeLabel` helpers, if it is ever wanted.
+
+---
+
+### Step 19.48 ✅ Journal — The Real Event Detail Screen, With That Event's Saved Ideas
+**Date:** 2026-09-08
+**Status:** Complete
+
+*(Numbered 19.48: Step 19.47 landed on `main` for the recommendation-detail match-tag
+removal while this branch was open. The already-merged number wins — the same shared-numbering
+contention Steps 19.29, 19.33 and 19.39 recorded.)*
 
 **Goal:** Replace the `MilestoneDetailView` placeholder — shipped in Step 19.38 purely so the
 card's "See details" button had an honest destination — with the real screen from Figma node

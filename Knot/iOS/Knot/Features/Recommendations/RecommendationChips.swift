@@ -4,8 +4,13 @@
 //
 //  Created on June 12, 2026.
 //  Spotlight redesign: shared "matched factor" chip + builder, extracted from
-//  RecommendationCard so the card, the Spotlight deck card, and the detail page
-//  all render match badges identically.
+//  RecommendationCard so every surface rendering match badges did so identically.
+//
+//  `RecommendationCard` is now the only such surface: `SpotlightCard` dropped its
+//  badge row in Step 19.18 and `RecommendationDetailView` in Step 19.47, both
+//  because the pills restated in tags what the copy beside them already said in
+//  prose. Kept rather than deleted because that card still builds and renders
+//  them and is covered by `RecommendationCardTests`; if it goes, so does this.
 //
 
 import SwiftUI
@@ -16,10 +21,14 @@ struct MatchingFactorChip: View {
     let label: String
     let style: ChipStyle
 
-    /// When true, the chip renders in the uniform cream "on-image" appearance used
-    /// by the Spotlight card (overlaid on a photo): a solid cream pill with dark
-    /// text and no icon, identical for every style. The default colored, icon-led
-    /// appearance is kept for the detail page and the legacy feed card.
+    /// When true, the chip renders in the uniform cream "on-image" appearance built
+    /// for the Spotlight card (overlaid on a photo): a solid cream pill with dark
+    /// text and no icon, identical for every style.
+    ///
+    /// **Currently unused** — `SpotlightCard` was its only caller and dropped its
+    /// badge row in Step 19.18. Retained because it is the one variant legible over
+    /// a photo, so any future on-image surface needs it rather than re-deriving it.
+    /// The default colored, icon-led appearance is what `RecommendationCard` renders.
     var onImage: Bool = false
 
     enum ChipStyle {

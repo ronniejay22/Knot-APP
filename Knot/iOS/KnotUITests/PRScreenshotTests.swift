@@ -36,8 +36,8 @@ final class PRScreenshotTests: XCTestCase {
         _ = app.wait(for: .runningForeground, timeout: 10)
 
         // Let the screen settle before any accessibility query — every miss
-        // costs a full hierarchy snapshot, and a burst of them has crashed the
-        // runner before (Step 19.31).
+        // costs a full hierarchy snapshot for XCTest's failure triage, and a
+        // burst of them has crashed the runner before (Step 19.31).
         Thread.sleep(forTimeInterval: 2.0)
         dismissSystemAlerts()
 
@@ -58,12 +58,6 @@ final class PRScreenshotTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-
-    // The `acceptNotificationPrompt(on:)` helper that paired with the
-    // `notificationBanner` harness was removed with this slot's previous
-    // occupant — it had no remaining caller. The banner-capture path (accept
-    // the prompt, press Home, screenshot SpringBoard) is described in Step
-    // 19.41 and recoverable from git if a future change needs it again.
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
     ///

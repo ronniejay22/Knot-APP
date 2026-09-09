@@ -16,10 +16,9 @@ import LucideIcons
 ///
 /// Layout (top → bottom):
 /// - Collapsing hero image with a single overlaid back button
-/// - Title + meta (price · merchant · location)
+/// - Title + a stacked meta list (merchant, price, location — one icon+text row each)
 /// - "Why Knot picked this for {partner}" — the personalization note elevated into
-///   the emotional centerpiece, with the matched vibes / love languages / interests
-///   as proof badges
+///   the emotional centerpiece
 /// - "About" description
 /// - Location row (experiences / dates)
 /// - Structured idea content (Knot Originals), via the shared `IdeaContentSectionsView`
@@ -306,36 +305,32 @@ struct RecommendationDetailView: View {
 
     // MARK: - Why Knot Picked This
 
+    /// The rationale card. Renders only when there is a personalization note to show —
+    /// the note IS the block. The matched vibe / love-language / interest pills that used
+    /// to sit beneath it were removed: they restated in tags what the note already says in
+    /// prose, and on a richly-matched recommendation they wrapped to two or three rows and
+    /// pushed "About" down the page. `SpotlightCard` dropped its equivalent row in Step
+    /// 19.18 for the same reason; this was the last surface still carrying them.
+    ///
+    /// The guard is deliberately note-only. It previously also passed on a non-empty chip
+    /// list, so keeping that condition after removing the chips would render an empty
+    /// tinted card containing nothing but the header for any item that has matched factors
+    /// but no note.
     @ViewBuilder
     private var whyBlock: some View {
-        let chips = RecommendationDisplayChip.build(
-            vibes: item.matchedVibes ?? [],
-            loveLanguages: item.matchedLoveLanguages ?? [],
-            interests: item.matchedInterests ?? []
-        )
         let note = item.personalizationNote?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if (note?.isEmpty == false) || !chips.isEmpty {
+        if let note, !note.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Why Knot picked this for \(partnerDisplayName)")
                     .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let note, !note.isEmpty {
-                    Text("\"\(note)\"")
-                        .knotFont(Theme.Typography.bodySmall)
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if !chips.isEmpty {
-                    FlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
-                        ForEach(chips) { chip in
-                            MatchingFactorChip(label: chip.label, style: chip.style)
-                        }
-                    }
-                }
+                Text("\"\(note)\"")
+                    .knotFont(Theme.Typography.bodySmall)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
