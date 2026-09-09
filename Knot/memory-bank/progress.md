@@ -9341,10 +9341,27 @@ mis-sold every generation the sheet has ever started.
   day count, and asserting a timing it doesn't have is worse than saying nothing. `spontaneous`
   substitutes *"No occasion needed."* — a timing sentence is nonsense for the absence of an
   occasion.
-- The offer clause keeps `"built from their interests and the hints you've saved"` verbatim in
-  every framing. Step 19.49 wrote it in place of the comp's "her wishlist and past gifts" — the
-  app has neither, and never collects a gender — and the guard against that regressing now runs
-  across all five framings rather than one string.
+- The offer clause ends with the same grounding tail in every framing:
+  `"built from their interests and how they like to be loved"`. Both name vault fields the user
+  fills in at onboarding, can still edit in Settings → Edit Profile, and that the generation
+  prompt reads on every run.
+
+**The tail was wrong on the first pass, and the guard meant to catch that missed it.** It
+shipped as `"…and the hints you've saved"`, carried over from Step 19.49 — but **hint capture
+has had no UI entry point** since Step 18.49 removed the Refresh button. `SessionHintsSheet` is
+still defined in `RecommendationsView.swift` and referenced only by its own `#Preview` and its
+tests; nothing presents it, so `submitSessionHintAndRefresh` and therefore
+`HintService.createHint` are unreachable. Step 18.6 had already deleted the Hints tab and the
+Home-screen capture, and Step 19.7 the Settings "Clear All Hints" row. The backend still
+retrieves hints into the prompt, so a legacy row can still influence a result — but a user
+cannot add one, and copy inviting them to is a promise the app can't keep.
+
+`testNoBodyClaimsAnythingTheAppDoesNotDo` existed precisely to stop this and did not, because
+its forbidden list only named the comp's claims (`wishlist`, `past gifts`, gendered pronouns).
+`hint` is now on that list, the list's own length is asserted so it can't be quietly emptied,
+and a companion test pins that every framing still names the two reachable fields. **A guard
+against unbacked claims has to be extended every time a feature is removed, not only when a new
+claim is written** — the copy didn't change under it; the app did.
 
 *The sheet*
 - `badgeText` moved across unchanged as `MilestoneRecommendationCopy.badge`; `title` and `body`

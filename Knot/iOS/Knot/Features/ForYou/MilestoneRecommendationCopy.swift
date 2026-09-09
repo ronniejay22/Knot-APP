@@ -229,28 +229,44 @@ extension MilestoneRecommendationCopy {
 
     /// What the sheet promises to go and find, per framing.
     ///
-    /// Every variant keeps the "built from their interests and the hints you've
-    /// saved" tail verbatim. Step 19.49 wrote it deliberately in place of the
-    /// comp's "her wishlist and past gifts" — the app has neither a wishlist nor
-    /// purchase history, and never collects a gender — and a test forbids those
-    /// claims coming back.
+    /// Every variant ends with the same grounding tail — "built from their
+    /// interests and how they like to be loved" — naming the two vault fields
+    /// the user actually fills in and can still edit (Settings → Edit Profile →
+    /// Interests / Love Languages), which the generation prompt reads on every
+    /// run.
+    ///
+    /// **The tail must only name mechanisms the user can actually reach.** Two
+    /// have already had to be removed for failing that test:
+    ///
+    /// - the comp's "her wishlist and past gifts" — the app has neither a
+    ///   wishlist nor purchase history, and never collects a gender;
+    /// - "the hints you've saved" — hint capture has had **no UI entry point**
+    ///   since the Refresh button was removed, which left `SessionHintsSheet`
+    ///   defined but never presented and `HintService.createHint` unreachable.
+    ///   The backend still retrieves hints and feeds them to the prompt, so a
+    ///   legacy row can still influence a result, but a user cannot add one —
+    ///   and copy that invites them to is a promise the app can't keep.
+    ///
+    /// `testNoBodyClaimsAnythingTheAppDoesNotDo` forbids all of the above.
+    /// Anything new added here has to be checked the same way: find the control
+    /// that produces it, not just the field that stores it.
     static func offerClause(framing: Framing, partnerName: String) -> String {
         let partner = resolvedPartnerName(partnerName)
 
         switch framing {
         case .giftForward:
-            return "We'll find gifts, experiences and plans for \(partner), built from their interests and the hints you've saved."
+            return "We'll find gifts, experiences and plans for \(partner), built from their interests and how they like to be loved."
         case .sharedOccasion:
             // "for the two of you", not "to mark it" — the lead clause is
             // dropped for an undated milestone, and a pronoun with nothing to
             // refer back to would dangle.
-            return "We'll find date plans, experiences and gifts for the two of you, built from \(partner)'s interests and the hints you've saved."
+            return "We'll find date plans, experiences and gifts for the two of you, built from \(partner)'s interests and how they like to be loved."
         case .gesture:
-            return "We'll find small gestures, thoughtful gifts and low-key ideas for \(partner), built from their interests and the hints you've saved."
+            return "We'll find small gestures, thoughtful gifts and low-key ideas for \(partner), built from their interests and how they like to be loved."
         case .spontaneous:
-            return "We'll find small gifts, spontaneous dates and ideas for \(partner), built from their interests and the hints you've saved."
+            return "We'll find small gifts, spontaneous dates and ideas for \(partner), built from their interests and how they like to be loved."
         case .unknown:
-            return "We'll find gifts, dates and plans for \(partner), built from their interests and the hints you've saved."
+            return "We'll find gifts, dates and plans for \(partner), built from their interests and how they like to be loved."
         }
     }
 

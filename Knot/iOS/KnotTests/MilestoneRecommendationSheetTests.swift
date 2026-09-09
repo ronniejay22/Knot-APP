@@ -222,15 +222,15 @@ final class MilestoneRecommendationBodyTests: XCTestCase {
     func testBodyLeadsWithTheEventAndItsTiming() {
         XCTAssertEqual(
             body(.giftForward),
-            "Christmas is in 175 days. We'll find gifts, experiences and plans for Jas, built from their interests and the hints you've saved."
+            "Christmas is in 175 days. We'll find gifts, experiences and plans for Jas, built from their interests and how they like to be loved."
         )
         XCTAssertEqual(
             body(.sharedOccasion, name: "Our Anniversary", daysUntil: 7),
-            "Our Anniversary is next week. We'll find date plans, experiences and gifts for the two of you, built from Jas's interests and the hints you've saved."
+            "Our Anniversary is next week. We'll find date plans, experiences and gifts for the two of you, built from Jas's interests and how they like to be loved."
         )
         XCTAssertEqual(
             body(.gesture, name: "Jas's Big Presentation", daysUntil: 3),
-            "Jas's Big Presentation is in 3 days. We'll find small gestures, thoughtful gifts and low-key ideas for Jas, built from their interests and the hints you've saved."
+            "Jas's Big Presentation is in 3 days. We'll find small gestures, thoughtful gifts and low-key ideas for Jas, built from their interests and how they like to be loved."
         )
     }
 
@@ -282,19 +282,56 @@ final class MilestoneRecommendationBodyTests: XCTestCase {
         }
     }
 
-    /// The app has no wishlist and no purchase history, and never collects a
-    /// gender — the comp's copy claimed all three. Guards the rewrite so nobody
-    /// "restores" the mock's wording later. Runs across every framing now that
-    /// there are five of them rather than one string.
+    /// The grounding tail may only name mechanisms the user can actually reach.
+    /// Three claims have already failed that test and are pinned here:
+    ///
+    /// - `wishlist` / `past gifts` — the comp promised both; the app has
+    ///   neither a wishlist nor purchase history.
+    /// - `her` / `his` — the comp used a pronoun for a gender the app never
+    ///   collects.
+    /// - `hint` — hint capture has **no UI entry point**: `SessionHintsSheet`
+    ///   is defined but never presented (the Refresh button that raised it was
+    ///   removed), so `HintService.createHint` is unreachable. The backend
+    ///   still reads hints into the prompt, but a user cannot save one, so
+    ///   "the hints you've saved" invited an action the app doesn't offer.
+    ///   That one shipped *past this test* because the list only named the
+    ///   comp's claims — hence this note, and hence the check below that the
+    ///   list itself hasn't been quietly emptied.
     func testNoBodyClaimsAnythingTheAppDoesNotDo() {
+        let forbiddenClaims = ["wishlist", "past gifts", " her ", " his ", "hint"]
+
+        // A guard that can be defeated by deleting its own list isn't a guard.
+        XCTAssertEqual(
+            forbiddenClaims.count, 5,
+            "Claims were removed from the forbidden list — each was added because copy shipped that the app could not back up"
+        )
+
         for framing in MilestoneRecommendationCopy.Framing.allCases {
             let resolved = body(framing).lowercased()
-            for forbidden in ["wishlist", "past gifts", " her ", " his "] {
+            for forbidden in forbiddenClaims {
                 XCTAssertFalse(
                     resolved.contains(forbidden),
                     "\(framing) body mentions \"\(forbidden)\""
                 )
             }
+        }
+    }
+
+    /// The replacement tail names interests and love languages. Both are
+    /// collected during onboarding and remain editable in Settings → Edit
+    /// Profile, and both are read by the generation prompt on every run — so
+    /// unlike hints, the sheet is describing something the user can act on.
+    func testEveryFramingGroundsItselfInReachableVaultFields() {
+        for framing in MilestoneRecommendationCopy.Framing.allCases {
+            let resolved = body(framing).lowercased()
+            XCTAssertTrue(
+                resolved.contains("interests"),
+                "\(framing) body drops the interests grounding"
+            )
+            XCTAssertTrue(
+                resolved.contains("how they like to be loved"),
+                "\(framing) body drops the love-language grounding"
+            )
         }
     }
 }
