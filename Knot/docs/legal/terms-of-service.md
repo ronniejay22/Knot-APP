@@ -1,9 +1,9 @@
 # Knot Terms of Service
 
-**Last updated: [Effective Date]**
+**Last updated: September 6, 2026**
 
 These Terms of Service ("Terms") are a legal agreement between you and
-**[Company Legal Name]** ("Knot," "we," "us," or "our") governing your use of the Knot
+**Ronald Jones Jr** ("Knot," "we," "us," or "our") governing your use of the Knot
 mobile application and related services (together, the "Service"). Please read them
 carefully.
 
@@ -93,11 +93,79 @@ intellectual property laws. We grant you a limited, non-exclusive, non-transfera
 revocable license to use the Service for your personal, non-commercial use in
 accordance with these Terms. All rights not expressly granted are reserved.
 
-## 10. Fees
+## 10. Subscriptions and billing
 
-The Service is currently provided **free of charge**. We reserve the right to
-introduce paid features or plans in the future. If we do, we will provide notice and,
-where required, obtain your consent before charging you.
+Knot offers an optional auto-renewing subscription, **Knot Premium**. The features it
+includes are the ones described on the subscription screen in the app at the time you
+subscribe. We may change what a subscription includes over time; if we materially reduce
+it, you can cancel as described below.
+
+### a. Plans and pricing
+
+Knot Premium is offered in two plans:
+
+| Plan | Length | Price |
+| --- | --- | --- |
+| Knot Premium — Monthly | 1 month | US $9.99 per month |
+| Knot Premium — 12 Months | 1 year | US $59.99 per year |
+
+The prices above are the U.S. prices and may differ in other regions based on local
+pricing and applicable taxes. Before you confirm, Apple's purchase sheet shows the
+amount that will actually be charged in your local currency — **that is the price that
+governs.**
+
+### b. Free trial
+
+Both plans include a **7-day free trial** for eligible new subscribers. Unless you
+cancel at least 24 hours before the trial ends, the trial **automatically converts to a
+paid subscription** and your Apple Account is charged the price of the plan you
+selected. Free trial eligibility is determined by Apple, and any unused portion of a
+free trial is forfeited if you purchase a subscription during the trial period.
+
+### c. Automatic renewal
+
+**Your subscription renews automatically.** At the end of each billing period it renews
+for another period of the same length at the then-current price, and your Apple Account
+is charged within 24 hours before the period ends, unless you cancel first. This
+continues until you cancel.
+
+### d. Payment
+
+Subscriptions are sold through the Apple App Store and charged to your **Apple Account**.
+Payment is processed by Apple, not by us. We never receive, handle, or store your
+payment card, bank, or other financial details (see Section 2 of our
+[Privacy Policy](privacy-policy.md)).
+
+### e. Cancelling
+
+You can cancel at any time in **Settings ▸ your Apple Account ▸ Subscriptions** on your
+device, or through the App Store. Cancellation takes effect at the end of the current
+billing period, and you keep access until then. To avoid being charged for the next
+period, cancel **at least 24 hours before** the current period ends.
+
+**Deleting the Knot app does not cancel your subscription**, and neither does deleting
+your Knot account — you must cancel through Apple as described above.
+
+### f. Refunds
+
+Payments are handled by Apple, so refunds are governed by **Apple's Media Services Terms
+and Conditions** and are granted at Apple's discretion. We cannot issue refunds for App
+Store purchases. Except where required by law, subscription fees are non-refundable and
+we do not provide refunds or credits for partial periods.
+
+### g. Price changes
+
+If we change the price of a subscription, the new price will not apply to you until your
+next renewal, and Apple will notify you and obtain your consent where required before
+the change takes effect. If you do not agree to the new price, you can cancel before it
+applies.
+
+### h. Restoring a purchase
+
+Your subscription is tied to your **Apple Account**, not to your Knot account, so it
+follows you to any device signed in to the App Store with that Apple Account. If an
+active subscription is not recognized, use the **"Restore Purchases"** option on the
+subscription screen, or contact us at the address in Section 18.
 
 ## 11. Communications and notifications
 
@@ -117,8 +185,8 @@ ALLOW THE EXCLUSION OF CERTAIN WARRANTIES, THE ABOVE EXCLUSIONS MAY NOT APPLY TO
 
 ## 13. Limitation of liability
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL [COMPANY LEGAL NAME] OR ITS
-OFFICERS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL RONALD JONES JR OR THEIR
+OFFICERS, EMPLOYEES, CONTRACTORS, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
 CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR OTHER
 INTANGIBLE LOSSES, ARISING OUT OF OR RELATING TO YOUR USE OF (OR INABILITY TO USE) THE
 SERVICE. OUR TOTAL LIABILITY FOR ANY CLAIM RELATING TO THE SERVICE WILL NOT EXCEED THE
@@ -128,8 +196,8 @@ MAY NOT APPLY TO YOU.
 
 ## 14. Indemnification
 
-You agree to indemnify and hold harmless [Company Legal Name] and its officers,
-employees, and agents from any claims, damages, liabilities, and expenses (including
+You agree to indemnify and hold harmless Ronald Jones Jr and their officers,
+employees, contractors, and agents from any claims, damages, liabilities, and expenses (including
 reasonable legal fees) arising out of or related to Your Content, your use of the
 Service, or your violation of these Terms or applicable law.
 
@@ -139,16 +207,25 @@ You may stop using the Service and delete your account at any time from within t
 (subject to the deletion process described in our Privacy Policy). We may suspend or
 terminate your access if you violate these Terms, if required by law, or if we
 discontinue the Service. Upon termination, your license to use the Service ends;
-sections that by their nature should survive (including Sections 5, 8, 9, and 12–16)
+sections that by their nature should survive (including Sections 5, 8, 9, 10, and 12–16)
 will survive.
+
+**Deleting your account is not the same as cancelling your subscription.** If you have an
+active Knot Premium subscription, you must cancel it through Apple as described in
+Section 10(e) — otherwise it will continue to renew and bill even after you delete your
+account or remove the app.
 
 ## 16. Governing law and disputes
 
-These Terms are governed by the laws of **[Governing-law State/Country]**, without
-regard to its conflict-of-laws rules. You agree that the state and federal courts
-located in **[Governing-law State/Country]** will have exclusive jurisdiction over any
-dispute arising out of or relating to these Terms or the Service, and you consent to
-their jurisdiction and venue, except where prohibited by applicable law.
+These Terms are governed by the laws of **the State of California, USA**, without regard
+to its conflict-of-laws rules. You agree that the state and federal courts located in
+**the State of California, USA** will have exclusive jurisdiction over any dispute
+arising out of or relating to these Terms or the Service, and you consent to their
+jurisdiction and venue, except where prohibited by applicable law.
+
+If you are a consumer resident in a jurisdiction whose law entitles you to bring
+proceedings in your local courts, or grants you protections that cannot be waived by
+agreement, nothing in this section removes those rights.
 
 ## 17. Changes to these Terms
 
@@ -161,6 +238,5 @@ revised Terms.
 
 Questions about these Terms? Contact us at:
 
-**[Company Legal Name]**
-Email: privacy@knot-app.com
-Mailing address: [Mailing Address]
+**Ronald Jones Jr**
+Email: knottheapp@gmail.com

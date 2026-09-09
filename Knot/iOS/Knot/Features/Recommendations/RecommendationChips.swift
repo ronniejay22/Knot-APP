@@ -7,7 +7,7 @@
 //  RecommendationCard so every surface rendering match badges did so identically.
 //
 //  `RecommendationCard` is now the only such surface: `SpotlightCard` dropped its
-//  badge row in Step 19.18 and `RecommendationDetailView` in Step 19.42, both
+//  badge row in Step 19.18 and `RecommendationDetailView` in Step 19.47, both
 //  because the pills restated in tags what the copy beside them already said in
 //  prose. Kept rather than deleted because that card still builds and renders
 //  them and is covered by `RecommendationCardTests`; if it goes, so does this.
