@@ -348,8 +348,8 @@ extension Theme {
         static let cardTitleSemibold: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
 
         /// DMSans-Bold (700) @ 26pt. The headline of a bottom sheet that asks
-        /// the user a question — currently the Journal's "Get gift ideas for
-        /// {event}?" sheet.
+        /// the user a question — currently `MilestoneRecommendationSheet`, whose
+        /// headline is resolved per occasion by `MilestoneRecommendationCopy`.
         ///
         /// The only Bold token at a display size: every other heading is Light
         /// or SemiBold, and `numeric` is Bold but only 17pt. Bold is what makes
