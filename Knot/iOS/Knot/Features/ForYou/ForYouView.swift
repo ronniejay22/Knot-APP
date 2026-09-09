@@ -36,6 +36,10 @@ struct ForYouView: View {
     /// `.fullScreenCover(item:)` directly with no wrapper type.
     @State private var detailMilestone: MilestoneItemResponse?
 
+    /// Set when the detail screen's "Get more ideas" is tapped, consumed by the
+    /// cover's `onDismiss` so the push happens after the cover is really gone.
+    @State private var pendingIdeasMilestone: MilestoneItemResponse?
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -91,10 +95,12 @@ struct ForYouView: View {
             // Hangs off the ZStack alongside the presentations above, NOT off
             // `timelineContent` — that subtree carries `.toolbar(.hidden,…)`,
             // which a presentation attached inside it would inherit.
-            .fullScreenCover(item: $detailMilestone) { milestone in
+            .fullScreenCover(item: $detailMilestone, onDismiss: pushPendingIdeas) { milestone in
                 MilestoneDetailView(
                     milestone: milestone,
                     partnerName: viewModel.partnerName,
+                    urgency: viewModel.urgencyLevel(for: milestone.daysUntil ?? 365),
+                    onGetIdeas: { showIdeas(for: milestone) },
                     onDismiss: { detailMilestone = nil }
                 )
             }
@@ -238,20 +244,51 @@ struct ForYouView: View {
                     urgency: viewModel.urgencyLevel(for: daysUntil),
                     onSeeDetails: { detailMilestone = milestone },
                     onGetRecommendations: {
-                        navigationDestination = RecommendationDestination(
-                            milestoneId: milestone.id,
-                            context: MilestoneDisplayContext(
-                                name: milestone.milestoneName,
-                                type: milestone.milestoneType,
-                                daysUntil: daysUntil,
-                                partnerName: viewModel.partnerName,
-                                occasionType: viewModel.occasionType(for: milestone)
-                            )
-                        )
+                        navigationDestination = recommendationDestination(for: milestone)
                     }
                 )
             }
         }
+    }
+
+    // MARK: - Recommendation Navigation
+
+    /// The push target for an event's contextual recommendations. Shared by the
+    /// card's idea button and the detail screen's "Get more ideas" CTA so the
+    /// two can never drift.
+    private func recommendationDestination(
+        for milestone: MilestoneItemResponse
+    ) -> RecommendationDestination {
+        RecommendationDestination(
+            milestoneId: milestone.id,
+            context: MilestoneDisplayContext(
+                name: milestone.milestoneName,
+                type: milestone.milestoneType,
+                daysUntil: milestone.daysUntil ?? 365,
+                partnerName: viewModel.partnerName,
+                occasionType: viewModel.occasionType(for: milestone)
+            )
+        )
+    }
+
+    /// Closes the event detail cover, remembering that a push should follow.
+    ///
+    /// The push lands on this screen's `NavigationStack`, which the cover sits
+    /// above, so the dismissal has to *finish* first — and it animates for a few
+    /// hundred milliseconds. Hopping one runloop turn is nowhere near long
+    /// enough and would drop the push; `pushPendingIdeas` runs from the cover's
+    /// own `onDismiss`, which fires when the dismissal actually completes.
+    private func showIdeas(for milestone: MilestoneItemResponse) {
+        pendingIdeasMilestone = milestone
+        detailMilestone = nil
+    }
+
+    /// Pushes the recommendations the detail screen asked for, once its cover
+    /// has finished dismissing. A no-op when the cover was closed any other way.
+    private func pushPendingIdeas() {
+        guard let milestone = pendingIdeasMilestone else { return }
+        pendingIdeasMilestone = nil
+        navigationDestination = recommendationDestination(for: milestone)
     }
 
     // MARK: - Empty Timeline

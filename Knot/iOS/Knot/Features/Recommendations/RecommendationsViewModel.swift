@@ -183,6 +183,10 @@ final class RecommendationsViewModel {
     private let milestoneFetcher: any MilestoneRecommendationsFetching
     private var modelContext: ModelContext?
 
+    /// The event this surface is showing recommendations for, if any. Set by
+    /// `configure(modelContext:milestoneId:)` and stamped onto every save.
+    private var currentMilestoneId: String?
+
     init(
         service: RecommendationService = RecommendationService(),
         hintService: HintService = HintService(),
@@ -194,8 +198,15 @@ final class RecommendationsViewModel {
     }
 
     /// Configures the model context for local persistence. Called from the view.
-    func configure(modelContext: ModelContext) {
+    ///
+    /// - Parameter milestoneId: The event these recommendations belong to, when
+    ///   the surface was opened with milestone context. Saves are stamped with
+    ///   it so the event's detail screen can list the ideas saved for it. `nil`
+    ///   for the "just because" and onboarding-reveal surfaces, which belong to
+    ///   no event.
+    func configure(modelContext: ModelContext, milestoneId: String? = nil) {
         self.modelContext = modelContext
+        self.currentMilestoneId = milestoneId
         loadSavedIds()
         Task { await loadPartnerName() }
     }
@@ -551,7 +562,18 @@ final class RecommendationsViewModel {
     /// If the recommendation is already saved, this is a no-op (the button toggles
     /// to "Saved" state and stays there — unsave is not supported in the MVP).
     func saveRecommendation(_ item: RecommendationItemResponse) {
-        guard !isSaved(item.id) else { return }
+        guard !isSaved(item.id) else {
+            // Already in the library — but it may have been saved from a
+            // surface with no event behind it (the "Surprise them today" card,
+            // the onboarding reveal), in which case saving it again from an
+            // event is the user asking for it to appear under that event.
+            // Filling a blank is strictly an improvement; an idea already
+            // attributed to a *different* event is deliberately left alone,
+            // since `recommendationId` is unique and re-pointing it would
+            // silently remove the idea from the other event's list.
+            backfillMilestoneIfUnattributed(recommendationId: item.id)
+            return
+        }
 
         // Insert into SwiftData
         if let modelContext {
@@ -571,7 +593,8 @@ final class RecommendationsViewModel {
                 merchantName: item.merchantName,
                 imageURL: item.imageUrl,
                 isIdea: item.isIdea == true,
-                contentSectionsData: contentData
+                contentSectionsData: contentData,
+                milestoneId: currentMilestoneId
             )
             modelContext.insert(saved)
             try? modelContext.save()
@@ -798,6 +821,26 @@ final class RecommendationsViewModel {
         if let saved = try? modelContext.fetch(descriptor) {
             savedRecommendationIds = Set(saved.map(\.recommendationId))
         }
+    }
+
+    /// Attributes an already-saved idea to the current event, but only if it
+    /// isn't attributed to one yet.
+    ///
+    /// `savedRecommendationIds` spans the whole library, so without this an idea
+    /// saved earlier from a no-event surface could never reach an event's list:
+    /// the save button reads "Saved", the early return fires, and the idea is
+    /// invisible on the detail screen the user expects it on.
+    private func backfillMilestoneIfUnattributed(recommendationId: String) {
+        guard let modelContext, let milestoneId = currentMilestoneId else { return }
+
+        let descriptor = FetchDescriptor<SavedRecommendation>()
+        guard let existing = try? modelContext.fetch(descriptor)
+            .first(where: { $0.recommendationId == recommendationId }),
+              existing.milestoneId == nil
+        else { return }
+
+        existing.milestoneId = milestoneId
+        try? modelContext.save()
     }
 
     // MARK: - App Review Prompt Helpers (Step 10.4)

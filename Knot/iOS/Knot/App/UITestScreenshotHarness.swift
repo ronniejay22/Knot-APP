@@ -65,6 +65,8 @@ enum UITestScreenshotHarness {
             RecDetailSaveCTAHarnessView()
         case "savedMoments":
             SavedMomentsScreenshotHarnessView()
+        case "milestoneDetail":
+            MilestoneDetailScreenshotHarnessView()
         case "settings":
             // Profile/Settings screen standalone — proves the Appearance/Dark
             // Mode row is gone. `authViewModel` (injected by ContentView) and the
@@ -477,6 +479,124 @@ private struct SavedMomentsScreenshotHarnessView: View {
     }
 }
 
+/// Renders the Journal event detail screen standalone with a populated
+/// "Saved ideas" list.
+///
+/// The real screen reads saved ideas out of the app's SwiftData store, and the
+/// list is only non-empty once the user has saved something from that event's
+/// recommendations — which a cold screenshot launch can't reach (it needs auth,
+/// a live milestone, and a generation round trip). This injects an isolated
+/// in-memory container holding ideas already attributed to the milestone below.
+///
+/// `imageURL` is deliberately left nil on every sample: a remote image would
+/// make the capture depend on the network, and the bundled per-type fallback is
+/// what the card is designed to fall back to anyway (Step 19.13).
+/// File-scope so both the milestone and the seeded saves can reference it — a
+/// `static` member of the `@MainActor` harness below is main-actor isolated and
+/// unreachable from the container's (nonisolated) property initializer.
+private let harnessChristmasMilestoneId = "harness-christmas"
+
+@MainActor
+private struct MilestoneDetailScreenshotHarnessView: View {
+
+    private let milestone = MilestoneItemResponse(
+        id: harnessChristmasMilestoneId,
+        milestoneType: "holiday",
+        milestoneName: "Christmas",
+        milestoneDate: "2000-12-25",
+        recurrence: "yearly",
+        budgetTier: "major_milestone",
+        daysUntil: 175,
+        createdAt: "2026-07-04",
+        occasionCategory: "christmas"
+    )
+
+    private let container: ModelContainer = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        // Force-unwrap is acceptable in this DEBUG-only screenshot seam.
+        let container = try! ModelContainer(for: SavedRecommendation.self, configurations: config)
+        let context = container.mainContext
+
+        // Types vary so each card draws its own bundled fallback photo. A real
+        // saved list mixes gifts with experiences and Knot Originals, and
+        // seeding one type would repeat the same image three times — which
+        // reads as a broken card rather than a deterministic fallback.
+        func idea(
+            _ id: String,
+            _ type: String,
+            _ title: String,
+            _ note: String,
+            _ priceCents: Int?,
+            _ savedAt: TimeInterval
+        ) -> SavedRecommendation {
+            SavedRecommendation(
+                recommendationId: id,
+                recommendationType: type,
+                title: title,
+                descriptionText: note,
+                priceCents: priceCents,
+                merchantName: "Knot",
+                isIdea: type == "idea",
+                milestoneId: harnessChristmasMilestoneId,
+                savedAt: Date(timeIntervalSince1970: savedAt)
+            )
+        }
+
+        context.insert(idea(
+            "harness-idea-1",
+            "gift",
+            "Cozy Ribbed Knit Scarf",
+            "Jas mentioned loving warm earth tones for winter. This alpaca blend in oatmeal fits her exact vibe.",
+            4500,
+            1_700_000_300
+        ))
+
+        context.insert(idea(
+            "harness-idea-2",
+            "experience",
+            "Candlelit Pottery Evening",
+            "A two-hour wheel-throwing class in Silver Lake — she's been talking about trying it since spring.",
+            3200,
+            1_700_000_200
+        ))
+
+        // No price: a Knot Original has nothing to buy, so the price slot must
+        // simply be absent rather than rendering a "$0".
+        context.insert(idea(
+            "harness-idea-3",
+            "idea",
+            "Handwritten Recipe Box",
+            "Copy out the five meals you've cooked together this year and box them with the ingredients for the first one.",
+            nil,
+            1_700_000_100
+        ))
+
+        // A save from a different event, proving the screen lists only its own.
+        context.insert(SavedRecommendation(
+            recommendationId: "harness-other-event",
+            recommendationType: "date",
+            title: "Sunset Picnic in the Park",
+            descriptionText: "Saved for a different milestone — must not appear here.",
+            isIdea: true,
+            milestoneId: "some-other-milestone"
+        ))
+
+        try? context.save()
+        return container
+    }()
+
+    var body: some View {
+        MilestoneDetailView(
+            milestone: milestone,
+            partnerName: "Jasmine",
+            urgency: .distant,
+            onGetIdeas: {},
+            onDismiss: {}
+        )
+        .modelContainer(container)
+    }
+}
+
 /// Renders the For You "Surprise them today" card standalone with a partner name, so a
 /// screenshot shows the JustBecauseCard header (now without a leading icon) and the
 /// "Get Recommendations" button (also without an icon). The full ForYouView normally sits
@@ -567,6 +687,8 @@ private struct JournalScreenshotHarnessView: View {
             MilestoneDetailView(
                 milestone: milestone,
                 partnerName: partnerName,
+                urgency: .distant,
+                onGetIdeas: {},
                 onDismiss: { detailMilestone = nil }
             )
         }

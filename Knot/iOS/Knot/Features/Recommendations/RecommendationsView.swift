@@ -135,7 +135,9 @@ struct RecommendationsView: View {
                 }
             }
             .task {
-                viewModel.configure(modelContext: modelContext)
+                // The milestone id travels with the save so the event's detail
+                // screen can list the ideas saved for it.
+                viewModel.configure(modelContext: modelContext, milestoneId: milestoneId)
                 // A harness-seeded VM (or a tab revisit) already has content —
                 // skip networking entirely.
                 guard !viewModel.hasLoadedInitially else { return }

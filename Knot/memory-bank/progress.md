@@ -8937,6 +8937,144 @@ branding, operating party, and effective date.
 
 ---
 
+### Step 19.47 ✅ Journal — The Real Event Detail Screen, With That Event's Saved Ideas
+**Date:** 2026-09-08
+**Status:** Complete
+
+**Goal:** Replace the `MilestoneDetailView` placeholder — shipped in Step 19.38 purely so the
+card's "See details" button had an honest destination — with the real screen from Figma node
+`579:421`, and give it something to show: the ideas the user saved out of *that event's*
+contextual recommendations.
+
+**The seam needed no change.** `ForYouView.detailMilestone` → `.fullScreenCover(item:)` was
+built for this swap and the file header said so; replacing that one file's body was most of
+the work. What did not exist was any way to know which event an idea was saved *for*.
+
+**Root cause of the gap:** `SavedRecommendation` recorded no milestone. The save path
+(`RecommendationsViewModel.saveRecommendation`) had no idea which surface it was running on,
+even though `RecommendationsView` has held a `milestoneId` since Step 19.22 — so every save
+landed in one undifferentiated library and an event could not list its own.
+
+**What changed:**
+
+*Attribution — the only non-UI work*
+- `SavedRecommendation` gains `milestoneId: String?`, defaulted `nil`. Optional, so SwiftData
+  applies lightweight migration and the container is untouched — the same move Step 19.7 used
+  for `completedAt` / `rating` / `reflectionNote`.
+- `RecommendationsViewModel.configure(modelContext:)` takes a defaulted `milestoneId:` and
+  stores it; `saveRecommendation` stamps it. `RecommendationsView` passes the id it already
+  holds, so the Journal card's idea button **and** the milestone push tap-through
+  (`MilestoneRecommendationsCoverView` routes through the same view) both attribute for free.
+  Saves from the "Surprise them today" card, the onboarding reveal and the Saved tab stay
+  `nil` — they belong to no event.
+
+*The screen*
+- `MilestoneDetailView` rewritten to the comp: an in-content back + title header row (replacing
+  the placeholder's `NavigationStack` + `.navigationTitle("Event")` + X), the 140pt occasion
+  hero, a three-column meta card (DATE / COUNTDOWN / RECIPIENT) divided by `surfaceBorder`
+  rules, the "Saved ideas" section, and a full-width "Get more ideas" CTA.
+- The countdown keeps the urgency ramp via `MilestoneCard.countdownColor(for:)`, so the screen
+  agrees with the card that opened it rather than rendering every date in accent pink. This is
+  why the view takes a `urgency` parameter.
+- New private `SavedIdeaCard` mirrors the comp's `Gift Card Item`: 110pt photo, title + price,
+  a two-line note, then a "SAVED" badge opposite a control that removes the idea. Tapping the
+  card opens `RecommendationDetailView` rebuilt from the local snapshot via
+  `SavedRecommendation.toDetailItem()` — the Step 19.9 path the Saved tab already uses — with
+  `.onTapGesture` rather than a wrapping `Button` so the remove control keeps hit-testing.
+- `MilestoneDetailViewModel` (new) reads the saves. It filters `milestoneId` **in Swift** after
+  an unbounded fetch rather than in a `#Predicate`: SwiftData predicates over an optional
+  `String` are unreliable, and `SavedViewModel` already fetches the whole library unbounded, so
+  the read costs nothing new. `Task.yield()` before the fetch is the Step 18.18 rule.
+- `ForYouView` gained `recommendationDestination(for:)`, shared by the card's idea button and
+  the detail screen's CTA so the two cannot drift, plus `showIdeas(for:)` which dismisses the
+  cover and pushes on the next runloop turn — the push lands on the navigation stack the cover
+  sits above, so the dismissal has to commit first.
+
+**Deliberate deviations from the comp:**
+- **The `⋯` more button is omitted.** Nothing sits behind it — edit and delete already live in
+  `MilestonesManagementView` via "View all". A menu with no destination is the dead-control
+  problem Step 19.31 called out for the mock's bookmark icon and "• 5 suggestions".
+- **"Gift Ideas" → "Saved ideas", "3 ideas" → "3 saved", "Add gift idea" → "Get more ideas."**
+  Requested, and right: a saved item can be a date, an experience or a Knot Original, and the
+  button opens the recommendation flow rather than a manual entry form, so its label must not
+  imply one.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailViewModel.swift` — the event's saved ideas
+- `iOS/KnotTests/MilestoneDetailViewTests.swift`
+- `docs/pr-screenshots/worktree-feat-journal-event-detail.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — replaced wholesale
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — shared destination builder + `onGetIdeas`
+- `iOS/Knot/Models/SavedRecommendation.swift` — `milestoneId`
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — stamp the milestone
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — pass the id into `configure`
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `milestoneDetail` key; the `journal` harness's
+  detail cover updated for the new signature
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot
+- `iOS/KnotTests/MilestoneCardTests.swift` — the detail tests moved to their own file
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**A `/code-review high` pass found three issues, all fixed before commit — two of them real
+bugs the tests as written did not catch:**
+1. **The COUNTDOWN column rendered blank for a milestone with no `daysUntil`.**
+   `MilestonesViewModel.daysUntilText(nil)` is `""`, which the backend genuinely produces for a
+   past one-time milestone — so the card showed a "COUNTDOWN" label with nothing under it. Both
+   the replaced placeholder and `MilestoneCard.metaRow` guard with `if let days`; a fixed
+   three-column grid can't drop a column without stranding a divider, so the new
+   `countdownText(for:)` falls back to the same `"—"` `fullDate` and `budgetTierLabel` use.
+   `testRendersWithoutCountdown` had claimed to cover this and only asserted the view hosted.
+2. **An already-saved idea could never reach an event's list.** `saveRecommendation` early-returns
+   on `isSaved`, and `savedRecommendationIds` spans the *whole* library — so an idea saved
+   earlier from the "Surprise them today" card and then saved again from an event's
+   recommendations kept `milestoneId == nil`: the button read "Saved" while the event's detail
+   screen stayed empty. That directly contradicts the requested behaviour. The early return now
+   calls `backfillMilestoneIfUnattributed`, which **fills a blank but never steals** — an idea
+   already attributed to a different event is left alone, because `recommendationId` is unique
+   and re-pointing it would silently drop the idea from the other event's list.
+3. **The "Get more ideas" push was racing the cover's dismissal.** `showIdeas` hopped a single
+   runloop turn before setting `navigationDestination`, far sooner than the ~0.35s dismissal
+   commits — the exact condition the code's own comment said drops the push. It now stores a
+   `pendingIdeasMilestone` and pushes from the cover's `onDismiss`, which fires when the
+   dismissal actually completes.
+
+**Tests:** iOS Full plan green — **474 unit + 5 UI, 0 failures** (461 unit baseline, +19 new,
+−6 for the deleted helpers). New coverage: the view model returns only this milestone's saves,
+excludes unattributed ones, orders newest-first, and `remove` deletes from the store rather
+than just the array (asserted by reloading); saving from an event attributes the idea, a
+re-save backfills an unattributed one, a re-save does *not* steal one from another event, and a
+save with no event stays unattributed — all driven through the real `RecommendationsViewModel`
+save path rather than by constructing rows directly; the countdown placeholder; the
+section-header VoiceOver label's singular/plural/empty forms; and render smoke tests across the
+populated and empty states, both artwork paths, a missing countdown, and every urgency tier. No
+backend, DTO, endpoint or migration change, so no `pytest` run applies to this diff.
+
+**Notes:**
+- **`recurrenceLabel` and `occasionLabel` were deleted with the placeholder**, along with their
+  tests — the comp's meta card has no Repeats / Occasion / Budget rows, and those values are
+  still shown (and editable) in `MilestonesManagementView`. `fullDate` survives, still guarding
+  against the `2000-MM-DD` storage format reaching the UI.
+- **The CTA is the last element of the scroll, not a `safeAreaInset`.** It was written as a
+  pinned bottom bar first, and the screenshot showed the cards bleeding under a pill with
+  nothing behind it. The comp puts the button at the end of the content; so does this.
+- **The screenshot harness had to seed three different recommendation *types*.** Seeded as one
+  type, all three cards drew the same bundled fallback photo (`imageURL` is deliberately nil so
+  the capture doesn't depend on the network) and the list read as broken rather than
+  deterministic. A harness only proves what it actually seeds — the same lesson Step 19.31
+  recorded about seeding no `occasionCategory`.
+- **`PRScreenshotTests.acceptNotificationPrompt(on:)` was removed** with the banner slot it
+  served — it had no remaining caller. Step 19.41 documents that capture path; it is one
+  `git show` away if a future change needs a banner again.
+- **Removing an idea deletes it from the library, not just from this event.** The saved store is
+  one store, and a "detach" would leave a row the user can no longer see anywhere. Worth
+  revisiting only if per-event curation becomes a real feature.
+- **Ideas saved before this ships have no `milestoneId`** and will not appear under any event.
+  There is nothing to backfill from — the association was never recorded. They remain in the
+  Saved tab, and anything saved from an event afterwards attributes correctly.
+
+---
+
 ## Next Steps
 
 

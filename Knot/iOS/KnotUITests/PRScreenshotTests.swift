@@ -24,91 +24,46 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change is to the app icon as it appears on a **notification
-        // banner** — the home screen rendered the icon correctly while every
-        // banner showed the generic placeholder, so a home-screen shot proves
-        // nothing here. The `notificationBanner` harness requests notification
-        // permission, then schedules the real "Still working on it…" local
-        // notification when the app is backgrounded, as production does. This
-        // test accepts the prompt, presses Home so SpringBoard draws the banner
-        // exactly as a user sees it, waits for it, and screenshots the whole
-        // screen (the app is in the background, so `app.screenshot()` would
-        // miss it).
-        app.launchArguments += ["-uiTestScreenshot", "notificationBanner"]
+        // The change is the Journal event detail screen behind "See details".
+        // The real screen needs auth, a live milestone and a saved idea already
+        // attributed to it, none of which a cold launch can reach — so the
+        // `milestoneDetail` harness renders it against an in-memory store
+        // seeded with three ideas saved for a Christmas milestone (plus one
+        // saved for a different event, which must not appear).
+        app.launchArguments += ["-uiTestScreenshot", "milestoneDetail"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
 
-        // Let the harness draw and fire its permission request before any
-        // accessibility query — every miss costs a full hierarchy snapshot.
+        // Let the screen settle before any accessibility query — every miss
+        // costs a full hierarchy snapshot, and a burst of them has crashed the
+        // runner before (Step 19.31).
         Thread.sleep(forTimeInterval: 2.0)
+        dismissSystemAlerts()
 
-        // Accept the permission prompt. Deliberately NOT `dismissSystemAlerts()`
-        // unconditionally: that helper taps "Don't Allow", which would deny the
-        // very permission this shot depends on. But an unrelated SpringBoard
-        // alert (the simulator's iCloud prompt) would otherwise BE
-        // `alerts.firstMatch`, so the prompt is never found and that alert also
-        // lands in the screenshot — so dismiss a non-permission alert first,
-        // then look again. When permission is already granted no prompt appears
-        // at all, which is fine; the gate is the ready-status wait below.
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        if !acceptNotificationPrompt(on: springboard) {
-            dismissSystemAlerts()
-            _ = acceptNotificationPrompt(on: springboard)
-        }
-
-        // ASSERT the harness is armed before backgrounding. The harness
-        // schedules the notification *from* the background transition, so
-        // pressing Home while the permission prompt is still up would arm
-        // nothing and the banner assertion below would then blame the wrong
-        // thing. This is also what proves permission was granted.
+        // ASSERT both waits. A discarded wait lets a screenshot of an entirely
+        // different screen ship green — that is exactly how a wrong image
+        // shipped in Step 19.31.
         XCTAssertTrue(
-            app.staticTexts
-                .matching(NSPredicate(format: "label BEGINSWITH %@", "Ready"))
-                .firstMatch
-                .waitForExistence(timeout: 15),
-            "Harness never became ready — notification permission was denied, so the shot cannot show the notification icon"
+            app.staticTexts["Christmas"].waitForExistence(timeout: 15),
+            "Event detail header never appeared — the screenshot would capture the wrong screen"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Saved ideas"].waitForExistence(timeout: 10),
+            "The \"Saved ideas\" section never appeared — the shot cannot show the change"
         )
 
-        // Background the app. This is both what makes SpringBoard (not the
-        // app's own foreground presenter) draw the banner, and what triggers
-        // the harness to schedule it — the same order as production, where the
-        // notification is scheduled by the backgrounding that starts the
-        // background task.
-        XCUIDevice.shared.press(.home)
-
-        // ASSERT the banner appeared (see Step 19.31 — a discarded wait lets a
-        // wrong screenshot ship green).
-        let banner = springboard.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", "Still working on it"))
-            .firstMatch
-        XCTAssertTrue(
-            banner.waitForExistence(timeout: 20),
-            "No \"Still working on it…\" banner appeared on SpringBoard — the shot cannot show the notification icon. On a real device, check that Focus / Do Not Disturb is off; it suppresses the banner entirely."
-        )
-
-        // Let the banner's entrance animation finish.
-        Thread.sleep(forTimeInterval: 1.0)
-
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
-    /// Tap "Allow" if the frontmost SpringBoard alert is the notification
-    /// permission prompt. Returns whether it did.
-    ///
-    /// A single non-retrying `exists`, not a timed wait: the caller has already
-    /// let the screen settle, and a timed wait here would burn the harness's
-    /// fire delay in the common case where permission is already granted and no
-    /// prompt is coming.
-    private func acceptNotificationPrompt(on springboard: XCUIApplication) -> Bool {
-        let allow = springboard.alerts.firstMatch.buttons["Allow"]
-        guard allow.exists else { return false }
-        allow.tap()
-        return true
-    }
+    // The `acceptNotificationPrompt(on:)` helper that paired with the
+    // `notificationBanner` harness was removed with this slot's previous
+    // occupant — it had no remaining caller. The banner-capture path (accept
+    // the prompt, press Home, screenshot SpringBoard) is described in Step
+    // 19.41 and recoverable from git if a future change needs it again.
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
     ///
