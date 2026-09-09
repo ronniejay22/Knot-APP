@@ -57,6 +57,17 @@ final class SavedRecommendation {
     /// Decode as `[IdeaContentSection]` when displaying the idea detail view.
     var contentSectionsData: Data?
 
+    /// The milestone this recommendation was saved *for*, when it came from an
+    /// event's contextual recommendations (the Journal card's idea button, or a
+    /// milestone push tap-through). Drives the event detail screen's saved-ideas
+    /// list.
+    ///
+    /// NULL for saves with no event behind them — the "Surprise them today"
+    /// card, the onboarding reveal, and anything re-saved from the Saved tab.
+    /// Optional so SwiftData applies lightweight migration, the same way
+    /// `completedAt` / `rating` / `reflectionNote` were added.
+    var milestoneId: String?
+
     /// Timestamp when the user saved this recommendation.
     var savedAt: Date
 
@@ -92,6 +103,7 @@ final class SavedRecommendation {
         imageURL: String? = nil,
         isIdea: Bool = false,
         contentSectionsData: Data? = nil,
+        milestoneId: String? = nil,
         savedAt: Date = Date(),
         completedAt: Date? = nil,
         rating: Int? = nil,
@@ -108,6 +120,7 @@ final class SavedRecommendation {
         self.imageURL = imageURL
         self.isIdea = isIdea
         self.contentSectionsData = contentSectionsData
+        self.milestoneId = milestoneId
         self.savedAt = savedAt
         self.completedAt = completedAt
         self.rating = rating

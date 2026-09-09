@@ -24,33 +24,33 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change removes the matched vibe / love-language / interest tag
-        // pills from the "Why Knot picked this for {partner}" card on the
-        // recommendation detail page. The `recDetail` harness renders that page
-        // standalone for a bookable purchasable (a `date`) whose fixture carries a
-        // personalization note AND all three matched-factor arrays — so it is a
-        // frame that WOULD have shown the tag row before this change, which is
-        // what makes the shot evidence. The detail page normally sits behind a
-        // carousel tap, so a cold launch cannot reach it without the harness.
-        app.launchArguments += ["-uiTestScreenshot", "recDetail"]
+        // The change is the Journal event detail screen behind "See details".
+        // The real screen needs auth, a live milestone and a saved idea already
+        // attributed to it, none of which a cold launch can reach — so the
+        // `milestoneDetail` harness renders it against an in-memory store
+        // seeded with three ideas saved for a Christmas milestone (plus one
+        // saved for a different event, which must not appear).
+        app.launchArguments += ["-uiTestScreenshot", "milestoneDetail"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
 
         // Let the screen settle before any accessibility query — every miss
-        // costs a full hierarchy snapshot for XCTest's failure triage.
+        // costs a full hierarchy snapshot for XCTest's failure triage, and a
+        // burst of them has crashed the runner before (Step 19.31).
         Thread.sleep(forTimeInterval: 2.0)
         dismissSystemAlerts()
 
-        // ASSERT the rationale card rendered (see Step 19.31 — a discarded wait
-        // lets a wrong screenshot ship green). This is the card the tags were
-        // removed from, so if it is absent the image proves nothing.
+        // ASSERT both waits. A discarded wait lets a screenshot of an entirely
+        // different screen ship green — that is exactly how a wrong image
+        // shipped in Step 19.31.
         XCTAssertTrue(
-            app.staticTexts
-                .matching(NSPredicate(format: "label BEGINSWITH %@", "Why Knot picked this"))
-                .firstMatch
-                .waitForExistence(timeout: 15),
-            "The \"Why Knot picked this for …\" card never appeared — the shot cannot show that its tag row is gone"
+            app.staticTexts["Christmas"].waitForExistence(timeout: 15),
+            "Event detail header never appeared — the screenshot would capture the wrong screen"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Saved ideas"].waitForExistence(timeout: 10),
+            "The \"Saved ideas\" section never appeared — the shot cannot show the change"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
