@@ -22,11 +22,11 @@ import SwiftUI
 /// └───────────────────────────────┘
 /// ```
 ///
-/// Both footer controls lead to the same place — that event's recommendations —
-/// but they frame it differently: "See details" raises
-/// `MilestoneRecommendationSheet`, which names the occasion and says what will
-/// happen before pushing, while the sparkle icon pushes straight through for
-/// anyone who already knows what it does.
+/// The two footer controls are different destinations: "See details" opens the
+/// event itself, the sparkle icon asks for ideas for it. The icon carries no
+/// label, so rather than pushing straight into a ~30s generation it raises
+/// `MilestoneRecommendationSheet`, which names the occasion and says what is
+/// about to happen.
 ///
 /// The artwork comes from the occasion illustrations already bundled for
 /// `OccasionEntryModal` (Step 19.25), keyed by the milestone's
@@ -40,7 +40,7 @@ struct MilestoneCard: View {
     /// Pre-formatted "MMM d" date from `ForYouViewModel.formattedDate(_:)`.
     let formattedDate: String
     let urgency: MilestoneUrgency
-    /// Raises the milestone's recommendation sheet. Optional so the card still
+    /// Opens the milestone's own detail screen. Optional so the card still
     /// renders where no destination is wired (previews, harnesses).
     ///
     /// `@MainActor` matches the convention `JustBecauseCard.onGenerate` and

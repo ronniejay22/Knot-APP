@@ -15,11 +15,12 @@ import SwiftUI
 /// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
 /// - "Just Because" recommendation card
 /// - "Upcoming" header with a "View all" link into milestone management
-/// - A `MilestoneCard` per upcoming milestone, whose footer carries two routes
-///   into that event's ideas: a "See details" button raising
-///   `MilestoneRecommendationSheet` (which explains what it will do, then
-///   pushes), and a recommendation icon button pushing `RecommendationsView`
-///   directly
+/// - A `MilestoneCard` per upcoming milestone, whose footer carries two
+///   destinations: a "See details" button opening `MilestoneDetailView` for that
+///   event, and a recommendation icon button raising
+///   `MilestoneRecommendationSheet` — which names the occasion and asks before
+///   pushing `RecommendationsView`, since an unlabelled icon otherwise gives no
+///   hint about what it is about to do
 struct ForYouView: View {
 
     @State private var viewModel = ForYouViewModel()
@@ -31,15 +32,19 @@ struct ForYouView: View {
     /// Presents the full milestone list (add / edit / delete) from "View all".
     @State private var showMilestoneManagement = false
 
-    /// The event whose recommendation sheet is open, set by a card's
-    /// "See details".
+    /// The event whose detail screen is open, set by a card's "See details".
     ///
     /// `MilestoneItemResponse` is already `Identifiable`, so this drives
-    /// `.sheet(item:)` directly with no wrapper type.
+    /// `.fullScreenCover(item:)` directly with no wrapper type.
+    @State private var detailMilestone: MilestoneItemResponse?
+
+    /// The event whose recommendation sheet is open, set by a card's
+    /// recommendation icon. Drives `.sheet(item:)` on the same terms.
     @State private var sheetMilestone: MilestoneItemResponse?
 
-    /// Set when the sheet's "Get recommendations" is tapped, consumed by the
-    /// sheet's `onDismiss` so the push happens after the sheet is really gone.
+    /// Set when the sheet's "Get recommendations" or the detail screen's "Get
+    /// more ideas" is tapped, consumed by whichever presentation was open so the
+    /// push happens after it is really gone.
     @State private var pendingIdeasMilestone: MilestoneItemResponse?
 
     var body: some View {
@@ -94,9 +99,23 @@ struct ForYouView: View {
                         Task { await viewModel.refreshMilestones() }
                     }
             }
-            // Hangs off the ZStack alongside the presentations above, NOT off
-            // `timelineContent` — that subtree carries `.toolbar(.hidden,…)`,
-            // which a presentation attached inside it would inherit.
+            // Both hang off the ZStack alongside the presentations above, NOT
+            // off `timelineContent` — that subtree carries
+            // `.toolbar(.hidden,…)`, which a presentation attached inside it
+            // would inherit.
+            //
+            // Only one can be open at a time (they are raised by two different
+            // controls on the same card), so both route their "give me ideas"
+            // action through the same `showIdeas` / `pushPendingIdeas` pair.
+            .fullScreenCover(item: $detailMilestone, onDismiss: pushPendingIdeas) { milestone in
+                MilestoneDetailView(
+                    milestone: milestone,
+                    partnerName: viewModel.partnerName,
+                    urgency: viewModel.urgencyLevel(for: milestone.daysUntil ?? 365),
+                    onGetIdeas: { showIdeas(for: milestone) },
+                    onDismiss: { detailMilestone = nil }
+                )
+            }
             .sheet(item: $sheetMilestone, onDismiss: pushPendingIdeas) { milestone in
                 MilestoneRecommendationSheet(
                     milestone: milestone,
@@ -244,10 +263,8 @@ struct ForYouView: View {
                     partnerName: viewModel.partnerName,
                     formattedDate: viewModel.formattedDate(milestone.milestoneDate),
                     urgency: viewModel.urgencyLevel(for: daysUntil),
-                    onSeeDetails: { sheetMilestone = milestone },
-                    onGetRecommendations: {
-                        navigationDestination = recommendationDestination(for: milestone)
-                    }
+                    onSeeDetails: { detailMilestone = milestone },
+                    onGetRecommendations: { sheetMilestone = milestone }
                 )
             }
         }
@@ -256,8 +273,8 @@ struct ForYouView: View {
     // MARK: - Recommendation Navigation
 
     /// The push target for an event's contextual recommendations. Shared by the
-    /// card's idea button and the sheet's "Get recommendations" CTA so the two
-    /// can never drift.
+    /// sheet's "Get recommendations" CTA and the detail screen's "Get more
+    /// ideas" so the two can never drift.
     private func recommendationDestination(
         for milestone: MilestoneItemResponse
     ) -> RecommendationDestination {
@@ -273,20 +290,25 @@ struct ForYouView: View {
         )
     }
 
-    /// Closes the recommendation sheet, remembering that a push should follow.
+    /// Closes whichever presentation asked for ideas, remembering that a push
+    /// should follow. Nils both because only one is ever open — the sheet and
+    /// the detail screen are raised by two different controls on the same card
+    /// — so one helper serves both without the caller having to say which.
     ///
-    /// The push lands on this screen's `NavigationStack`, which the sheet sits
-    /// above, so the dismissal has to *finish* first — and it animates for a few
-    /// hundred milliseconds. Hopping one runloop turn is nowhere near long
-    /// enough and would drop the push; `pushPendingIdeas` runs from the sheet's
-    /// own `onDismiss`, which fires when the dismissal actually completes.
+    /// The push lands on this screen's `NavigationStack`, which both
+    /// presentations sit above, so the dismissal has to *finish* first — and it
+    /// animates for a few hundred milliseconds. Hopping one runloop turn is
+    /// nowhere near long enough and would drop the push; `pushPendingIdeas` runs
+    /// from the presentation's own `onDismiss`, which fires when the dismissal
+    /// actually completes.
     private func showIdeas(for milestone: MilestoneItemResponse) {
         pendingIdeasMilestone = milestone
         sheetMilestone = nil
+        detailMilestone = nil
     }
 
-    /// Pushes the recommendations the sheet asked for, once it has finished
-    /// dismissing. A no-op when the sheet was closed any other way.
+    /// Pushes the recommendations the sheet or the detail screen asked for, once
+    /// it has finished dismissing. A no-op when either was closed any other way.
     private func pushPendingIdeas() {
         guard let milestone = pendingIdeasMilestone else { return }
         pendingIdeasMilestone = nil
