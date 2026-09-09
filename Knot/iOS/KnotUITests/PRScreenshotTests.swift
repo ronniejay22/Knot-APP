@@ -53,8 +53,12 @@ final class PRScreenshotTests: XCTestCase {
         )
         getIdeas.tap()
 
+        // The headline is now resolved per occasion by
+        // `MilestoneRecommendationCopy`; Christmas is `giftForward`, which asks
+        // this. Waiting on the exact string is what makes the capture prove the
+        // copy change rather than merely that a sheet appeared.
         XCTAssertTrue(
-            app.staticTexts["Get gift ideas for Christmas?"].waitForExistence(timeout: 10),
+            app.staticTexts["Get ideas for Christmas?"].waitForExistence(timeout: 10),
             "The recommendation sheet never appeared after tapping the icon — the shot cannot show the change"
         )
 

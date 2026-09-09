@@ -3,7 +3,12 @@
 //  Knot
 //
 //  Created on September 8, 2026.
-//  The bottom sheet raised by a Journal card's "See details".
+//  The bottom sheet raised by a Journal card's recommendation (sparkle) icon.
+//
+//  All three content slots come from `MilestoneRecommendationCopy`, which
+//  resolves them from the milestone's `occasion_category`, its day count and the
+//  partner's name — see that file for why the copy is framed rather than
+//  hand-written per occasion.
 //
 
 import SwiftUI
@@ -129,26 +134,30 @@ struct MilestoneRecommendationSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.lg) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                KnotBadge(
-                    Self.badgeText(
-                        milestoneName: milestone.milestoneName,
-                        emoji: OccasionCopy.emoji(for: milestone.occasionCategory),
-                        formattedDate: formattedDate
-                    ),
-                    variant: .accent,
-                    size: .sm
-                )
+    /// Resolved once per body evaluation so the badge, title and body are
+    /// guaranteed to describe the same occasion.
+    private var copy: MilestoneRecommendationCopy {
+        MilestoneRecommendationCopy.resolve(
+            milestone: milestone,
+            partnerName: partnerName,
+            formattedDate: formattedDate
+        )
+    }
 
-                Text(Self.title(milestoneName: milestone.milestoneName))
+    private var header: some View {
+        let copy = self.copy
+
+        return HStack(alignment: .top, spacing: Theme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                KnotBadge(copy.badge, variant: .accent, size: .sm)
+
+                Text(copy.title)
                     .knotFont(Theme.Typography.sheetTitle)
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(Self.body(partnerName: partnerName))
+                Text(copy.body)
                     .knotFont(Theme.Typography.bodySmall)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.leading)
@@ -223,71 +232,83 @@ struct MilestoneRecommendationSheet: View {
     }
 }
 
-// MARK: - Copy
-
-extension MilestoneRecommendationSheet {
-
-    /// "🎄 Christmas · Dec 25", degrading to "Christmas · Dec 25" when the
-    /// occasion has no emoji and to the bare name when the date is unavailable.
-    static func badgeText(
-        milestoneName: String,
-        emoji: String?,
-        formattedDate: String
-    ) -> String {
-        let name = milestoneName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let date = formattedDate.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let leading = [emoji, name.isEmpty ? nil : name]
-            .compactMap { $0 }
-            .joined(separator: " ")
-
-        guard !date.isEmpty else { return leading }
-        guard !leading.isEmpty else { return date }
-        return "\(leading) · \(date)"
-    }
-
-    static func title(milestoneName: String) -> String {
-        let name = milestoneName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return "Get gift ideas for this event?" }
-        return "Get gift ideas for \(name)?"
-    }
-
-    /// Deliberately diverges from the comp, which reads "…based on her wishlist
-    /// and past gifts". The app has neither a wishlist nor purchase history —
-    /// recommendations are built from interests, hints, vibes and love
-    /// languages — and it never collects a gender, so every other
-    /// partner-facing string in the app avoids pronouns.
-    static func body(partnerName: String) -> String {
-        let name = partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let partner = name.isEmpty ? "your partner" : name
-        return "We'll find personalized recommendations for \(partner) based on their interests and the hints you've saved."
-    }
-}
-
 // MARK: - Preview
 
 #if DEBUG
-#Preview("Milestone Recommendation Sheet") {
+/// One preview per framing, since the whole point of the copy framework is that
+/// these read differently. Check the headline wrap and the body height here
+/// before shipping copy changes — the sheet's detent tracks its content.
+private func previewSheet(
+    name: String,
+    date: String,
+    category: String,
+    type: String = "holiday",
+    daysUntil: Int? = 175
+) -> some View {
     Theme.backgroundGradient
         .ignoresSafeArea()
         .sheet(isPresented: .constant(true)) {
             MilestoneRecommendationSheet(
                 milestone: MilestoneItemResponse(
-                    id: "preview-christmas",
-                    milestoneType: "holiday",
-                    milestoneName: "Christmas",
+                    id: "preview-\(category)",
+                    milestoneType: type,
+                    milestoneName: name,
                     milestoneDate: "2000-12-25",
                     recurrence: "yearly",
                     budgetTier: "major_milestone",
-                    daysUntil: 175,
+                    daysUntil: daysUntil,
                     createdAt: "2026-07-04",
-                    occasionCategory: "christmas"
+                    occasionCategory: category
                 ),
                 partnerName: "Jas",
-                formattedDate: "Dec 25",
+                formattedDate: date,
                 onGetRecommendations: {},
                 onDismiss: {}
             )
         }
+}
+
+#Preview("Gift-forward — Christmas") {
+    previewSheet(name: "Christmas", date: "Dec 25", category: "christmas")
+}
+
+#Preview("Shared occasion — Anniversary") {
+    previewSheet(
+        name: "Our Anniversary",
+        date: "Jun 14",
+        category: "anniversary",
+        type: "anniversary",
+        daysUntil: 7
+    )
+}
+
+#Preview("Gesture — Big day") {
+    previewSheet(
+        name: "Jas's Big Presentation",
+        date: "Mar 3",
+        category: "big_day",
+        type: "custom",
+        daysUntil: 3
+    )
+}
+
+#Preview("Spontaneous — Just because") {
+    previewSheet(
+        name: "Just Because",
+        date: "",
+        category: "just_because",
+        type: "custom",
+        daysUntil: nil
+    )
+}
+
+#Preview("Unknown — legacy milestone") {
+    previewSheet(
+        name: "Our Christmas in July",
+        date: "Jul 25",
+        category: "default",
+        type: "custom",
+        daysUntil: nil
+    )
 }
 #endif
