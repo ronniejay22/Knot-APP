@@ -107,6 +107,45 @@ extension OccasionCopy {
         return UIImage(named: name) != nil ? name : nil
     }
 
+    // MARK: - Emoji
+
+    /// `occasion_category` → a single glyph for compact surfaces that have no
+    /// room for the illustration — currently the Journal sheet's occasion badge.
+    ///
+    /// Returns nil for `default` and for any category this file doesn't know, so
+    /// a badge degrades to plain text rather than showing a placeholder. Same
+    /// rule `illustrationName(for:)` follows, and the same reason: a category
+    /// added on the backend must not be able to break a screen.
+    static func emoji(for category: String) -> String? {
+        emojiByCategory[category]
+    }
+
+    /// Deliberately has no `default` entry — that category means "we don't know
+    /// what this occasion is", and there is no honest glyph for that.
+    private static let emojiByCategory: [String: String] = [
+        "birthday": "🎂",
+        "anniversary": "💞",
+        "valentines_day": "💘",
+        "new_years": "🎆",
+        "mothers_day": "💐",
+        "fathers_day": "👔",
+        "christmas": "🎄",
+        "hanukkah": "🕎",
+        "diwali": "🪔",
+        "lunar_new_year": "🧧",
+        "eid": "🌙",
+        "thanksgiving": "🦃",
+        "easter": "🐣",
+        "halloween": "🎃",
+        "graduation": "🎓",
+        "new_job": "💼",
+        "new_home": "🏡",
+        "big_day": "✨",
+        "thinking_of_you": "💭",
+        "just_because": "🎁",
+        "hint_followup": "💡"
+    ]
+
     // MARK: - Templates
 
     private struct Template {

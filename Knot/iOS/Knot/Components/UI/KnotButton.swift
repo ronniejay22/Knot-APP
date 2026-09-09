@@ -15,11 +15,20 @@ import SwiftUI
 struct KnotButton<Label: View>: View {
 
     enum Variant: CaseIterable {
-        case primary       // pink fill, white text — main CTAs
-        case secondary     // muted surface fill, primary text
-        case outline       // transparent fill, accent text, accent border
-        case ghost         // transparent, no border, accent text
-        case destructive   // red fill, white text
+        case primary          // pink fill, white text — main CTAs
+        case secondary        // muted surface fill, primary text
+        case outline          // transparent fill, accent text, accent border
+        /// Transparent fill, primary text, muted neutral border — a quiet
+        /// decline sitting under a `primary` CTA ("Not now", "Cancel").
+        ///
+        /// `outline` is accent-on-accent, which reads as a second call to
+        /// action; `secondary` fills with `surfaceElevated`, which has almost no
+        /// contrast on a white surface (the reason the Journal's count badge is
+        /// `.accent` — Step 19.33 — and its "See details" is `.outline` —
+        /// Step 19.38). Neither covers a neutral decline, so this does.
+        case outlineNeutral
+        case ghost            // transparent, no border, accent text
+        case destructive      // red fill, white text
     }
 
     enum Size: CaseIterable {
@@ -152,15 +161,19 @@ struct KnotButton<Label: View>: View {
 
     @ViewBuilder
     private var borderOverlay: some View {
-        if variant == .outline {
+        if variant == .outline || variant == .outlineNeutral {
             switch shape {
             case .rounded:
                 RoundedRectangle(cornerRadius: Theme.Radius.md)
-                    .stroke(Theme.accent, lineWidth: 1)
+                    .stroke(borderColor, lineWidth: 1)
             case .pill:
-                Capsule().stroke(Theme.accent, lineWidth: 1)
+                Capsule().stroke(borderColor, lineWidth: 1)
             }
         }
+    }
+
+    private var borderColor: Color {
+        variant == .outlineNeutral ? Theme.textPrimary.opacity(0.5) : Theme.accent
     }
 
     private var clipShape: AnyShape {
@@ -178,7 +191,7 @@ struct KnotButton<Label: View>: View {
         switch variant {
         case .primary: return Theme.accent
         case .secondary: return Theme.surfaceElevated
-        case .outline, .ghost: return .clear
+        case .outline, .outlineNeutral, .ghost: return .clear
         case .destructive: return Theme.statusError
         }
     }
@@ -186,7 +199,7 @@ struct KnotButton<Label: View>: View {
     private var foregroundColor: Color {
         switch variant {
         case .primary, .destructive: return .white
-        case .secondary: return Theme.textPrimary
+        case .secondary, .outlineNeutral: return Theme.textPrimary
         case .outline, .ghost: return Theme.accent
         }
     }
