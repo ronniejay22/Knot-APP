@@ -648,6 +648,10 @@ private struct SpotlightFallbackScreenshotHarnessView: View {
 /// shows the "Open in <merchant>" CTA that opens a real, dedicated purchase page
 /// (never a web search). The detail screen normally sits behind auth + a live
 /// backend, so this bypasses both with representative sample data.
+///
+/// The same sample also exercises the page's contextual chrome — its two vibes
+/// fill the category pill, its city + merchant fill the meta line, and its six
+/// matched factors populate the stats strip.
 private struct RecDetailScreenshotHarnessView: View {
     var body: some View {
         RecommendationDetailView(

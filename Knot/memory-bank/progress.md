@@ -8937,6 +8937,109 @@ branding, operating party, and effective date.
 
 ---
 
+### Step 19.47 ✅ Recommendations — "Experience" Detail Layout (Pill, Meta Line, Stats Strip, Cards)
+**Date:** 2026-09-08
+**Status:** Complete
+
+**Goal:** Restyle the recommendation detail page to the shape of an experience-booking
+detail screen: a gray uppercase category pill above the title, a one-line "location •
+merchant" meta row, a white three-column stats strip with hairline dividers, the tinted
+"Why Knot picked this" card led by a heart, and the About / Where content in white cards.
+The reference design's strip showed a star rating, a review count, and a booking count.
+**Knot has none of that data**, so the strip had to be contextual — built only from fields
+the pipeline actually populates — rather than dressed up with numbers the app cannot back.
+
+**What changed:**
+- **`Features/Recommendations/RecommendationDetailContent.swift` (new):** the pure copy
+  rules, on primitive inputs so they test like `saveCTAState` does. `categoryLabel` joins the
+  first two matched vibes (`"QUIET LUXURY & STREET / URBAN"`) and falls back to the type label.
+  `metaLine` joins location and merchant with " • " (ideas carry no merchant, so location
+  only; nil when empty). `stats` returns the three columns — **Profile matches** (the count of
+  matched vibes + love languages + interests), **Knot Pick** in accent over the first matched
+  love language humanized ("Words of Affirmation", fallback "Hand-picked"), and the **type**
+  over the merchant ("Knot Original" for ideas/plans, "Purchasable" with no merchant) — or
+  **nil when nothing matched**, so a Saved-tab snapshot (which carries no matched arrays)
+  omits the strip instead of rendering a "0". `isIdea` and `locationText` were lifted out of
+  the view so the same rule is shared and testable.
+- **`Features/Recommendations/RecommendationChips.swift`:** added `RecommendationTypeDisplay`
+  (`label(for:)` / `icon(for:)`), the one source for the type → "Gift / Experience / Date /
+  Idea / Date Plan" + Lucide icon mapping. `RecommendationCard` and the detail view each
+  carried a hand-copied private copy of that `switch`; both now call the shared helper.
+- **`Features/Recommendations/RecommendationDetailView.swift`:** the content column
+  (spacing 22 → 16) is now pill → title → meta line → stats strip → why-card → About card →
+  "Where you'll meet" card → idea sections. The hero lost its bottom-leading type badge (the
+  pill replaces it); the vertical icon-per-row meta stack (merchant / price / location) became
+  the single meta line, with price living only in the sticky bar. The why-card gained a 16pt
+  `Lucide.heart` in `Theme.accent` before its title; tint, stroke, quote, and chips are
+  unchanged. About and Where moved into `KnotCard(padding: .lg)` with `cardTitleSemibold`
+  headings — ideas now get the "About" heading too, so every section reads as a card. The
+  strip is a file-private `DetailStatsStrip`: a top-aligned `HStack(spacing: 0)` of equal
+  columns (`numeric` value over a two-line `label` caption) separated by the app's
+  `Divider().overlay(Theme.surfaceBorder)` hairline idiom — top alignment keeps the three
+  values on one line when a caption wraps. The "Where you'll meet" card reads
+  `RecommendationDetailContent.whereText`, the same trim-and-join rule as the meta line, so
+  the two location surfaces agree on what counts as present. Hero, back button, sticky bar,
+  `primaryCTA`, and `saveCTAState` are untouched.
+- **`Features/Recommendations/RecommendationCard.swift`:** `typeBadge` reads
+  `RecommendationTypeDisplay` and `locationText` reads the shared
+  `RecommendationDetailContent.locationText`; the private duplicate helpers were deleted.
+- **`App/UITestScreenshotHarness.swift`:** doc comment on the `recDetail` harness — the same
+  bookable sample now also proves the new layout (two vibes → pill, city + merchant → meta,
+  six matched factors → strip).
+- **`KnotUITests/PRScreenshotTests.swift`:** slot repointed from the SpringBoard-banner flow
+  (Step 19.41) back to the in-app `recDetail` capture, asserting on the title and on
+  "Profile matches" so a shot that misses the new layout fails rather than ships. The
+  banner-only `acceptNotificationPrompt` helper went with it; `dismissSystemAlerts()` stays.
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/RecommendationDetailContent.swift` — pill / meta / stats copy rules
+- `iOS/KnotTests/RecommendationDetailLayoutTests.swift` — 19 pure tests on those rules + the shared type display
+- `docs/pr-screenshots/worktree-feat-rec-detail-experience-layout.png`
+
+**Files modified:**
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — the layout
+- `iOS/Knot/Features/Recommendations/RecommendationChips.swift` — `RecommendationTypeDisplay`
+- `iOS/Knot/Features/Recommendations/RecommendationCard.swift` — uses the shared type display
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `recDetail` doc comment
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot repointed at `recDetail`
+- `iOS/KnotTests/RecommendationsViewTests.swift` — `testDetailRendersSavedSnapshotWithoutMatches`
+
+**Tests:** iOS Full plan green — **481 unit + 5 UI, 0 failures**. The 19 new `RecommendationDetailLayoutTests`
+cover type labels, the vibe-pill join and its type fallback, every `metaLine` branch, both
+location joiners, the love-language caption and its fallback, the type caption, and that
+`stats` yields exactly three columns or nil. The existing `RecommendationDetailCTATests`,
+`SpotlightViewRenderingTests` (now also hosting a match-less snapshot), and
+`RecommendationCardTests` all pass unchanged. Backend untouched — no `pytest` run applies.
+
+**Notes:**
+- **The pipeline scores are not shown, on purpose.** `interestScore` / `vibeScore` /
+  `loveLanguageScore` / `finalScore` are decoded on every item, but nothing in the unified
+  generator sets them — they are 0.0 on every real recommendation. A "92% match" column would
+  have been the cheapest way to fill the strip and would have been a fabrication.
+- **The pill is a private capsule, not a `KnotBadge`.** `KnotBadge`'s `.default` and
+  `.secondary` fills are white and #F5F5F7, which vanish against the page's #F7F7FA gradient;
+  `Theme.surfaceBorder` (black at 8%) is the one existing gray that reads as a filled pill. If
+  it ever reads too faint on a device, `Theme.textSecondary.opacity(0.10)` is the one-line
+  fallback — still no new token.
+- **Share and Heart did not return to the hero.** The reference has them; Step 19.21 removed
+  them deliberately because saving is the sticky CTA's job. The hero stays Back-only.
+- **No serif.** The reference's card headings are a serif; Step 19.32 made DM Sans the only
+  bundled family, so headings use `cardTitleSemibold`.
+- Long strip captions ("Words of Affirmation", a merchant name) wrap to two lines in a ~105pt
+  column and truncate after that. The meta line truncates on one line for the same reason —
+  the merchant is also the CTA label and the strip caption, so nothing is lost.
+- **Review follow-ups deliberately left out of this change** (each is a scope expansion, not
+  a defect in the diff): persisting the matched arrays / note / location on
+  `SavedRecommendation` so Saved-tab items keep their strip and why-card; a
+  `RecommendationType` enum carrying label / icon / fallback asset / `isKnotOriginal` to
+  replace the remaining per-file `switch`es (`PurchasePromptSheet`, the dead
+  `SelectionConfirmationSheet`); a `KnotBadge` `.muted` variant so the pill stops hand-copying
+  badge geometry; a vertical fallback for the strip at accessibility text sizes; and whether
+  ideas should drop the About card now that it sits above their required "overview" section
+  (the description rendered there before too, just without a heading).
+
+---
+
 ## Next Steps
 
 

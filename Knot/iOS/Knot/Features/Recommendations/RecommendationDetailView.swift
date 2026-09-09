@@ -15,13 +15,16 @@ import LucideIcons
 /// Airbnb-style full-screen detail page for a single recommendation.
 ///
 /// Layout (top → bottom):
-/// - Collapsing hero image with a single overlaid back button
-/// - Title + meta (price · merchant · location)
-/// - "Why Knot picked this for {partner}" — the personalization note elevated into
-///   the emotional centerpiece, with the matched vibes / love languages / interests
-///   as proof badges
-/// - "About" description
-/// - Location row (experiences / dates)
+/// - Full-bleed hero image with a single overlaid back button
+/// - A gray uppercase category pill (the matched vibes, or the type), the title,
+///   and a one-line "{location} • {merchant}" meta row
+/// - A white three-column stats strip built only from data the pipeline populates:
+///   profile-match count · "Knot Pick" + the matched love language · type + merchant
+///   (see `RecommendationDetailContent` — Knot has no ratings or bookings to show)
+/// - "Why Knot picked this for {partner}" — a tinted card with a heart, the
+///   personalization note, and the matched vibes / love languages / interests as chips
+/// - "About" card
+/// - "Where you'll meet" card (experiences / dates)
 /// - Structured idea content (Knot Originals), via the shared `IdeaContentSectionsView`
 /// - A sticky bottom bar: price on the left, primary CTA on the right
 ///   ("Open in {Merchant}" for purchasables, the Save → Saved → Continue CTA otherwise)
@@ -56,7 +59,7 @@ struct RecommendationDetailView: View {
     private static let savedConfirmationDelay: Duration = .seconds(2)
 
     private var isIdea: Bool {
-        item.isIdea == true || item.recommendationType == "plan"
+        RecommendationDetailContent.isIdea(type: item.recommendationType, isIdeaFlag: item.isIdea)
     }
 
     /// The three states of the save-flavored CTA. Pure so it can be unit-tested
@@ -92,11 +95,12 @@ struct RecommendationDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     heroSection
-                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 16) {
                         titleBlock
+                        statsStrip
                         whyBlock
                         aboutBlock
-                        locationRow
+                        locationCard
                         if isIdea, let sections = item.contentSections, !sections.isEmpty {
                             IdeaContentSectionsView(sections: sections)
                         }
@@ -155,7 +159,7 @@ struct RecommendationDetailView: View {
                 }
             }
 
-            // Bottom scrim so the type badge + scroll transition read cleanly.
+            // Scrims so the back button and the hero-to-content transition read cleanly.
             VStack {
                 LinearGradient(
                     colors: [.black.opacity(0.35), .clear],
@@ -171,16 +175,6 @@ struct RecommendationDetailView: View {
                 )
                 .frame(height: 90)
             }
-
-            // Type badge anchored bottom-leading over the hero.
-            VStack {
-                Spacer()
-                HStack {
-                    typeBadge
-                    Spacer()
-                }
-                .padding(16)
-            }
         }
         .frame(height: heroHeight)
         .clipped()
@@ -193,27 +187,6 @@ struct RecommendationDetailView: View {
             .frame(minWidth: 0, maxWidth: .infinity)
             .frame(height: heroHeight)
             .clipped()
-    }
-
-    private var typeBadge: some View {
-        HStack(spacing: 5) {
-            Image(uiImage: typeIconLucide)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-            Text(typeLabel)
-                .knotFont(Theme.Typography.label)
-                .textCase(.uppercase)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-        )
     }
 
     // MARK: - Top Bar (overlaid circular back button)
@@ -256,52 +229,68 @@ struct RecommendationDetailView: View {
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
+            categoryPill
+
             Text(item.title)
                 .knotFont(Theme.Typography.sectionHeaderSemibold)
                 .foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !metaParts.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(metaParts.enumerated()), id: \.offset) { _, part in
-                        HStack(spacing: 5) {
-                            Image(uiImage: part.icon)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
-                            Text(part.text)
-                                .knotFont(Theme.Typography.bodySmall)
-                                .lineLimit(1)
-                        }
-                        .foregroundStyle(Theme.textSecondary)
-                    }
-                }
+            if let meta = metaLine {
+                Text(meta)
+                    .knotFont(Theme.Typography.bodySmall)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
     }
 
-    private struct MetaPart {
-        let icon: UIImage
-        let text: String
+    /// Gray uppercase eyebrow above the title — the matched vibes, or the type.
+    /// A private capsule rather than `KnotBadge`: its `.default`/`.secondary`
+    /// fills are white / #F5F5F7, which vanish on the page's #F7F7FA gradient.
+    /// `Theme.surfaceBorder` is the one existing gray that reads as a filled pill.
+    private var categoryPill: some View {
+        Text(RecommendationDetailContent.categoryLabel(
+            vibes: item.matchedVibes ?? [],
+            type: item.recommendationType
+        ))
+        .knotFont(Theme.Typography.label)
+        .tracking(0.8)
+        .foregroundStyle(Theme.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Theme.surfaceBorder))
     }
 
-    private var metaParts: [MetaPart] {
-        var parts: [MetaPart] = []
-        if !isIdea, let merchant = item.merchantName, !merchant.isEmpty {
-            parts.append(MetaPart(icon: Lucide.store, text: merchant))
+    private var metaLine: String? {
+        RecommendationDetailContent.metaLine(
+            locationText: locationText,
+            merchantName: item.merchantName,
+            isIdea: isIdea
+        )
+    }
+
+    // MARK: - Stats Strip
+
+    /// Three contextual columns in a white card. Omitted entirely when the item
+    /// matched no profile factors (Saved-tab snapshots), so it never shows a "0".
+    @ViewBuilder
+    private var statsStrip: some View {
+        if let stats = RecommendationDetailContent.stats(
+            type: item.recommendationType,
+            isIdea: isIdea,
+            merchantName: item.merchantName,
+            vibes: item.matchedVibes ?? [],
+            loveLanguages: item.matchedLoveLanguages ?? [],
+            interests: item.matchedInterests ?? []
+        ) {
+            KnotCard(padding: .none) {
+                DetailStatsStrip(stats: stats)
+            }
         }
-        if !isIdea, let priceCents = item.priceCents {
-            let prefix = item.priceConfidence == "estimated" ? "~" : ""
-            parts.append(MetaPart(
-                icon: Lucide.dollarSign,
-                text: prefix + RecommendationCard.formattedPrice(cents: priceCents, currency: item.currency)
-            ))
-        }
-        if let locationText {
-            parts.append(MetaPart(icon: Lucide.mapPin, text: locationText))
-        }
-        return parts
     }
 
     // MARK: - Why Knot Picked This
@@ -317,10 +306,19 @@ struct RecommendationDetailView: View {
 
         if (note?.isEmpty == false) || !chips.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Why Knot picked this for \(partnerDisplayName)")
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(uiImage: Lucide.heart)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundStyle(Theme.accent)
+                        .accessibilityHidden(true)
+                    Text("Why Knot picked this for \(partnerDisplayName)")
+                        .knotFont(Theme.Typography.cta)
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if let note, !note.isEmpty {
                     Text("\"\(note)\"")
@@ -359,49 +357,49 @@ struct RecommendationDetailView: View {
 
     // MARK: - About
 
+    /// The description in a white card, for every type — each section on the
+    /// page reads as a card, and the structured idea content that follows has
+    /// its own headings.
     @ViewBuilder
     private var aboutBlock: some View {
-        // For ideas, the description already leads the structured content, so we
-        // skip a duplicate "About" block.
-        if !isIdea, let description = item.description, !description.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("About")
-                    .knotFont(Theme.Typography.cardTitle)
-                    .foregroundStyle(Theme.textPrimary)
-                Text(description)
-                    .knotFont(Theme.Typography.body)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        if let description = item.description, !description.isEmpty {
+            KnotCard(padding: .lg) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("About")
+                        .knotFont(Theme.Typography.cardTitleSemibold)
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(description)
+                        .knotFont(Theme.Typography.body)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-        } else if isIdea, let description = item.description, !description.isEmpty {
-            Text(description)
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     // MARK: - Location
 
     @ViewBuilder
-    private var locationRow: some View {
-        if let location = item.location {
-            let parts = [location.address, location.city, location.state]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-            if !parts.isEmpty {
+    private var locationCard: some View {
+        if let whereText = RecommendationDetailContent.whereText(
+            address: item.location?.address,
+            city: item.location?.city,
+            state: item.location?.state
+        ) {
+            KnotCard(padding: .lg) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Where")
-                        .knotFont(Theme.Typography.cardTitle)
+                    Text("Where you'll meet")
+                        .knotFont(Theme.Typography.cardTitleSemibold)
                         .foregroundStyle(Theme.textPrimary)
-                    HStack(spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(uiImage: Lucide.mapPin)
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 16, height: 16)
                             .foregroundStyle(Theme.accent)
-                        Text(parts.joined(separator: ", "))
+                            .accessibilityHidden(true)
+                        Text(whereText)
                             .knotFont(Theme.Typography.body)
                             .foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -529,34 +527,52 @@ struct RecommendationDetailView: View {
     // MARK: - Helpers
 
     private var locationText: String? {
-        guard let location = item.location else { return nil }
-        let cityState = [location.city, location.state]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        guard !cityState.isEmpty else { return nil }
-        return cityState.joined(separator: ", ")
+        RecommendationDetailContent.locationText(city: item.location?.city, state: item.location?.state)
     }
+}
 
-    private var typeIconLucide: UIImage {
-        switch item.recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
+// MARK: - Stats Strip
+
+/// Three equal columns separated by hairline vertical rules — a bold value over
+/// a small caption. Kept as its own struct (not inlined in `body`) so the detail
+/// page's already-long body doesn't push the type-checker over its budget.
+///
+/// `.top` alignment keeps the three values on one line even when a caption
+/// wraps to two; a `Divider` inside an `HStack` renders as a row-height
+/// vertical hairline (the app's standard divider idiom).
+private struct DetailStatsStrip: View {
+    let stats: [RecommendationDetailContent.Stat]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(stats.indices, id: \.self) { index in
+                if index > 0 {
+                    Divider().overlay(Theme.surfaceBorder)
+                }
+                column(stats[index])
+            }
         }
     }
 
-    private var typeLabel: String {
-        switch item.recommendationType {
-        case "gift": return "Gift"
-        case "experience": return "Experience"
-        case "date": return "Date"
-        case "idea": return "Idea"
-        case "plan": return "Date Plan"
-        default: return item.recommendationType.capitalized
+    private func column(_ stat: RecommendationDetailContent.Stat) -> some View {
+        VStack(spacing: 3) {
+            Text(stat.value)
+                .knotFont(Theme.Typography.numeric)
+                .foregroundStyle(stat.isAccent ? Theme.accent : Theme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            // Long captions ("Words of Affirmation", a merchant name) don't fit a
+            // ~105pt column on one line; two lines, then truncate.
+            Text(stat.label)
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 6)
+        .accessibilityElement(children: .combine)
     }
 }
 

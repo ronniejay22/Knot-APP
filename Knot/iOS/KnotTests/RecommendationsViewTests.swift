@@ -1653,6 +1653,30 @@ final class SpotlightViewRenderingTests: XCTestCase {
         XCTAssertNotNil(host.view, "RecommendationDetailView should render for an already-saved item")
     }
 
+    /// A Saved-tab snapshot (no matched factors, note, or location) renders — the
+    /// stats strip and why-card are omitted rather than rendered empty (Step 19.47).
+    func testDetailRendersSavedSnapshotWithoutMatches() {
+        let item = RecommendationItemResponse(
+            id: "saved-1",
+            recommendationType: "gift",
+            title: "Saved Gift",
+            description: "A saved gift.",
+            priceCents: 4200,
+            externalUrl: "https://example.com/gift",
+            merchantName: "Shop"
+        )
+        let view = RecommendationDetailView(
+            item: item,
+            partnerName: nil,
+            isSaved: true,
+            onOpenMerchant: {},
+            onSave: {},
+            onDismiss: {}
+        )
+        let host = UIHostingController(rootView: view)
+        XCTAssertNotNil(host.view, "RecommendationDetailView should render a snapshot with no matched factors")
+    }
+
     /// The Spotlight deck renders with a multi-item deck.
     func testDeckRendersWithItems() {
         let items = [makeItem(type: "gift"), makeItem(type: "experience"), makeItem(type: "idea")]

@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import LucideIcons
 
 /// A single match-factor badge (vibe / love language / interest) shown on a
 /// recommendation. Color-coded by `style`.
@@ -119,5 +120,36 @@ struct RecommendationDisplayChip: Identifiable {
             RecommendationDisplayChip(label: $0, style: .interest)
         })
         return chips
+    }
+}
+
+// MARK: - Type Display
+
+/// Maps a `recommendation_type` key to its display label and Lucide icon.
+///
+/// Shared by the feed card's type badge and the detail page's category pill /
+/// stats strip. `nonisolated static` so the pure detail-content helpers can call
+/// it from any isolation.
+enum RecommendationTypeDisplay {
+    nonisolated static func label(for type: String) -> String {
+        switch type {
+        case "gift": return "Gift"
+        case "experience": return "Experience"
+        case "date": return "Date"
+        case "idea": return "Idea"
+        case "plan": return "Date Plan"
+        default: return type.capitalized
+        }
+    }
+
+    nonisolated static func icon(for type: String) -> UIImage {
+        switch type {
+        case "gift": return Lucide.gift
+        case "experience": return Lucide.sparkles
+        case "date": return Lucide.heart
+        case "idea": return Lucide.lightbulb
+        case "plan": return Lucide.calendarHeart
+        default: return Lucide.star
+        }
     }
 }

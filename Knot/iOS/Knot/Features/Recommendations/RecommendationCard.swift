@@ -171,13 +171,13 @@ struct RecommendationCard: View {
 
     private var typeBadge: some View {
         HStack(spacing: 5) {
-            Image(uiImage: typeIconLucide)
+            Image(uiImage: RecommendationTypeDisplay.icon(for: recommendationType))
                 .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 12, height: 12)
 
-            Text(typeLabel)
+            Text(RecommendationTypeDisplay.label(for: recommendationType))
                 .knotFont(Theme.Typography.label)
                 .textCase(.uppercase)
         }
@@ -327,35 +327,7 @@ struct RecommendationCard: View {
     }
 
     private var locationText: String? {
-        let cityState = [locationCity, locationState]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        guard !cityState.isEmpty else { return nil }
-        return cityState.joined(separator: ", ")
-    }
-
-    // MARK: - Helpers
-
-    private var typeIconLucide: UIImage {
-        switch recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
-        }
-    }
-
-    private var typeLabel: String {
-        switch recommendationType {
-        case "gift": return "Gift"
-        case "experience": return "Experience"
-        case "date": return "Date"
-        case "idea": return "Idea"
-        case "plan": return "Date Plan"
-        default: return recommendationType.capitalized
-        }
+        RecommendationDetailContent.locationText(city: locationCity, state: locationState)
     }
 
     // MARK: - Matching Factors
