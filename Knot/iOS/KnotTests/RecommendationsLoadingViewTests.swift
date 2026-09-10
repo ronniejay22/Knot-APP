@@ -304,3 +304,101 @@ final class RecommendationsLoadingViewRenderingTests: XCTestCase {
         XCTAssertNotNil(UIImage(named: "BrandLogo"))
     }
 }
+
+// MARK: - Chrome
+
+/// The loading screen is a full-bleed brand surface, so both the navigation bar
+/// above it and `MainTabView`'s `KnotTabBar` below it have to get out of the
+/// way — and both have to come back for every other phase.
+///
+/// These shipped broken once. The navigation bar stayed visible because
+/// `ForYouView` wrapped the pushed destination in an unconditional
+/// `.toolbar(.visible, for: .navigationBar)` that outranked the declaration
+/// `RecommendationsView` made four levels deeper inside a ZStack and a switch.
+/// The tab bar stayed visible because nothing had ever asked it to leave —
+/// which additionally hid the progress bar behind it, since `safeAreaInset`
+/// does not propagate through a `navigationDestination` push. The screenshot
+/// harness mounted neither piece of chrome, so the capture looked correct.
+@MainActor
+final class RecommendationsChromeTests: XCTestCase {
+
+    private let allPhases: [RecommendationRevealPhase] =
+        [.loading, .silent, .error, .missing, .empty, .loaded]
+
+    // MARK: Navigation bar
+
+    func testNavigationBarIsHiddenOnlyWhileLoading() {
+        for phase in allPhases {
+            let expected: Visibility = phase == .loading ? .hidden : .visible
+            XCTAssertEqual(
+                RecommendationsView.navigationBarVisibility(isModal: false, phase: phase),
+                expected,
+                "Wrong navigation bar visibility for \(phase)"
+            )
+        }
+    }
+
+    /// Inside a full-screen cover the bar carries
+    /// `MilestoneRecommendationsCoverView`'s X — the only way out of a
+    /// ~25-second run. Hiding it there strands the user.
+    func testNavigationBarStaysVisibleInAModalEvenWhileLoading() {
+        for phase in allPhases {
+            XCTAssertEqual(
+                RecommendationsView.navigationBarVisibility(isModal: true, phase: phase),
+                .visible,
+                "The modal host must never hide its bar (\(phase))"
+            )
+        }
+    }
+
+    // MARK: Tab bar
+
+    func testTabBarIsHiddenOnlyWhileLoading() {
+        for phase in allPhases {
+            XCTAssertEqual(
+                RecommendationsView.shouldHideTabBar(isModal: false, phase: phase),
+                phase == .loading,
+                "Wrong tab bar visibility for \(phase)"
+            )
+        }
+    }
+
+    /// A `fullScreenCover` inherits the presenting view's environment, so the
+    /// modal host can reach `AppChrome` even though its tab bar is already
+    /// covered. It must decline to, or the bar animates out behind the cover
+    /// and back in on dismissal for no reason.
+    func testModalHostNeverTouchesTheTabBar() {
+        for phase in allPhases {
+            XCTAssertFalse(
+                RecommendationsView.shouldHideTabBar(isModal: true, phase: phase),
+                "The modal host must not drive the tab bar (\(phase))"
+            )
+        }
+    }
+
+    /// The reveal ends in one of four terminal phases. Every one of them must
+    /// bring the tab bar back — a terminal phase that left it hidden would
+    /// strand the whole app with no navigation and no way to restore it.
+    func testEveryTerminalPhaseRestoresTheTabBar() {
+        for phase in [RecommendationRevealPhase.error, .missing, .empty, .loaded] {
+            XCTAssertFalse(
+                RecommendationsView.shouldHideTabBar(isModal: false, phase: phase),
+                "\(phase) left the tab bar hidden"
+            )
+        }
+    }
+
+    // MARK: AppChrome
+
+    func testAppChromeStartsVisible() {
+        XCTAssertFalse(AppChrome().isTabBarHidden)
+    }
+
+    func testAppChromeRoundTrips() {
+        let chrome = AppChrome()
+        chrome.isTabBarHidden = true
+        XCTAssertTrue(chrome.isTabBarHidden)
+        chrome.isTabBarHidden = false
+        XCTAssertFalse(chrome.isTabBarHidden)
+    }
+}

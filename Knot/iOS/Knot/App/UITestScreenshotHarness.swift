@@ -296,17 +296,31 @@ private struct MilestoneRecsMissingScreenshotHarnessView: View {
 /// and the shot is deterministic.
 @MainActor
 /// Renders the recommendation **generation** state through the real
-/// `RecommendationsView`, inside the `NavigationStack` that `ForYouView` pushes
-/// it from.
+/// `RecommendationsView`, reached by a real push, inside a reproduction of the
+/// chrome that actually surrounds it in production.
 ///
-/// Rendering `RecommendationsLoadingView()` bare would have been simpler — it
-/// takes no arguments and drives itself — but it would also have hidden the
-/// thing most likely to be wrong. The loading screen is a full-bleed brand
-/// surface with its own "Knot" header, and this host applies a navigation bar
-/// with a `Theme.textPrimary` title above it: dark plum on coral, and a second
-/// header. That the bar is correctly hidden during loading is only visible when
-/// the bar is actually there, so the harness supplies one. A harness only
-/// proves what it renders (Steps 19.28, 19.30, 19.31).
+/// **This harness exists in this exact shape because a simpler one shipped a
+/// misleading screenshot.** The first version mounted
+/// `RecommendationsView` as the bare root of a `NavigationStack` with no tab
+/// bar and no wrapper above it. That is the single environment in which three
+/// separate production bugs are all invisible, and the capture came out looking
+/// perfect while the real screen had a navigation bar stuck on, a tab bar
+/// underneath, and its progress bar hidden behind that tab bar.
+///
+/// So this reproduces all three structural facts that broke it:
+///   1. A real `navigationDestination` push, not a stack root — toolbar
+///      visibility resolves differently for a destination than for a root.
+///   2. The root's own `.toolbar(.hidden, for: .navigationBar)`, mirroring
+///      `ForYouView`, since that hidden state propagates into the push and is
+///      half of what `RecommendationsView` has to override.
+///   3. `KnotTabBar` mounted via `.safeAreaInset(edge: .bottom)` with a real
+///      `AppChrome` in the environment, exactly as `MainTabView` mounts it —
+///      so a regression in the hide-the-tab-bar path shows up in the image.
+///
+/// The standing rule, learned twice now (Steps 19.28, 19.30, 19.31): **a
+/// harness only ever proves what it renders.** If production wraps the screen
+/// in chrome, the harness must wrap it in that chrome, or the capture is
+/// evidence about a screen that does not exist.
 ///
 /// Reaching this state for real needs a live session, a vault, and a ~25-second
 /// pipeline run, so the view model is seeded mid-flight instead:
@@ -314,6 +328,9 @@ private struct MilestoneRecsMissingScreenshotHarnessView: View {
 /// pins the phase to `.loading` for as long as the shot needs.
 private struct RecsLoadingScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
+    @State private var chrome = AppChrome()
+    @State private var selectedTab: MainTabView.AppTab = .journal
+    @State private var isPushed = true
 
     private static func loadingViewModel() -> RecommendationsViewModel {
         let vm = RecommendationsViewModel()
@@ -324,11 +341,31 @@ private struct RecsLoadingScreenshotHarnessView: View {
         return vm
     }
 
+    private var tabBarItems: [KnotTabBar<MainTabView.AppTab>.Item] {
+        [
+            .init(id: .journal, title: "Journal", systemImage: "book"),
+            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
+            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
+        ]
+    }
+
     var body: some View {
         NavigationStack {
-            RecommendationsView(viewModel: Self.loadingViewModel())
+            Color.clear
+                // Mirrors `ForYouView`: the Journal feed hides its own bar, and
+                // that state propagates into the destination.
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: $isPushed) {
+                    RecommendationsView(viewModel: Self.loadingViewModel())
+                }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !chrome.isTabBarHidden {
+                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+            }
         }
         .environment(authViewModel)
+        .environment(chrome)
     }
 }
 

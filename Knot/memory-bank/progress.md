@@ -9577,6 +9577,49 @@ matched inside "Deidre's Birthday".
   including a hardcoded six-colour particle palette that was never Theme-derived and every
   duration as an inline magic number.
 
+**Follow-up in the same PR — the chrome, and the harness that hid it.** The first build of this
+screen reached a real device with three defects that the PR screenshot did not show, because the
+screenshot harness mounted `RecommendationsView` as the bare root of a `NavigationStack`: no tab
+bar, and none of the wrappers `ForYouView` puts on the pushed destination. That is the one
+environment in which all three are invisible.
+
+- **The navigation bar never hid.** `RecommendationsView` did declare
+  `.toolbar(.hidden, for: .navigationBar)` — but four levels down, inside `suggestionsContent`'s
+  ZStack and switch, while `ForYouView` wrapped the whole destination in an unconditional
+  `.toolbar(.visible, for: .navigationBar)`. **Toolbar visibility resolves to the declaration
+  nearest the destination's root, so the outer one wins.** ForYouView's wrapper existed for a
+  real reason (the Journal hides its own bar and that state propagates into pushes), but an
+  unconditional restore also outranks anything the destination says about itself. Fixed by making
+  `RecommendationsView` the sole owner: it now declares `navigationBarVisibility` once on `body`,
+  and ForYouView declares nothing for that destination.
+- **`KnotTabBar` stayed on top of a full-bleed brand surface.** It is a *custom* bar mounted by
+  `MainTabView` via `.safeAreaInset`, so `.toolbar(.hidden, for: .tabBar)` — which only governs a
+  SwiftUI `TabView` — does nothing to it, and the signal has to travel *up* out of a
+  `navigationDestination`. Added **`AppChrome`**, a tiny `@Observable` published by `MainTabView`
+  and mutated by the pushed screen: environment flows *down* reliably where preferences and safe-
+  area insets do not flow up. The inset is dropped, not just made transparent, or a full-bleed
+  screen keeps a ~97pt dead strip.
+- **The progress bar was "missing" because it was underneath that tab bar.** Nothing was wrong
+  with it. `safeAreaInset` does not propagate through a `navigationDestination` push — the loaded
+  state already compensates with a hardcoded `.padding(.bottom, 100)` — so the loading view was
+  laid out against the *full* screen height and its footer landed at 809–842pt on an 874pt screen,
+  inside the 777–874pt the tab bar covers. Hiding the tab bar fixes it at the root; no padding was
+  added, because the screen is now genuinely full-bleed.
+- **`isModal` is excluded from the tab-bar path deliberately.** A `fullScreenCover` inherits the
+  presenting view's environment, so the modal host *can* reach `AppChrome` even though its tab bar
+  is already covered; left ungated it would animate the bar out behind the cover and back in on
+  dismissal. The modal host also never hides the navigation bar — there it carries
+  `MilestoneRecommendationsCoverView`'s X, the only way out of a ~25-second run.
+- **`.onDisappear` restores the bar unconditionally.** Backing out mid-generation, or an error
+  tearing the screen down, would otherwise leave the entire app with no tab bar and no way to get
+  it back. `testEveryTerminalPhaseRestoresTheTabBar` pins this.
+- **The harness now reproduces the chrome it is supposed to prove.** `recsLoading` mounts a real
+  `navigationDestination` push, the root's own hidden bar (mirroring ForYouView), and `KnotTabBar`
+  via `.safeAreaInset` with a real `AppChrome` — so a regression in any of the three is visible in
+  the capture. The standing rule, now learned twice: **a harness only ever proves what it renders.**
+  If production wraps the screen in chrome, the harness must wrap it in that chrome, or the image
+  is evidence about a screen that does not exist.
+
 ---
 
 ## Next Steps

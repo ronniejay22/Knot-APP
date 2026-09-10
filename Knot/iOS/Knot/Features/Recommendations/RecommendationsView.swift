@@ -53,6 +53,10 @@ struct RecommendationsView: View {
     /// so the tab-bar bottom clearance isn't needed.
     var isModal: Bool
 
+    /// Absent in the two hosts with no tab bar (the full-screen cover and
+    /// onboarding), so every use is optional-chained and no-ops there.
+    @Environment(AppChrome.self) private var chrome: AppChrome?
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -124,10 +128,68 @@ struct RecommendationsView: View {
         )
     }
 
+    /// Whether the navigation bar shows above this screen.
+    ///
+    /// The loading screen is a full-bleed brand surface carrying its own "Knot"
+    /// wordmark, so a navigation bar over it is both a second header and
+    /// dark-plum type on coral.
+    ///
+    /// Declared on `body` — the outermost node of this view's own subtree —
+    /// rather than down inside `suggestionsContent`'s switch. Toolbar
+    /// visibility resolves to the declaration nearest the destination's root,
+    /// so the inner version lost to `ForYouView`'s wrapper and never took
+    /// effect on a real push, while still *looking* correct in the screenshot
+    /// harness (which mounted this view as a bare `NavigationStack` root with
+    /// no wrapper above it). `RecommendationsView` is the sole owner now, and
+    /// `ForYouView` no longer declares anything for this destination.
+    ///
+    /// Never hidden inside a full-screen cover: there the bar carries the only
+    /// way out — `MilestoneRecommendationsCoverView`'s X — and taking it away
+    /// would strand the user for the whole ~25s run.
+    static func navigationBarVisibility(
+        isModal: Bool,
+        phase: RecommendationRevealPhase
+    ) -> Visibility {
+        if isModal { return .visible }
+        return phase == .loading ? .hidden : .visible
+    }
+
+    /// Whether this screen wants `MainTabView`'s `KnotTabBar` to stand down.
+    ///
+    /// `isModal` is excluded rather than merely irrelevant: a full-screen cover
+    /// inherits the presenting view's environment, so the modal host *can*
+    /// reach `AppChrome` even though its own tab bar is already covered. Left
+    /// ungated it would animate the bar out behind the cover and back in on
+    /// dismissal, for no visible benefit.
+    static func shouldHideTabBar(
+        isModal: Bool,
+        phase: RecommendationRevealPhase
+    ) -> Bool {
+        !isModal && phase == .loading
+    }
+
+    private var navigationBarVisibility: Visibility {
+        Self.navigationBarVisibility(isModal: isModal, phase: revealPhase)
+    }
+
     var body: some View {
         recommendationsBody
             .background(Theme.backgroundGradient.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(navigationBarVisibility, for: .navigationBar)
+            // The tab bar belongs to `MainTabView`, an ancestor, so it can only
+            // be hidden by telling it to stand down. `initial: true` covers the
+            // common case where the screen is already `.loading` on its first
+            // frame — an `onChange` alone would not fire until the phase moved.
+            .onChange(of: revealPhase, initial: true) { _, phase in
+                chrome?.isTabBarHidden = Self.shouldHideTabBar(isModal: isModal, phase: phase)
+            }
+            // Restore on the way out. Without this, backing out mid-generation
+            // (or an error tearing the screen down) would leave the whole app
+            // with no tab bar and no way to get it back.
+            .onDisappear {
+                chrome?.isTabBarHidden = false
+            }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if let ctx = milestoneContext {
@@ -417,20 +479,10 @@ struct RecommendationsView: View {
     private var suggestionsContent: some View {
         switch revealPhase {
         case .loading:
+            // Bar visibility is declared once on `body` via
+            // `navigationBarVisibility`, not here — see the note there for why
+            // a declaration at this depth silently loses.
             RecommendationsLoadingView()
-                // The loading screen is a full-bleed brand surface with its own
-                // "Knot" header, so the navigation bar above it is both a
-                // second header and dark-plum type on coral. Hidden here rather
-                // than on `body` so the modifier is structurally scoped to this
-                // branch and cannot leak into the sheets and covers presented
-                // from the outer chain — the scoping Step 19.31 had to correct
-                // for the Journal's hidden bar.
-                //
-                // Not hidden inside a full-screen cover: there the bar carries
-                // the only way out (`MilestoneRecommendationsCoverView`'s X),
-                // and taking it away would strand the user for the whole ~25s
-                // run they just opted into from "Find picks now".
-                .toolbar(isModal ? .visible : .hidden, for: .navigationBar)
                 .transition(.loadingHandoff)
         case .silent:
             // A sub-second read of an already-stored batch. Showing the

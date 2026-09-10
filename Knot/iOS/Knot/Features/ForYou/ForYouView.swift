@@ -73,14 +73,20 @@ struct ForYouView: View {
                     .toolbar(.hidden, for: .navigationBar)
             }
             .navigationDestination(item: $navigationDestination) { destination in
+                // No `.toolbar(...)` here on purpose. This used to restore the
+                // bar unconditionally, because the hidden state above
+                // propagates into the push and `RecommendationsView` relies on
+                // the system back button. But an unconditional `.visible` at
+                // the top of the destination's subtree also *outranks*
+                // anything the destination declares about itself, which is
+                // what kept the bar stuck on over the loading screen.
+                // `RecommendationsView` now always declares its own visibility
+                // (`navigationBarVisibility`), restoring the bar in every state
+                // except the full-bleed loading screen.
                 RecommendationsView(
                     milestoneId: destination.milestoneId,
                     milestoneContext: destination.context
                 )
-                // `RecommendationsView` has no NavigationStack of its own and
-                // relies on the system back button, so the bar this screen
-                // hides must be explicitly restored on the pushed destination.
-                .toolbar(.visible, for: .navigationBar)
             }
             .task {
                 await viewModel.loadData()
