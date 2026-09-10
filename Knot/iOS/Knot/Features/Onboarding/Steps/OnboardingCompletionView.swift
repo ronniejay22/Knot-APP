@@ -264,6 +264,11 @@ struct OnboardingCompletionView: View {
     /// behind a single continuous loading screen. This reveal always generates
     /// — there is no stored batch to read — so the pre-generated inputs are
     /// constant `false`.
+    /// True while the loading screen is on screen, including its recede.
+    /// Onboarding has no navigation or tab chrome to hide, so nothing reads it
+    /// here — it exists because the shared overlay reports through it.
+    @State private var loaderIsCovering = true
+
     private var revealPhase: RecommendationRevealPhase {
         RecommendationsLoadingView.phase(
             isLoading: !vaultReady || viewModel.isLoading,
@@ -286,10 +291,11 @@ struct OnboardingCompletionView: View {
             } else {
                 switch revealPhase {
                 case .loading, .silent:
-                    // One continuous loading screen: vault creation first
-                    // (`!vaultReady`), then recommendation generation.
-                    RecommendationsLoadingView()
-                        .transition(.loadingHandoff)
+                    // One continuous loading screen — vault creation first
+                    // (`!vaultReady`), then recommendation generation — drawn
+                    // by `recommendationLoadingOverlay` below rather than here,
+                    // so its recede animates. See `RecommendationsView`.
+                    Color.clear
                 case .error:
                     errorState(
                         message: viewModel.errorMessage ?? "",
@@ -304,8 +310,12 @@ struct OnboardingCompletionView: View {
             }
         }
         // The loading screen hands straight off to the picks — no celebration
-        // in between. See `RecommendationsView.recommendationsBody`.
-        .animation(.easeInOut(duration: 0.42), value: revealPhase)
+        // in between. Same two-part hand-off as `RecommendationsView`: the
+        // overlay plays the 420ms recede, then `.revealIn` brings the picks up
+        // on a matched delay. Shared so the two surfaces cannot drift.
+        .recommendationLoadingOverlay(phase: revealPhase, isCovering: $loaderIsCovering)
+        .animation(.timingCurve(0.4, 0, 0.2, 1, duration: RecommendationsLoadingView.handoffExitDuration),
+                   value: revealPhase)
     }
 
     // MARK: - Loaded

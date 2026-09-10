@@ -9620,6 +9620,39 @@ environment in which all three are invisible.
   If production wraps the screen in chrome, the harness must wrap it in that chrome, or the image
   is evidence about a screen that does not exist.
 
+**Second follow-up — the hand-off did not match the prototype, and a removal transition was why.**
+The first port ran the loader's exit and the picks' entrance *simultaneously* under one
+`.easeInOut(duration: 0.42)`, i.e. a crossfade. The prototype is sequential: `App.tsx` fades,
+scales and blurs the loader out over 420ms on `cubic-bezier(0.4, 0, 0.2, 1)`, and only then — on a
+`setTimeout` matched to that duration — mounts the results, which run a 500ms `screen-in` on
+`cubic-bezier(0.22, 1, 0.36, 1)`. Neither curve is any SwiftUI preset (`.easeInOut` is
+`cubic-bezier(0.42, 0, 0.58, 1)`, symmetric and much softer on the way out), so both are now
+`.timingCurve(…)` literals.
+
+- **A removal transition on a phase-switch branch does not animate here.** The obvious shape —
+  `case .loading: RecommendationsLoadingView().transition(…)` — unmounts the branch on the frame
+  the phase changes, with no exit at all. This was measured, not guessed: the hand-off was
+  photographed across 25 frames with the durations temporarily scaled **5×**, so a 420ms exit
+  became 2.1s and any animation would have been unmissable. The loader was already gone 0.57s in.
+  It stayed gone when the removal was reduced to a plain `.opacity`, and when the navigation bar
+  was pinned so its appearance could not be disturbing the hierarchy. **The removal never runs.**
+- **So the exit is an overlay, not a branch.** `RecommendationLoadingOverlay` keeps the loading
+  screen mounted above the content and animates `opacity`/`scaleEffect`/`blur` under an explicit
+  `withAnimation`, then unmounts it when the recede finishes. Ordinary animatable modifiers on a
+  view that stays mounted always animate, because nothing structural is happening. Shared by both
+  hosts via `.recommendationLoadingOverlay(phase:isCovering:)` so they cannot drift.
+- **`.revealIn` carries a `.delay` matched to the recede.** With the loader no longer a branch,
+  nothing else sequences the two halves. An earlier attempt kept the delay *and* relied on the
+  branch removal, which double-counted: SwiftUI defers a branch insertion until the removal
+  resolves anyway, producing a **~350ms blank screen** between the two — visible in the same frame
+  captures.
+- **The chrome keys on `isCovering`, not on the phase.** The coral surface outlives `.loading` by
+  its 420ms recede, so gating on the phase popped a dark-plum inline title over coral for that
+  whole time. The overlay reports through a binding and both bars wait for it.
+- **Not ported: the prototype's per-card 60ms stagger** (`card-in`). Its `ResultsScreen` is a
+  vertical list of three cards; the app shows `SpotlightCarouselView`, one card at a time, so
+  there is nothing to stagger.
+
 ---
 
 ## Next Steps
