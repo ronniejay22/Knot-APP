@@ -51,19 +51,41 @@ struct RecommendationsLoadingView: View {
 
     // MARK: Content
 
-    /// The nine illustrations, cycled in order and wrapped.
-    /// `LoadingIllustrations/` is a namespaced asset folder, so the namespace
-    /// prefix is required in the lookup.
-    private static let illustrationCount = 9
+    /// One rotation step: an illustration and the emphasis phrase it belongs
+    /// with.
+    private struct Scene {
+        /// Asset name. `LoadingIllustrations/` is a namespaced asset folder, so
+        /// the namespace prefix is required in the lookup.
+        let illustration: String
+        /// The emphasis in "Thinking about ___". Verbatim from the prototype —
+        /// second person, no gendered pronoun, which is the rule every other
+        /// partner-facing string in the app follows.
+        let emphasis: String
+    }
 
-    /// The rotating emphasis in "Thinking about ___". Verbatim from the
-    /// prototype — second person, no gendered pronoun, which is the rule every
-    /// other partner-facing string in the app follows.
-    private static let emphases = [
-        "the things they love",
-        "their taste",
-        "the little moments",
-        "their favorites",
+    /// The rotation, as pairs rather than as two independent lists.
+    ///
+    /// The illustration and the phrase advance on the same `step`, so pairing
+    /// them 1:1 is what makes a phrase always arrive with its own picture.
+    /// They were previously two lists of different lengths — nine illustrations
+    /// indexed `step % 9` against four phrases indexed `step % 4` — and because
+    /// 9 and 4 do not divide, the pairing drifted: a phrase got a different
+    /// picture every time it came round, and the pairing did not repeat for 36
+    /// steps (90s), far longer than the ~25s this screen is ever up. On screen
+    /// the four phrases visibly looped while the art kept changing, which reads
+    /// as the pictures running on their own clock.
+    ///
+    /// Five illustrations are deliberately unused and stay in
+    /// `LoadingIllustrations/` — `loading-0` (birthday cake), `loading-2`
+    /// (handing over flowers), `loading-5` (a gift by a lit tree), `loading-6`
+    /// (a rooftop toast) and `loading-8` (an empty path, the only one of the
+    /// nine with no people in it). Changing which four are live is an edit to
+    /// this array and nothing else.
+    private static let scenes: [Scene] = [
+        Scene(illustration: "LoadingIllustrations/loading-4", emphasis: "the things they love"),
+        Scene(illustration: "LoadingIllustrations/loading-1", emphasis: "their taste"),
+        Scene(illustration: "LoadingIllustrations/loading-7", emphasis: "the little moments"),
+        Scene(illustration: "LoadingIllustrations/loading-3", emphasis: "their favorites"),
     ]
 
     /// The count the pipeline always returns (PRD F2: exactly three cards).
@@ -106,17 +128,28 @@ struct RecommendationsLoadingView: View {
     // Extracted so the rotation and counter logic can be unit-tested without
     // rendering the view or waiting on a timer.
 
-    /// The asset name for a given step, wrapping over the illustration set.
-    /// Negative steps wrap too, so a caller can never index out of bounds.
-    static func illustrationName(forStep step: Int) -> String {
-        let index = ((step % illustrationCount) + illustrationCount) % illustrationCount
-        return "LoadingIllustrations/loading-\(index)"
+    /// The scene for a given step, wrapping over the rotation.
+    ///
+    /// Negative steps wrap too, so no caller can index out of bounds. That is
+    /// defensive rather than load-bearing: `step` starts at 0 and only ever
+    /// increments, and `illustrationCard`'s underneath-layer is guarded by
+    /// `step > 0`, so production never asks for a negative one. It matters
+    /// because Swift's `%` keeps the sign of the dividend, so the plain
+    /// `step % count` a future caller might reach for would trap here.
+    private static func scene(forStep step: Int) -> Scene {
+        let index = ((step % scenes.count) + scenes.count) % scenes.count
+        return scenes[index]
     }
 
-    /// The emphasis phrase for a given step, wrapping over the phrase set.
+    /// The asset name for a given step.
+    static func illustrationName(forStep step: Int) -> String {
+        scene(forStep: step).illustration
+    }
+
+    /// The emphasis phrase for a given step. Always the phrase paired with the
+    /// illustration `illustrationName(forStep:)` returns for the same step.
     static func emphasis(forStep step: Int) -> String {
-        let index = ((step % emphases.count) + emphases.count) % emphases.count
-        return emphases[index]
+        scene(forStep: step).emphasis
     }
 
     /// How many matches the counter claims to have found at a given progress.

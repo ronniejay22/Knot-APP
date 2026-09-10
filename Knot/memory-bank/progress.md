@@ -9655,6 +9655,87 @@ scales and blurs the loader out over 420ms on `cubic-bezier(0.4, 0, 0.2, 1)`, an
 
 ---
 
+### Step 19.52 ✅ Recommendations — Pair Each Loading Illustration With Its Phrase
+**Date:** 2026-09-10
+**Status:** Complete
+
+**Goal:** On the loading screen the illustration appeared to run on its own clock,
+independently of the "Thinking about ___" phrase below it. Tie the two together.
+
+**The premise was wrong, and that was the finding.** There is no second timer. The file has
+exactly one `Timer.publish(every: 2.5)` and one `@State step`, and `tick()` is the only
+mutation site — the illustration and the phrase are both pure functions of that same `step`,
+each with `.id(step)` + `.transition(.opacity)`, so they already crossfaded on the same tick
+inside the same `withAnimation`. Nothing needed decoupling because nothing was coupled twice.
+
+**What was actually adrift was the pairing.** The two lists were different lengths — nine
+illustrations indexed `step % 9` against four phrases indexed `step % 4`. Because 9 and 4 do
+not divide, a phrase got a different picture every time it came round, and the pairing did
+not repeat for 36 steps (90s) — far longer than the ~25s the screen is ever up. On screen the
+four phrases visibly looped while the art kept presenting new scenes, which is exactly what
+reads as "the pictures are on their own timer". The perception was right; the diagnosis was
+the thing to correct.
+
+**What changed:**
+- **`Features/Recommendations/RecommendationsLoadingView.swift`:** `illustrationCount` and
+  `emphases` were replaced by one `private static let scenes: [Scene]`, where a `Scene` is an
+  illustration and the phrase it belongs with. One `scene(forStep:)` carries the negative-safe
+  wrap; `illustrationName(forStep:)` and `emphasis(forStep:)` are now one line each over it.
+  Both public signatures are unchanged, so the view body and the tests needed no reshaping.
+- **No timing change whatsoever.** The timer, `tick()`, `illustrationCard`, `subline`, the
+  progress ramp, the Reduce Motion pinning and the `reduceMotionOverride` seam are untouched.
+  The cadence is still 2.5s.
+
+**The pairing, chosen by looking at all nine illustrations rather than defaulting to 0–3:**
+
+| step | illustration | scene | phrase |
+|---|---|---|---|
+| 0 | `loading-4` | a man alone with coffee at a campsite | "the things they love" |
+| 1 | `loading-1` | candlelit dinner on a terrace at sunset | "their taste" |
+| 2 | `loading-7` | a couple carving a roast at home | "the little moments" |
+| 3 | `loading-3` | a woman holding a bouquet, eyes closed | "their favorites" |
+
+Five illustrations are deliberately unused and stay in the catalogue — `loading-0` (birthday
+cake), `loading-2` (handing over flowers), `loading-5` (a gift by a lit tree), `loading-6` (a
+rooftop toast) and `loading-8`, the only one of the nine with no people in it. Changing which
+four are live is an edit to one array and nothing else, which is why they were left in place
+rather than deleted.
+
+**Tests:** iOS Unit plan **546 passed**, 0 failures (544 baseline + 2 new). The existing
+`RecommendationsLoadingHelperTests` cases that encoded the 9/4 split were updated — the
+in-order sweep, the wrap (`22 % 4 == 2`), the negative step, and the bundled-asset check. The
+four phrases and their order are unchanged, so the phrase-rotation and `\b`-anchored
+gendered-pronoun guards stand as written.
+
+Two new cases carry the actual invariant: `testEachPhraseAlwaysArrivesWithTheSameIllustration`
+walks steps −8…20 and asserts a phrase never arrives with two different pictures (and that no
+two phrases share one), and `testIllustrationAndPhraseShareOneCycleLength` pins both halves to
+the same period. Re-splitting them into independent lists is what these exist to catch — the
+first would have failed on the old code at step 5, where "their taste" returned with
+`loading-5` instead of `loading-1`.
+
+**Notes:**
+- **The screenshot cannot prove the pairing, and the first attempt to make it do so was
+  wrong.** A comment was written claiming the 4.0s sleep lands the capture on step 2 — the one
+  frame whose illustration visibly differs, since steps 0, 1 and 3 happen to render identically
+  before and after. The very first capture landed on step 0 instead: the rotation clock starts
+  when the screen appears, and app launch takes several variable seconds to get there, so the
+  step at capture time is not controllable from the test. The comment now says so plainly and
+  points at the unit test as the real proof. Threading a step override down through
+  `RecommendationsView` → the overlay → the loading view to make it deterministic was
+  considered and rejected as more plumbing than a screenshot warrants.
+- **Fixed a stale reference found on the way past:** a comment in `RecommendationsView.swift`
+  still named `AnyTransition.loadingHandoff`, which no longer exists — Step 19.51's own
+  follow-up moved the loader's recede into `RecommendationLoadingOverlay` and deleted that
+  transition, but left the comment behind. `architecture.md` carried the same claim and is
+  corrected in this step. The Step 19.51 progress entry still mentions it, correctly, as
+  narrative of what was built and then changed within that PR.
+- The phrase list stayed at four. Extending it to nine so every illustration kept a line was
+  the alternative, and it needs five new pieces of partner-facing copy — a separate decision
+  from making the pairing hold.
+
+---
+
 ## Next Steps
 
 
