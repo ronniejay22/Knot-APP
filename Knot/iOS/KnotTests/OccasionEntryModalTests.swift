@@ -300,12 +300,24 @@ final class OccasionEntryNoFlashTests: XCTestCase {
         XCTAssertTrue(modal.entranceAnimated)
     }
 
-    /// `ForYouLoadingView` is the ~28-second generation animation, progress bar
-    /// and all. The tap-through only reads an already-stored batch, so showing
-    /// it is both a lie about the wait and the flash the user reported.
+    /// `RecommendationsLoadingView` is the ~28-second generation screen,
+    /// progress bar and all. The tap-through only reads an already-stored
+    /// batch, so showing it is both a lie about the wait and the flash the user
+    /// reported.
+    ///
+    /// Step 19.50 replaced `RecommendationsView.showsGenerationLoading` with the
+    /// shared `RecommendationsLoadingView.phase(...)`; the guard is the same and
+    /// is now expressed as the `.silent` case.
     func testPregeneratedReadHidesTheGenerationAnimation() {
-        XCTAssertFalse(
-            RecommendationsView.showsGenerationLoading(isPregeneratedRead: true)
+        XCTAssertEqual(
+            RecommendationsLoadingView.phase(
+                isLoading: true,
+                isPregeneratedRead: true,
+                hasError: false,
+                pregeneratedMissing: false,
+                isEmpty: true
+            ),
+            .silent
         )
     }
 
@@ -315,8 +327,15 @@ final class OccasionEntryNoFlashTests: XCTestCase {
     /// for half a minute after the user opted into the wait would be worse
     /// than the flash this change removes.
     func testARealGenerationStillShowsTheAnimation() {
-        XCTAssertTrue(
-            RecommendationsView.showsGenerationLoading(isPregeneratedRead: false)
+        XCTAssertEqual(
+            RecommendationsLoadingView.phase(
+                isLoading: true,
+                isPregeneratedRead: false,
+                hasError: false,
+                pregeneratedMissing: false,
+                isEmpty: true
+            ),
+            .loading
         )
     }
 }

@@ -49,6 +49,18 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Typography.xl
         _ = Theme.Typography.xxl
         _ = Theme.Typography.display
+        _ = Theme.Typography.loadingHeadline
+    }
+
+    /// The full-bleed brand surface has its own chrome tokens because the
+    /// `text*` / `progress*` families are tuned for the light background and
+    /// are illegible on coral.
+    func testOnBrandTokensExist() {
+        _ = Theme.onBrandPrimary
+        _ = Theme.onBrandMuted
+        _ = Theme.onBrandTrack
+        _ = Theme.colorPrimaryDeep
+        _ = Theme.brandGradient
     }
 
     func testMotionTokensExist() {

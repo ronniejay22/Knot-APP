@@ -97,6 +97,8 @@ enum UITestScreenshotHarness {
             OccasionModalScreenshotHarnessView()
         case "notificationBanner":
             NotificationBannerScreenshotHarnessView()
+        case "recsLoading":
+            RecsLoadingScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -293,6 +295,43 @@ private struct MilestoneRecsMissingScreenshotHarnessView: View {
 /// has `hasLoadedInitially = true`, so the view's `.task` skips all networking
 /// and the shot is deterministic.
 @MainActor
+/// Renders the recommendation **generation** state through the real
+/// `RecommendationsView`, inside the `NavigationStack` that `ForYouView` pushes
+/// it from.
+///
+/// Rendering `RecommendationsLoadingView()` bare would have been simpler — it
+/// takes no arguments and drives itself — but it would also have hidden the
+/// thing most likely to be wrong. The loading screen is a full-bleed brand
+/// surface with its own "Knot" header, and this host applies a navigation bar
+/// with a `Theme.textPrimary` title above it: dark plum on coral, and a second
+/// header. That the bar is correctly hidden during loading is only visible when
+/// the bar is actually there, so the harness supplies one. A harness only
+/// proves what it renders (Steps 19.28, 19.30, 19.31).
+///
+/// Reaching this state for real needs a live session, a vault, and a ~25-second
+/// pipeline run, so the view model is seeded mid-flight instead:
+/// `hasLoadedInitially` makes `.task` return without networking, and `isLoading`
+/// pins the phase to `.loading` for as long as the shot needs.
+private struct RecsLoadingScreenshotHarnessView: View {
+    @State private var authViewModel = AuthViewModel()
+
+    private static func loadingViewModel() -> RecommendationsViewModel {
+        let vm = RecommendationsViewModel()
+        // `.task` returns early on this, so nothing is fetched...
+        vm.hasLoadedInitially = true
+        // ...and the phase resolver keeps reading `.loading` off this.
+        vm.isLoading = true
+        return vm
+    }
+
+    var body: some View {
+        NavigationStack {
+            RecommendationsView(viewModel: Self.loadingViewModel())
+        }
+        .environment(authViewModel)
+    }
+}
+
 private struct MilestoneRecsScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
 

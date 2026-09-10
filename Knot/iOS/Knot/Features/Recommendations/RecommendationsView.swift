@@ -76,6 +76,12 @@ struct RecommendationsView: View {
         self.preferPregenerated = preferPregenerated
         self.isModal = isModal
         _viewModel = State(initialValue: viewModel)
+        // Seed the *first* frame's answer from the flag, before `.task` has run
+        // and set it from the operation actually in flight. Without this the
+        // push tap-through resolves to `.loading` for one frame and flashes the
+        // coral generation screen under the entry modal — the exact regression
+        // Step 19.30 removed.
+        _isPregeneratedRead = State(initialValue: preferPregenerated)
     }
 
     @State private var isBriefingExpanded = false
@@ -93,24 +99,30 @@ struct RecommendationsView: View {
     /// `pregeneratedMissingState` — which runs the real ~30s pipeline. Gating
     /// on the flag would leave them staring at a blank gradient for half a
     /// minute after explicitly opting into the wait.
-    @State private var isPregeneratedRead = false
+    @State private var isPregeneratedRead: Bool
 
-    /// Whether the ~28s generation animation belongs on screen.
+    /// True until `.task` has decided what to do.
     ///
-    /// `ForYouLoadingView` is the *generation* animation — drifting icons and
-    /// a progress bar filling toward 95% over ~28s. Honest for onboarding and
-    /// For You, which really do run the pipeline; a lie for a single
-    /// `GET /by-milestone/{id}` of an already-stored batch, which also flashed
-    /// on screen before the entry modal covered it.
-    ///
-    /// Static and pure so the rule can be tested without a rendered view.
-    static func showsGenerationLoading(isPregeneratedRead: Bool) -> Bool {
-        !isPregeneratedRead
+    /// On the very first frame the view model is empty and not yet loading, so
+    /// the phase would resolve to `.empty` and render the "Ready to find a
+    /// gift?" CTA. That was a single invisible frame before this screen
+    /// animated its phase changes; with the crossfade it became a visible
+    /// 0.42s flash of the empty state ahead of the loader. `OnboardingCompletionView`
+    /// guards the same gap with `vaultReady`.
+    @State private var awaitingFirstLoad = true
+
+    /// Which surface the reveal should show, resolved by the shared pure
+    /// function in `RecommendationsLoadingView` so this screen and the
+    /// in-onboarding reveal cannot drift apart.
+    private var revealPhase: RecommendationRevealPhase {
+        RecommendationsLoadingView.phase(
+            isLoading: viewModel.isLoading || awaitingFirstLoad,
+            isPregeneratedRead: isPregeneratedRead,
+            hasError: viewModel.errorMessage != nil,
+            pregeneratedMissing: pregeneratedMissing,
+            isEmpty: viewModel.recommendations.isEmpty
+        )
     }
-
-    /// True while the climax celebration is playing — between loading completing and
-    /// recommendation cards appearing. Driven by `.onChange(of: viewModel.isLoading)`.
-    @State private var isPlayingClimax = false
 
     var body: some View {
         recommendationsBody
@@ -140,8 +152,12 @@ struct RecommendationsView: View {
                 viewModel.configure(modelContext: modelContext, milestoneId: milestoneId)
                 // A harness-seeded VM (or a tab revisit) already has content —
                 // skip networking entirely.
-                guard !viewModel.hasLoadedInitially else { return }
+                guard !viewModel.hasLoadedInitially else {
+                    awaitingFirstLoad = false
+                    return
+                }
                 await loadContent()
+                awaitingFirstLoad = false
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
                 if let item = viewModel.selectedRecommendation {
@@ -264,29 +280,18 @@ struct RecommendationsView: View {
 
     /// The full recommendations UI — a browse-only carousel matching the
     /// onboarding reveal, with no voting or action buttons.
+    ///
+    /// The loading screen hands straight off to the picks. There is no
+    /// celebration in between: the 2.3-second confetti splash that used to sit
+    /// here was an interruption between the user finishing waiting and seeing
+    /// what they waited for, and its "Tap to view your picks" line was a lie —
+    /// it carried no tap gesture and dismissed itself on a timer.
     private var recommendationsBody: some View {
         ZStack {
             Theme.backgroundGradient.ignoresSafeArea()
             suggestionsContent
         }
-        .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
-            // Trigger the climax celebration only on a fresh successful load.
-            // Skips if there was an error or if no recommendations came back.
-            guard wasLoading,
-                  !nowLoading,
-                  !viewModel.recommendations.isEmpty,
-                  viewModel.errorMessage == nil
-            else { return }
-
-            withAnimation(.easeIn(duration: 0.2)) {
-                isPlayingClimax = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) {
-                withAnimation(.easeOut(duration: 0.4)) {
-                    isPlayingClimax = false
-                }
-            }
-        }
+        .animation(.easeInOut(duration: 0.42), value: revealPhase)
     }
 
     // MARK: - Content Loading
@@ -410,23 +415,36 @@ struct RecommendationsView: View {
 
     @ViewBuilder
     private var suggestionsContent: some View {
-        if viewModel.isLoading {
-            if Self.showsGenerationLoading(isPregeneratedRead: isPregeneratedRead) {
-                loadingState
-            } else {
-                Color.clear
-            }
-        } else if isPlayingClimax {
-            ForYouClimaxView()
-                .transition(.opacity)
-        } else if let error = viewModel.errorMessage {
-            errorState(message: error)
-        } else if pregeneratedMissing {
+        switch revealPhase {
+        case .loading:
+            RecommendationsLoadingView()
+                // The loading screen is a full-bleed brand surface with its own
+                // "Knot" header, so the navigation bar above it is both a
+                // second header and dark-plum type on coral. Hidden here rather
+                // than on `body` so the modifier is structurally scoped to this
+                // branch and cannot leak into the sheets and covers presented
+                // from the outer chain — the scoping Step 19.31 had to correct
+                // for the Journal's hidden bar.
+                //
+                // Not hidden inside a full-screen cover: there the bar carries
+                // the only way out (`MilestoneRecommendationsCoverView`'s X),
+                // and taking it away would strand the user for the whole ~25s
+                // run they just opted into from "Find picks now".
+                .toolbar(isModal ? .visible : .hidden, for: .navigationBar)
+                .transition(.loadingHandoff)
+        case .silent:
+            // A sub-second read of an already-stored batch. Showing the
+            // generation screen here would misrepresent the wait.
+            Color.clear
+        case .error:
+            errorState(message: viewModel.errorMessage ?? "")
+        case .missing:
             pregeneratedMissingState
-        } else if viewModel.recommendations.isEmpty {
+        case .empty:
             emptyState
-        } else {
+        case .loaded:
             recommendationsContent
+                .transition(.revealIn)
         }
     }
 
@@ -464,12 +482,6 @@ struct RecommendationsView: View {
             .opacity(viewModel.cardsVisible ? 1 : 0)
             .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
         }
-    }
-
-    // MARK: - Loading State
-
-    private var loadingState: some View {
-        ForYouLoadingView()
     }
 
     // MARK: - Error State
@@ -617,488 +629,6 @@ struct RecommendationsView: View {
             }
             .padding(.horizontal, 40)
             .padding(.top, 4)
-        }
-    }
-}
-
-// MARK: - For You Loading Animation
-
-/// Full-screen loading animation shown while AI gift recommendations are being generated.
-///
-/// Layout:
-/// - Two pulsing concentric rings around a center icon
-/// - Six decorative icons drifting around the perimeter
-/// - Center 64×64 gradient tile with an icon that cycles through gift/date categories
-/// - Cycling contextual messages
-/// - Progress bar that fills toward 95% over ~28s (the parent owns final completion)
-///
-/// Mirrors the Figma Make design at figma.com/make/tD11m6jemTVFt7nfWVVdt3
-// Internal (not `private`) so the onboarding recommendation-reveal step
-// (`OnboardingCompletionView`) can reuse the exact same loading animation.
-struct ForYouLoadingView: View {
-
-    // Center icon cycle (every 2 seconds)
-    private static let centerIcons: [UIImage] = [
-        Lucide.bottleWine,
-        Lucide.flower2,
-        Lucide.utensilsCrossed,
-        Lucide.popcorn,
-        Lucide.gift,
-        Lucide.heart,
-        Lucide.music,
-        Lucide.palette,
-        Lucide.plane,
-    ]
-
-    // Decorative floating icons — positioned around the perimeter with staggered delays
-    private struct FloatingIcon {
-        let image: UIImage
-        let x: CGFloat
-        let y: CGFloat
-        let size: CGFloat
-        let delay: Double
-        let opacity: Double
-    }
-
-    private static let floatingIcons: [FloatingIcon] = [
-        .init(image: Lucide.gift,        x: -60, y: -70, size: 22, delay: 0.2, opacity: 0.55),
-        .init(image: Lucide.shieldCheck, x: -80, y: -20, size: 20, delay: 0.4, opacity: 0.45),
-        .init(image: Lucide.star,        x: -90, y:  40, size: 18, delay: 0.6, opacity: 0.45),
-        .init(image: Lucide.lightbulb,   x:  60, y: -60, size: 20, delay: 0.3, opacity: 0.50),
-        .init(image: Lucide.sparkles,    x:  80, y:  10, size: 16, delay: 0.5, opacity: 0.50),
-        .init(image: Lucide.star,        x:  50, y:  60, size: 14, delay: 0.7, opacity: 0.40),
-    ]
-
-    private static let messages = [
-        "Thinking about what they love...",
-        "Finding the perfect vibe...",
-        "Crafting your top picks...",
-        "Almost ready..."
-    ]
-
-    @State private var iconIndex = 0
-    @State private var messageIndex = 0
-    @State private var showTimeHint = false
-    @State private var ringPulse = false
-    @State private var floatingActive = false
-    @State private var centerWobble = false
-    @State private var progress: CGFloat = 0
-
-    var body: some View {
-        VStack(spacing: 36) {
-            // Animated icon cluster
-            ZStack {
-                // Pulsing concentric rings
-                Circle()
-                    .stroke(Theme.accent.opacity(0.25), lineWidth: 2)
-                    .frame(width: 128, height: 128)
-                    .scaleEffect(ringPulse ? 1.3 : 1.0)
-                    .opacity(ringPulse ? 0 : 0.6)
-
-                Circle()
-                    .stroke(Theme.accent.opacity(0.25), lineWidth: 1)
-                    .frame(width: 96, height: 96)
-                    .scaleEffect(ringPulse ? 1.4 : 1.0)
-                    .opacity(ringPulse ? 0 : 0.4)
-                    .animation(
-                        .easeInOut(duration: 2.5).repeatForever(autoreverses: false).delay(0.3),
-                        value: ringPulse
-                    )
-
-                // Floating decorative icons
-                ForEach(0..<Self.floatingIcons.count, id: \.self) { i in
-                    let icon = Self.floatingIcons[i]
-                    Image(uiImage: icon.image)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: icon.size, height: icon.size)
-                        .foregroundStyle(Theme.accent.opacity(icon.opacity))
-                        .offset(
-                            x: floatingActive ? icon.x : icon.x * 0.5,
-                            y: floatingActive ? icon.y : icon.y * 0.5
-                        )
-                        .opacity(floatingActive ? icon.opacity : 0)
-                        .scaleEffect(floatingActive ? 1.0 : 0.5)
-                        .animation(
-                            .easeInOut(duration: 4)
-                                .repeatForever(autoreverses: true)
-                                .delay(icon.delay),
-                            value: floatingActive
-                        )
-                }
-
-                // Center cycling icon — gradient rounded tile
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Theme.accent,
-                                    Theme.accent.opacity(0.85),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 64, height: 64)
-                        .shadow(color: Theme.accent.opacity(0.35), radius: 12, x: 0, y: 6)
-
-                    Image(uiImage: Self.centerIcons[iconIndex])
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .foregroundStyle(.white)
-                        .id(iconIndex)
-                        .transition(.scale(scale: 0.5).combined(with: .opacity))
-                }
-                .rotationEffect(.degrees(centerWobble ? 4 : -4))
-                .scaleEffect(centerWobble ? 1.05 : 1.0)
-                .animation(
-                    .easeInOut(duration: 3).repeatForever(autoreverses: true),
-                    value: centerWobble
-                )
-            }
-            .frame(width: 200, height: 200)
-
-            // Cycling contextual message
-            VStack(spacing: 8) {
-                Text(Self.messages[messageIndex])
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .id(messageIndex)
-                    .transition(.opacity)
-
-                Text("This usually takes about 30 seconds")
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                    .opacity(showTimeHint ? 1 : 0)
-            }
-
-            // Progress bar — fills to 95% over 28s, parent owns the final 100%
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Theme.surfaceBorder)
-                    .frame(width: 200, height: 4)
-
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.accent.opacity(0.7), Theme.accent],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 200 * progress, height: 4)
-            }
-        }
-        .onAppear {
-            // Start ring pulse
-            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: false)) {
-                ringPulse = true
-            }
-            // Activate floating icons (they drift to their full positions and fade in)
-            withAnimation {
-                floatingActive = true
-            }
-            // Center wobble
-            withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-                centerWobble = true
-            }
-            // Animate progress to 95% over 28 seconds
-            withAnimation(.linear(duration: 28)) {
-                progress = 0.95
-            }
-            // Reveal time hint after 5s
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                withAnimation(.easeIn(duration: 0.6)) {
-                    showTimeHint = true
-                }
-            }
-        }
-        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
-            withAnimation(.easeInOut(duration: 0.4)) {
-                iconIndex = (iconIndex + 1) % Self.centerIcons.count
-            }
-        }
-        .onReceive(Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()) { _ in
-            withAnimation(.easeInOut(duration: 0.4)) {
-                messageIndex = (messageIndex + 1) % Self.messages.count
-            }
-        }
-    }
-}
-
-// MARK: - For You Climax Animation
-
-/// Celebration animation that plays for ~2.3s when recommendations have just finished
-/// generating. Features expanding shockwave rings, burst particles, falling confetti,
-/// a spring-loaded checkmark, and orbiting celebration icons.
-///
-/// Mirrors the Figma Make climax sequence at figma.com/make/tD11m6jemTVFt7nfWVVdt3
-// Internal (not `private`) so the onboarding recommendation-reveal step
-// (`OnboardingCompletionView`) can reuse the same celebration animation.
-struct ForYouClimaxView: View {
-
-    // MARK: Particle data (deterministic — computed once at type load)
-
-    private struct BurstParticle {
-        let x: CGFloat
-        let y: CGFloat
-        let size: CGFloat
-        let color: Color
-        let delay: Double
-    }
-
-    private struct ConfettiPiece {
-        let x: CGFloat
-        let yMid: CGFloat
-        let yEnd: CGFloat
-        let rotation: Double
-        let color: Color
-        let delay: Double
-        let width: CGFloat
-        let height: CGFloat
-    }
-
-    private struct OrbitIcon {
-        let image: UIImage
-        let angle: Double // degrees
-        let color: Color
-        let distance: CGFloat
-    }
-
-    private static let particleColors: [Color] = [
-        Color(red: 0.98, green: 0.40, blue: 0.50),  // rose
-        Color(red: 0.97, green: 0.55, blue: 0.65),  // pink
-        Color(red: 0.99, green: 0.78, blue: 0.30),  // amber
-        Color(red: 0.93, green: 0.30, blue: 0.65),  // fuchsia
-        Color(red: 0.99, green: 0.62, blue: 0.30),  // orange
-        Color(red: 0.98, green: 0.65, blue: 0.72),  // light rose
-    ]
-
-    private static let burstParticles: [BurstParticle] = (0..<16).map { i in
-        let angle = (Double(i) / 16.0) * .pi * 2.0
-        let distance: CGFloat = 90 + CGFloat((i * 17) % 50)
-        let size: CGFloat = 4 + CGFloat((i * 13) % 6)
-        return BurstParticle(
-            x: cos(angle) * distance,
-            y: sin(angle) * distance,
-            size: size,
-            color: particleColors[i % particleColors.count],
-            delay: Double(i % 5) * 0.03
-        )
-    }
-
-    private static let confettiPieces: [ConfettiPiece] = (0..<24).map { i in
-        let angle = (Double(i) / 24.0) * .pi * 2.0 + Double(i % 5) * 0.1
-        let distance: CGFloat = 110 + CGFloat((i * 11) % 80)
-        let yEnd = sin(angle) * distance - 40
-        return ConfettiPiece(
-            x: cos(angle) * distance,
-            yMid: yEnd * 0.5,
-            yEnd: yEnd + 80,
-            rotation: Double((i * 41) % 720) - 360,
-            color: particleColors[i % particleColors.count],
-            delay: Double(i % 6) * 0.05,
-            width: i % 2 == 0 ? 6 : 4,
-            height: i % 2 == 0 ? 10 : 6
-        )
-    }
-
-    private static let orbitIcons: [OrbitIcon] = [
-        .init(image: Lucide.heart,       angle: 0,   color: Color(red: 0.98, green: 0.30, blue: 0.45), distance: 70),
-        .init(image: Lucide.star,        angle: 72,  color: Color(red: 0.99, green: 0.72, blue: 0.20), distance: 75),
-        .init(image: Lucide.partyPopper, angle: 144, color: Color(red: 0.93, green: 0.30, blue: 0.65), distance: 70),
-        .init(image: Lucide.sparkles,    angle: 216, color: Color(red: 0.99, green: 0.55, blue: 0.20), distance: 75),
-        .init(image: Lucide.gift,        angle: 288, color: Color(red: 0.98, green: 0.40, blue: 0.55), distance: 70),
-    ]
-
-    // MARK: Animation state
-
-    @State private var ringsExpanded = false
-    @State private var burstActive = false
-    @State private var confettiActive = false
-    @State private var glowActive = false
-    @State private var checkScale: CGFloat = 0
-    @State private var checkRotation: Double = -180
-    @State private var checkVisible = false
-    @State private var orbitsActive = false
-    @State private var orbitPulse = false
-    @State private var textVisible = false
-
-    var body: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                // Expanding shockwave rings
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .stroke(Theme.accent.opacity(0.5), lineWidth: ringsExpanded ? 1 : 3)
-                        .frame(
-                            width: ringsExpanded ? 250 : 60,
-                            height: ringsExpanded ? 250 : 60
-                        )
-                        .opacity(ringsExpanded ? 0 : 0.6)
-                        .animation(
-                            .easeOut(duration: 1.2).delay(Double(i) * 0.15),
-                            value: ringsExpanded
-                        )
-                }
-
-                // Burst particles
-                ForEach(0..<Self.burstParticles.count, id: \.self) { i in
-                    let p = Self.burstParticles[i]
-                    Circle()
-                        .fill(p.color)
-                        .frame(width: p.size, height: p.size)
-                        .scaleEffect(burstActive ? 0.5 : 0)
-                        .offset(
-                            x: burstActive ? p.x : 0,
-                            y: burstActive ? p.y : 0
-                        )
-                        .opacity(burstActive ? 0 : 1)
-                        .animation(
-                            .easeOut(duration: 0.9).delay(p.delay),
-                            value: burstActive
-                        )
-                }
-
-                // Confetti pieces
-                ForEach(0..<Self.confettiPieces.count, id: \.self) { i in
-                    let c = Self.confettiPieces[i]
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(c.color)
-                        .frame(width: c.width, height: c.height)
-                        .rotationEffect(.degrees(confettiActive ? c.rotation : 0))
-                        .offset(
-                            x: confettiActive ? c.x : 0,
-                            y: confettiActive ? c.yEnd : 0
-                        )
-                        .opacity(confettiActive ? 0 : 1)
-                        .scaleEffect(confettiActive ? 0.6 : 0)
-                        .animation(
-                            .easeOut(duration: 1.6).delay(0.1 + c.delay),
-                            value: confettiActive
-                        )
-                }
-
-                // Glowing backdrop
-                Circle()
-                    .fill(Theme.accent.opacity(0.18))
-                    .frame(width: 112, height: 112)
-                    .scaleEffect(glowActive ? 1.3 : 0)
-                    .opacity(glowActive ? 0.6 : 0)
-
-                // Center checkmark — gradient circle
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Theme.accent,
-                                    Color(red: 0.93, green: 0.30, blue: 0.65),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 80, height: 80)
-                        .shadow(color: Theme.accent.opacity(0.4), radius: 16, x: 0, y: 6)
-
-                    Image(uiImage: Lucide.check)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 40, height: 40)
-                        .foregroundStyle(.white)
-                        .scaleEffect(checkVisible ? 1 : 0)
-                        .opacity(checkVisible ? 1 : 0)
-                }
-                .scaleEffect(checkScale)
-                .rotationEffect(.degrees(checkRotation))
-
-                // Orbiting celebration icons
-                ForEach(0..<Self.orbitIcons.count, id: \.self) { i in
-                    let icon = Self.orbitIcons[i]
-                    let rad = (icon.angle * .pi) / 180
-                    Image(uiImage: icon.image)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(icon.color)
-                        .scaleEffect(orbitsActive ? (orbitPulse ? 1.2 : 1.0) : 0)
-                        .offset(
-                            x: orbitsActive ? cos(rad) * icon.distance : 0,
-                            y: orbitsActive ? sin(rad) * icon.distance : 0
-                        )
-                        .animation(
-                            .spring(response: 0.6, dampingFraction: 0.55)
-                                .delay(0.3 + Double(i) * 0.08),
-                            value: orbitsActive
-                        )
-                }
-            }
-            .frame(width: 260, height: 260)
-
-            // Success text
-            VStack(spacing: 6) {
-                Text("Your matches are ready!")
-                    .knotFont(Theme.Typography.sectionHeader)
-                    .foregroundStyle(Theme.textPrimary)
-
-                Text("Tap to view your picks")
-                    .knotFont(Theme.Typography.label)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .opacity(textVisible ? 1 : 0)
-            .offset(y: textVisible ? 0 : 20)
-        }
-        .onAppear {
-            // Shockwave rings
-            ringsExpanded = true
-
-            // Burst particles
-            burstActive = true
-
-            // Glowing backdrop
-            withAnimation(.easeOut(duration: 0.8)) {
-                glowActive = true
-            }
-
-            // Confetti
-            withAnimation {
-                confettiActive = true
-            }
-
-            // Center checkmark — spring bounce in
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.55).delay(0.05)) {
-                checkScale = 1
-                checkRotation = 0
-            }
-            // Checkmark icon fades in slightly after the circle lands
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    checkVisible = true
-                }
-            }
-
-            // Orbiting icons spring outward
-            orbitsActive = true
-
-            // Continuous gentle pulse on orbit icons
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    orbitPulse = true
-                }
-            }
-
-            // Success text fades up
-            withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
-                textVisible = true
-            }
         }
     }
 }
