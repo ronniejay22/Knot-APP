@@ -8,6 +8,27 @@
 
 import SwiftUI
 
+/// Cross-cutting visibility of the app's bottom tab chrome.
+///
+/// `KnotTabBar` is a custom bar mounted by `MainTabView` via `.safeAreaInset`,
+/// so there is no `.toolbar(.hidden, for: .tabBar)` to reach it — that API only
+/// governs a SwiftUI `TabView`. A pushed screen that needs the whole viewport
+/// therefore has to tell `MainTabView` to stand down, and the signal has to
+/// travel *up* from inside a `navigationDestination`, which is exactly the
+/// direction `safeAreaInset` already fails to cross (see the clearance comment
+/// in `RecommendationsView`). Environment flows *down* reliably, so the owner
+/// publishes this object and the pushed screen mutates it.
+///
+/// Deliberately absent from the environment in the two hosts that have no tab
+/// bar — the full-screen recommendation cover and onboarding — which is why
+/// every reader binds it as an optional and no-ops when it is missing.
+@MainActor
+@Observable
+final class AppChrome {
+    /// Hides `KnotTabBar` and gives its safe-area inset back to the content.
+    var isTabBarHidden = false
+}
+
 /// Root tab container for the authenticated + onboarded state.
 ///
 /// Sits between `ContentView`'s auth routing and the individual tab views.
@@ -20,6 +41,7 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .journal
     @State private var networkMonitor = NetworkMonitor()
+    @State private var chrome = AppChrome()
 
     enum AppTab: Int, Hashable {
         case journal = 0
@@ -42,9 +64,17 @@ struct MainTabView: View {
             tabContent(.profile) { SettingsView(isTabEmbedded: true) }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            KnotTabBar(selection: $selectedTab, items: tabBarItems)
+            // Conditional rather than merely transparent: a hidden bar must
+            // also give its inset back, or a full-bleed screen keeps a ~97pt
+            // dead strip along the bottom.
+            if !chrome.isTabBarHidden {
+                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+                    .transition(.move(edge: .bottom))
+            }
         }
+        .animation(Theme.Motion.standard, value: chrome.isTabBarHidden)
         .environment(networkMonitor)
+        .environment(chrome)
     }
 
     @ViewBuilder
