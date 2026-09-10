@@ -376,10 +376,10 @@ struct RecommendationsView: View {
         // full-bleed while it is receding.
         .recommendationLoadingOverlay(phase: revealPhase, isCovering: $loaderIsCovering)
         // Opens the transaction the phase change runs in. The hand-off's real
-        // timing lives on the two transitions themselves
-        // (`.loadingHandoff` / `.revealIn`), which override this — they are
-        // sequential, with different curves and durations per half, which a
-        // single ambient animation cannot express.
+        // timing lives elsewhere and overrides this — the loader's recede in
+        // `RecommendationLoadingOverlay` above, and the picks' entrance in
+        // `.revealIn`. The two are sequential, with different curves and
+        // durations per half, which a single ambient animation cannot express.
         .animation(.timingCurve(0.4, 0, 0.2, 1, duration: RecommendationsLoadingView.handoffExitDuration),
                    value: revealPhase)
     }

@@ -24,15 +24,16 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change is the redesigned recommendation loading screen — the
-        // full-bleed brand surface that replaced the old orbiting-icons
-        // animation, and whose hand-off replaced the "Your matches are ready!"
-        // celebration.
+        // The change pairs each loading illustration 1:1 with its emphasis
+        // phrase, so a phrase always arrives with its own picture. Previously
+        // nine illustrations rotated against four phrases and the pairing
+        // drifted.
         //
-        // Reaching it for real means a live session, a vault, and waiting out a
-        // ~25-second pipeline run, none of which a cold screenshot launch can
-        // do; the `recsLoading` harness renders it standalone. It needs no
-        // seeding — the screen takes no arguments and drives itself.
+        // Reaching the screen for real means a live session, a vault, and
+        // waiting out a ~25-second pipeline run, none of which a cold
+        // screenshot launch can do; the `recsLoading` harness renders it
+        // standalone. It needs no seeding — the screen takes no arguments and
+        // drives itself.
         app.launchArguments += ["-uiTestScreenshot", "recsLoading"]
         app.launch()
 
@@ -58,6 +59,19 @@ final class PRScreenshotTests: XCTestCase {
         // Wait past the first illustration swap (2.5s) so the capture lands on
         // a settled crossfade rather than on frame one, and far enough into the
         // 28s progress ramp that the bar and the match counter have both moved.
+        //
+        // WHICH step it lands on is not controllable from here. The rotation
+        // clock starts when the screen appears, and how long the app takes to
+        // get there varies by several seconds run to run — an earlier version
+        // of this comment claimed a specific step and was wrong on the very
+        // first capture. So the image shows *a* paired scene, not a chosen one.
+        //
+        // That is fine, because the image is not what proves the pairing:
+        // `RecommendationsLoadingHelperTests.testEachPhraseAlwaysArrivesWithTheSameIllustration`
+        // is. Introspection-free SwiftUI tests cannot assert on rendered
+        // output, so the screenshot's job here is the usual one — showing a
+        // reviewer that the screen still renders correctly, with the phrase and
+        // the illustration on it belonging together.
         Thread.sleep(forTimeInterval: 4.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())

@@ -21,34 +21,97 @@ final class RecommendationsLoadingHelperTests: XCTestCase {
 
     // MARK: - Illustration rotation
 
-    /// Each of the nine illustrations is reached, in order, inside one cycle.
+    /// Each of the four illustrations is reached, in order, inside one cycle.
     func testIllustrationNamesCoverTheWholeSetInOrder() {
-        let names = (0..<9).map { RecommendationsLoadingView.illustrationName(forStep: $0) }
-        XCTAssertEqual(names, (0..<9).map { "LoadingIllustrations/loading-\($0)" })
-        XCTAssertEqual(Set(names).count, 9, "Every step in a cycle must map to a distinct asset")
+        let names = (0..<4).map { RecommendationsLoadingView.illustrationName(forStep: $0) }
+        XCTAssertEqual(
+            names,
+            [
+                "LoadingIllustrations/loading-4",
+                "LoadingIllustrations/loading-1",
+                "LoadingIllustrations/loading-7",
+                "LoadingIllustrations/loading-3",
+            ]
+        )
+        XCTAssertEqual(Set(names).count, 4, "Every step in a cycle must map to a distinct asset")
     }
 
     /// A real generation runs long enough to wrap the set several times, so
-    /// step 9 must land back on the first illustration rather than off the end.
+    /// step 4 must land back on the first illustration rather than off the end.
     func testIllustrationNameWrapsPastTheEndOfTheSet() {
         XCTAssertEqual(
-            RecommendationsLoadingView.illustrationName(forStep: 9),
+            RecommendationsLoadingView.illustrationName(forStep: 4),
             RecommendationsLoadingView.illustrationName(forStep: 0)
         )
         XCTAssertEqual(
             RecommendationsLoadingView.illustrationName(forStep: 22),
-            RecommendationsLoadingView.illustrationName(forStep: 4)
+            RecommendationsLoadingView.illustrationName(forStep: 2)
         )
     }
 
-    /// The crossfade renders `step - 1` underneath the current image, so step 0
-    /// asks for step -1. Swift's `%` keeps the sign of the dividend, so a naive
-    /// modulo would index out of bounds here.
+    /// Swift's `%` keeps the sign of the dividend, so a naive modulo would
+    /// index out of bounds on a negative step.
+    ///
+    /// Production never passes one — `step` starts at 0 and only increments,
+    /// and the crossfade's underneath-layer (`step - 1`) is guarded by
+    /// `step > 0`. This pins the helper as total anyway, so a future caller
+    /// that does reach behind 0 gets a wrap rather than a crash.
     func testIllustrationNameHandlesNegativeSteps() {
         XCTAssertEqual(
             RecommendationsLoadingView.illustrationName(forStep: -1),
-            "LoadingIllustrations/loading-8"
+            "LoadingIllustrations/loading-3"
         )
+    }
+
+    // MARK: - Illustration ↔ phrase pairing
+
+    /// The whole point of the rotation table: a phrase always arrives with its
+    /// own picture.
+    ///
+    /// The illustration and the phrase advance on the same `step`, so this only
+    /// holds while they are paired 1:1. They were previously two lists of
+    /// different lengths (nine illustrations against four phrases), and because
+    /// 9 and 4 do not divide, the pairing drifted — "their taste" got a
+    /// different picture every time it came round. Re-splitting them into
+    /// independent lists is what this test exists to catch.
+    func testEachPhraseAlwaysArrivesWithTheSameIllustration() {
+        var seen: [String: String] = [:]
+
+        // Several cycles, and negative steps too, since the crossfade reaches
+        // behind step 0.
+        for step in -8...20 {
+            let phrase = RecommendationsLoadingView.emphasis(forStep: step)
+            let illustration = RecommendationsLoadingView.illustrationName(forStep: step)
+
+            if let expected = seen[phrase] {
+                XCTAssertEqual(
+                    illustration,
+                    expected,
+                    "\"\(phrase)\" arrived with \(illustration) at step \(step) but \(expected) earlier — the pairing has drifted"
+                )
+            } else {
+                seen[phrase] = illustration
+            }
+        }
+
+        XCTAssertEqual(seen.count, 4, "Every phrase should have been reached")
+        XCTAssertEqual(Set(seen.values).count, 4, "Two phrases must not share an illustration")
+    }
+
+    /// Both halves wrap on the same period, which is what keeps them in step.
+    func testIllustrationAndPhraseShareOneCycleLength() {
+        for step in -4...12 {
+            XCTAssertEqual(
+                RecommendationsLoadingView.illustrationName(forStep: step),
+                RecommendationsLoadingView.illustrationName(forStep: step + 4),
+                "Illustration cycle is not 4 steps long at step \(step)"
+            )
+            XCTAssertEqual(
+                RecommendationsLoadingView.emphasis(forStep: step),
+                RecommendationsLoadingView.emphasis(forStep: step + 4),
+                "Phrase cycle is not 4 steps long at step \(step)"
+            )
+        }
     }
 
     // MARK: - Emphasis rotation
@@ -293,7 +356,7 @@ final class RecommendationsLoadingViewRenderingTests: XCTestCase {
     /// build error — exactly the silent failure `OccasionCopy.illustrationName`
     /// bundle-checks against.
     func testEveryIllustrationIsBundled() {
-        for step in 0..<9 {
+        for step in 0..<4 {
             let name = RecommendationsLoadingView.illustrationName(forStep: step)
             XCTAssertNotNil(UIImage(named: name), "Missing asset: \(name)")
         }
