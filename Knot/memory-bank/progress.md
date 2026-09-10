@@ -9287,9 +9287,145 @@ backend, DTO, endpoint or migration change, so no `pytest` run applies to this d
 
 ---
 
-### Step 19.50 ✅ Recommendations — A New Loading Screen, and the End of the "Ready" Splash
+### Step 19.50 ✅ Journal — Occasion-Framed Copy for the Recommendation Sheet
 **Date:** 2026-09-09
 **Status:** Complete
+
+**Goal:** The sheet Step 19.49 put in front of a ~30s generation run described the wrong product
+and described it the same way 22 times. Its headline read **"Get gift ideas for {event}?"** while
+the pipeline emits five recommendation types, and its body's only variable was the partner's name —
+so Christmas, an anniversary, and a partner's hard week all got the same sentence. Replace both
+with copy resolved from the occasion.
+
+**Root cause:** the three content slots were pure statics at the bottom of the sheet's own file
+(`title(milestoneName:)` / `body(partnerName:)`). `title` hardcoded one recommendation type;
+`body` took no occasion input at all, even though `MilestoneItemResponse` already carries
+`occasionCategory` (the sheet was using it — for the badge emoji) and `daysUntil`. Nothing was
+wired wrong; the copy simply predated the ask.
+
+**The promise was also false.** `unified_generation.py` is not occasion-gated by type — the system
+prompt's DIVERSITY rule mixes `gift`/`experience`/`date`/`idea`/`plan` on every run, and
+`OCCASION_GUIDANCE` varies price and flavour by budget tier, not type. So a gift-only headline
+mis-sold every generation the sheet has ever started.
+
+**What changed:**
+
+*The framework — five framings, not 22 templates*
+- New `Features/ForYou/MilestoneRecommendationCopy.swift`. A **framing** decides two things: the
+  question the title asks, and which recommendation types the body names. The occasion name, the
+  timing phrase and the partner's name are the fill.
+  - `giftForward` (12 categories: birthday, the five gifting holidays, mothers/fathers day,
+    graduation, new_job, new_home, hint_followup) → *"Get ideas for {event}?"* / "gifts,
+    experiences and plans".
+  - `sharedOccasion` (6: anniversary, valentines_day, new_years, thanksgiving, easter, halloween)
+    → *"Plan {event} together?"* / "date plans, experiences and gifts for the two of you".
+  - `gesture` (2: thinking_of_you, big_day) → *"Ways to show up for {partner}?"* / "small
+    gestures, thoughtful gifts and low-key ideas".
+  - `spontaneous` (just_because) → *"Surprise {partner} today?"*
+  - `unknown` (`default`, and anything a newer backend invents) → generic-but-correct.
+  - 12 + 6 + 2 + 1 + 1 = 22, and `framedCategories` is pinned both ways against
+    `OccasionCopy.knownCategories`, so an occasion added to the catalogue cannot ship unframed and
+    a framing for a category the backend can't emit cannot sit there unexercised.
+- **`OccasionCopy` was deliberately not reused.** It is the other occasion-keyed catalogue and
+  holds one hand-written template per category — right for `OccasionEntryModal`, which fires
+  *after* generation and announces a result ("Christmas is {timing}! We've handpicked…"). This
+  sheet fires *before* and asks a question. Different tense, different job; mirroring its shape
+  would have meant 22 more strings to keep in sync. Its `timingPhrase(daysUntil:)` and
+  `emoji(for:)` **are** reused, so the two occasion surfaces phrase time identically.
+
+*The body is now two sentences*
+- A lead clause carries the context — *"Christmas is in 175 days."*, *"Our Anniversary is next
+  week."* — built on `OccasionCopy.timingPhrase`, which was already written to read after "is"
+  for every value the backend can produce including same-day and past-due.
+- It is **dropped entirely when `daysUntil` is nil**. A past one-time milestone genuinely has no
+  day count, and asserting a timing it doesn't have is worse than saying nothing. `spontaneous`
+  substitutes *"No occasion needed."* — a timing sentence is nonsense for the absence of an
+  occasion.
+- The offer clause ends with the same grounding tail in every framing:
+  `"built from their interests and how they like to be loved"`. Both name vault fields the user
+  fills in at onboarding, can still edit in Settings → Edit Profile, and that the generation
+  prompt reads on every run.
+
+**The tail was wrong on the first pass, and the guard meant to catch that missed it.** It
+shipped as `"…and the hints you've saved"`, carried over from Step 19.49 — but **hint capture
+has had no UI entry point** since Step 18.49 removed the Refresh button. `SessionHintsSheet` is
+still defined in `RecommendationsView.swift` and referenced only by its own `#Preview` and its
+tests; nothing presents it, so `submitSessionHintAndRefresh` and therefore
+`HintService.createHint` are unreachable. Step 18.6 had already deleted the Hints tab and the
+Home-screen capture, and Step 19.7 the Settings "Clear All Hints" row. The backend still
+retrieves hints into the prompt, so a legacy row can still influence a result — but a user
+cannot add one, and copy inviting them to is a promise the app can't keep.
+
+`testNoBodyClaimsAnythingTheAppDoesNotDo` existed precisely to stop this and did not, because
+its forbidden list only named the comp's claims (`wishlist`, `past gifts`, gendered pronouns).
+`hint` is now on that list, the list's own length is asserted so it can't be quietly emptied,
+and a companion test pins that every framing still names the two reachable fields. **A guard
+against unbacked claims has to be extended every time a feature is removed, not only when a new
+claim is written** — the copy didn't change under it; the app did.
+
+*The sheet*
+- `badgeText` moved across unchanged as `MilestoneRecommendationCopy.badge`; `title` and `body`
+  deleted. `header` resolves once through a `copy` property, so the badge, headline and body are
+  guaranteed to describe the same occasion. No layout, detent or `adopt(_:)` change was needed —
+  the sheet already measures itself, so the longer body simply re-detents.
+- The `#Preview` became five, one per framing. The whole point of the framework is that these
+  read differently, and a `Font`/`CGFloat`-style change is only reviewable by looking at it.
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/MilestoneRecommendationCopy.swift` — the framing table, the three
+  copy slots, and the name fallbacks
+- `docs/pr-screenshots/worktree-feat-journal-sheet-contextual-copy.png`
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneRecommendationSheet.swift` — reads the resolved copy; the
+  two gift-only statics deleted; five framing previews; stale header comment corrected (it still
+  said the sheet was raised by "See details", which Step 19.49 rewired to the icon)
+- `iOS/Knot/Core/Theme.swift` — `sheetTitle`'s doc comment quoted the deleted headline
+- `iOS/KnotTests/MilestoneRecommendationSheetTests.swift` — the 4 copy cases replaced by 4 new
+  classes (framing, title, body, resolution)
+- `iOS/KnotUITests/PRScreenshotTests.swift` — waits on the new headline
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate` for the new file
+
+**Tests:** iOS Unit plan **505 passed**, 0 failures (493 baseline, +12 net). The screenshot UI
+test passes and the capture is the artifact — the suite does no view introspection, so it cannot
+assert on rendered copy. No backend, DTO, endpoint or migration change, so no `pytest` run
+applies to this diff.
+
+New coverage: every known category is framed and every framed category is known (both
+directions); each framing's exact title and body; **no title names gifts specifically** and
+**every framing's body names at least two recommendation types** — the two regression guards for
+the actual request; the timing edges (`today` / `tomorrow` / `here` / `two weeks away`); the lead
+clause dropping for an undated milestone and `spontaneous` overriding it regardless; blank-name
+fallbacks for both the event and the partner; and a sweep asserting no resolved slot is empty or
+leaks a `{token}` across all 22 categories × both date states.
+
+**Notes:**
+- **Bespoke per-occasion copy is still one map away.** `framing(for:)` is the only lookup between
+  a category and its strings, so an override table slots in above it without the sheet changing.
+  Five framings was the call because the badge already carries the occasion (emoji + name + date)
+  and the body's lead sentence already carries the event and its timing — 22 hand-written variants
+  would add maintenance without adding much the user can see.
+- **`sharedOccasion` says "for the two of you", not "to mark it".** The lead clause is dropped for
+  an undated milestone, so a pronoun pointing back at it would have dangled in exactly the case
+  the fallback exists for.
+- **`OccasionCopy`'s own templates are still gift-leaning** ("We've handpicked gift ideas and
+  festive plans…"). That is the push tap-through modal, a different surface with a different job,
+  and it was deliberately left alone — but it is the obvious next candidate if the same complaint
+  is made about the notification path.
+- Worth a look on a device: the `gesture` and `sharedOccasion` bodies are the longest, and the
+  detent tracks content — `testSheetRendersWithALongMilestoneName` covers construction, not
+  layout.
+
+---
+
+### Step 19.51 ✅ Recommendations — A New Loading Screen, and the End of the "Ready" Splash
+**Date:** 2026-09-09
+**Status:** Complete
+
+> **Numbering note — this entry was authored as 19.50.** It was written on 2026-09-09 in a
+> parallel worktree alongside `main`'s own 19.50 (the Journal sheet's occasion-framed copy,
+> directly above), which merged first. The already-merged number wins, so this branch renumbered
+> to 19.51 on the way in rather than rewriting shipped history.
 
 **Goal:** Replace the recommendation loading experience with the "Modern Loading Experience"
 Figma Make design, and delete the celebration splash that sat between the wait ending and the
