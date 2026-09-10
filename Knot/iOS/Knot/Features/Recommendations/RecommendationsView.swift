@@ -86,6 +86,10 @@ struct RecommendationsView: View {
         // coral generation screen under the entry modal — the exact regression
         // Step 19.30 removed.
         _isPregeneratedRead = State(initialValue: preferPregenerated)
+        // The push tap-through's first phase is `.silent`, everything else's is
+        // `.loading` (via `awaitingFirstLoad`). Matching that here keeps the
+        // first frame's chrome correct before `onChange` has run.
+        _loaderIsCovering = State(initialValue: !preferPregenerated)
     }
 
     @State private var isBriefingExpanded = false
@@ -114,6 +118,12 @@ struct RecommendationsView: View {
     /// 0.42s flash of the empty state ahead of the loader. `OnboardingCompletionView`
     /// guards the same gap with `vaultReady`.
     @State private var awaitingFirstLoad = true
+
+    /// True while the loading screen is on screen, including its 420ms recede.
+    /// Owned here rather than read off `revealPhase` because the chrome has to
+    /// stay out of the way until the coral surface has actually gone; the
+    /// overlay writes it. Seeded to match the first frame's phase.
+    @State private var loaderIsCovering: Bool
 
     /// Which surface the reveal should show, resolved by the shared pure
     /// function in `RecommendationsLoadingView` so this screen and the
@@ -146,12 +156,16 @@ struct RecommendationsView: View {
     /// Never hidden inside a full-screen cover: there the bar carries the only
     /// way out — `MilestoneRecommendationsCoverView`'s X — and taking it away
     /// would strand the user for the whole ~25s run.
+    /// Keyed on whether the loading screen is still *on screen* rather than on
+    /// the phase: the coral surface outlives `.loading` by the 420ms of its
+    /// recede, and restoring the bar at the phase change pops a dark-plum
+    /// inline title over it for that whole time.
     static func navigationBarVisibility(
         isModal: Bool,
-        phase: RecommendationRevealPhase
+        isCoveredByLoader: Bool
     ) -> Visibility {
         if isModal { return .visible }
-        return phase == .loading ? .hidden : .visible
+        return isCoveredByLoader ? .hidden : .visible
     }
 
     /// Whether this screen wants `MainTabView`'s `KnotTabBar` to stand down.
@@ -163,13 +177,13 @@ struct RecommendationsView: View {
     /// dismissal, for no visible benefit.
     static func shouldHideTabBar(
         isModal: Bool,
-        phase: RecommendationRevealPhase
+        isCoveredByLoader: Bool
     ) -> Bool {
-        !isModal && phase == .loading
+        !isModal && isCoveredByLoader
     }
 
     private var navigationBarVisibility: Visibility {
-        Self.navigationBarVisibility(isModal: isModal, phase: revealPhase)
+        Self.navigationBarVisibility(isModal: isModal, isCoveredByLoader: loaderIsCovering)
     }
 
     var body: some View {
@@ -181,8 +195,13 @@ struct RecommendationsView: View {
             // be hidden by telling it to stand down. `initial: true` covers the
             // common case where the screen is already `.loading` on its first
             // frame — an `onChange` alone would not fire until the phase moved.
-            .onChange(of: revealPhase, initial: true) { _, phase in
-                chrome?.isTabBarHidden = Self.shouldHideTabBar(isModal: isModal, phase: phase)
+            // Driven by `loaderIsCovering`, not the phase, so the tab bar comes
+            // back only once the coral surface has finished receding.
+            .onChange(of: loaderIsCovering, initial: true) { _, covering in
+                chrome?.isTabBarHidden = Self.shouldHideTabBar(
+                    isModal: isModal,
+                    isCoveredByLoader: covering
+                )
             }
             // Restore on the way out. Without this, backing out mid-generation
             // (or an error tearing the screen down) would leave the whole app
@@ -353,7 +372,16 @@ struct RecommendationsView: View {
             Theme.backgroundGradient.ignoresSafeArea()
             suggestionsContent
         }
-        .animation(.easeInOut(duration: 0.42), value: revealPhase)
+        // Above the background too, so the coral surface is genuinely
+        // full-bleed while it is receding.
+        .recommendationLoadingOverlay(phase: revealPhase, isCovering: $loaderIsCovering)
+        // Opens the transaction the phase change runs in. The hand-off's real
+        // timing lives on the two transitions themselves
+        // (`.loadingHandoff` / `.revealIn`), which override this — they are
+        // sequential, with different curves and durations per half, which a
+        // single ambient animation cannot express.
+        .animation(.timingCurve(0.4, 0, 0.2, 1, duration: RecommendationsLoadingView.handoffExitDuration),
+                   value: revealPhase)
     }
 
     // MARK: - Content Loading
@@ -478,15 +506,17 @@ struct RecommendationsView: View {
     @ViewBuilder
     private var suggestionsContent: some View {
         switch revealPhase {
-        case .loading:
-            // Bar visibility is declared once on `body` via
-            // `navigationBarVisibility`, not here — see the note there for why
-            // a declaration at this depth silently loses.
-            RecommendationsLoadingView()
-                .transition(.loadingHandoff)
-        case .silent:
-            // A sub-second read of an already-stored batch. Showing the
-            // generation screen here would misrepresent the wait.
+        case .loading, .silent:
+            // Neither case draws anything here.
+            //
+            // `.loading` is covered by `recommendationLoadingOverlay`, applied
+            // below — the loading screen is an overlay rather than a branch of
+            // this switch so that its recede can actually animate; a removal
+            // transition on a branch is unmounted instantly (see the note on
+            // `RecommendationLoadingOverlay`).
+            //
+            // `.silent` is a sub-second read of an already-stored batch, where
+            // showing the generation screen would misrepresent the wait.
             Color.clear
         case .error:
             errorState(message: viewModel.errorMessage ?? "")

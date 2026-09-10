@@ -309,7 +309,7 @@ final class RecommendationsLoadingViewRenderingTests: XCTestCase {
 
 /// The loading screen is a full-bleed brand surface, so both the navigation bar
 /// above it and `MainTabView`'s `KnotTabBar` below it have to get out of the
-/// way — and both have to come back for every other phase.
+/// way — and both have to come back once it is gone.
 ///
 /// These shipped broken once. The navigation bar stayed visible because
 /// `ForYouView` wrapped the pushed destination in an unconditional
@@ -317,50 +317,58 @@ final class RecommendationsLoadingViewRenderingTests: XCTestCase {
 /// `RecommendationsView` made four levels deeper inside a ZStack and a switch.
 /// The tab bar stayed visible because nothing had ever asked it to leave —
 /// which additionally hid the progress bar behind it, since `safeAreaInset`
-/// does not propagate through a `navigationDestination` push. The screenshot
-/// harness mounted neither piece of chrome, so the capture looked correct.
+/// does not propagate through a `navigationDestination` push.
+///
+/// Both gates key on **whether the loader is still covering the screen**, not on
+/// the phase. The coral surface outlives `.loading` by the 420ms of its recede,
+/// and restoring the chrome at the phase change pops a dark-plum inline title
+/// over coral for that whole time.
 @MainActor
 final class RecommendationsChromeTests: XCTestCase {
 
-    private let allPhases: [RecommendationRevealPhase] =
-        [.loading, .silent, .error, .missing, .empty, .loaded]
-
     // MARK: Navigation bar
 
-    func testNavigationBarIsHiddenOnlyWhileLoading() {
-        for phase in allPhases {
-            let expected: Visibility = phase == .loading ? .hidden : .visible
-            XCTAssertEqual(
-                RecommendationsView.navigationBarVisibility(isModal: false, phase: phase),
-                expected,
-                "Wrong navigation bar visibility for \(phase)"
-            )
-        }
+    func testNavigationBarIsHiddenWhileTheLoaderCovers() {
+        XCTAssertEqual(
+            RecommendationsView.navigationBarVisibility(isModal: false, isCoveredByLoader: true),
+            .hidden
+        )
+    }
+
+    func testNavigationBarReturnsOnceTheLoaderHasGone() {
+        XCTAssertEqual(
+            RecommendationsView.navigationBarVisibility(isModal: false, isCoveredByLoader: false),
+            .visible
+        )
     }
 
     /// Inside a full-screen cover the bar carries
     /// `MilestoneRecommendationsCoverView`'s X — the only way out of a
     /// ~25-second run. Hiding it there strands the user.
-    func testNavigationBarStaysVisibleInAModalEvenWhileLoading() {
-        for phase in allPhases {
+    func testNavigationBarStaysVisibleInAModalEvenWhileCovered() {
+        for covered in [true, false] {
             XCTAssertEqual(
-                RecommendationsView.navigationBarVisibility(isModal: true, phase: phase),
+                RecommendationsView.navigationBarVisibility(isModal: true, isCoveredByLoader: covered),
                 .visible,
-                "The modal host must never hide its bar (\(phase))"
+                "The modal host must never hide its bar (covered: \(covered))"
             )
         }
     }
 
     // MARK: Tab bar
 
-    func testTabBarIsHiddenOnlyWhileLoading() {
-        for phase in allPhases {
-            XCTAssertEqual(
-                RecommendationsView.shouldHideTabBar(isModal: false, phase: phase),
-                phase == .loading,
-                "Wrong tab bar visibility for \(phase)"
-            )
-        }
+    func testTabBarIsHiddenWhileTheLoaderCovers() {
+        XCTAssertTrue(
+            RecommendationsView.shouldHideTabBar(isModal: false, isCoveredByLoader: true)
+        )
+    }
+
+    /// A tab bar left hidden would strand the whole app with no navigation and
+    /// no way to restore it, so "not covered" must always restore it.
+    func testTabBarReturnsOnceTheLoaderHasGone() {
+        XCTAssertFalse(
+            RecommendationsView.shouldHideTabBar(isModal: false, isCoveredByLoader: false)
+        )
     }
 
     /// A `fullScreenCover` inherits the presenting view's environment, so the
@@ -368,22 +376,10 @@ final class RecommendationsChromeTests: XCTestCase {
     /// covered. It must decline to, or the bar animates out behind the cover
     /// and back in on dismissal for no reason.
     func testModalHostNeverTouchesTheTabBar() {
-        for phase in allPhases {
+        for covered in [true, false] {
             XCTAssertFalse(
-                RecommendationsView.shouldHideTabBar(isModal: true, phase: phase),
-                "The modal host must not drive the tab bar (\(phase))"
-            )
-        }
-    }
-
-    /// The reveal ends in one of four terminal phases. Every one of them must
-    /// bring the tab bar back — a terminal phase that left it hidden would
-    /// strand the whole app with no navigation and no way to restore it.
-    func testEveryTerminalPhaseRestoresTheTabBar() {
-        for phase in [RecommendationRevealPhase.error, .missing, .empty, .loaded] {
-            XCTAssertFalse(
-                RecommendationsView.shouldHideTabBar(isModal: false, phase: phase),
-                "\(phase) left the tab bar hidden"
+                RecommendationsView.shouldHideTabBar(isModal: true, isCoveredByLoader: covered),
+                "The modal host must not drive the tab bar (covered: \(covered))"
             )
         }
     }
@@ -400,5 +396,41 @@ final class RecommendationsChromeTests: XCTestCase {
         XCTAssertTrue(chrome.isTabBarHidden)
         chrome.isTabBarHidden = false
         XCTAssertFalse(chrome.isTabBarHidden)
+    }
+}
+
+// MARK: - Hand-off timing
+
+/// The hand-off is a port of the prototype's `App.tsx` + `index.css`, and its
+/// two halves are **sequential**: the loader recedes over 420ms, and only then
+/// do the picks run their 500ms `screen-in`. Overlapping them reads as a
+/// dissolve between two screens rather than one receding and another arriving.
+@MainActor
+final class RecommendationHandoffTimingTests: XCTestCase {
+
+    /// `App.tsx` runs a 420ms CSS transition and swaps the phase on a matching
+    /// `setTimeout(…, 420)`.
+    func testExitDurationMatchesThePrototype() {
+        XCTAssertEqual(RecommendationsLoadingView.handoffExitDuration, 0.42, accuracy: 0.0001)
+    }
+
+    /// The `screen-in` keyframe is `0.5s`.
+    func testRevealDurationMatchesThePrototype() {
+        XCTAssertEqual(RecommendationsLoadingView.revealInDuration, 0.5, accuracy: 0.0001)
+    }
+
+    /// The picks must not begin arriving before the loader has finished
+    /// leaving. `.revealIn` delays its insertion by exactly the recede's
+    /// duration, so changing one without the other either reopens the crossfade
+    /// this replaced or leaves a blank screen between the two halves.
+    func testTheRevealWaitsForTheFullRecede() {
+        XCTAssertGreaterThan(RecommendationsLoadingView.handoffExitDuration, 0)
+        XCTAssertGreaterThan(RecommendationsLoadingView.revealInDuration, 0)
+        XCTAssertEqual(
+            RecommendationsLoadingView.handoffExitDuration,
+            0.42,
+            accuracy: 0.0001,
+            "`.revealIn` delays its insertion by this exact value — keep them in step."
+        )
     }
 }

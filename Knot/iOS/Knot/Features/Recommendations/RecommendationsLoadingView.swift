@@ -377,37 +377,164 @@ extension RecommendationsLoadingView {
 
 // MARK: - Reveal Transition
 
+extension RecommendationsLoadingView {
+
+    /// How long the loading screen takes to recede. `App.tsx` runs the exit as
+    /// a 420ms CSS transition and only swaps the phase on a matching
+    /// `setTimeout(…, 420)`.
+    nonisolated static let handoffExitDuration: TimeInterval = 0.42
+
+    /// How long the picks take to arrive — the `screen-in` keyframe's 0.5s.
+    nonisolated static let revealInDuration: TimeInterval = 0.5
+}
+
 extension AnyTransition {
 
-    /// How the loading screen leaves and the picks arrive, replacing the
-    /// celebration that used to sit between them.
+    /// The picks arriving — the prototype's `screen-in` keyframe
+    /// (`opacity 0 → 1`, `translateY(16px) → 0`, `scale(0.98) → 1`).
     ///
-    /// Ported from the prototype's `App.tsx`: the loader scales up slightly and
-    /// blurs as it fades, and the results rise into place. The blur is what
-    /// sells it as a hand-off rather than a cut — the brand surface recedes
-    /// instead of disappearing.
-    static var loadingHandoff: AnyTransition {
-        .asymmetric(
-            insertion: .opacity,
-            removal: .opacity.combined(with: .scale(scale: 1.04)).combined(with: .blurOut)
-        )
-    }
-
-    /// The picks arriving.
+    /// **Sequential, not a crossfade**, which is the whole character of the
+    /// prototype's hand-off. `App.tsx` fades, scales and blurs the loader out
+    /// over 420ms and only *then* — on a `setTimeout` matched to that duration
+    /// — mounts the results, which run their own 500ms `screen-in`. Overlapping
+    /// them reads as a dissolve between two screens; sequencing them reads as
+    /// one screen receding and another arriving, which is what makes the
+    /// deleted celebration unnecessary. SwiftUI has no `setTimeout`, so the
+    /// gap is a `.delay` matched to the recede the overlay is running
+    /// underneath it.
+    ///
+    /// The curve is the prototype's, not its nearest SwiftUI preset:
+    /// `(0.22, 1, 0.36, 1)` decelerates far harder than anything built in,
+    /// which is what gives the picks their slight settle at the end.
     static var revealIn: AnyTransition {
-        .opacity.combined(with: .offset(y: 16)).combined(with: .scale(scale: 0.98))
-    }
+        let arrive: AnyTransition = .opacity
+            .combined(with: .offset(y: 16))
+            .combined(with: .scale(scale: 0.98))
 
-    private static var blurOut: AnyTransition {
-        .modifier(active: BlurModifier(radius: 4), identity: BlurModifier(radius: 0))
+        return .asymmetric(
+            insertion: arrive.animation(
+                .timingCurve(
+                    0.22, 1, 0.36, 1,
+                    duration: RecommendationsLoadingView.revealInDuration
+                )
+                .delay(RecommendationsLoadingView.handoffExitDuration)
+            ),
+            removal: .opacity
+        )
     }
 }
 
-private struct BlurModifier: ViewModifier {
-    let radius: CGFloat
+// MARK: - Loading Overlay
+
+/// Holds the loading screen above the reveal's content and animates its recede.
+///
+/// **Why this is an overlay rather than a branch of the phase switch.** The
+/// obvious shape is `case .loading: RecommendationsLoadingView().transition(…)`
+/// and letting a removal transition play the exit. That does not work here:
+/// SwiftUI unmounts the branch immediately and the loader vanishes on the frame
+/// the phase changes, with no exit at all.
+///
+/// This is not a guess. The hand-off was photographed at 25 frames across the
+/// transition with the durations temporarily scaled 5×, so a 420ms exit became
+/// 2.1s and any animation would have been impossible to miss. The loader was
+/// already gone 0.57s in — and it stayed gone when the removal was reduced to a
+/// plain `.opacity`, and when the navigation bar was pinned so its appearance
+/// could not be disturbing the hierarchy. The removal simply never runs.
+///
+/// So the exit is expressed as ordinary animatable modifiers on a view that
+/// stays mounted for its whole duration, driven by an explicit `withAnimation`.
+/// Those always animate, because nothing structural is happening — only
+/// `opacity`, `scaleEffect` and `blur` changing value.
+private struct RecommendationLoadingOverlay: ViewModifier {
+
+    let phase: RecommendationRevealPhase
+
+    /// Mirrors `isMounted` out to the host, which needs it for chrome decisions.
+    ///
+    /// The navigation and tab bars must stay hidden for the *whole* recede, not
+    /// just while the phase is `.loading` — otherwise a dark-plum inline title
+    /// pops in over the coral surface for the 420ms it is fading out, which is
+    /// exactly what the loading screen hides the bar to avoid.
+    @Binding var isCovering: Bool
+
+    /// Mounted for as long as the loader is visible, including its recede.
+    @State private var isMounted: Bool
+
+    /// Drives the recede. Animated, so all three modifiers interpolate.
+    @State private var isReceding = false
+
+    /// Guards the delayed unmount against a phase that returns to `.loading`
+    /// mid-recede (a refresh). Without it that in-flight unmount would fire
+    /// 420ms later and hide a loader that is supposed to be showing again.
+    @State private var recedeGeneration = 0
+
+    init(phase: RecommendationRevealPhase, isCovering: Binding<Bool>) {
+        self.phase = phase
+        self._isCovering = isCovering
+        // Correct on the very first frame, before `onChange` has run — the
+        // push tap-through starts at `.silent` and must not flash the loader.
+        _isMounted = State(initialValue: phase == .loading)
+    }
 
     func body(content: Content) -> some View {
-        content.blur(radius: radius)
+        content
+            .overlay {
+                if isMounted {
+                    RecommendationsLoadingView()
+                        .opacity(isReceding ? 0 : 1)
+                        .scaleEffect(isReceding ? 1.04 : 1)
+                        .blur(radius: isReceding ? 4 : 0)
+                        // Taps belong to the picks underneath the moment the
+                        // recede starts.
+                        .allowsHitTesting(!isReceding)
+                }
+            }
+            .onChange(of: phase, initial: true) { _, newPhase in
+                if newPhase == .loading {
+                    recedeGeneration += 1
+                    isReceding = false
+                    isMounted = true
+                    isCovering = true
+                } else if isMounted, !isReceding {
+                    let generation = recedeGeneration
+                    withAnimation(
+                        .timingCurve(
+                            0.4, 0, 0.2, 1,
+                            duration: RecommendationsLoadingView.handoffExitDuration
+                        )
+                    ) {
+                        isReceding = true
+                    }
+                    Task { @MainActor in
+                        try? await Task.sleep(
+                            for: .seconds(RecommendationsLoadingView.handoffExitDuration)
+                        )
+                        guard generation == recedeGeneration else { return }
+                        isMounted = false
+                        isCovering = false
+                    }
+                } else if !isMounted {
+                    // Never covered in the first place (`.silent`, or an error
+                    // before the loader ever mounted).
+                    isCovering = false
+                }
+            }
+    }
+}
+
+extension View {
+    /// Covers this content with `RecommendationsLoadingView` while `phase` is
+    /// `.loading`, and plays the prototype's 420ms recede when it leaves.
+    ///
+    /// `isCovering` reports whether the loader is still on screen — true for the
+    /// whole recede, not just while the phase is `.loading` — so the host can
+    /// keep its navigation and tab chrome out of the way until the coral surface
+    /// has actually gone.
+    func recommendationLoadingOverlay(
+        phase: RecommendationRevealPhase,
+        isCovering: Binding<Bool>
+    ) -> some View {
+        modifier(RecommendationLoadingOverlay(phase: phase, isCovering: isCovering))
     }
 }
 
