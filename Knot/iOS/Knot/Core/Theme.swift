@@ -110,6 +110,42 @@ enum Theme {
             : UIColor(red: 0.12, green: 0.10, blue: 0.16, alpha: 1.0)
     })
 
+    /// The deep end of the brand gradient — `colorPrimary` darkened toward
+    /// magenta. Only ever paired with `colorPrimary` in `brandGradient`; it is
+    /// not a standalone fill, which is why it carries no light/dark split (a
+    /// full-bleed brand surface reads the same in both, the way the app icon
+    /// keeps one artwork for both appearances).
+    static let colorPrimaryDeep = Color(red: 0.88, green: 0.16, blue: 0.36)
+
+    /// Full-bleed brand gradient — the coral ground used when a screen *is* the
+    /// brand rather than a surface inside it. Currently the recommendation
+    /// loading screen, which covers the app's longest wait (~25s of AI
+    /// generation) and is the one place a brand moment earns the whole viewport.
+    ///
+    /// `static let` for the same reason as `backgroundGradient`: a `static var`
+    /// reallocates the `LinearGradient` on every view-body evaluation.
+    static let brandGradient = LinearGradient(
+        colors: [colorPrimary, colorPrimaryDeep],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    // MARK: - On Brand Surface
+
+    // Chrome drawn *on top of* `brandGradient`. The `text*` and `progress*`
+    // tokens are tuned for the light `backgroundGradient` and are invisible or
+    // illegible on coral, so a brand surface needs its own small set — the same
+    // call `MatchingFactorChip(onImage:)` makes for pills over a photo.
+
+    /// Primary content on the brand gradient — wordmark, headline, progress fill.
+    static let onBrandPrimary = Color.white
+
+    /// Reduced-emphasis content on the brand gradient — supporting copy, counts.
+    static let onBrandMuted = Color.white.opacity(0.7)
+
+    /// Unfilled track for a progress bar drawn on the brand gradient.
+    static let onBrandTrack = Color.white.opacity(0.25)
+
     // MARK: - Text
 
     /// Primary text color — adapts to light/dark mode.
@@ -358,6 +394,22 @@ extension Theme {
         /// — same reasoning as `cardTitleSemibold` vs `onboardingSubHeader`.
         /// Scales relative to `.title`.
         static let sheetTitle: Font = .custom(FontFamily.DMSans.bold, size: 26, relativeTo: .title)
+
+        /// DMSans-Bold (700) @ 28pt. The headline on a full-bleed brand
+        /// surface — currently the recommendation loading screen's "Finding
+        /// ways to make them smile".
+        ///
+        /// The design specifies ExtraBold (800), which DM Sans does not ship as
+        /// a bundled cut; Bold is the nearest one. Weight is baked into the
+        /// token rather than chained at the call site, per the standing rule
+        /// above — `.weight(...)` on a family that lacks the weight makes iOS
+        /// silently substitute San Francisco.
+        ///
+        /// A dedicated token rather than borrowing `sheetTitle` (Bold 26): a
+        /// sheet headline and a full-screen brand headline should not silently
+        /// retype one another. Same call as `cardTitleSemibold` vs
+        /// `onboardingSubHeader`. Scales relative to `.title`.
+        static let loadingHeadline: Font = .custom(FontFamily.DMSans.bold, size: 28, relativeTo: .title)
 
         /// DMSans-Light (300) @ 17pt with synthesized italic — brand-moment
         /// quotes, sign-in tagline, recommendation attributions. Synthesized

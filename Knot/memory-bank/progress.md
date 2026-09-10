@@ -9418,6 +9418,167 @@ leaks a `{token}` across all 22 categories × both date states.
 
 ---
 
+### Step 19.51 ✅ Recommendations — A New Loading Screen, and the End of the "Ready" Splash
+**Date:** 2026-09-09
+**Status:** Complete
+
+> **Numbering note — this entry was authored as 19.50.** It was written on 2026-09-09 in a
+> parallel worktree alongside `main`'s own 19.50 (the Journal sheet's occasion-framed copy,
+> directly above), which merged first. The already-merged number wins, so this branch renumbered
+> to 19.51 on the way in rather than rewriting shipped history.
+
+**Goal:** Replace the recommendation loading experience with the "Modern Loading Experience"
+Figma Make design, and delete the celebration splash that sat between the wait ending and the
+picks appearing.
+
+**What the splash was, and why it went.** `ForYouClimaxView` played for 2.3 seconds after
+generation finished: three expanding shockwave rings, 16 burst particles, 24 confetti pieces,
+a spring-loaded checkmark, five orbiting icons, and the line **"Your matches are ready! / Tap
+to view your picks."** Two problems. It was an *interruption* — the user had just finished
+waiting ~25 seconds and the app made them wait 2.3 more. And **"Tap to view your picks" was a
+lie**: the view carried no tap gesture anywhere. Its only lifecycle hook was `.onAppear`; it
+was dismissed by a `DispatchQueue.main.asyncAfter(deadline: .now() + 2.3)` in the *parent*.
+Tapping did nothing.
+
+**What replaced it.** Nothing — that is the point. The loading screen now blurs and fades
+straight into the carousel, which is the hand-off the prototype's own `App.tsx` uses in place
+of a celebration. `AnyTransition.loadingHandoff` (opacity + `scale(1.04)` + a 4pt blur out)
+and `.revealIn` (opacity + 16pt rise + `scale(0.98)`) carry it.
+
+**The new screen — `RecommendationsLoadingView`.** A full-bleed coral surface: the Knot
+wordmark, a 7:5 illustration card crossfading through nine painterly couple scenes, the
+headline "Finding ways to make them smile", a rotating "Thinking about *the things they love /
+their taste / the little moments / their favorites*", and a slim progress bar over "*N* of 3
+matches found".
+
+**Deviations from the prototype, each deliberate:**
+- **Illustration cadence 1.15s → 2.5s.** The prototype simulated a 4.2-second wait — about
+  four swaps. Against a real ~25-second generation that cadence is ~21 swaps, which strobes.
+- **"4 matches" → "3".** The pipeline returns exactly three cards (PRD **F2**).
+- **Wordmark 64px → `heroDisplay` (42).** Matches the existing sign-in wordmark; 64pt is
+  oversized on a 402pt screen.
+- **Headline ExtraBold → Bold.** DM Sans ships no ExtraBold cut, and weight must never be
+  chained onto a token — `.weight(...)` on a family that lacks the weight makes iOS silently
+  substitute San Francisco (`Theme.swift`'s standing rule).
+
+**The counter was a bug before it was a feature.** The first version kept the old
+`@State progress` + `withAnimation(.linear(duration: 28))` ramp and read that state for the
+counter. SwiftUI interpolates an *animatable modifier* like `.frame(width:)` in the render
+layer, but a `Text` reading the state directly sees the **final** value immediately — so the
+bar would have crawled while the counter read "3 of 3 matches found" from the first frame.
+Both now derive from one `elapsed` value sampled by the rotation timer, and the bar
+interpolates linearly between samples. One source, one ramp, nothing to disagree about. The
+captured screenshot is the proof: "1 of 3" against a ~15% bar.
+
+**The ramp is still a timer, not progress.** Generation is one blocking
+`POST /api/v1/recommendations/generate` with no progress channel, so there is nothing to
+report; the 28s → 95% ceiling is carried over unchanged from the old screen. **The "*N* of 3
+matches found" counter is a stronger claim than a bar** — nothing is found incrementally, all
+three arrive at once. It is the same class of fiction the previous bar already shipped, and it
+is the design, but it is worth naming: deleting the counter is a four-line change and the
+layout holds without it.
+
+**The two files stop duplicating the flow.** `RecommendationsView` and
+`OnboardingCompletionView` each carried their own copy of the loading↔climax branch chain
+*and* an identical 16-line climax `onChange`, so every change to the reveal had to land twice
+and the two could drift silently. Both now switch on one pure
+`RecommendationsLoadingView.phase(...)` returning a `RecommendationRevealPhase`, which makes
+the flow testable for the first time — neither animation had a single test before this.
+`RecommendationsView.showsGenerationLoading(isPregeneratedRead:)` is subsumed by the `.silent`
+case; its two tests were **repointed, not deleted**, because that guard is what stops the push
+tap-through flashing a ~25-second generation screen over a sub-second stored read (Step 19.30).
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/RecommendationsLoadingView.swift` — the screen, the phase
+  resolver, and the hand-off transitions
+- `iOS/Knot/Resources/Assets.xcassets/LoadingIllustrations/` — nine namespaced imagesets
+  (JPEG q82 @ 1024², ~1.6 MB total, mirroring `OccasionIllustrations/`)
+- `iOS/Knot/Resources/Assets.xcassets/BrandLogo.imageset/` — the coral-`k` tile for the header
+  (28 KB; the app had no logo imageset, and an appiconset cannot be referenced from code)
+- `iOS/KnotTests/RecommendationsLoadingViewTests.swift` — 23 cases
+- `docs/pr-screenshots/worktree-feat-modern-loading-experience.png`
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — `colorPrimaryDeep`, `brandGradient` (a `static let`, memoized
+  for the same reason as `backgroundGradient`), the `onBrandPrimary` / `onBrandMuted` /
+  `onBrandTrack` group, and `Typography.loadingHeadline`
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — both animations deleted
+  (−482 lines), `isPlayingClimax` and its `onChange` gone, switches on the shared phase
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — same deletions;
+  `revealInProgress` / `shouldShowContinue` lost their `isPlayingClimax` parameter
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — new `recsLoading` key
+- `iOS/KnotUITests/PRScreenshotTests.swift`, `iOS/KnotTests/OccasionEntryModalTests.swift`,
+  `iOS/KnotTests/OnboardingCompletionViewContinueGatingTests.swift`,
+  `iOS/KnotTests/Components/UI/ThemeTokensTests.swift`
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**Tests:** iOS Unit plan **520 passed**, 0 failures (493 baseline + 27 new). Build clean with
+zero warnings. Backend untouched — no DTO, endpoint, schema or migration change, so no
+`pytest` run applies to this diff.
+
+**A `/code-review high` pass found four issues, three of them regressions this change
+introduced. All fixed before commit:**
+1. **The navigation bar drew over the coral surface.** `RecommendationsView` applies a
+   toolbar with a `Theme.textPrimary` principal title — dark plum on coral, *and* a second
+   header directly above the screen's own "Knot" wordmark. The bar is now hidden on the
+   `.loading` branch, scoped to that branch rather than to `body` so it cannot leak into the
+   sheets and covers presented from the outer chain (the scoping Step 19.31 had to correct
+   for the Journal). **Not** hidden inside a full-screen cover: there the bar carries
+   `MilestoneRecommendationsCoverView`'s X, the only way out, and taking it away would strand
+   the user for the whole ~25s run they just opted into from "Find picks now".
+2. **The new phase animation made an invisible frame visible.** Before `.task` runs the view
+   model is empty and not loading, so the phase resolved to `.empty` — one frame of the
+   "Ready to find a gift?" CTA that nobody could see until a 0.42s crossfade was put on the
+   switch. `awaitingFirstLoad` now folds into `isLoading`, and `isPregeneratedRead` is seeded
+   from `preferPregenerated` in `init` so the tap-through's first frame is still `.silent`
+   rather than a flash of the coral screen under the entry modal (Step 19.30 again).
+3. **The counter claimed everything two-thirds through the wait.** `Int(progress * 3) + 1`
+   reached "3 of 3 matches found" at ~19.6s of the 28s ramp and then sat there while the bar
+   crawled on — a worse overclaim than the bar it sits under. Replaced with explicit
+   thresholds (`[0.05, 0.45, 0.88]` of the ramp), which are also monotonic and clamped *by
+   construction* rather than by a `min`.
+4. **The subline reflowed on every rotation.** `.id(step)` + `.transition(.opacity)` as a
+   direct `VStack` child means both phrases hold layout for the full 0.6s transition. Wrapped
+   in a `ZStack`, matching `illustrationCard` — `minHeight` alone cannot absorb two stacked
+   one-line phrases.
+
+**The screenshot harness was hiding the first of those.** It rendered
+`RecommendationsLoadingView()` bare, which has no navigation bar at all, so the captured image
+looked correct while the real screen was wrong. It now drives the **real `RecommendationsView`**
+inside a `NavigationStack` with a view model seeded mid-flight (`hasLoadedInitially` so `.task`
+does no networking, `isLoading` so the phase pins to `.loading`). A harness only proves what it
+actually renders — the lesson Steps 19.28, 19.30 and 19.31 each had to re-learn.
+
+**A test I wrote was wrong before the copy was.** `testEmphasisCopyUsesNoGenderedPronoun`
+initially used `contains("he ")`, which matches inside "t**he** things" — it failed on two
+phrases that are perfectly fine. Rewritten with `\b`-anchored regex, plus a second test that
+asserts the matcher actually catches a real pronoun, since a guard that can never fire is
+worse than none. This is the same substring-vs-word-boundary trap Step 19.25 hit when "eid"
+matched inside "Deidre's Birthday".
+
+**Notes:**
+- **The coral ground is the most visible change in the app** and the only screen that is not
+  on `Theme.backgroundGradient`. That is deliberate — a ~25-second wait is the one place a
+  brand moment earns the whole viewport — and it is one `.background(...)` line to revert.
+- **`\.accessibilityReduceMotion` is read-only**, so a test or preview cannot set it. The
+  reduced path is reachable through a `reduceMotionOverride` seam (`nil` in production,
+  deferring to the system), the same shape as `OccasionEntryModal.entranceAnimated`.
+- **The illustration must be composed as `Color.clear.overlay { … scaledToFill() }.clipped()`.**
+  A directly-sized `scaledToFill` image reports a size *larger than its proposal* and that
+  overflow propagates into **layout** — the bug Step 19.31 shipped, which pushed the whole
+  Journal sideways. `clipShape` clips pixels; it does not constrain layout.
+- **The "Your picks are ready ✨" local notification stays.** It fires only when the app was
+  *backgrounded* mid-generation and is a different surface from the on-screen splash — the
+  whole point of the background-task work in Step 15.2.
+- A test asserts every illustration the rotation can reach is actually bundled. A missing
+  asset renders as a blank card at runtime with no build error, which is exactly the silent
+  failure `OccasionCopy.illustrationName` bundle-checks against.
+- **`ForYouLoadingView` and `ForYouClimaxView` are gone, not deprecated.** ~480 lines,
+  including a hardcoded six-colour particle palette that was never Theme-derived and every
+  duration as an inline magic number.
+
+---
+
 ## Next Steps
 
 

@@ -24,15 +24,16 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change is the bottom sheet a Journal card's recommendation icon
-        // now raises. The real Journal sits behind auth and a live milestone
-        // fetch, so the `journal` harness renders the same card feed with seeded
-        // milestones and presents the sheet exactly as `ForYouView` does.
+        // The change is the redesigned recommendation loading screen — the
+        // full-bleed brand surface that replaced the old orbiting-icons
+        // animation, and whose hand-off replaced the "Your matches are ready!"
+        // celebration.
         //
-        // The tap is scripted rather than presenting the sheet statically: that
-        // is what proves the icon actually opens it, which is the whole change
-        // (the same reason Step 19.9 scripted a tap for the Saved detail).
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // Reaching it for real means a live session, a vault, and waiting out a
+        // ~25-second pipeline run, none of which a cold screenshot launch can
+        // do; the `recsLoading` harness renders it standalone. It needs no
+        // seeding — the screen takes no arguments and drives itself.
+        app.launchArguments += ["-uiTestScreenshot", "recsLoading"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -46,25 +47,18 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        let getIdeas = app.buttons["Get recommendations for Christmas"]
+        //
+        // The headline is the one element unique to this screen, so it is what
+        // proves the harness landed here and not on some other surface.
         XCTAssertTrue(
-            getIdeas.waitForExistence(timeout: 15),
-            "The Christmas card's recommendation icon never appeared — the Journal feed did not render"
-        )
-        getIdeas.tap()
-
-        // The headline is now resolved per occasion by
-        // `MilestoneRecommendationCopy`; Christmas is `giftForward`, which asks
-        // this. Waiting on the exact string is what makes the capture prove the
-        // copy change rather than merely that a sheet appeared.
-        XCTAssertTrue(
-            app.staticTexts["Get ideas for Christmas?"].waitForExistence(timeout: 10),
-            "The recommendation sheet never appeared after tapping the icon — the shot cannot show the change"
+            app.staticTexts["Finding ways to make them smile"].waitForExistence(timeout: 15),
+            "The loading headline never appeared — the loading screen did not render"
         )
 
-        // Let the sheet finish its presentation animation before capturing, or
-        // the image catches it mid-slide.
-        Thread.sleep(forTimeInterval: 1.0)
+        // Wait past the first illustration swap (2.5s) so the capture lands on
+        // a settled crossfade rather than on frame one, and far enough into the
+        // 28s progress ramp that the bar and the match counter have both moved.
+        Thread.sleep(forTimeInterval: 4.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"

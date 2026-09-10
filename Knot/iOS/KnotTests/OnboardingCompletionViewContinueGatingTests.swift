@@ -11,6 +11,11 @@
 //  in the loaded state — while still surfacing it immediately in the empty / error /
 //  vault-failed states so the user is never trapped.
 //
+//  Step 19.50: The climax celebration was deleted, so `isPlayingClimax` is gone
+//  from both gates. The reveal now ends the moment loading does — there is no
+//  longer a celebration window that keeps "Continue" hidden after generation
+//  finishes.
+//
 
 import XCTest
 @testable import Knot
@@ -21,14 +26,12 @@ final class OnboardingCompletionViewContinueGatingTests: XCTestCase {
     private func revealing(
         vaultFailed: Bool = false,
         vaultReady: Bool = false,
-        isLoading: Bool = false,
-        isPlayingClimax: Bool = false
+        isLoading: Bool = false
     ) -> Bool {
         OnboardingCompletionView.revealInProgress(
             vaultFailed: vaultFailed,
             vaultReady: vaultReady,
-            isLoading: isLoading,
-            isPlayingClimax: isPlayingClimax
+            isLoading: isLoading
         )
     }
 
@@ -42,19 +45,11 @@ final class OnboardingCompletionViewContinueGatingTests: XCTestCase {
         XCTAssertTrue(revealing(vaultReady: true, isLoading: true))
     }
 
-    /// The climax celebration keeps Continue hidden even once loading finishes.
-    func testInProgressDuringClimax() {
-        XCTAssertTrue(revealing(vaultReady: true, isLoading: false, isPlayingClimax: true))
-    }
-
-    /// Loaded terminal state: generation done, no climax → Continue appears.
+    /// Loaded terminal state: generation done → Continue appears. With the
+    /// celebration gone this is the frame right after loading ends; nothing
+    /// sits between the wait and the picks.
     func testNotInProgressWhenLoaded() {
-        XCTAssertFalse(revealing(vaultReady: true, isLoading: false, isPlayingClimax: false))
-    }
-
-    /// Empty terminal state behaves the same as loaded → Continue appears.
-    func testNotInProgressWhenEmpty() {
-        XCTAssertFalse(revealing(vaultReady: true, isLoading: false, isPlayingClimax: false))
+        XCTAssertFalse(revealing(vaultReady: true, isLoading: false))
     }
 
     /// Vault-failure error state must not trap the user — Continue appears
@@ -70,7 +65,6 @@ final class OnboardingCompletionViewContinueGatingTests: XCTestCase {
         vaultFailed: Bool = false,
         vaultReady: Bool = true,
         isLoading: Bool = false,
-        isPlayingClimax: Bool = false,
         hasError: Bool = false,
         hasRecommendations: Bool = true,
         hasOpenedRecommendation: Bool = false
@@ -79,7 +73,6 @@ final class OnboardingCompletionViewContinueGatingTests: XCTestCase {
             vaultFailed: vaultFailed,
             vaultReady: vaultReady,
             isLoading: isLoading,
-            isPlayingClimax: isPlayingClimax,
             hasError: hasError,
             hasRecommendations: hasRecommendations,
             hasOpenedRecommendation: hasOpenedRecommendation
@@ -101,7 +94,6 @@ final class OnboardingCompletionViewContinueGatingTests: XCTestCase {
     func testHiddenWhileRevealingRegardlessOfOpen() {
         XCTAssertFalse(shouldShow(vaultReady: false, isLoading: false, hasOpenedRecommendation: true))
         XCTAssertFalse(shouldShow(isLoading: true, hasOpenedRecommendation: true))
-        XCTAssertFalse(shouldShow(isPlayingClimax: true, hasOpenedRecommendation: true))
     }
 
     /// Empty terminal state has nothing to open → Continue appears immediately.

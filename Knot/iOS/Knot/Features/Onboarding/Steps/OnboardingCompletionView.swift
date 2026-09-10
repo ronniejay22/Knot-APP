@@ -50,13 +50,9 @@ struct OnboardingCompletionView: View {
 
     @State private var viewModel = RecommendationsViewModel()
 
-    /// True while the climax celebration plays — between loading completing and the
-    /// recommendation cards appearing. Mirrors `RecommendationsView`'s own flag.
-    @State private var isPlayingClimax = false
-
     /// True once the partner vault POST has succeeded. Until then the loading
     /// screen represents vault creation; afterward it represents recommendation
-    /// generation. Keeping it `false` initially shows `ForYouLoadingView`
+    /// generation. Keeping it `false` initially shows the loading screen
     /// immediately, with no empty-state flash before submission starts.
     @State private var vaultReady = false
 
@@ -77,7 +73,6 @@ struct OnboardingCompletionView: View {
             vaultFailed: vaultFailed,
             vaultReady: vaultReady,
             isLoading: viewModel.isLoading,
-            isPlayingClimax: isPlayingClimax,
             hasError: viewModel.errorMessage != nil,
             hasRecommendations: !viewModel.recommendations.isEmpty,
             hasOpenedRecommendation: hasOpenedRecommendation
@@ -86,17 +81,16 @@ struct OnboardingCompletionView: View {
 
     /// Pure gating logic for whether the reveal is still in progress, factored out
     /// of the computed property so it can be unit-tested independently of the view's
-    /// `@State`. Mirrors the busy branches of the `content` switch: the reveal is "in
+    /// `@State`. Mirrors the busy branch of the `content` switch: the reveal is "in
     /// progress" while the loading screen (vault creation then recommendation
-    /// generation) or the climax celebration is on screen, and NOT in progress in the
-    /// terminal loaded / empty / error / vault-failed states.
+    /// generation) is on screen, and NOT in progress in the terminal loaded / empty /
+    /// error / vault-failed states.
     static func revealInProgress(
         vaultFailed: Bool,
         vaultReady: Bool,
-        isLoading: Bool,
-        isPlayingClimax: Bool
+        isLoading: Bool
     ) -> Bool {
-        (!vaultFailed && (!vaultReady || isLoading)) || isPlayingClimax
+        !vaultFailed && (!vaultReady || isLoading)
     }
 
     /// Pure gating logic for the container's "Continue" button, factored out so it can
@@ -109,7 +103,6 @@ struct OnboardingCompletionView: View {
         vaultFailed: Bool,
         vaultReady: Bool,
         isLoading: Bool,
-        isPlayingClimax: Bool,
         hasError: Bool,
         hasRecommendations: Bool,
         hasOpenedRecommendation: Bool
@@ -117,8 +110,7 @@ struct OnboardingCompletionView: View {
         if revealInProgress(
             vaultFailed: vaultFailed,
             vaultReady: vaultReady,
-            isLoading: isLoading,
-            isPlayingClimax: isPlayingClimax
+            isLoading: isLoading
         ) {
             return false
         }
@@ -137,24 +129,6 @@ struct OnboardingCompletionView: View {
             // finishes and — in the loaded state — the user has opened a pick.
             .onChange(of: showContinueGate) { _, show in
                 showContinue = show
-            }
-            // Trigger the celebration only on a fresh, successful load — skips on
-            // error or when no recommendations came back.
-            .onChange(of: viewModel.isLoading) { wasLoading, nowLoading in
-                guard wasLoading,
-                      !nowLoading,
-                      !viewModel.recommendations.isEmpty,
-                      viewModel.errorMessage == nil
-                else { return }
-
-                withAnimation(.easeIn(duration: 0.2)) {
-                    isPlayingClimax = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) {
-                    withAnimation(.easeOut(duration: 0.4)) {
-                        isPlayingClimax = false
-                    }
-                }
             }
             .task {
                 // Hide "Continue" the moment the reveal begins; `onChange` above
@@ -281,31 +255,57 @@ struct OnboardingCompletionView: View {
 
     // MARK: - State Switch
 
+    /// Which surface the reveal should show.
+    ///
+    /// Vault failure is onboarding-only, so it stays a local branch; everything
+    /// after it goes through the same pure resolver `RecommendationsView` uses,
+    /// so the two reveals cannot drift. Vault creation and recommendation
+    /// generation collapse into one `isLoading` input, which is what keeps them
+    /// behind a single continuous loading screen. This reveal always generates
+    /// — there is no stored batch to read — so the pre-generated inputs are
+    /// constant `false`.
+    private var revealPhase: RecommendationRevealPhase {
+        RecommendationsLoadingView.phase(
+            isLoading: !vaultReady || viewModel.isLoading,
+            isPregeneratedRead: false,
+            hasError: viewModel.errorMessage != nil,
+            pregeneratedMissing: false,
+            isEmpty: viewModel.recommendations.isEmpty
+        )
+    }
+
     @ViewBuilder
     private var content: some View {
-        if vaultFailed {
-            errorState(
-                message: onboarding.submissionError
-                    ?? "We couldn't save your partner vault. Please try again.",
-                retry: { Task { await submitVaultThenGenerate() } }
-            )
-        } else if !vaultReady || viewModel.isLoading {
-            // One continuous loading screen: vault creation first (`!vaultReady`),
-            // then recommendation generation (`viewModel.isLoading`).
-            ForYouLoadingView()
-        } else if isPlayingClimax {
-            ForYouClimaxView()
-                .transition(.opacity)
-        } else if let error = viewModel.errorMessage {
-            errorState(
-                message: error,
-                retry: { Task { await viewModel.generateRecommendations() } }
-            )
-        } else if viewModel.recommendations.isEmpty {
-            emptyState
-        } else {
-            recommendationsList
+        Group {
+            if vaultFailed {
+                errorState(
+                    message: onboarding.submissionError
+                        ?? "We couldn't save your partner vault. Please try again.",
+                    retry: { Task { await submitVaultThenGenerate() } }
+                )
+            } else {
+                switch revealPhase {
+                case .loading, .silent:
+                    // One continuous loading screen: vault creation first
+                    // (`!vaultReady`), then recommendation generation.
+                    RecommendationsLoadingView()
+                        .transition(.loadingHandoff)
+                case .error:
+                    errorState(
+                        message: viewModel.errorMessage ?? "",
+                        retry: { Task { await viewModel.generateRecommendations() } }
+                    )
+                case .missing, .empty:
+                    emptyState
+                case .loaded:
+                    recommendationsList
+                        .transition(.revealIn)
+                }
+            }
         }
+        // The loading screen hands straight off to the picks — no celebration
+        // in between. See `RecommendationsView.recommendationsBody`.
+        .animation(.easeInOut(duration: 0.42), value: revealPhase)
     }
 
     // MARK: - Loaded
