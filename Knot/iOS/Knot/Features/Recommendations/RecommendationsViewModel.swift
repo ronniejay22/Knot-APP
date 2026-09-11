@@ -28,6 +28,10 @@ protocol MilestoneRecommendationsFetching {
     func fetchMilestoneRecommendations(
         milestoneId: String
     ) async throws -> MilestoneRecommendationsResponse
+
+    /// The newest stored batch for the vault, whichever surface produced it.
+    /// Backs the recovery path for a generation whose response never arrived.
+    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse
 }
 
 extension NotificationHistoryService: MilestoneRecommendationsFetching {}
@@ -170,11 +174,11 @@ final class RecommendationsViewModel {
 
     /// The background task identifier used to keep the app alive while a recommendation
     /// request is in flight after the user has backgrounded the app.
+    /// Holding it is the whole state: `backgroundTaskID != .invalid` means a
+    /// window is open, which is what both the re-entrancy guard and the release
+    /// path key on. A separate "was backgrounded" flag used to shadow this and
+    /// only ever disagreed with it — see `releaseBackgroundExecutionWindow()`.
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-
-    /// Set to `true` when the app backgrounds while `isLoading` or `isRefreshing` is active.
-    /// Used to decide whether to fire a "ready" notification when the request completes.
-    private var wasBackgroundedWhileLoading = false
 
     // MARK: - Dependencies
 
@@ -238,6 +242,10 @@ final class RecommendationsViewModel {
         errorMessage = nil
         currentPage = 0
 
+        // Captured before the request so recovery can tell this run's stored
+        // batch apart from one that was already there.
+        let replacedIds = recommendations.map(\.id)
+
         do {
             let response = try await service.generateRecommendations(
                 occasionType: occasionType,
@@ -265,7 +273,17 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
-        completeBackgroundLoadingIfNeeded()
+        // The request failed, but the backend may have finished and stored the
+        // picks anyway. Recover them rather than showing an error for work that
+        // actually completed — this is what stops the "your picks are ready"
+        // push dead-ending on a suspended-then-killed request.
+        if errorMessage != nil,
+           !vaultMissing,
+           await recoverRecentlyStoredBatch(replacing: replacedIds, milestoneId: milestoneId) {
+            errorMessage = nil
+        }
+
+        releaseBackgroundExecutionWindow()
         isLoading = false
     }
 
@@ -448,7 +466,23 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
-        completeBackgroundLoadingIfNeeded()
+        // Same recovery as generate — a re-roll is a full pipeline run and can
+        // be lost to suspension exactly the same way. The backend stamps the
+        // replacement batch with the milestone it inherited from the rejected
+        // rows, which is this surface's own.
+        // `rejectedIds` is exactly the batch this re-roll was replacing, and the
+        // backend excludes them from the replacement — so an overlap means the
+        // recovered batch is the one already on screen.
+        if errorMessage != nil,
+           !vaultMissing,
+           await recoverRecentlyStoredBatch(
+               replacing: rejectedIds,
+               milestoneId: currentMilestoneId
+           ) {
+            errorMessage = nil
+        }
+
+        releaseBackgroundExecutionWindow()
         isRefreshing = false
     }
 
@@ -883,8 +917,6 @@ final class RecommendationsViewModel {
         guard isLoading || isRefreshing else { return }
         guard backgroundTaskID == .invalid else { return } // already running
 
-        wasBackgroundedWhileLoading = true
-
         backgroundTaskID = UIApplication.shared.beginBackgroundTask(
             withName: "knot.recommendations.generate"
         ) { [weak self] in
@@ -901,30 +933,150 @@ final class RecommendationsViewModel {
     }
 
     /// Called when the app returns to the foreground while loading is still in progress
-    /// (or after it has completed). Cancels any pending loading notification and resets state.
+    /// (or after it has completed). Cancels the pending "still working" notification
+    /// if it has not fired yet.
+    ///
+    /// Only `knot.recs.loading` is cancellable. The completion announcement is a
+    /// remote push from the backend, so it is already out of the app's hands by
+    /// the time it matters — the foreground suppression in
+    /// `AppDelegate.presentationOptions(forCategory:)` is what keeps it off a
+    /// returning user's screen.
     func cancelPendingLoadingNotification() {
-        wasBackgroundedWhileLoading = false
         UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: ["knot.recs.loading", "knot.recs.ready"]
+            withIdentifiers: ["knot.recs.loading"]
         )
     }
 
-    /// Called at the end of generate/refresh to fire the "ready" notification if
-    /// the app was backgrounded, then end the background task.
-    private func completeBackgroundLoadingIfNeeded() {
-        guard wasBackgroundedWhileLoading else {
-            print("[Knot] completeBackgroundLoadingIfNeeded: not backgrounded, skipping")
-            return
-        }
-        wasBackgroundedWhileLoading = false
+    /// Called at the end of generate/refresh to release the background execution
+    /// window the app took when it was backgrounded mid-request.
+    ///
+    /// This no longer schedules a "ready" notification. That announcement is now
+    /// a remote push fired by the backend when the pipeline finishes, because a
+    /// local one could not be relied on: iOS grants only ~30s of background
+    /// execution against a ~20-30s pipeline, and when that window expired the
+    /// app was suspended — taking the in-flight request, and any chance of
+    /// scheduling a notification, with it.
+    ///
+    /// **Unconditional on purpose.** `endBackgroundExecution()` already no-ops
+    /// when no window is held, and gating the release on "was the app
+    /// backgrounded" leaked the assertion whenever the user *returned* before
+    /// the request finished: the flag was cleared on the foreground transition,
+    /// so this early-returned and the task was never ended. The next backgrounded
+    /// generation then bailed at `guard backgroundTaskID == .invalid`, taking no
+    /// window and sending no "Still working on it…" notification at all.
+    private func releaseBackgroundExecutionWindow() {
+        endBackgroundExecution()
+    }
 
-        if backgroundTaskID != .invalid {
-            print("[Knot] Request completed in background — scheduling ready notification")
-            scheduleReadyNotification()
-            endBackgroundExecution()
-        } else {
-            print("[Knot] completeBackgroundLoadingIfNeeded: background task already expired")
+    // MARK: - Recovering a Lost Generation
+
+    /// How recent a stored batch must be to stand in for a generation whose
+    /// response never arrived.
+    ///
+    /// Generation takes ~25s, so anything inside this window belongs to the run
+    /// the user just asked for. Wide enough to cover an app suspended for a few
+    /// minutes; far too narrow to resurface a batch from a previous session.
+    static let recoverableBatchWindow: TimeInterval = 15 * 60
+
+    /// Whether a stored batch can stand in for the run whose response was lost.
+    ///
+    /// Being *recent* is not enough, and that distinction is the whole safety
+    /// argument. A re-roll that fails would otherwise recover the batch already
+    /// on screen: the user waits ~25s, watches the cards animate out and back,
+    /// and gets the identical three with no error to explain it.
+    ///
+    /// The guard is `replacing` — the ids showing when the request started —
+    /// rather than a timestamp comparison, because the only clock available for
+    /// that is the device's while `created_at` is the server's. Any skew
+    /// tolerance wide enough to be safe is also wide enough to re-admit the
+    /// batch being replaced, since an eager user re-rolls seconds after the
+    /// previous one was stored. Row ids are exact and need no clock: the
+    /// backend inserts new rows for every run, and `/refresh` explicitly
+    /// excludes the ids it was given, so a genuine replacement shares none.
+    ///
+    /// The milestone context must match too — `/latest` serves whatever is
+    /// newest for the vault, which can be another surface's batch, and saving
+    /// one of those would file it under the wrong event.
+    ///
+    /// Pure so the rule is testable without a backend.
+    ///
+    /// - Parameters:
+    ///   - replacing: Ids on screen when the lost request started.
+    ///   - milestoneId: The milestone that run targeted, `nil` for just-because.
+    static func isRecoverableBatch(
+        _ response: MilestoneRecommendationsResponse,
+        replacing: [String],
+        milestoneId: String?,
+        now: Date = Date()
+    ) -> Bool {
+        guard let newest = response.recommendations.first,
+              let createdAt = parseTimestamp(newest.createdAt)
+        else { return false }
+
+        guard response.milestoneId == milestoneId else { return false }
+
+        let recovered = Set(response.recommendations.map(\.id))
+        guard recovered.isDisjoint(with: replacing) else { return false }
+
+        return now.timeIntervalSince(createdAt) <= recoverableBatchWindow
+    }
+
+    /// Tries to recover a generation whose HTTP response never reached us.
+    ///
+    /// The pipeline runs server-side and stores its picks *before* responding,
+    /// so a request killed by app suspension — iOS grants ~30s of background
+    /// execution against a ~20-30s pipeline — leaves finished work in the
+    /// database. Without this, the "your picks are ready" push announced picks
+    /// and then dropped the user on an error state whose Try Again burned
+    /// another ~25s regenerating what already existed.
+    ///
+    /// Not `private` so the tests can drive it directly; nothing outside this
+    /// file calls it.
+    ///
+    /// - Parameters:
+    ///   - replacing: Ids on screen when the lost request started. A batch
+    ///     overlapping these is work this run did not do.
+    ///   - milestoneId: The milestone that run targeted, `nil` for just-because.
+    /// - Returns: `true` when the run's batch was recovered and published.
+    func recoverRecentlyStoredBatch(
+        replacing: [String],
+        milestoneId: String?
+    ) async -> Bool {
+        let response: MilestoneRecommendationsResponse
+        do {
+            response = try await milestoneFetcher.fetchLatestRecommendations()
+        } catch {
+            return false
         }
+
+        guard Self.isRecoverableBatch(
+            response,
+            replacing: replacing,
+            milestoneId: milestoneId
+        ) else { return false }
+
+        recommendations = response.recommendations.map { $0.toRecommendationItem() }
+        // Only overwrite the briefing when there is one to show. `/latest`
+        // always answers with none, so assigning it unconditionally would wipe
+        // the briefing card off a milestone surface on every recovery.
+        if let briefing = response.briefingText {
+            briefingText = briefing
+        }
+        hasLoadedInitially = true
+        deckResetToken += 1
+        return true
+    }
+
+    /// Parses a Supabase ISO 8601 timestamp, which carries microseconds.
+    /// Falls back to the non-fractional form for older rows.
+    static func parseTimestamp(_ value: String) -> Date? {
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFractional.date(from: value) { return date }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: value)
     }
 
     /// Ends the active background execution task and resets the identifier.
@@ -952,32 +1104,6 @@ final class RecommendationsViewModel {
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 print("[Knot] Failed to schedule loading notification: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Schedules a local notification that fires immediately to tell the user
-    /// their recommendations are ready to view.
-    private func scheduleReadyNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "Your picks are ready ✨"
-        content.body = "Tap to see your personalized recommendations."
-        content.sound = .default
-
-        // Use a short time interval trigger instead of nil — nil can fail
-        // to deliver when the app is in the background.
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "knot.recs.ready",
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                print("[Knot] Failed to schedule ready notification: \(error.localizedDescription)")
-            } else {
-                print("[Knot] Ready notification scheduled successfully")
             }
         }
     }

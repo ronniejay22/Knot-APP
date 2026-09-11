@@ -684,7 +684,9 @@ struct NotificationHistoryItemResponse: Codable, Sendable, Identifiable {
 struct MilestoneRecommendationsResponse: Codable, Sendable {
     let recommendations: [MilestoneRecommendationItemResponse]
     let count: Int
-    let milestoneId: String
+    /// Always set by `/by-milestone/{id}`; nil on `/latest` when the newest
+    /// batch was a just-because run, which belongs to no milestone.
+    let milestoneId: String?
     /// Latest Claude briefing for this milestone (nil when none was stored,
     /// or when talking to an older backend without the field).
     let briefingText: String?

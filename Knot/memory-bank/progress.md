@@ -9834,6 +9834,206 @@ slot swap its picture would reintroduce a hard cut, and that test is what catche
 
 ---
 
+### Step 19.54 ✅ Recommendations — Announce Completion With a Real Push, Not a Local Notification
+**Date:** 2026-09-10
+**Status:** Complete
+
+**Goal:** Tell the user their picks are ready when they leave the app during a generation run.
+They were getting "Still working on it…" and then nothing.
+
+**The notification already existed and could not have worked reliably.** Step 15.2 shipped both
+halves — `knot.recs.loading` and `knot.recs.ready` ("Your picks are ready ✨"). Three faults, one
+of them fatal by construction:
+
+1. **A suspend race.** `completeBackgroundLoadingIfNeeded()` called `scheduleReadyNotification()`
+   and then `endBackgroundExecution()` *on the next line*. `UNUserNotificationCenter.add(_:)` is
+   asynchronous — once the background task ends and none other is outstanding, iOS may suspend
+   the app before the request reaches the notification daemon, and it is silently lost.
+2. **A ~30s ceiling, which no client-side fix can raise.** `beginBackgroundTask` grants roughly
+   30 seconds against a ~20-30s pipeline with a 90s client timeout. When the window expired first
+   the app was suspended — taking the in-flight `URLSession` request with it, so there was nothing
+   to announce and no way left to announce it.
+3. **One surface only.** The machinery lived solely on `RecommendationsView`. The first-run
+   onboarding reveal — the longest wait a user ever sits through, vault creation *plus* generation
+   — sent nothing at all, by an explicit decision recorded in `OnboardingCompletionView`.
+
+There were also **zero tests** over the whole path.
+
+**The fix is a real APNs push from the backend.** It is the only mechanism that reaches a user
+whose app iOS has suspended or killed, and because the trigger is server-side it covers every
+surface that runs the pipeline at once — the Journal tab, the onboarding reveal, and the milestone
+push tap-through's "Find picks now" — with no per-view wiring. It reuses the delivery stack from
+Steps 7.5 / 19.29 rather than adding a second one.
+
+**What changed (backend):**
+- **`services/apns.py`:** extracted the payload-agnostic core of `deliver_push_notification` —
+  device lookup, `asyncio.gather` fan-out, dead-token pruning, aggregate result — into
+  `_deliver_payload(user_id, payload)`. **The extraction is the point, not tidiness:**
+  `_is_dead_token` is load-bearing and subtle (prune only on 410 `Unregistered`), and Step 19.29
+  records that a second, wider copy would delete every row in `user_devices` on the first send
+  after a bad deploy. `deliver_push_notification` is now a thin wrapper whose signature and return
+  keys are unchanged, so `notifications.py` and its tests were untouched.
+- Added `RECOMMENDATIONS_READY_CATEGORY`, `build_recommendations_ready_payload(partner_name:count:)`
+  and `deliver_recommendations_ready(...)`.
+- **`api/recommendations.py`:** `/generate` and `/refresh` queue `_notify_recommendations_ready`
+  on FastAPI's `BackgroundTasks`, so it runs *after* the response is sent and can neither delay
+  nor fail a request the client is already blocked on for ~20-30s. `partner_name` comes free from
+  the `VaultData` both endpoints already load.
+- **`api/recommendations.py`: new `GET /latest`**, the read path that makes the push's *tap*
+  work. The pipeline stores its picks **before** responding, so a run whose response never reaches
+  the client leaves finished work in the database. `/by-milestone/{id}` covered that for milestone
+  runs only; a just-because batch belongs to no milestone and had no read path at all, so tapping
+  "your picks are ready" landed on an error screen whose Try Again burned a fresh ~25s run over
+  recommendations that already existed. Returns the newest 3 by `created_at` — one run inserts its
+  trio in a single call, so that is exactly the latest Choice-of-Three whichever surface produced
+  it. Read-only; it never triggers the pipeline.
+  **It must stay registered above `GET /{recommendation_id}`,** which is a catch-all path parameter
+  that would otherwise swallow the literal `latest`. A test asserts the registration order rather
+  than trusting the file's layout.
+- Row mapping for both read paths was extracted into `_stored_rows_to_items`, so `content_sections`
+  JSON decoding, sentence trimming, legacy search-URL nulling and image back-fill cannot drift
+  between them.
+- **`models/notifications.py`:** `milestone_id` is now optional on `MilestoneRecommendationsResponse`
+  — `/latest` echoes the newest row's own value, which is null for a just-because batch.
+
+**What changed (iOS):**
+- **`App/AppDelegate.swift`:** `willPresent` now returns `[]` for the recommendations-ready
+  category and `[.banner, .sound]` for everything else. The backend fires on *every* run because
+  it cannot know whether the user stayed or left; the client is what decides, and a banner
+  announcing the picks must never cover the picks. The decision is a pure
+  `presentationOptions(forCategory:)` because `UNNotification` has no public initializer — the
+  same seam `PurchasePromptCopy` and `RecommendationsLoadingView.phase` use.
+- **`Features/Recommendations/RecommendationsViewModel.swift`:** deleted
+  `scheduleReadyNotification()` and dropped `knot.recs.ready` from the cancel list. Keeping both
+  would have double-notified, and deleting it removes fault 1 outright.
+  **The background task stays** — it is still what lets the in-flight request finish so the picks
+  are rendered on return, and what makes "Still working on it…" a true statement.
+- **`RecommendationsViewModel.recoverRecentlyStoredBatch(replacing:milestoneId:)`** closes the
+  tap-through dead end. When `generateRecommendations` or `refreshRecommendations` ends in an
+  error, it asks `/latest` whether the backend finished anyway and publishes the batch if it is
+  genuinely this run's: it must share no row ids with what was on screen when the request started,
+  match the milestone the run targeted, and fall inside a 15-minute outer bound. The pure
+  `isRecoverableBatch(_:replacing:milestoneId:now:)` holds that rule so it is testable without a
+  backend. On success it clears `errorMessage`; every failure mode is swallowed, so a user who
+  genuinely has nothing stored still sees the original error rather than a second one. A briefing
+  is only overwritten when one is returned, since `/latest` never carries one and assigning it
+  blindly would wipe the briefing card off a milestone surface. Skipped entirely when
+  `vaultMissing` is set — that is a routing signal to onboarding, not an error to paper over.
+- **`Services/NotificationHistoryService.swift`:** `fetchLatestRecommendations()`, and the
+  `MilestoneRecommendationsFetching` seam grew the method so the recovery is testable without a
+  live backend.
+
+**Files created:**
+- `backend/tests/test_recommendations_ready_push.py` — 23 tests
+- `backend/tests/test_latest_recommendations_endpoint.py` — 28 tests
+- `iOS/KnotTests/RecommendationsReadyPushTests.swift` — 5 tests
+- `iOS/KnotTests/LostGenerationRecoveryTests.swift` — 32 tests
+
+**Files modified:**
+- `backend/app/services/apns.py` — `_deliver_payload` extraction; ready payload + delivery
+- `backend/app/api/recommendations.py` — queue the push from both write paths; `GET /latest`; shared `_stored_rows_to_items`
+- `backend/app/models/notifications.py` — `milestone_id` made optional
+- `iOS/Knot/App/AppDelegate.swift` — foreground suppression + testable helper
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — local ready notification removed; lost-generation recovery
+- `iOS/Knot/Services/NotificationHistoryService.swift` — `fetchLatestRecommendations()`
+- `iOS/Knot/Models/DTOs.swift` — `milestoneId` made optional
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — stub fetcher conforms to the widened seam
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift` — mock fetcher conforms to the widened seam
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**A `/code-review high` pass found three issues; two were auto-fixed before commit:**
+1. **The push was queued unconditionally, so an empty run still announced picks.** A pipeline
+   returning no candidates only logs a warning and still answers 200 with an empty list — so
+   "Your picks are ready ✨" would have walked the user back to an empty screen. Guarded inside
+   `_notify_recommendations_ready` rather than at the two call sites, so the rule cannot drift
+   between them.
+2. **The background task leaked whenever the user came *back*.** `completeBackgroundLoadingIfNeeded`
+   early-returned on `wasBackgroundedWhileLoading`, which the foreground transition clears — so a
+   user who returned before the request finished left the assertion open, and the *next*
+   backgrounded generation bailed at `guard backgroundTaskID == .invalid` with no window and no
+   "Still working on it…" notification at all. The structure predates this change, but making
+   release the function's sole job is what turned a misplaced guard into a plain bug. Renamed to
+   `releaseBackgroundExecutionWindow()` and made unconditional (`endBackgroundExecution()` already
+   no-ops when nothing is held). `wasBackgroundedWhileLoading` was then written but never read, so
+   it is gone — `backgroundTaskID != .invalid` was always the real state, and the flag only ever
+   shadowed it.
+
+**Tests:** Full backend suite **1539 passed, 622 skipped, 0 failures** (1488 baseline + 51 new).
+iOS Full plan **588 unit + 5 UI, 0 failures, 0 skipped** (551 baseline + 37 new). The pre-existing
+`test_apns_push_service.py` and `test_multi_device_push.py` are the regression guard for the
+`_deliver_payload` extraction and needed no edits, which is the evidence the wrapper is
+behaviour-preserving.
+
+One new test was **flaky on first write and fixed, not retried**: the "exactly at the window"
+boundary case round-tripped `Date()` through `ISO8601DateFormatter`, which emits only milliseconds
+— sub-millisecond precision was lost and the boundary landed on either side at random (it passed in
+one run and failed in the next). Anchored to a whole second. If you add timestamp tests here, do
+the same.
+
+**Notes:**
+- **The payload deliberately carries no `milestone_id`.** `AppDelegate.didReceive` routes any push
+  that has one into `MilestoneRecommendationsCoverView`, a full-screen cover — on a tap that would
+  stack a duplicate cover over the recommendations the user is already looking at. Without one the
+  delegate's existing `guard let destination` ignores the tap and the app simply resumes where it
+  was, on the recommendations screen with the picks rendered. A test pins the absence.
+- **Quiet hours are deliberately ignored; `notifications_enabled` is honored.** The milestone
+  webhook defers to 8am because it is unsolicited. This answers something the user asked for
+  seconds ago — holding it until morning would be absurd. The global kill switch still applies.
+- **No double-fire with the milestone reminder:** the QStash webhook runs
+  `run_recommendation_pipeline` directly rather than calling `/generate`, so it still sends only
+  its own push. A test asserts `notifications.py` has not acquired either new symbol.
+- `/refresh` is wired through the same helper even though it has had **no live caller** since Step
+  18.49 removed the Refresh button. One helper for both write paths means a future re-wiring
+  cannot silently lose the notification.
+- **The category string is a cross-language contract** — `RECOMMENDATIONS_READY_CATEGORY` in
+  `apns.py` and `AppDelegate.recommendationsReadyCategory`. Rename one alone and the push stops
+  being suppressed and starts interrupting users mid-reveal, silently, with nothing failing. A
+  test pins the Swift side; the comments on both point at each other.
+- **A Simulator cannot receive APNs**, so this needs a real device to verify end to end: background
+  the app during a generation and confirm the push arrives even when the wait runs past iOS's ~30s
+  background window — the case that fails today. Use `xcrun simctl push` only to exercise the
+  suppression branch.
+- **The recovery path is what makes the push honest.** Announcing "your picks are ready" is only
+  half the promise; the tap has to land on them. It did not, in the exact case the push exists to
+  serve — a run whose HTTP response never arrived. The endpoint reads the vault with the same
+  oldest-first ordering as `load_vault_data`, which is load-bearing rather than cosmetic: a user
+  with more than one vault row (dev testing leaves them behind) would otherwise have `/latest` read
+  a vault the completed run never wrote to, and the recovery would silently find nothing. A test
+  pins both halves of that contract, including `load_vault_data`'s own ordering.
+- **Recovery is guarded by row ids, not by a clock — and the first attempt got that wrong.** The
+  obvious rule is "the batch must post-date the request", but the only clock available for
+  `requestedAt` is the *device's* while `created_at` is the *server's*, so it needs a skew
+  tolerance — and any tolerance wide enough to be safe is also wide enough to re-admit the batch
+  being replaced, because an eager user re-rolls seconds after the previous one was stored. The
+  test written for it failed on exactly that. The fix compares against the ids that were on screen
+  when the request started: the backend inserts new rows for every run and `/refresh` explicitly
+  excludes the ids it was given, so a genuine replacement shares none. No clock, no tolerance, no
+  overlap.
+  The 15-minute window remains as the outer bound (a batch older than that is a previous
+  session's), and an unparseable timestamp fails closed.
+- **Recovery also requires the milestone context to match.** `/latest` serves whatever is newest
+  for the vault, which can be another surface's batch — publishing it would show unrelated picks
+  as the milestone's, and saving one would file it under the wrong event.
+- **`/latest` excludes the Ideas feed, which shares the `recommendations` table.** `ideas.py`
+  inserts its own rows for the same vault, and the hint-then-refresh flow schedules a background
+  idea generation about 30s out — squarely inside the window a recovering client is looking at.
+  Filtering on `is_idea` would be wrong, since a genuine Choice-of-Three can contain a Knot
+  Original; the discriminator that holds is the image, because `build_recommendation_row` resolves
+  one before persisting while `ideas.py` explicitly stores NULL. Tests pin **both** halves of that
+  invariant, so whichever side changes first fails loudly.
+- **Only the newest insert batch is returned.** The limit of 3 is a full Choice-of-Three, so a run
+  that stored fewer would have had the remainder filled from the previous run — two fresh picks
+  and one stale one, counted as three.
+- **Recovery is layered over an already-failed request, so it swallows everything.** A failed
+  lookup, a 401, a 404 — all leave the user with the original error rather than replacing one
+  failure with another. It only ever clears `errorMessage`, and never when `vaultMissing` is set,
+  which is a routing signal rather than an error.
+- No screenshot: the change is a notification banner, backend delivery, and a view-model recovery
+  path — no iOS view code renders differently. Step 19.41's SpringBoard banner harness runs on a
+  Simulator, which cannot receive a remote push.
+
+---
+
 ## Next Steps
 
 

@@ -199,6 +199,67 @@ def build_notification_payload(
     return payload
 
 
+#: Category on the "your picks are ready" push.
+#:
+#: The iOS app keys its foreground suppression on this: a user watching the
+#: loading screen must not get a banner announcing what is already on their
+#: screen. Mirrored by `AppDelegate.recommendationsReadyCategory` — the two
+#: strings are a contract and have to move together.
+RECOMMENDATIONS_READY_CATEGORY = "RECOMMENDATIONS_READY"
+
+
+def build_recommendations_ready_payload(
+    *,
+    partner_name: str | None,
+    count: int,
+) -> dict:
+    """
+    Build the APNs payload announcing that a generation run has finished.
+
+    This is the answer to a request the user made seconds ago, so it exists for
+    exactly one case: they left the app while the ~20-30s pipeline was running.
+    A local notification cannot cover that reliably — iOS grants only ~30s of
+    background execution and then suspends the app — which is why this is a
+    real remote push.
+
+    Deliberately carries **no** `milestone_id`. `AppDelegate.didReceive` routes
+    any push carrying one into `MilestoneRecommendationsCoverView`, a
+    full-screen cover; on a tap-through that would stack a duplicate cover over
+    the recommendations the user is already looking at. Without it the
+    delegate's existing `guard let destination` correctly ignores the tap and
+    the app simply resumes where it was — on the recommendations screen, picks
+    already rendered.
+
+    Args:
+        partner_name: Partner's display name from the vault, when known.
+        count: How many recommendations were generated.
+
+    Returns:
+        dict: APNs-formatted payload ready for JSON serialization.
+    """
+    if count <= 0:
+        # Defensive: the endpoints only push on a successful run, which always
+        # carries picks. "0 ideas" would still be worse than saying nothing.
+        body = "Tap to see your personalized recommendations."
+    else:
+        noun = "idea" if count == 1 else "ideas"
+        if partner_name:
+            body = f"Tap to see {count} {noun} we picked for {partner_name}."
+        else:
+            body = f"Tap to see {count} {noun} we picked out."
+
+    return {
+        "aps": {
+            "alert": {
+                "title": "Your picks are ready ✨",
+                "body": body,
+            },
+            "sound": "default",
+            "category": RECOMMENDATIONS_READY_CATEGORY,
+        },
+    }
+
+
 # ===================================================================
 # Push Notification Delivery
 # ===================================================================
@@ -310,25 +371,16 @@ async def deliver_push_notification(
     occasion_category: str | None = None,
 ) -> dict:
     """
-    Look up the user's device token and deliver a push notification.
+    Look up the user's devices and deliver a milestone reminder push.
 
     Note: `vibes` and `recommendations_count` are retained for caller-signature
     stability but no longer influence the payload copy — the fallback body is
     the friendly generic nudge in `FALLBACK_BODY`.
 
-    This is the main entry point called from the notification webhook.
-    It handles:
-    1. Looking up every registered device for the user (`user_devices`)
-    2. Building the notification payload
-    3. Sending to all of them concurrently
-    4. Pruning tokens APNs reports as dead
-    5. Returning an aggregate delivery result
-
-    Delivery fans out because a user may have several devices — a phone and a
-    tablet, or a real device and a Simulator during development. This used to
-    read `users.device_token`, a single column that each registration
-    overwrote, so only the most recently opened device ever got a
-    notification and the others failed silently.
+    This is the entry point called from the notification webhook. It builds the
+    milestone payload and hands off; everything after that — device lookup,
+    fan-out, dead-token pruning and the aggregate result — is payload-agnostic
+    and lives in `_deliver_payload`, shared with the recommendations-ready push.
 
     Gracefully handles missing device tokens (returns success=False
     with reason "no_device_token" instead of raising).
@@ -340,13 +392,84 @@ async def deliver_push_notification(
         partner_name: Partner's display name (for notification title).
         milestone_name: Milestone display name (for notification title).
         days_before: Days until the milestone.
-        vibes: Vibe tags from the vault (for notification body).
-        recommendations_count: Number of recommendations generated.
+        vibes: Vibe tags from the vault (retained; no longer read).
+        recommendations_count: Count generated (retained; no longer read).
+        briefing_snippet: Optional condensed briefing for the body.
+        occasion_category: Stable occasion key for the tap-through's copy.
 
     Returns:
         dict with the same keys `send_push_notification` returns, so callers
         are unaffected — `success` is True when *any* device took delivery.
         Adds `device_count`, `delivered_count` and `pruned_count`.
+    """
+    payload = build_notification_payload(
+        partner_name=partner_name,
+        milestone_name=milestone_name,
+        days_before=days_before,
+        notification_id=notification_id,
+        milestone_id=milestone_id,
+        briefing_snippet=briefing_snippet,
+        occasion_category=occasion_category,
+    )
+    return await _deliver_payload(user_id, payload)
+
+
+async def deliver_recommendations_ready(
+    *,
+    user_id: str,
+    partner_name: str | None,
+    count: int,
+) -> dict:
+    """
+    Tell the user that a generation run they started has finished.
+
+    Fired by `POST /recommendations/generate` and `/refresh` once the picks are
+    stored, so it covers every surface that runs the pipeline — the Journal
+    tab, the first-run onboarding reveal, and the milestone push tap-through's
+    "Find picks now" — without any per-view wiring on the client.
+
+    The app suppresses the banner while it is in the foreground (see
+    `RECOMMENDATIONS_READY_CATEGORY`), so in the common case where the user
+    waits on the loading screen this is delivered and silently dropped.
+
+    Args:
+        user_id: UUID of the user who asked for the recommendations.
+        partner_name: Partner's display name from the vault, when known.
+        count: How many recommendations were generated.
+
+    Returns:
+        Same shape as `deliver_push_notification`.
+    """
+    payload = build_recommendations_ready_payload(
+        partner_name=partner_name,
+        count=count,
+    )
+    return await _deliver_payload(user_id, payload)
+
+
+async def _deliver_payload(user_id: str, payload: dict) -> dict:
+    """
+    Send one prebuilt payload to every device a user has registered.
+
+    Delivery fans out because a user may have several devices — a phone and a
+    tablet, or a real device and a Simulator during development. This used to
+    read `users.device_token`, a single column that each registration
+    overwrote, so only the most recently opened device ever got a notification
+    and the others failed silently.
+
+    This is deliberately the single copy of the fan-out and pruning rules.
+    `_is_dead_token` is load-bearing and subtle (see its own comment): a second
+    copy that widened it would delete every row in `user_devices` on the first
+    send after a bad deploy.
+
+    Args:
+        user_id: UUID of the user to notify.
+        payload: A fully-built APNs payload.
+
+    Returns:
+        dict with the same keys `send_push_notification` returns — `success` is
+        True when *any* device took delivery — plus `device_count`,
+        `delivered_count`, `failed_count` and `pruned_count`.
     """
     from app.db.supabase_client import get_service_client
 
@@ -394,16 +517,6 @@ async def deliver_push_notification(
             "failed_count": 0,
             "pruned_count": 0,
         }
-
-    payload = build_notification_payload(
-        partner_name=partner_name,
-        milestone_name=milestone_name,
-        days_before=days_before,
-        notification_id=notification_id,
-        milestone_id=milestone_id,
-        briefing_snippet=briefing_snippet,
-        occasion_category=occasion_category,
-    )
 
     # Concurrent, and never raises: one unreachable device must not stop the
     # others from being notified.
