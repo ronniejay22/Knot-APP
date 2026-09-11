@@ -112,6 +112,16 @@ struct RecommendationsLoadingView: View {
     /// painterly illustration.
     private static let stepInterval: TimeInterval = 2.5
 
+    /// How long one illustration/phrase crossfade takes.
+    ///
+    /// Declared here and applied with `.animation(_:value:)` on the two
+    /// cross-fading stacks rather than wrapped around the mutation in `tick()`.
+    /// `tick()` also advances `elapsed`, which must not animate, and the two
+    /// changes land in one update — keeping each animation declared on the view
+    /// that owns it is what makes the scope unambiguous. It is also the idiom
+    /// the progress bar below already uses.
+    private static let crossfadeDuration: TimeInterval = 0.6
+
     /// The progress ramp, carried over unchanged from the previous loading
     /// screen.
     ///
@@ -130,12 +140,14 @@ struct RecommendationsLoadingView: View {
 
     /// The scene for a given step, wrapping over the rotation.
     ///
-    /// Negative steps wrap too, so no caller can index out of bounds. That is
-    /// defensive rather than load-bearing: `step` starts at 0 and only ever
-    /// increments, and `illustrationCard`'s underneath-layer is guarded by
-    /// `step > 0`, so production never asks for a negative one. It matters
-    /// because Swift's `%` keeps the sign of the dividend, so the plain
-    /// `step % count` a future caller might reach for would trap here.
+    /// Negative steps wrap too, and that is load-bearing, not defensive. Both
+    /// crossfade slots are mounted from the first frame, so at `step 0` the
+    /// odd-parity slot asks `slotStep(0, parity: 1)` — which is `-1`. It sits at
+    /// `opacity 0` and is never seen, but it is still resolved on every layout
+    /// pass: `illustrationSlot` short-circuits it to `Color.clear` to avoid the
+    /// wasted image decode, but `subline` has no such guard and does ask for the
+    /// phrase at step -1. Swift's `%` keeps the sign of the dividend, so the
+    /// plain `step % count` would return `-1` here and trap on subscript.
     private static func scene(forStep step: Int) -> Scene {
         let index = ((step % scenes.count) + scenes.count) % scenes.count
         return scenes[index]
@@ -150,6 +162,58 @@ struct RecommendationsLoadingView: View {
     /// illustration `illustrationName(forStep:)` returns for the same step.
     static func emphasis(forStep step: Int) -> String {
         scene(forStep: step).emphasis
+    }
+
+    /// Which step one of the two crossfade slots should render.
+    ///
+    /// The illustration and the subline each render **two permanently-mounted
+    /// layers** that alternate by the step's parity, and cross-fade by animating
+    /// `opacity`. Each slot holds the most recent step of its own parity, so the
+    /// slot whose *content* changes on a given step is always the one currently
+    /// at `opacity 0` — its new image can be swapped in without a visible flash,
+    /// and only its opacity animates.
+    ///
+    /// **Why not `.id(step)` + `.transition(.opacity)`,** which is what this was.
+    /// That inserts a view and removes the previous one on every step, and the
+    /// removals were observed not to complete: photographed with the durations
+    /// temporarily scaled up, a single frame showed *three* illustrations and
+    /// *three* sublines stacked at partial opacity — "their taste" legible on
+    /// top of "the little moments". Outgoing layers accumulated instead of
+    /// leaving, which is what made the rotation look like it changed slowly and
+    /// then abruptly. A `.onDisappear` probe on the outgoing layer never fired
+    /// once across eleven steps, which is the same finding from the other side.
+    ///
+    /// Two fixed layers cannot accumulate — nothing structural happens, only a
+    /// value changes — and ordinary animatable modifiers always animate. That is
+    /// the same reasoning `RecommendationLoadingOverlay` records for the
+    /// hand-off, where a removal transition also silently refused to run.
+    static func slotStep(_ step: Int, parity: Int) -> Int {
+        let stepParity = ((step % 2) + 2) % 2
+        return stepParity == parity ? step : step - 1
+    }
+
+    /// Whether one crossfade slot is the visible one at a given step.
+    ///
+    /// A slot is visible exactly when it holds the current step; the other one
+    /// holds the previous step and is fading out. Deriving this from
+    /// `slotStep(_:parity:)` instead of repeating the parity test is what makes
+    /// it impossible for the two to disagree — and they must not, because a
+    /// slot that changed its content while visible would show the swap as a
+    /// hard cut, which is the artefact this whole arrangement exists to remove.
+    static func slotOpacity(_ step: Int, parity: Int) -> Double {
+        slotStep(step, parity: parity) == step ? 1 : 0
+    }
+
+    /// Which of the two layers draws in front.
+    ///
+    /// **The outgoing one does**, and that is what keeps the illustration card
+    /// opaque through a swap: it starts fully opaque and fades out over the
+    /// incoming layer, which is already at full opacity behind it. Flip this and
+    /// the new picture instead fades in over a transparent stack, leaving the
+    /// card only ~75% opaque at the midpoint and washing the coral gradient
+    /// through the illustration on every rotation.
+    static func slotZIndex(_ step: Int, parity: Int) -> Double {
+        slotOpacity(step, parity: parity) == 1 ? 0 : 1
     }
 
     /// How many matches the counter claims to have found at a given progress.
@@ -258,23 +322,56 @@ struct RecommendationsLoadingView: View {
 
     /// The crossfading illustration.
     ///
-    /// The previous illustration stays mounted underneath so the crossfade
-    /// never reveals an empty card — the prototype's `PrevImage` trick. Under
-    /// Reduce Motion only one image renders and it never changes.
+    /// Two permanently-mounted layers, not an `.id(step)` + `.transition`
+    /// insert/remove pair. See `slotStep(_:parity:)` for why.
+    ///
+    /// **The card must never go see-through.** Fading both layers at once over a
+    /// transparent stack would leave it only ~75% opaque at the midpoint of
+    /// every swap — `1 - (1 - 0.5)²` — so a quarter of the coral gradient behind
+    /// it would wash through the illustration, ten times across the wait. So the
+    /// outgoing layer sits **in front** and fades out over the incoming one,
+    /// which snaps to full opacity behind it without animating. The composite is
+    /// `β·previous + (1 - β)·current`, which is the same dissolve as fading the
+    /// new picture in over an opaque old one — the guarantee the `.id` version
+    /// got from its always-opaque `step - 1` backing layer, kept intact.
     private var illustrationCard: some View {
-        ZStack {
-            if !reduceMotion && step > 0 {
-                illustration(forStep: step - 1)
-            }
-
-            illustration(forStep: reduceMotion ? 0 : step)
-                .id(reduceMotion ? 0 : step)
-                .transition(.opacity)
+        let shown = reduceMotion ? 0 : step
+        return ZStack {
+            illustrationSlot(shown, parity: 0)
+            illustrationSlot(shown, parity: 1)
         }
         .aspectRatio(7.0 / 5.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous))
         .shadow(Theme.Shadow.lg)
+    }
+
+    /// One of the illustration's two layers.
+    ///
+    /// The incoming layer (the one holding `shown`) takes no animation, so it is
+    /// already opaque underneath when the outgoing layer above it begins to
+    /// fade. Both the `zIndex` and the animation are read from the *new* state,
+    /// which is what lets a single pair of layers alternate roles every step.
+    private func illustrationSlot(_ shown: Int, parity: Int) -> some View {
+        let slot = Self.slotStep(shown, parity: parity)
+        let isIncoming = slot == shown
+        let fade: Animation? = isIncoming ? nil : .easeInOut(duration: Self.crossfadeDuration)
+
+        return Group {
+            if slot < 0 {
+                // Only reachable at step 0, where this layer is invisible. It
+                // renders nothing rather than decoding a second 1024×1024
+                // illustration that can never be seen — which Reduce Motion
+                // would otherwise hold for the whole screen, since it pins
+                // `shown` to 0 permanently.
+                Color.clear
+            } else {
+                illustration(forStep: slot)
+            }
+        }
+        .opacity(Self.slotOpacity(shown, parity: parity))
+        .zIndex(Self.slotZIndex(shown, parity: parity))
+        .animation(fade, value: shown)
     }
 
     /// One illustration, sized by its container rather than by itself.
@@ -305,16 +402,25 @@ struct RecommendationsLoadingView: View {
     }
 
     private var subline: some View {
-        // The crossfade lives in a `ZStack`, matching `illustrationCard`. As a
-        // direct `VStack` child both the outgoing and incoming phrase would
-        // occupy layout for the whole 0.6s transition and the stack would
-        // reflow — the drift `minHeight` alone cannot prevent, since two
-        // stacked one-line phrases exceed it.
-        ZStack {
-            sublinePhrase(forStep: reduceMotion ? 0 : step)
-                .id(reduceMotion ? 0 : step)
-                .transition(.opacity)
+        // Two slots in a `ZStack`, matching `illustrationCard` — as direct
+        // `VStack` children both phrases would occupy layout during the
+        // crossfade and the stack would reflow, drift that `minHeight` alone
+        // cannot prevent since two stacked one-line phrases exceed it.
+        //
+        // Unlike the illustration, both layers fade here, symmetrically. That
+        // is deliberate, not an oversight: the card is opaque and must not go
+        // see-through mid-swap, but a phrase is text on the gradient with no
+        // opaque region to protect, and holding the outgoing phrase at full
+        // opacity would leave it plainly legible on top of the incoming one.
+        let shown = reduceMotion ? 0 : step
+        return ZStack {
+            sublinePhrase(forStep: Self.slotStep(shown, parity: 0))
+                .opacity(Self.slotOpacity(shown, parity: 0))
+
+            sublinePhrase(forStep: Self.slotStep(shown, parity: 1))
+                .opacity(Self.slotOpacity(shown, parity: 1))
         }
+        .animation(.easeInOut(duration: Self.crossfadeDuration), value: shown)
         // Reserve two lines so a longer phrase wrapping can't shift the
         // headline above it when the emphasis rotates.
         .frame(minHeight: 48, alignment: .top)
@@ -368,9 +474,7 @@ struct RecommendationsLoadingView: View {
         elapsed += Self.stepInterval
 
         guard !reduceMotion else { return }
-        withAnimation(.easeInOut(duration: 0.6)) {
-            step += 1
-        }
+        step += 1
     }
 }
 

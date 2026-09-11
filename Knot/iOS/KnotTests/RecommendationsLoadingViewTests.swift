@@ -114,6 +114,83 @@ final class RecommendationsLoadingHelperTests: XCTestCase {
         }
     }
 
+    // MARK: - Crossfade slots
+
+    /// The visible slot always holds the current step, and the other one always
+    /// holds the step just gone — that is what makes the pair a crossfade of
+    /// consecutive scenes rather than of arbitrary ones.
+    func testTheVisibleSlotHoldsTheCurrentStepAndTheOtherHoldsThePrevious() {
+        for step in 0...12 {
+            let visible = step.isMultiple(of: 2) ? 0 : 1
+            let hidden = 1 - visible
+
+            XCTAssertEqual(RecommendationsLoadingView.slotStep(step, parity: visible), step)
+            XCTAssertEqual(RecommendationsLoadingView.slotStep(step, parity: hidden), step - 1)
+
+            XCTAssertEqual(RecommendationsLoadingView.slotOpacity(step, parity: visible), 1)
+            XCTAssertEqual(RecommendationsLoadingView.slotOpacity(step, parity: hidden), 0)
+        }
+    }
+
+    /// Exactly one of the two layers is ever visible, so they can never blend
+    /// into each other at rest — the state the pile-up bug left the screen in.
+    func testExactlyOneSlotIsVisibleAtEveryStep() {
+        for step in -4...12 {
+            let total = RecommendationsLoadingView.slotOpacity(step, parity: 0)
+                + RecommendationsLoadingView.slotOpacity(step, parity: 1)
+            XCTAssertEqual(total, 1, "Step \(step) does not resolve to exactly one visible layer")
+        }
+    }
+
+    /// **The invariant the two-layer arrangement exists for.** A slot may only
+    /// change which scene it renders while it is invisible; if it swapped
+    /// content while on screen the swap would read as a hard cut.
+    func testASlotOnlyEverChangesContentWhileItIsInvisible() {
+        for step in 0...12 {
+            for parity in 0...1 {
+                let before = RecommendationsLoadingView.slotStep(step, parity: parity)
+                let after = RecommendationsLoadingView.slotStep(step + 1, parity: parity)
+                guard before != after else { continue }
+
+                XCTAssertEqual(
+                    RecommendationsLoadingView.slotOpacity(step, parity: parity),
+                    0,
+                    "Slot \(parity) changed content while visible, going from step \(step) to \(step + 1)"
+                )
+            }
+        }
+    }
+
+    /// The opaque layer sits *behind* the fading one, which is what stops the
+    /// card going see-through mid-swap. Fading the new picture in over a
+    /// transparent stack instead would leave it ~75% opaque at the midpoint and
+    /// wash the coral gradient through the illustration on every rotation.
+    func testTheFadingLayerDrawsInFrontOfTheOpaqueOne() {
+        for step in 0...12 {
+            for parity in 0...1 {
+                let isVisible = RecommendationsLoadingView.slotOpacity(step, parity: parity) == 1
+                XCTAssertEqual(
+                    RecommendationsLoadingView.slotZIndex(step, parity: parity),
+                    isVisible ? 0 : 1,
+                    "Slot \(parity) at step \(step) is on the wrong side of the fading layer"
+                )
+            }
+        }
+    }
+
+    /// Step 0 mounts both layers, so the hidden one genuinely resolves step -1.
+    /// It is never seen, but it is indexed on every layout pass — which is why
+    /// the rotation helpers have to wrap negatives rather than trap.
+    func testTheHiddenSlotAtTheFirstStepResolvesANegativeStep() {
+        XCTAssertEqual(RecommendationsLoadingView.slotStep(0, parity: 1), -1)
+        XCTAssertEqual(RecommendationsLoadingView.slotOpacity(0, parity: 1), 0)
+
+        XCTAssertEqual(
+            RecommendationsLoadingView.illustrationName(forStep: -1),
+            RecommendationsLoadingView.illustrationName(forStep: 3)
+        )
+    }
+
     // MARK: - Emphasis rotation
 
     func testEmphasisCoversEveryPhraseInOrder() {
