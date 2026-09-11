@@ -9684,7 +9684,8 @@ the thing to correct.
   Both public signatures are unchanged, so the view body and the tests needed no reshaping.
 - **No timing change whatsoever.** The timer, `tick()`, `illustrationCard`, `subline`, the
   progress ramp, the Reduce Motion pinning and the `reduceMotionOverride` seam are untouched.
-  The cadence is still 2.5s.
+  The cadence is still 2.5s. (Step 19.53, below, later rewrote how `illustrationCard` and
+  `subline` crossfade — still without changing the cadence.)
 
 **The pairing, chosen by looking at all nine illustrations rather than defaulting to 0–3:**
 
@@ -9733,6 +9734,103 @@ first would have failed on the old code at step 5, where "their taste" returned 
 - The phrase list stayed at four. Extending it to nine so every illustration kept a line was
   the alternative, and it needs five new pieces of partner-facing copy — a separate decision
   from making the pairing hold.
+
+---
+
+### Step 19.53 ✅ Recommendations — Stop The Loading Crossfade Piling Up Layers
+**Date:** 2026-09-10
+**Status:** Complete
+
+**Goal:** After Step 19.52 paired the illustrations with the phrases, the rotation still looked
+wrong — "sometimes it changes slowly then abruptly again". A real defect, separate from the
+pairing, and not something the pairing change caused.
+
+**Diagnosis, by photographing it rather than reasoning about it.** Three hypotheses were tested
+and disproved first: the timer publisher was not restarting (164 measured intervals, all
+2.502–2.524s), and every step's transaction carried the correct 0.6s `BezierAnimation` with
+`disabled=false`, so the animation was neither missing nor mis-scoped. What did show up was
+visual: with `stepInterval` and the crossfade duration temporarily scaled to 8.0s/4.0s and the
+simulator photographed frame by frame, **one frame held three illustrations and three sublines
+stacked at partial opacity** — "their taste" plainly legible on top of "the little moments".
+
+`.id(step)` + `.transition(.opacity)` inserts a new view and removes the previous one on every
+step, and **the removals were never completing**. An `.onDisappear` probe on the outgoing layer
+fired *zero* times across eleven steps — initially dismissed as a bad probe, when it was in
+fact the finding stated from the other side. Layers accumulated instead of leaving, so what the
+eye read as "slow" was several half-faded pictures blended together, and "abrupt" was the pile
+resolving.
+
+**The fix — two permanently-mounted layers instead of insert/remove.** `illustrationCard` and
+`subline` each now render two slots that alternate by the step's parity and cross-fade by
+animating `opacity`:
+- `slotStep(_:parity:)` hands a slot the current step when the parities match, and the previous
+  step otherwise.
+- `slotOpacity(_:parity:)` is **derived from** `slotStep` (`slotStep(step, parity:) == step ? 1 : 0`)
+  rather than repeating the parity test, so the two cannot drift apart. That replaced four
+  copies of an inline `shown.isMultiple(of: 2) ? 1 : 0` ternary.
+
+The consequence is the whole point: the slot whose *content* changes on a given step is always
+the one sitting at `opacity 0`, so its picture is swapped while invisible and only its opacity
+animates. Nothing structural happens, so nothing can accumulate — the same reasoning
+`RecommendationLoadingOverlay` already records for the loading→picks hand-off, where a removal
+transition also silently refused to run. That precedent was in this very file and applies here
+for the same reason.
+
+The animation moved from `withAnimation` around the mutation in `tick()` to
+`.animation(.easeInOut(duration: crossfadeDuration), value: shown)` declared on each stack.
+`tick()` also advances `elapsed`, which must **not** animate, and both land in one update —
+declaring each animation on the view that owns it is what makes the scope unambiguous, and it
+is the idiom the progress bar in the same file already used.
+
+**A negative step became reachable, and that is intentional.** Both slots mount from the first
+frame, so at step 0 the odd-parity slot asks for step −1. It sits at `opacity 0` and is never
+seen, but it is resolved on every layout pass — so `scene(forStep:)`'s negative-safe wrap went
+from defensive to load-bearing. The doc comment saying otherwise (and the matching claim in
+`architecture.md`) were corrected rather than left to mislead. The illustration layer
+short-circuits that slot to `Color.clear` so it does not decode a 1024×1024 image that can
+never be shown — which Reduce Motion would otherwise hold for the whole screen, since it pins
+the step to 0 permanently. The subline has no such guard (a `Text` is cheap), so it is the
+caller that actually exercises the negative wrap.
+
+**Review caught a regression in the first cut of this fix, and it was a real one.** Fading
+*both* layers over a transparent stack leaves the card only ~75% opaque at the midpoint of
+every swap — `1 - (1 - 0.5)²` — so a quarter of the coral gradient would have washed through
+the illustration roughly ten times per wait. The `.id` version had not had that problem: it
+kept an always-opaque `step - 1` backing layer underneath and faded only the incoming picture
+in, a guarantee the first rewrite deleted along with the layer.
+
+The fix keeps two layers and puts the **outgoing** one in front, fading out over an incoming
+layer that snaps to full opacity behind it without animating. The composite is
+`β·previous + (1 - β)·current` — algebraically the same dissolve as fading the new picture in
+over an opaque old one, so the card is solid at every instant. `slotZIndex(_:parity:)` names
+that ordering and is pinned by a test, because flipping it silently restores the bleed. The
+subline deliberately keeps a symmetric crossfade: it is text on the gradient with no opaque
+region to protect, and holding the outgoing phrase at full opacity would leave it plainly
+legible on top of the incoming one — the exact artefact this step set out to remove.
+
+Verified the same way as the diagnosis: with the durations scaled to 20s/10s, a frame at the
+fade midpoint shows a clean, **fully opaque** blend of the campsite and terrace illustrations
+with no coral showing through, and a frame 20% in shows the outgoing picture still dominant —
+confirming the z-order applies immediately rather than cutting.
+
+**Tests:** iOS Unit plan **551 passed**, 0 failures; Full plan **551 unit + 5 UI**, 0 failures,
+0 skipped. Five new cases in `RecommendationsLoadingHelperTests` cover the slot mechanism —
+that the visible slot holds the current step while the other holds the one just gone, that
+exactly one layer is ever visible (the state the pile-up violated), that the fading layer draws
+in front of the opaque one, that the negative step at step 0 is real and hidden, and the
+load-bearing one:
+`testASlotOnlyEverChangesContentWhileItIsInvisible`, which walks every step and parity and
+asserts a slot's opacity is 0 whenever its content changes. A future change that let a visible
+slot swap its picture would reintroduce a hard cut, and that test is what catches it.
+
+**Notes:**
+- The two temporary constants used to photograph this (8.0s step, 4.0s crossfade) are restored
+  to 2.5s and 0.6s. Scaling durations up and capturing frames is the same technique Step 19.51
+  used to prove the hand-off's removal transition never ran; it is worth reaching for early
+  whenever an animation is *reported* wrong but instrumentation says it is firing correctly.
+- The PR screenshot happened to land on step 3 — `loading-3` with "their favorites", a paired
+  row — and shows a single crisp illustration and a single clean subline. Which step a capture
+  lands on is still not controllable (Step 19.52's note), so it is corroboration, not proof.
 
 ---
 
