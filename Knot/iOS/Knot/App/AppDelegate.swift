@@ -66,16 +66,43 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    /// Allows notifications to display when the app is in the foreground.
+    /// Category on the backend's "your picks are ready" push.
     ///
-    /// By default, iOS suppresses notification banners when the app is active.
-    /// This method opts in to showing the banner and playing the sound even
-    /// while the user is using Knot.
+    /// Mirrors `RECOMMENDATIONS_READY_CATEGORY` in
+    /// `backend/app/services/apns.py` — the two strings are a contract and
+    /// have to move together.
+    static let recommendationsReadyCategory = "RECOMMENDATIONS_READY"
+
+    /// Decides how a notification should present while the app is in the
+    /// foreground.
+    ///
+    /// iOS suppresses banners for an active app by default; Knot opts back in,
+    /// because a milestone reminder is still worth seeing mid-session.
+    ///
+    /// The one exception is the recommendations-ready push. The backend fires
+    /// it on *every* generation run, because it cannot know whether the user
+    /// stayed on the loading screen or left — and a user watching that screen
+    /// must not be told their picks are ready by a banner covering the picks.
+    /// Suppressed here, it is delivered and silently dropped in that case, and
+    /// only ever seen by someone who actually left.
+    ///
+    /// Extracted as a pure function because `UNNotification` has no public
+    /// initializer, so the delegate method itself cannot be unit-tested — the
+    /// same seam `PurchasePromptCopy` and `RecommendationsLoadingView.phase`
+    /// use.
+    static func presentationOptions(
+        forCategory categoryIdentifier: String
+    ) -> UNNotificationPresentationOptions {
+        categoryIdentifier == recommendationsReadyCategory ? [] : [.banner, .sound]
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        return [.banner, .sound]
+        Self.presentationOptions(
+            forCategory: notification.request.content.categoryIdentifier
+        )
     }
 
     /// Handles notification tap responses (Step 7.6; tap-through wired in the

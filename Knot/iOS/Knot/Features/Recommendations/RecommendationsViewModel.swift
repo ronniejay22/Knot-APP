@@ -170,11 +170,11 @@ final class RecommendationsViewModel {
 
     /// The background task identifier used to keep the app alive while a recommendation
     /// request is in flight after the user has backgrounded the app.
+    /// Holding it is the whole state: `backgroundTaskID != .invalid` means a
+    /// window is open, which is what both the re-entrancy guard and the release
+    /// path key on. A separate "was backgrounded" flag used to shadow this and
+    /// only ever disagreed with it — see `releaseBackgroundExecutionWindow()`.
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-
-    /// Set to `true` when the app backgrounds while `isLoading` or `isRefreshing` is active.
-    /// Used to decide whether to fire a "ready" notification when the request completes.
-    private var wasBackgroundedWhileLoading = false
 
     // MARK: - Dependencies
 
@@ -265,7 +265,7 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
-        completeBackgroundLoadingIfNeeded()
+        releaseBackgroundExecutionWindow()
         isLoading = false
     }
 
@@ -448,7 +448,7 @@ final class RecommendationsViewModel {
             errorMessage = error.localizedDescription
         }
 
-        completeBackgroundLoadingIfNeeded()
+        releaseBackgroundExecutionWindow()
         isRefreshing = false
     }
 
@@ -883,8 +883,6 @@ final class RecommendationsViewModel {
         guard isLoading || isRefreshing else { return }
         guard backgroundTaskID == .invalid else { return } // already running
 
-        wasBackgroundedWhileLoading = true
-
         backgroundTaskID = UIApplication.shared.beginBackgroundTask(
             withName: "knot.recommendations.generate"
         ) { [weak self] in
@@ -901,30 +899,39 @@ final class RecommendationsViewModel {
     }
 
     /// Called when the app returns to the foreground while loading is still in progress
-    /// (or after it has completed). Cancels any pending loading notification and resets state.
+    /// (or after it has completed). Cancels the pending "still working" notification
+    /// if it has not fired yet.
+    ///
+    /// Only `knot.recs.loading` is cancellable. The completion announcement is a
+    /// remote push from the backend, so it is already out of the app's hands by
+    /// the time it matters — the foreground suppression in
+    /// `AppDelegate.presentationOptions(forCategory:)` is what keeps it off a
+    /// returning user's screen.
     func cancelPendingLoadingNotification() {
-        wasBackgroundedWhileLoading = false
         UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: ["knot.recs.loading", "knot.recs.ready"]
+            withIdentifiers: ["knot.recs.loading"]
         )
     }
 
-    /// Called at the end of generate/refresh to fire the "ready" notification if
-    /// the app was backgrounded, then end the background task.
-    private func completeBackgroundLoadingIfNeeded() {
-        guard wasBackgroundedWhileLoading else {
-            print("[Knot] completeBackgroundLoadingIfNeeded: not backgrounded, skipping")
-            return
-        }
-        wasBackgroundedWhileLoading = false
-
-        if backgroundTaskID != .invalid {
-            print("[Knot] Request completed in background — scheduling ready notification")
-            scheduleReadyNotification()
-            endBackgroundExecution()
-        } else {
-            print("[Knot] completeBackgroundLoadingIfNeeded: background task already expired")
-        }
+    /// Called at the end of generate/refresh to release the background execution
+    /// window the app took when it was backgrounded mid-request.
+    ///
+    /// This no longer schedules a "ready" notification. That announcement is now
+    /// a remote push fired by the backend when the pipeline finishes, because a
+    /// local one could not be relied on: iOS grants only ~30s of background
+    /// execution against a ~20-30s pipeline, and when that window expired the
+    /// app was suspended — taking the in-flight request, and any chance of
+    /// scheduling a notification, with it.
+    ///
+    /// **Unconditional on purpose.** `endBackgroundExecution()` already no-ops
+    /// when no window is held, and gating the release on "was the app
+    /// backgrounded" leaked the assertion whenever the user *returned* before
+    /// the request finished: the flag was cleared on the foreground transition,
+    /// so this early-returned and the task was never ended. The next backgrounded
+    /// generation then bailed at `guard backgroundTaskID == .invalid`, taking no
+    /// window and sending no "Still working on it…" notification at all.
+    private func releaseBackgroundExecutionWindow() {
+        endBackgroundExecution()
     }
 
     /// Ends the active background execution task and resets the identifier.
@@ -952,32 +959,6 @@ final class RecommendationsViewModel {
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 print("[Knot] Failed to schedule loading notification: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    /// Schedules a local notification that fires immediately to tell the user
-    /// their recommendations are ready to view.
-    private func scheduleReadyNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "Your picks are ready ✨"
-        content.body = "Tap to see your personalized recommendations."
-        content.sound = .default
-
-        // Use a short time interval trigger instead of nil — nil can fail
-        // to deliver when the app is in the background.
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "knot.recs.ready",
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                print("[Knot] Failed to schedule ready notification: \(error.localizedDescription)")
-            } else {
-                print("[Knot] Ready notification scheduled successfully")
             }
         }
     }

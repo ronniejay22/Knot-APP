@@ -13,7 +13,7 @@ Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stor
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.agents.pipeline import run_recommendation_pipeline
 from app.agents.state import (
@@ -22,8 +22,10 @@ from app.agents.state import (
     RecommendationState,
 )
 from app.agents.url_resolution import is_search_or_shopping_url
+from app.core.config import is_apns_configured
 from app.core.security import get_active_user_id
 from app.db.supabase_client import get_service_client
+from app.services.apns import deliver_recommendations_ready
 from app.models.notifications import (
     MilestoneRecommendationItem,
     MilestoneRecommendationsResponse,
@@ -73,6 +75,7 @@ def _safe_external_url(url: str | None) -> str | None:
 )
 async def generate_recommendations(
     payload: RecommendationGenerateRequest,
+    background_tasks: BackgroundTasks,
     user_id: str = Depends(get_active_user_id),
 ) -> RecommendationGenerateResponse:
     """
@@ -223,6 +226,16 @@ async def generate_recommendations(
     # =================================================================
     response_items = _build_response_items(final_three, db_result)
 
+    # Announce completion to the user's devices, after the response is sent.
+    # This is what reaches a user who left the app mid-generation — iOS would
+    # otherwise have suspended it, taking the in-flight request with it.
+    background_tasks.add_task(
+        _notify_recommendations_ready,
+        user_id=user_id,
+        partner_name=vault_data.partner_name,
+        count=len(response_items),
+    )
+
     return RecommendationGenerateResponse(
         recommendations=response_items,
         count=len(response_items),
@@ -244,6 +257,7 @@ async def generate_recommendations(
 )
 async def refresh_recommendations(
     payload: RecommendationRefreshRequest,
+    background_tasks: BackgroundTasks,
     user_id: str = Depends(get_active_user_id),
 ) -> RecommendationRefreshResponse:
     """
@@ -420,6 +434,15 @@ async def refresh_recommendations(
     # 7. Build response
     # =================================================================
     response_items = _build_response_items(new_three, db_result)
+
+    # Same announcement as /generate, through the same helper — a re-roll is a
+    # full pipeline run and can be left mid-flight exactly the same way.
+    background_tasks.add_task(
+        _notify_recommendations_ready,
+        user_id=user_id,
+        partner_name=vault_data.partner_name,
+        count=len(response_items),
+    )
 
     return RecommendationRefreshResponse(
         recommendations=response_items,
@@ -913,6 +936,89 @@ async def get_recommendation_by_id(
 # ===================================================================
 # Shared helpers
 # ===================================================================
+
+
+async def _notify_recommendations_ready(
+    *,
+    user_id: str,
+    partner_name: str | None,
+    count: int,
+) -> None:
+    """
+    Tell the user their picks are ready, once a generation run has finished.
+
+    Queued on FastAPI's `BackgroundTasks` by both write paths, so it runs
+    *after* the response is sent: generation already costs the client ~20-30s
+    and nothing may be added to that wait. It follows that this can neither
+    delay nor fail the request — every failure here is swallowed and logged.
+
+    Exists for one case: the user left the app mid-generation. A local
+    notification cannot cover that reliably, because iOS grants only ~30s of
+    background execution and then suspends the app along with its in-flight
+    request. The app suppresses the banner while it is in the foreground, so
+    the common case — a user watching the loading screen — is delivered and
+    silently dropped.
+
+    Honors `users.notifications_enabled`, which is a global kill switch.
+    **Deliberately ignores quiet hours:** the milestone webhook defers to 8am
+    because it is unsolicited, but this answers something the user asked for
+    seconds ago, and holding it until morning would be absurd.
+    """
+    try:
+        if count <= 0:
+            # A run can finish with nothing: the pipeline returning no
+            # candidates only logs a warning and still answers 200 with an
+            # empty list. "Your picks are ready" would bring the user back to
+            # an empty screen — worse than staying silent. Guarded here rather
+            # than at the two call sites so the rule cannot drift between them.
+            logger.info(
+                "Recommendations-ready push skipped for user %s — "
+                "the run produced nothing to announce",
+                user_id[:8],
+            )
+            return
+
+        if not is_apns_configured():
+            return
+
+        client = get_service_client()
+        result = (
+            client.table("users")
+            .select("notifications_enabled")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        # Absent row or NULL means "not turned off" — only an explicit False
+        # suppresses, matching how the notification webhook reads this column.
+        if rows and rows[0].get("notifications_enabled") is False:
+            logger.info(
+                "Recommendations-ready push skipped for user %s — "
+                "notifications disabled",
+                user_id[:8],
+            )
+            return
+
+        outcome = await deliver_recommendations_ready(
+            user_id=user_id,
+            partner_name=partner_name,
+            count=count,
+        )
+        logger.info(
+            "Recommendations-ready push for user %s: success=%s, "
+            "devices=%s, delivered=%s, pruned=%s",
+            user_id[:8],
+            outcome.get("success"),
+            outcome.get("device_count"),
+            outcome.get("delivered_count"),
+            outcome.get("pruned_count"),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Recommendations-ready push failed for user %s: %s",
+            user_id[:8], exc,
+        )
 
 
 def _load_recent_titles(client, vault_id: str, limit: int = 200) -> list[str]:
