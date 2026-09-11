@@ -12,6 +12,7 @@ Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stor
 
 import json
 import logging
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
@@ -620,36 +621,7 @@ async def get_recommendations_by_milestone(
             detail="Failed to load recommendations.",
         )
 
-    items = []
-    for r in (rec_result.data or []):
-        # content_sections is stored as a JSON string; decode for the client.
-        content_sections = r.get("content_sections")
-        if isinstance(content_sections, str):
-            try:
-                content_sections = json.loads(content_sections)
-            except (ValueError, TypeError):
-                content_sections = None
-
-        items.append(
-            MilestoneRecommendationItem(
-                id=r["id"],
-                recommendation_type=r["recommendation_type"],
-                title=r["title"],
-                description=trim_to_complete_sentence(r.get("description")),
-                external_url=_safe_external_url(r.get("external_url")),
-                price_cents=r.get("price_cents"),
-                merchant_name=r.get("merchant_name"),
-                # Guarantee an image even for rows stored before images were
-                # persisted (older rows have image_url = NULL).
-                image_url=r.get("image_url") or _default_image_for_type(r.get("recommendation_type")),
-                created_at=r["created_at"],
-                personalization_note=trim_to_complete_sentence(
-                    r.get("personalization_note")
-                ),
-                is_idea=bool(r.get("is_idea")),
-                content_sections=content_sections,
-            )
-        )
+    items = _stored_rows_to_items(rec_result.data or [])
 
     # 3. Best-effort: latest briefing for this milestone (write path:
     #    the notification webhook and POST /generate both store one).
@@ -676,6 +648,119 @@ async def get_recommendations_by_milestone(
         count=len(items),
         milestone_id=milestone_id,
         briefing_text=briefing_text,
+    )
+
+
+# ===================================================================
+# GET /api/v1/recommendations/latest
+# ===================================================================
+#
+# MUST stay registered ABOVE `GET /{recommendation_id}`, which is a catch-all
+# path parameter and would otherwise swallow "latest" as an ID.
+
+@router.get(
+    "/latest",
+    status_code=status.HTTP_200_OK,
+    response_model=MilestoneRecommendationsResponse,
+)
+async def get_latest_recommendations(
+    user_id: str = Depends(get_active_user_id),
+) -> MilestoneRecommendationsResponse:
+    """
+    Return the newest stored batch of recommendations for the user's vault.
+
+    Exists so a generation whose HTTP response never reached the client is not
+    lost. The pipeline runs server-side and stores its picks before responding,
+    so when the app is suspended mid-request (iOS grants ~30s of background
+    execution against a ~20-30s pipeline) or the client times out while the
+    backend runs on, the work is complete and sitting in the database with no
+    way to reach it. `GET /by-milestone/{id}` covered that for milestone runs
+    only; a "just because" batch had no read path at all, so tapping the
+    "your picks are ready" push landed on an error state and Try Again burned
+    a fresh ~25s run.
+
+    Read-only: never triggers the pipeline. Returns the newest 3 by
+    `created_at`, matching the by-milestone batch semantics — one generation
+    run inserts its trio in a single call, so that is exactly the latest
+    Choice-of-Three regardless of which surface produced it.
+
+    **Excludes the Ideas feed, which shares this table.** `ideas.py` inserts
+    its own rows for the same vault with `is_idea=True` and an explicitly NULL
+    `image_url`, and the hint-then-refresh flow schedules a background idea
+    generation about 30s out — squarely inside the window a recovering client
+    is looking at. Filtering on `is_idea` would be wrong, because a genuine
+    Choice-of-Three can contain a Knot Original; the image is the discriminator
+    that actually holds, since `build_recommendation_row` resolves an image
+    before persisting so every pipeline row has one. (Rows written before
+    images were persisted are also excluded, but they are years-old by the
+    recency bar any caller applies.)
+
+    `milestone_id` echoes the newest row's own value, so it is null for a
+    just-because batch. `created_at` on each item is what lets the client
+    decide whether a batch is recent enough to stand in for the run it just
+    lost — this endpoint deliberately does no recency filtering of its own, so
+    it stays a plain "what is stored" read.
+
+    Returns:
+        200: the newest batch (possibly empty), 401 unauthenticated,
+        404 when the user has no vault.
+    """
+    client = get_service_client()
+
+    # Oldest-first ordering is load-bearing, not cosmetic: it is exactly what
+    # `load_vault_data` uses to pick the vault the generation endpoints write
+    # against. A user with more than one vault row (dev testing leaves them
+    # behind) would otherwise have this read a different vault than the run it
+    # is recovering wrote to, and the recovery would silently find nothing.
+    try:
+        vault_result = (
+            client.table("partner_vaults")
+            .select("id")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to look up vault: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to look up vault.",
+        )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No partner vault found. Complete onboarding first.",
+        )
+
+    vault_id = vault_result.data[0]["id"]
+
+    try:
+        rec_result = (
+            client.table("recommendations")
+            .select("*")
+            .eq("vault_id", vault_id)
+            .not_.is_("image_url", "null")
+            .order("created_at", desc=True)
+            .limit(3)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Failed to load latest recommendations for vault %s: %s", vault_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load recommendations.",
+        )
+
+    rows = _newest_insert_batch(rec_result.data or [])
+    items = _stored_rows_to_items(rows)
+
+    return MilestoneRecommendationsResponse(
+        recommendations=items,
+        count=len(items),
+        milestone_id=rows[0].get("milestone_id") if rows else None,
+        briefing_text=None,
     )
 
 
@@ -936,6 +1021,94 @@ async def get_recommendation_by_id(
 # ===================================================================
 # Shared helpers
 # ===================================================================
+
+
+# A single generation run inserts its rows in one call, so their timestamps
+# land within milliseconds of each other. Anything further back came from an
+# earlier run.
+_BATCH_INSERT_WINDOW = timedelta(seconds=5)
+
+
+def _newest_insert_batch(rows: list[dict]) -> list[dict]:
+    """
+    Keep only the rows that were inserted together with the newest one.
+
+    `/latest` asks for 3 rows because that is a full Choice-of-Three, but a run
+    that stored fewer would have the remainder of the limit filled from the
+    *previous* run — handing a recovering client a batch of two fresh picks and
+    one stale one, counted as three. Rows are already newest-first, so the
+    newest row defines the batch and anything older than the insert window is
+    from a different one.
+    """
+    if not rows:
+        return []
+
+    newest = _parse_row_timestamp(rows[0].get("created_at"))
+    if newest is None:
+        return rows
+
+    kept = []
+    for row in rows:
+        created_at = _parse_row_timestamp(row.get("created_at"))
+        # An unparseable timestamp is kept: it cannot be shown to belong to an
+        # older batch, and dropping rows on a parse failure would silently
+        # shrink a legitimate result.
+        if created_at is None or newest - created_at <= _BATCH_INSERT_WINDOW:
+            kept.append(row)
+
+    return kept
+
+
+def _parse_row_timestamp(value) -> datetime | None:
+    """Parse a stored `created_at`, tolerating anything unexpected."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _stored_rows_to_items(rows: list[dict]) -> list[MilestoneRecommendationItem]:
+    """
+    Map stored `recommendations` rows to the client's item shape.
+
+    Shared by `GET /by-milestone/{id}` and `GET /latest` so the two read paths
+    cannot drift — both have to decode `content_sections` from its stored JSON
+    string, trim prose to a complete sentence, null a stale search URL, and
+    back-fill an image for rows written before images were persisted.
+    """
+    items: list[MilestoneRecommendationItem] = []
+    for r in rows:
+        # content_sections is stored as a JSON string; decode for the client.
+        content_sections = r.get("content_sections")
+        if isinstance(content_sections, str):
+            try:
+                content_sections = json.loads(content_sections)
+            except (ValueError, TypeError):
+                content_sections = None
+
+        items.append(
+            MilestoneRecommendationItem(
+                id=r["id"],
+                recommendation_type=r["recommendation_type"],
+                title=r["title"],
+                description=trim_to_complete_sentence(r.get("description")),
+                external_url=_safe_external_url(r.get("external_url")),
+                price_cents=r.get("price_cents"),
+                merchant_name=r.get("merchant_name"),
+                # Guarantee an image even for rows stored before images were
+                # persisted (older rows have image_url = NULL).
+                image_url=r.get("image_url") or _default_image_for_type(r.get("recommendation_type")),
+                created_at=r["created_at"],
+                personalization_note=trim_to_complete_sentence(
+                    r.get("personalization_note")
+                ),
+                is_idea=bool(r.get("is_idea")),
+                content_sections=content_sections,
+            )
+        )
+    return items
 
 
 async def _notify_recommendations_ready(

@@ -180,6 +180,75 @@ final class NotificationHistoryService: Sendable {
         }
     }
 
+    // MARK: - Latest Stored Batch
+
+    /// Fetches the newest stored batch of recommendations for the user's vault,
+    /// regardless of which surface generated it.
+    ///
+    /// Recovery path for a generation whose HTTP response never arrived: the
+    /// pipeline runs server-side and stores its picks *before* responding, so a
+    /// request killed by app suspension (or a client timeout while the backend
+    /// ran on) leaves completed work in the database with no way to reach it.
+    /// `fetchMilestoneRecommendations` covers that for milestone runs only —
+    /// a just-because batch has no milestone to look it up by.
+    ///
+    /// Read-only: never triggers the ~25s pipeline. Callers decide whether the
+    /// batch is recent enough to use (each item carries `createdAt`).
+    ///
+    /// - Returns: The newest batch, possibly empty
+    /// - Throws: `NotificationHistoryServiceError` if the request fails
+    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/recommendations/latest") else {
+            throw NotificationHistoryServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw NotificationHistoryServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw NotificationHistoryServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotificationHistoryServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(MilestoneRecommendationsResponse.self, from: data)
+            } catch {
+                throw NotificationHistoryServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw NotificationHistoryServiceError.noAuthSession
+
+        case 404:
+            throw NotificationHistoryServiceError.serverError(
+                statusCode: 404,
+                message: "No vault found."
+            )
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw NotificationHistoryServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
     // MARK: - Mark Notification as Viewed
 
     /// Marks a notification as viewed by setting its viewed_at timestamp.

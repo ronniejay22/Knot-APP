@@ -327,7 +327,13 @@ private final class MockMilestoneFetcher: MilestoneRecommendationsFetching {
     }
 
     var behavior: Behavior
+
+    /// Separate from `behavior` so a test can fail the milestone fetch while the
+    /// latest-batch recovery succeeds (and vice versa).
+    var latestBehavior: Behavior?
+
     private(set) var requestedMilestoneIds: [String] = []
+    private(set) var latestRequestCount = 0
 
     init(behavior: Behavior) {
         self.behavior = behavior
@@ -338,6 +344,16 @@ private final class MockMilestoneFetcher: MilestoneRecommendationsFetching {
     ) async throws -> MilestoneRecommendationsResponse {
         requestedMilestoneIds.append(milestoneId)
         switch behavior {
+        case .success(let response):
+            return response
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+        latestRequestCount += 1
+        switch latestBehavior ?? behavior {
         case .success(let response):
             return response
         case .failure(let error):

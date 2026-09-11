@@ -170,7 +170,14 @@ class MilestoneRecommendationsResponse(BaseModel):
         description="List of pre-generated recommendations for the milestone.",
     )
     count: int = Field(..., description="Number of recommendations returned.")
-    milestone_id: str = Field(..., description="UUID of the milestone.")
+    milestone_id: str | None = Field(
+        default=None,
+        description=(
+            "UUID of the milestone. Always set by /by-milestone/{id}; null on "
+            "/latest when the newest batch was a just-because run, which "
+            "belongs to no milestone."
+        ),
+    )
     briefing_text: str | None = Field(
         default=None,
         description="Latest Claude briefing for this milestone, if one was generated.",

@@ -255,6 +255,15 @@ private struct EmptyMilestoneFetcher: MilestoneRecommendationsFetching {
             briefingText: nil
         )
     }
+
+    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+        MilestoneRecommendationsResponse(
+            recommendations: [],
+            count: 0,
+            milestoneId: nil,
+            briefingText: nil
+        )
+    }
 }
 
 /// Renders the state shown when a tapped push has no stored recommendations.
