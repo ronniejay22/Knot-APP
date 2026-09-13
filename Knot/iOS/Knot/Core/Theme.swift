@@ -485,6 +485,19 @@ extension Theme {
         /// purpose: a spring on the way down would lag the finger.
         static let pressDown: SwiftUI.Animation = .easeOut(duration: 0.1)
         static let pressRelease: SwiftUI.Animation = .spring(response: 0.32, dampingFraction: 0.62)
+
+        /// The minimum time a pressed surface stays visibly pressed, and how long
+        /// a surface's activation waits so its release can be seen.
+        ///
+        /// A quick tap inside a `ScrollView` lasts well under this: iOS holds
+        /// the touch back while it rules out a scroll, so press and release
+        /// arrive almost together and a pressed look driven purely by
+        /// `isPressed` is reversed after a frame or two — invisible. Holding the
+        /// look for at least this long is what makes a *tap* (not just a
+        /// press-and-hold) read as a press. Activation is deferred by the same
+        /// amount so the spring-back isn't buried under whatever the tap
+        /// presents. Short enough to still feel immediate.
+        static let pressHold: Duration = .milliseconds(150)
     }
 
     /// Font-weight scale aliasing SwiftUI's `Font.Weight`.

@@ -10205,6 +10205,95 @@ endpoint or migration change, so no `pytest` run applies.
 
 ---
 
+### Step 19.57 ✅ Journal — Make the Card Press Visible on a Quick Tap
+**Date:** 2026-09-13
+**Status:** Complete
+
+**Goal:** Step 19.56 shipped and was invisible. On a device, a normal tap on a Journal card
+showed no press at all — the user reported "I don't see any changes" after pulling and
+rebuilding twice, and guessed it was either too subtle or the detail page arrived before
+the interaction could show. The second guess was right, for two compounding reasons. This
+step makes the press read on a *tap*, not only on a press-and-hold, and lets the release
+play before the cover goes up.
+
+**Root cause:** `KnotPressableStyle` drove its scale/dim purely from
+`configuration.isPressed`, which for a quick tap inside a `ScrollView` is true for a frame
+or two — iOS holds the touch back (~150 ms) while it rules out a scroll, so by the time the
+button highlights the finger is already lifting, and the `.easeOut(0.1)` press-down was
+reversed before it got anywhere. Then `Button` runs its action on touch-up, `cardTapped()`
+set `detailMilestone` synchronously, and the `fullScreenCover` began sliding over the card
+in that same instant — so whatever spring-back there was played underneath the cover.
+
+**What changed:**
+- **`KnotPressableStyle` holds the pressed look for a minimum beat.** `makeBody` now returns
+  a private `PressableLabel` view (a `ButtonStyle` is a value and can't carry `@State`)
+  that mirrors `configuration.isPressed` into its own `shownPressed`: it follows a press
+  *up* immediately, and on release computes how long the press has been shown and defers
+  the visual release by the remainder of `Theme.Motion.pressHold` (150 ms) via a
+  cancellable `Task`. A press that already outlasted the hold releases the moment the finger
+  lifts, so the hold is a floor, never added lag; a new press during a pending release
+  cancels it and starts a fresh hold; `onDisappear` cancels any pending release *and*
+  resets `shownPressed` (review caught the first draft only cancelling — a tab switch or
+  list recycle inside the hold would have brought the card back stuck pressed). The
+  arithmetic is a pure `static releaseDelay(pressedFor:hold:)` = `max(.zero, hold −
+  elapsed)`, so it is unit-testable without rendering.
+- **The card defers its navigation by the same hold.** `cardTapped(delay: Duration =
+  Theme.Motion.pressHold)` fires the light haptic at once (it belongs on the tap landing)
+  and opens the detail after `delay` via `Task.sleep`. Because `Button` fires on touch-up
+  and the style's release happens at `max(touch-up, touch-down + hold)`, waiting `hold`
+  after touch-up guarantees the release has *begun* before the cover moves: on a quick tap
+  the card springs back as the cover rises; on a longer press it has a head start. Total
+  tap-to-cover latency is ~200 ms, still inside what reads as immediate. `delay: .zero`
+  short-circuits to a synchronous call, which is what the existing forwarding tests use;
+  the pill's action goes through the same path so both ways in still feel identical.
+  `Button(action: cardTapped)` became `Button(action: { cardTapped() })` since a function
+  with a defaulted parameter isn't a `() -> Void`.
+- **A slightly firmer settle.** `pressedScale` 0.97 → 0.96 and `pressedOpacity` 0.92 →
+  0.90. With the hold in place the visual now has time to register, and this is enough to
+  read at a glance without tipping into "game button" — the existing lower bounds (≥ 0.9,
+  ≥ 0.8) still hold, and matching *upper* bounds (≤ 0.97, ≤ 0.92) were added so a future
+  tweak can't quietly dial it back below noticeable.
+- **`Theme.Motion.pressHold`** is the new token, documented in place with the ScrollView
+  touch-delay reasoning, and used by both the style and the card so the two timings can't
+  drift apart.
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — `Motion.pressHold: Duration = .milliseconds(150)`
+- `iOS/Knot/Components/UI/KnotPressableStyle.swift` — `PressableLabel` with the minimum
+  hold; `releaseDelay(pressedFor:hold:)`; constants 0.96 / 0.90; doc comments and preview
+  copy updated
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `cardTapped(delay:)` with haptic-now /
+  navigate-later; both call sites wrap it in a closure
+- `iOS/KnotTests/Components/UI/KnotPressableStyleTests.swift` — 3 new cases: a quick tap's
+  release waits the remainder of the hold; a long press releases immediately; the default
+  hold is the theme token and sits in the 100–250 ms "still immediate" band; plus the
+  upper bounds on the settle constants
+- `iOS/KnotTests/MilestoneCardTests.swift` — the three forwarding cases use `delay:
+  .zero`; new `testCardTapDefersSeeDetailsPastThePressHold` asserts the default path does
+  *not* fire synchronously and does fire within 2 s (expectation-based, async)
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `pressHold` in
+  `testMotionTokensExist`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot comments describe what the still capture
+  can and can't prove for this change; the flow (icon → sheet → dismiss → no double-fire →
+  body tap → detail) is unchanged and now also exercises the deferred presentation
+- `docs/pr-screenshots/worktree-feat-journal-card-press-visible.png` — the detail screen
+  reached through the deferred body tap
+
+**Tests:** `KnotPressableStyleTests` 8/8, `MilestoneCardRenderingTests` 14/14,
+`ThemeTokensTests` 18/18; iOS Full plan green — **600 unit + 5 UI, 0 failures**. No
+backend change, so no `pytest` run applies.
+
+**Notes:**
+- **A press driven only by `isPressed` is invisible on a tap inside a `ScrollView`.** That is
+  the durable lesson here: any future pressable surface needs a minimum hold, and if its
+  tap presents something, that presentation must wait for the release. Both halves are
+  now in the primitive/token so the next surface gets them by wrapping in `Button` +
+  `KnotPressableStyle` and deferring by `Theme.Motion.pressHold`.
+- Still not capturable from XCUITest: the PR image is the destination. On a device, a plain
+  quick tap should now visibly dip the card, spring it back, and *then* slide the cover up.
+
+---
+
 ## Next Steps
 
 

@@ -286,8 +286,30 @@ final class MilestoneCardRenderingTests: XCTestCase {
             onSeeDetails: { fired = true },
             onGetRecommendations: {}
         )
-        view.cardTapped()
+        view.cardTapped(delay: .zero)
         XCTAssertTrue(fired)
+    }
+
+    /// By default the destination is held back for the press hold, so the
+    /// card's spring-back is on screen before the cover moves: it must *not*
+    /// fire on the same turn, and it must fire shortly after.
+    func testCardTapDefersSeeDetailsPastThePressHold() async {
+        let fired = expectation(description: "onSeeDetails fires after the hold")
+        var firedSynchronously = false
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: {
+                firedSynchronously = true
+                fired.fulfill()
+            },
+            onGetRecommendations: {}
+        )
+        view.cardTapped()
+        XCTAssertFalse(firedSynchronously, "the cover must wait for the press to release")
+        await fulfillment(of: [fired], timeout: 2)
     }
 
     /// The body tap must never reach the *other* footer destination — a card
@@ -302,7 +324,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             onSeeDetails: {},
             onGetRecommendations: { recommendationFired = true }
         )
-        view.cardTapped()
+        view.cardTapped(delay: .zero)
         XCTAssertFalse(recommendationFired)
     }
 
@@ -317,7 +339,7 @@ final class MilestoneCardRenderingTests: XCTestCase {
             onSeeDetails: nil,
             onGetRecommendations: {}
         )
-        view.cardTapped()
+        view.cardTapped(delay: .zero)
         XCTAssertNotNil(UIHostingController(rootView: view).view)
     }
 }
