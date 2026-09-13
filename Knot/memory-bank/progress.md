@@ -10294,6 +10294,65 @@ backend change, so no `pytest` run applies.
 
 ---
 
+### Step 19.58 ✅ Journal — Remove the Detail Screen's Redundant "Get More Ideas" Pill
+**Date:** 2026-09-13
+**Status:** Complete
+
+**Goal:** The Journal event detail (`MilestoneDetailView`, Step 19.48) closed its scroll
+with a full-width pink "Get more ideas" `KnotButton`. In the empty state — the one the user
+screenshotted — the "No ideas saved yet" card directly above it already carries its own
+"Get ideas" button wired to the same `onGetIdeas`, so the screen showed two CTAs stacked a
+few points apart doing the same thing. Remove the bottom one.
+
+**What changed:**
+- **`Features/ForYou/MilestoneDetailView.swift`:** deleted the `KnotButton("Get more
+  ideas", .primary, .lg, .pill)` block that was the last element of the `body` `VStack`,
+  along with its "last element of the scroll, not a `safeAreaInset`" comment — that
+  reasoning (a pinned bar floated over the cards with nothing behind it) was about *where*
+  the pill sat, and there is no pill now. The `VStack` ends at `savedIdeasSection`. The
+  file-header comment was rewritten: the only route back into the event's recommendations
+  is the empty state's "Get ideas" button, and the recorded comp deviation now reads
+  "Saved ideas" / "Get ideas" rather than "Get more ideas".
+- **`onGetIdeas` stays on the view's API.** It is still consumed by `emptyIdeas`, so
+  `ForYouView`'s cover, both `UITestScreenshotHarness` detail seams, and
+  `MilestoneDetailViewTests` needed no edits — the initializer is unchanged.
+- **`KnotUITests/PRScreenshotTests.swift`:** the slot's two `buttons["Get more ideas"]`
+  lookups — the Step 19.56 double-fire guard's negative assertion and the "did the card tap
+  open the detail" positive assertion — are re-anchored on `buttons["Get ideas"]`, the
+  empty-state `KnotButton` that this change deliberately kept. It exists nowhere on the
+  Journal itself, so its appearance still proves the detail presented; the sheet's "Get
+  ideas for Christmas?" headline is a `staticText`, so an exact `buttons` match cannot
+  collide with it. Slot comments rewritten for this change; the flow (journal harness →
+  nested-button probe → tap the card title → capture) is unchanged, and the `journal`
+  harness's detail cover reads the app's real, empty store, so the capture lands on exactly
+  the empty state under review.
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — bottom CTA removed; header comment
+- `iOS/KnotUITests/PRScreenshotTests.swift` — both anchors → `"Get ideas"`; slot comments
+- `docs/pr-screenshots/worktree-feat-remove-detail-get-more-ideas-cta.png` — the empty
+  state with the card's "Get ideas" intact and nothing below the card
+
+**Tests:** iOS Full plan green — **600 unit + 5 UI, 0 failures, 0 skipped** (same 600-test
+unit baseline as Step 19.57; `PRScreenshotTests` passes with the `"Get ideas"` anchors,
+proving the card tap still opens the detail and the kept CTA is intact). No unit test
+asserted on the removed button (`grep` confirmed), and the suite does no view
+introspection, so the **screenshot is the artifact that proves the removal** — the same
+limitation Steps 19.34/19.35/19.38 recorded. No backend, DTO, endpoint or migration
+change, so no `pytest` run applies.
+
+**Notes:**
+- **Consequence, flagged when the plan was approved:** once an event *has* saved ideas the
+  empty-state card is gone, so the detail screen carries no "get ideas" control at all —
+  the Journal card's sparkle icon becomes the only route to that event's recommendations.
+  That is the requested removal, not an oversight; if a populated-state entry point is
+  wanted later, the `onGetIdeas` seam is still there to hang it on.
+- The `milestoneDetail` harness key (Step 19.48, seeds three saved ideas) still renders the
+  populated state and needed no change; it was not used for this capture because the
+  user's before-image is the empty state, and the `journal` → tap path reproduces it.
+
+---
+
 ## Next Steps
 
 
