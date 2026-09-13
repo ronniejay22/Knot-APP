@@ -24,14 +24,15 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change makes the whole Journal milestone card tappable — pressing
-        // the artwork, date, or title opens the event's detail screen, not just
-        // the footer's "See details" pill.
+        // The change makes the whole Journal milestone card a pressable
+        // surface — it settles under the finger, springs back, and opens the
+        // event's detail screen — with the footer's "See details" pill and
+        // recommendation icon still working inside it.
         //
         // The Journal sits behind an authenticated session and a live milestone
         // fetch, neither of which a cold screenshot launch can reach; the
         // `journal` harness renders it standalone with three seeded cards and
-        // mirrors `ForYouView`'s detail cover seam.
+        // mirrors `ForYouView`'s detail-cover and recommendation-sheet seams.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -46,16 +47,47 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        //
-        // The first card's title is a plain `Text` inside the card body — NOT
-        // the "See details" pill and NOT the recommendation icon. Tapping it is
-        // what exercises the new body tap; tapping the pill would only prove
-        // the pre-existing button still works.
         let cardTitle = app.staticTexts["Christmas"]
         XCTAssertTrue(
             cardTitle.waitForExistence(timeout: 15),
             "The seeded Christmas card never appeared — the Journal harness did not render"
         )
+
+        // The card is now a `Button` with two buttons nested inside it, and the
+        // one real risk of that composition is the outer card firing alongside
+        // an inner control. Prove it doesn't with the control whose destination
+        // differs from the card's: the recommendation icon must raise the sheet
+        // and ONLY the sheet.
+        let recommendIcon = app.buttons["Get recommendations for Christmas"]
+        XCTAssertTrue(recommendIcon.waitForExistence(timeout: 5), "The recommendation icon is missing from the card")
+        recommendIcon.tap()
+        XCTAssertTrue(
+            app.staticTexts["Get ideas for Christmas?"].waitForExistence(timeout: 10),
+            "Tapping the recommendation icon did not raise its sheet"
+        )
+        app.buttons["Not now"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Get ideas for Christmas?"].waitForNonExistence(timeout: 5),
+            "The recommendation sheet never dismissed, so the card underneath can't be tapped"
+        )
+
+        // The double-fire check has to run HERE, after the sheet is gone — not
+        // while it was up. SwiftUI presents one modal at a time, so had the
+        // outer card fired through the icon and set the detail's item too, the
+        // cover would have been *suppressed* behind the sheet and an "absent
+        // while the sheet is showing" assertion would pass regardless. With the
+        // modal slot free, a still-set detail item would present now; giving it
+        // a moment and asserting it doesn't is what actually enforces the
+        // guarantee.
+        XCTAssertFalse(
+            app.buttons["Get more ideas"].waitForExistence(timeout: 2),
+            "The detail opened after the recommendation sheet closed — the card button fired through the inner icon"
+        )
+
+        // Now the change itself. The card's title is a plain `Text` inside the
+        // card body — NOT the "See details" pill and NOT the recommendation
+        // icon. Tapping it is what exercises the whole-card press; tapping the
+        // pill would only prove the pre-existing button still works.
         cardTitle.tap()
 
         // The detail screen's "Get more ideas" CTA exists nowhere on the

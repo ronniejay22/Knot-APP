@@ -475,6 +475,16 @@ extension Theme {
     enum Motion {
         static let standard: SwiftUI.Animation = .easeInOut(duration: 0.25)
         static let quick: SwiftUI.Animation = .easeInOut(duration: 0.15)
+
+        /// The two halves of a press on a tappable surface (`KnotPressableStyle`).
+        ///
+        /// Down is a fast ease-out so the surface reacts the instant the touch is
+        /// confirmed; release is a lightly underdamped spring so it settles back
+        /// with a small overshoot — the "give" that makes a press read as a
+        /// physical thing rather than an opacity flicker. They are asymmetric on
+        /// purpose: a spring on the way down would lag the finger.
+        static let pressDown: SwiftUI.Animation = .easeOut(duration: 0.1)
+        static let pressRelease: SwiftUI.Animation = .spring(response: 0.32, dampingFraction: 0.62)
     }
 
     /// Font-weight scale aliasing SwiftUI's `Font.Weight`.

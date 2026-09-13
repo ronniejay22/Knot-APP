@@ -22,13 +22,15 @@ import SwiftUI
 /// └───────────────────────────────┘
 /// ```
 ///
-/// The card body itself opens the event: tapping the artwork, the date, the
-/// title — anywhere that isn't one of the two footer controls — goes to the same
-/// detail screen as "See details". The pill stays as the labelled affordance.
-/// The sparkle icon is the one *different* destination: it asks for ideas for
-/// the event. The icon carries no label, so rather than pushing straight into a
-/// ~30s generation it raises `MilestoneRecommendationSheet`, which names the
-/// occasion and says what is about to happen.
+/// The card body itself opens the event: pressing the artwork, the date, the
+/// title — anywhere that isn't one of the two footer controls — settles the
+/// card under the finger (`KnotPressableStyle`), springs it back, taps a light
+/// haptic, and goes to the same detail screen as "See details". The pill stays
+/// as the labelled affordance and gives the same haptic. The sparkle icon is
+/// the one *different* destination: it asks for ideas for the event. The icon
+/// carries no label, so rather than pushing straight into a ~30s generation it
+/// raises `MilestoneRecommendationSheet`, which names the occasion and says
+/// what is about to happen.
 ///
 /// The artwork comes from the occasion illustrations already bundled for
 /// `OccasionEntryModal` (Step 19.25), keyed by the milestone's
@@ -59,34 +61,51 @@ struct MilestoneCard: View {
     private static let artworkHeight: CGFloat = 140
 
     var body: some View {
-        KnotCard(padding: .md, radius: Theme.Radius.xl) {
-            VStack(alignment: .leading, spacing: 12) {
-                artwork
-                metaRow
-                title
-                Divider()
-                    .overlay(Theme.surfaceBorder)
-                footerRow
+        // The whole card is a `Button` wearing `KnotPressableStyle`, so pressing
+        // anywhere on it — artwork, date, title, padding — settles the surface
+        // under the finger and springs it back on release, then opens the
+        // detail. `Button` (not `.onTapGesture` + a pressed flag) is what makes
+        // that feedback correct inside a `ScrollView`: it waits for the scroll
+        // view to rule out a scroll before highlighting and cancels cleanly if
+        // one starts. The inner "See details" pill and the recommendation icon
+        // keep working — SwiftUI resolves a touch to the deepest button, and
+        // both pin their own `.buttonStyle(.plain)` so this style doesn't
+        // propagate down to them.
+        Button(action: cardTapped) {
+            KnotCard(padding: .md, radius: Theme.Radius.xl) {
+                VStack(alignment: .leading, spacing: 12) {
+                    artwork
+                    metaRow
+                    title
+                    Divider()
+                        .overlay(Theme.surfaceBorder)
+                    footerRow
+                }
             }
+            .contentShape(Rectangle())
         }
-        // Tapping anywhere on the card (except its footer controls) opens the
-        // detail. `.onTapGesture` — not a wrapping `Button` — keeps the inner
-        // "See details" pill and the recommendation icon hit-testing correctly,
-        // the same Step 19.9 pattern `SavedView` and `SavedIdeaCard` use.
-        // `.contentShape` is what makes the padding and the artwork tappable;
-        // without it only the text runs would register.
-        .contentShape(Rectangle())
-        .onTapGesture(perform: cardTapped)
+        .buttonStyle(KnotPressableStyle())
+        // `.contain`, not the Button default: a Button normally folds its label
+        // into one accessibility element, which would swallow the footer's two
+        // controls — and the recommendation icon has no other route from the
+        // Journal. Containing the children keeps every control reachable; the
+        // labelled "See details" pill remains VoiceOver's way into the event,
+        // exactly as before the whole-card tap existed.
+        .accessibilityElement(children: .contain)
     }
 
-    /// Tapping the card body opens the detail — the same destination as the
-    /// footer's "See details" pill. A no-op where no destination is wired
-    /// (previews, harnesses), so the card never swallows a tap it can't act on.
+    /// Opens the detail — the one destination behind both the card body and
+    /// the footer's "See details" pill, so either way in feels the same: a
+    /// light impact as the tap lands, then the cover.
     ///
-    /// Internal rather than folded into the gesture closure so the forwarding
-    /// rule is unit-testable without view introspection.
+    /// A no-op where no destination is wired (previews, harnesses) — and no
+    /// haptic then either, since nothing happened. Internal rather than folded
+    /// into the button's closure so the forwarding rule is unit-testable
+    /// without view introspection.
     func cardTapped() {
-        onSeeDetails?()
+        guard let onSeeDetails else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onSeeDetails()
     }
 
     // MARK: - Artwork
@@ -197,13 +216,16 @@ struct MilestoneCard: View {
             // fills with `surfaceElevated`, which has almost no contrast against
             // the card's own surface (the reason the "Upcoming" count badge is
             // `.accent` rather than `.secondary`).
-            if let action = onSeeDetails {
+            // Routed through `cardTapped` rather than `onSeeDetails` directly so
+            // the pill gives the same haptic as the card body — one destination,
+            // one feel, whichever way in the user chooses.
+            if onSeeDetails != nil {
                 KnotButton(
                     "See details",
                     variant: .outline,
                     size: .sm,
                     shape: .pill,
-                    action: action
+                    action: cardTapped
                 )
                 .fixedSize()
                 .layoutPriority(1)
