@@ -8,11 +8,12 @@ Step 5.9: POST /api/v1/recommendations/generate — Generate recommendations
 Step 5.10: POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions
 Step 6.3: POST /api/v1/recommendations/feedback — Record user feedback
 Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stored recommendations
+Step 19.59: GET /api/v1/recommendations/recent — Every stored batch inside the recency window
 """
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
@@ -30,6 +31,8 @@ from app.services.apns import deliver_recommendations_ready
 from app.models.notifications import (
     MilestoneRecommendationItem,
     MilestoneRecommendationsResponse,
+    RecentRecommendationBatch,
+    RecentRecommendationsResponse,
 )
 from app.models.recommendations import (
     LocationResponse,
@@ -765,6 +768,154 @@ async def get_latest_recommendations(
 
 
 # ===================================================================
+# GET /api/v1/recommendations/recent (Step 19.59)
+# ===================================================================
+#
+# MUST stay registered ABOVE `GET /{recommendation_id}`, which is a catch-all
+# path parameter and would otherwise swallow "recent" as an ID.
+
+# How long a generated batch stays on the Journal. The single source of truth
+# for expiry: the query cutoff, each batch's `expires_at`, and the response's
+# `window_days` all derive from it.
+RECENT_WINDOW_DAYS = 7
+
+# Upper bound on rows served per request — twenty full Choice-of-Three batches.
+# The cap is on rows, not batches, because rows are what the query returns.
+# The handler reads one row past the cap: only when that extra row exists can
+# the oldest group have been cut by the limit, and only then is it dropped —
+# so a user with exactly twenty complete runs sees all twenty, never nineteen.
+RECENT_MAX_ROWS = 60
+
+
+@router.get(
+    "/recent",
+    status_code=status.HTTP_200_OK,
+    response_model=RecentRecommendationsResponse,
+)
+async def get_recent_recommendations(
+    user_id: str = Depends(get_active_user_id),
+) -> RecentRecommendationsResponse:
+    """
+    Return every stored batch generated inside the last `RECENT_WINDOW_DAYS`.
+
+    The Journal's "Recent picks" section. A generation run's picks are stored
+    before the response is sent, but until this endpoint existed the only way
+    the app could re-read them was the push tap-through (`/by-milestone/{id}`)
+    or error recovery (`/latest`) — pressing Back after a run simply lost the
+    cards from the UI. This is the plain "what did we generate recently" read
+    that lets a user come back to a set, and it is deliberately time-boxed: a
+    batch leaves the Journal `RECENT_WINDOW_DAYS` after it was generated, so
+    saving (the existing SwiftData library) is how a user keeps a pick.
+
+    Read-only: never triggers the pipeline. Rows are grouped back into the
+    runs that inserted them by `_group_into_insert_batches` — see that helper
+    for why the split keys on `milestone_id` as well as the insert-time gap.
+
+    **Excludes the Ideas feed** for the same reason `/latest` does: `ideas.py`
+    shares this table and stores an explicitly NULL `image_url`, while every
+    pipeline row has one resolved before persisting. `is_idea` would be the
+    wrong discriminator because a genuine Choice-of-Three can contain a Knot
+    Original.
+
+    Returns:
+        200: the batches in the window, newest run first (possibly empty),
+        401 unauthenticated, 404 when the user has no vault.
+    """
+    client = get_service_client()
+
+    # Oldest-first, matching `/latest` and `load_vault_data`, so this reads the
+    # same vault the generation endpoints write to when a user has more than
+    # one vault row (dev testing leaves them behind).
+    try:
+        vault_result = (
+            client.table("partner_vaults")
+            .select("id")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Failed to look up vault: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to look up vault.",
+        )
+
+    if not vault_result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No partner vault found. Complete onboarding first.",
+        )
+
+    vault_id = vault_result.data[0]["id"]
+
+    # `created_at` is TIMESTAMPTZ and `_parse_row_timestamp` yields aware
+    # datetimes, so the cutoff must be aware too or the arithmetic below raises.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_WINDOW_DAYS)
+
+    try:
+        rec_result = (
+            client.table("recommendations")
+            .select("*")
+            .eq("vault_id", vault_id)
+            .not_.is_("image_url", "null")
+            .gte("created_at", cutoff.isoformat())
+            .order("created_at", desc=True)
+            .limit(RECENT_MAX_ROWS + 1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Failed to load recent recommendations for vault %s: %s", vault_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load recommendations.",
+        )
+
+    rows = rec_result.data or []
+    groups = _group_into_insert_batches(rows)
+
+    # The sentinel row past the cap is the only proof the oldest group was cut
+    # by the limit (or is a run that begins beyond it). Either way that group
+    # is incomplete, and dropping it beats serving two picks as a batch. With
+    # no sentinel, every group came back whole and all of them are served.
+    if len(rows) > RECENT_MAX_ROWS and len(groups) > 1:
+        groups = groups[:-1]
+
+    batches: list[RecentRecommendationBatch] = []
+    for group in groups:
+        anchor = group[0]
+        generated_at = _parse_row_timestamp(anchor.get("created_at"))
+        # Unlike `_newest_insert_batch`, which keeps a row with an unparseable
+        # timestamp, a whole batch is skipped here: `expires_at` has to be
+        # computed from the timestamp, and a batch with no expiry would sit on
+        # the Journal forever. The column is TIMESTAMPTZ, so this is
+        # defensive rather than expected.
+        if generated_at is None:
+            logger.warning(
+                "Skipping recent batch with unparseable created_at: %r",
+                anchor.get("created_at"),
+            )
+            continue
+
+        batches.append(
+            RecentRecommendationBatch(
+                batch_id=anchor["id"],
+                milestone_id=anchor.get("milestone_id"),
+                generated_at=anchor["created_at"],
+                expires_at=(generated_at + timedelta(days=RECENT_WINDOW_DAYS)).isoformat(),
+                recommendations=_stored_rows_to_items(group),
+            )
+        )
+
+    return RecentRecommendationsResponse(
+        batches=batches,
+        count=len(batches),
+        window_days=RECENT_WINDOW_DAYS,
+    )
+
+
+# ===================================================================
 # Exclusion filter logic (Step 5.10)
 # ===================================================================
 
@@ -1057,6 +1208,52 @@ def _newest_insert_batch(rows: list[dict]) -> list[dict]:
             kept.append(row)
 
     return kept
+
+
+def _group_into_insert_batches(rows: list[dict]) -> list[list[dict]]:
+    """
+    Split newest-first rows back into the generation runs that inserted them.
+
+    The generalisation of `_newest_insert_batch` for `GET /recent`, which needs
+    every run in the window rather than only the newest. Walking newest-first,
+    a row starts a new group when either:
+
+    - its `milestone_id` differs from the current group's, or
+    - it is more than `_BATCH_INSERT_WINDOW` older than the group's anchor
+      (the group's newest row).
+
+    The `milestone_id` split is load-bearing, not a tidy-up. Two milestones
+    falling on the same day fire two notification webhooks, each running its
+    own pipeline, and their bulk inserts can land within the 5-second window of
+    each other. A pure time gap would merge them into one six-row "batch"
+    labelled with whichever milestone happened to insert last.
+
+    A row whose `created_at` cannot be parsed stays in the current group, for
+    the reason `_newest_insert_batch` gives: it cannot be shown to belong to a
+    different run, and dropping it would silently shrink a legitimate batch.
+    A group whose *anchor* is unparseable is the caller's problem — see the
+    endpoint, which skips such a group because it cannot compute an expiry.
+    """
+    groups: list[list[dict]] = []
+    anchor_ts: datetime | None = None
+    anchor_milestone: str | None = None
+
+    for row in rows:
+        created_at = _parse_row_timestamp(row.get("created_at"))
+        milestone_id = row.get("milestone_id")
+
+        starts_new_group = not groups or milestone_id != anchor_milestone
+        if not starts_new_group and created_at is not None and anchor_ts is not None:
+            starts_new_group = anchor_ts - created_at > _BATCH_INSERT_WINDOW
+
+        if starts_new_group:
+            groups.append([row])
+            anchor_ts = created_at
+            anchor_milestone = milestone_id
+        else:
+            groups[-1].append(row)
+
+    return groups
 
 
 def _parse_row_timestamp(value) -> datetime | None:

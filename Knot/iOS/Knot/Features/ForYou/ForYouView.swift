@@ -14,6 +14,9 @@ import SwiftUI
 /// Layout:
 /// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
 /// - "Just Because" recommendation card
+/// - "Recent picks" (Step 19.59) — every set generated in the last 7 days, one
+///   `RecentPickRow` per set, each reopening its cards via a seeded push until
+///   it expires; absent entirely when there is nothing to show
 /// - "Upcoming" header with a "View all" link into milestone management
 /// - A `MilestoneCard` per upcoming milestone, whose footer carries two
 ///   destinations: a "See details" button opening `MilestoneDetailView` for that
@@ -83,13 +86,29 @@ struct ForYouView: View {
                 // `RecommendationsView` now always declares its own visibility
                 // (`navigationBarVisibility`), restoring the bar in every state
                 // except the full-bleed loading screen.
+                //
+                // A "Recent picks" reopen carries a view model already holding
+                // the stored batch. `preferPregenerated: true` is what keeps the
+                // first frame silent (no coral loader flashing over cards that
+                // are already there), and the VM's `hasLoadedInitially` is what
+                // stops `.task` from running any pipeline.
                 RecommendationsView(
                     milestoneId: destination.milestoneId,
-                    milestoneContext: destination.context
+                    milestoneContext: destination.context,
+                    preferPregenerated: destination.seededViewModel != nil,
+                    viewModel: destination.seededViewModel ?? RecommendationsViewModel()
                 )
             }
             .task {
                 await viewModel.loadData()
+            }
+            // Popping back from a generation run is the moment a new set exists
+            // to show. `.task` does not re-fire here — MainTabView keeps every
+            // tab mounted — so the pop is the only signal.
+            .onChange(of: navigationDestination) { _, newValue in
+                if newValue == nil {
+                    Task { await viewModel.loadRecentBatches() }
+                }
             }
             .sheet(isPresented: $milestoneFormViewModel.showAddSheet) {
                 MilestoneFormSheet(viewModel: milestoneFormViewModel)
@@ -152,6 +171,16 @@ struct ForYouView: View {
                     }
                 )
 
+                // Recent picks — renders nothing until there is a batch to
+                // show, so the JustBecauseCard above and the timeline below
+                // sit exactly where they did before.
+                RecentPicksSection(
+                    batches: viewModel.visibleRecentBatches,
+                    windowDays: viewModel.recentWindowDays,
+                    occasionLabel: viewModel.occasionLabel(for:),
+                    onOpen: openRecentBatch
+                )
+
                 // Timeline section
                 if viewModel.isLoading && viewModel.milestones.isEmpty {
                     // Inline loading state — keeps the JustBecauseCard above
@@ -174,7 +203,7 @@ struct ForYouView: View {
             .padding(.bottom, 80)
         }
         .refreshable {
-            await viewModel.refreshMilestones()
+            await viewModel.refreshJournal()
         }
     }
 
@@ -321,6 +350,37 @@ struct ForYouView: View {
         navigationDestination = recommendationDestination(for: milestone)
     }
 
+    /// Reopens a stored set from "Recent picks" — the same `RecommendationsView`
+    /// the run originally pushed, seeded with the batch so the cards are on
+    /// screen at once and no pipeline runs.
+    ///
+    /// The seeded view model is built here, at tap time, and carried on the
+    /// destination rather than built inside the `navigationDestination`
+    /// closure: that closure is re-evaluated whenever this screen's state
+    /// changes while the push is up, and a fresh VM per evaluation is a trap
+    /// even though `@State` would ignore the later instances.
+    ///
+    /// When the batch's milestone is still on the Journal, the push reuses the
+    /// same display context the milestone's own CTA builds, so the toolbar
+    /// reads the event name; otherwise it falls back to "Recommendations".
+    private func openRecentBatch(_ batch: RecentRecommendationBatchResponse) {
+        let seeded = ForYouViewModel.seededRecommendationsViewModel(
+            for: batch,
+            partnerName: viewModel.partnerName
+        )
+        if let milestone = viewModel.milestone(for: batch) {
+            var destination = recommendationDestination(for: milestone)
+            destination.seededViewModel = seeded
+            navigationDestination = destination
+        } else {
+            navigationDestination = RecommendationDestination(
+                milestoneId: batch.milestoneId,
+                context: nil,
+                seededViewModel: seeded
+            )
+        }
+    }
+
     // MARK: - Empty Timeline
 
     private var emptyTimeline: some View {
@@ -367,6 +427,12 @@ struct RecommendationDestination: Identifiable, Hashable {
     let id = UUID()
     let milestoneId: String?
     let context: MilestoneDisplayContext?
+
+    /// Set by a "Recent picks" reopen: a view model already holding the stored
+    /// batch, so the destination shows cards immediately instead of generating.
+    /// Nil for every generating push. A reference type, so it is deliberately
+    /// left out of `==`/`hash` — identity is `id`, as before.
+    var seededViewModel: RecommendationsViewModel? = nil
 
     static func == (lhs: RecommendationDestination, rhs: RecommendationDestination) -> Bool {
         lhs.id == rhs.id

@@ -757,6 +757,49 @@ extension MilestoneRecommendationItemResponse {
     }
 }
 
+// MARK: - Recent Recommendation Batches (Step 19.59)
+
+/// One generation run's stored picks, from `GET /api/v1/recommendations/recent`.
+///
+/// `id` is the backend's `batch_id` — the newest row's UUID — rather than the
+/// timestamp, because two milestone webhooks firing on the same day can land
+/// batches with identical `generated_at` values; the row id is the only key
+/// that is unique by construction.
+struct RecentRecommendationBatchResponse: Codable, Sendable, Identifiable {
+    let id: String
+    /// Milestone the run was for; nil for a just-because run (and for a batch
+    /// whose milestone has since been deleted — the FK is `ON DELETE SET NULL`).
+    let milestoneId: String?
+    /// ISO 8601 timestamp of the run.
+    let generatedAt: String
+    /// ISO 8601 timestamp after which the batch leaves the Journal.
+    let expiresAt: String
+    let recommendations: [MilestoneRecommendationItemResponse]
+
+    enum CodingKeys: String, CodingKey {
+        case id = "batch_id"
+        case milestoneId = "milestone_id"
+        case generatedAt = "generated_at"
+        case expiresAt = "expires_at"
+        case recommendations
+    }
+}
+
+/// Response from `GET /api/v1/recommendations/recent` — every batch generated
+/// inside the recency window, newest run first.
+struct RecentRecommendationsResponse: Codable, Sendable {
+    let batches: [RecentRecommendationBatchResponse]
+    let count: Int
+    /// Length of the window in days; a batch expires this long after it was
+    /// generated. The backend owns the value — the client only displays it.
+    let windowDays: Int
+
+    enum CodingKeys: String, CodingKey {
+        case batches, count
+        case windowDays = "window_days"
+    }
+}
+
 // MARK: - Milestone CRUD DTOs
 
 /// Payload for `POST /api/v1/milestones`.
