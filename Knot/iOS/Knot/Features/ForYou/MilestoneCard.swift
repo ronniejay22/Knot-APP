@@ -22,11 +22,13 @@ import SwiftUI
 /// └───────────────────────────────┘
 /// ```
 ///
-/// The two footer controls are different destinations: "See details" opens the
-/// event itself, the sparkle icon asks for ideas for it. The icon carries no
-/// label, so rather than pushing straight into a ~30s generation it raises
-/// `MilestoneRecommendationSheet`, which names the occasion and says what is
-/// about to happen.
+/// The card body itself opens the event: tapping the artwork, the date, the
+/// title — anywhere that isn't one of the two footer controls — goes to the same
+/// detail screen as "See details". The pill stays as the labelled affordance.
+/// The sparkle icon is the one *different* destination: it asks for ideas for
+/// the event. The icon carries no label, so rather than pushing straight into a
+/// ~30s generation it raises `MilestoneRecommendationSheet`, which names the
+/// occasion and says what is about to happen.
 ///
 /// The artwork comes from the occasion illustrations already bundled for
 /// `OccasionEntryModal` (Step 19.25), keyed by the milestone's
@@ -67,6 +69,24 @@ struct MilestoneCard: View {
                 footerRow
             }
         }
+        // Tapping anywhere on the card (except its footer controls) opens the
+        // detail. `.onTapGesture` — not a wrapping `Button` — keeps the inner
+        // "See details" pill and the recommendation icon hit-testing correctly,
+        // the same Step 19.9 pattern `SavedView` and `SavedIdeaCard` use.
+        // `.contentShape` is what makes the padding and the artwork tappable;
+        // without it only the text runs would register.
+        .contentShape(Rectangle())
+        .onTapGesture(perform: cardTapped)
+    }
+
+    /// Tapping the card body opens the detail — the same destination as the
+    /// footer's "See details" pill. A no-op where no destination is wired
+    /// (previews, harnesses), so the card never swallows a tap it can't act on.
+    ///
+    /// Internal rather than folded into the gesture closure so the forwarding
+    /// rule is unit-testable without view introspection.
+    func cardTapped() {
+        onSeeDetails?()
     }
 
     // MARK: - Artwork

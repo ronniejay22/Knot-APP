@@ -24,17 +24,15 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change pairs each loading illustration 1:1 with its emphasis
-        // phrase, so a phrase always arrives with its own picture. Previously
-        // nine illustrations rotated against four phrases and the pairing
-        // drifted.
+        // The change makes the whole Journal milestone card tappable — pressing
+        // the artwork, date, or title opens the event's detail screen, not just
+        // the footer's "See details" pill.
         //
-        // Reaching the screen for real means a live session, a vault, and
-        // waiting out a ~25-second pipeline run, none of which a cold
-        // screenshot launch can do; the `recsLoading` harness renders it
-        // standalone. It needs no seeding — the screen takes no arguments and
-        // drives itself.
-        app.launchArguments += ["-uiTestScreenshot", "recsLoading"]
+        // The Journal sits behind an authenticated session and a live milestone
+        // fetch, neither of which a cold screenshot launch can reach; the
+        // `journal` harness renders it standalone with three seeded cards and
+        // mirrors `ForYouView`'s detail cover seam.
+        app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -49,30 +47,33 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
-        // The headline is the one element unique to this screen, so it is what
-        // proves the harness landed here and not on some other surface.
+        // The first card's title is a plain `Text` inside the card body — NOT
+        // the "See details" pill and NOT the recommendation icon. Tapping it is
+        // what exercises the new body tap; tapping the pill would only prove
+        // the pre-existing button still works.
+        let cardTitle = app.staticTexts["Christmas"]
         XCTAssertTrue(
-            app.staticTexts["Finding ways to make them smile"].waitForExistence(timeout: 15),
-            "The loading headline never appeared — the loading screen did not render"
+            cardTitle.waitForExistence(timeout: 15),
+            "The seeded Christmas card never appeared — the Journal harness did not render"
+        )
+        cardTitle.tap()
+
+        // The detail screen's "Get more ideas" CTA exists nowhere on the
+        // Journal itself, so its appearance proves the body tap opened
+        // `MilestoneDetailView` rather than merely being absorbed.
+        //
+        // Anchored on the button, not the "Saved ideas" header: that header is
+        // a merged accessibility element whose label carries the count
+        // ("Saved ideas, none yet"), so an exact `staticTexts` match on it is
+        // brittle. The CTA is a plain `KnotButton` with a fixed label.
+        XCTAssertTrue(
+            app.buttons["Get more ideas"].waitForExistence(timeout: 10),
+            "Tapping the card body did not open the milestone detail screen"
         )
 
-        // Wait past the first illustration swap (2.5s) so the capture lands on
-        // a settled crossfade rather than on frame one, and far enough into the
-        // 28s progress ramp that the bar and the match counter have both moved.
-        //
-        // WHICH step it lands on is not controllable from here. The rotation
-        // clock starts when the screen appears, and how long the app takes to
-        // get there varies by several seconds run to run — an earlier version
-        // of this comment claimed a specific step and was wrong on the very
-        // first capture. So the image shows *a* paired scene, not a chosen one.
-        //
-        // That is fine, because the image is not what proves the pairing:
-        // `RecommendationsLoadingHelperTests.testEachPhraseAlwaysArrivesWithTheSameIllustration`
-        // is. Introspection-free SwiftUI tests cannot assert on rendered
-        // output, so the screenshot's job here is the usual one — showing a
-        // reviewer that the screen still renders correctly, with the phrase and
-        // the illustration on it belonging together.
-        Thread.sleep(forTimeInterval: 4.0)
+        // Let the full-screen cover's presentation animation finish so the
+        // capture isn't taken mid-slide.
+        Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
