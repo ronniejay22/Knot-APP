@@ -71,7 +71,7 @@ struct MilestoneCard: View {
         // keep working — SwiftUI resolves a touch to the deepest button, and
         // both pin their own `.buttonStyle(.plain)` so this style doesn't
         // propagate down to them.
-        Button(action: cardTapped) {
+        Button(action: { cardTapped() }) {
             KnotCard(padding: .md, radius: Theme.Radius.xl) {
                 VStack(alignment: .leading, spacing: 12) {
                     artwork
@@ -98,14 +98,31 @@ struct MilestoneCard: View {
     /// the footer's "See details" pill, so either way in feels the same: a
     /// light impact as the tap lands, then the cover.
     ///
+    /// The haptic fires at once; the cover waits `delay`. `Button` runs its
+    /// action on touch-up, and `KnotPressableStyle` keeps the card pressed for
+    /// `Theme.Motion.pressHold` after touch-*down* — so presenting immediately
+    /// slid the cover over a card that was still pressed, and the spring-back
+    /// played underneath it, unseen. Waiting the same hold after touch-up
+    /// guarantees the release has begun before the cover moves: for a quick
+    /// tap the card springs back as the cover rises; for a longer press it has
+    /// a head start. Still well inside what reads as immediate.
+    ///
     /// A no-op where no destination is wired (previews, harnesses) — and no
     /// haptic then either, since nothing happened. Internal rather than folded
     /// into the button's closure so the forwarding rule is unit-testable
-    /// without view introspection.
-    func cardTapped() {
+    /// without view introspection; `delay: .zero` fires synchronously, for
+    /// tests that only care *that* it forwards.
+    func cardTapped(delay: Duration = Theme.Motion.pressHold) {
         guard let onSeeDetails else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        onSeeDetails()
+        guard delay > .zero else {
+            onSeeDetails()
+            return
+        }
+        Task {
+            try? await Task.sleep(for: delay)
+            onSeeDetails()
+        }
     }
 
     // MARK: - Artwork
@@ -225,7 +242,7 @@ struct MilestoneCard: View {
                     variant: .outline,
                     size: .sm,
                     shape: .pill,
-                    action: cardTapped
+                    action: { cardTapped() }
                 )
                 .fixedSize()
                 .layoutPriority(1)

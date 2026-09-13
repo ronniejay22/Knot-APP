@@ -68,6 +68,7 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Motion.quick
         _ = Theme.Motion.pressDown
         _ = Theme.Motion.pressRelease
+        _ = Theme.Motion.pressHold
     }
 
     func testStatusTokensExist() {

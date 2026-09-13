@@ -41,13 +41,55 @@ final class KnotPressableStyleTests: XCTestCase {
     /// The pressed treatment is a *settle*, not a collapse: the surface shrinks
     /// and dims, but never so far that it reads as disabled or disappears. These
     /// bounds are what stop a future "tweak" from turning a subtle press into a
-    /// jarring one.
+    /// jarring one — or, the other way, back into one too faint to notice.
     func testPressedTreatmentIsSubtle() {
         XCTAssertLessThan(KnotPressableStyle.pressedScale, 1)
         XCTAssertGreaterThanOrEqual(KnotPressableStyle.pressedScale, 0.9)
+        XCTAssertLessThanOrEqual(KnotPressableStyle.pressedScale, 0.97)
 
         XCTAssertLessThan(KnotPressableStyle.pressedOpacity, 1)
         XCTAssertGreaterThanOrEqual(KnotPressableStyle.pressedOpacity, 0.8)
+        XCTAssertLessThanOrEqual(KnotPressableStyle.pressedOpacity, 0.92)
+    }
+
+    // MARK: - Minimum hold
+
+    /// A tap shorter than the hold keeps the pressed look up for the remainder,
+    /// so the settle is drawn even when press and release arrive together.
+    func testQuickTapReleaseWaitsForTheRestOfTheHold() {
+        let hold = Duration.milliseconds(150)
+        XCTAssertEqual(
+            KnotPressableStyle.releaseDelay(pressedFor: .zero, hold: hold),
+            hold
+        )
+        XCTAssertEqual(
+            KnotPressableStyle.releaseDelay(pressedFor: .milliseconds(40), hold: hold),
+            .milliseconds(110)
+        )
+    }
+
+    /// A press that already outlasted the hold releases the moment the finger
+    /// lifts — the hold is a floor, never an added lag.
+    func testLongPressReleasesImmediately() {
+        let hold = Duration.milliseconds(150)
+        XCTAssertEqual(KnotPressableStyle.releaseDelay(pressedFor: hold, hold: hold), .zero)
+        XCTAssertEqual(
+            KnotPressableStyle.releaseDelay(pressedFor: .seconds(2), hold: hold),
+            .zero
+        )
+    }
+
+    /// The default hold is the shared token, and it is short enough that the
+    /// deferred navigation built on it (`MilestoneCard.cardTapped(delay:)`)
+    /// still reads as immediate — but long enough to survive the frame or two
+    /// a quick tap spends pressed.
+    func testDefaultHoldIsTheThemeTokenAndFeelsImmediate() {
+        XCTAssertEqual(
+            KnotPressableStyle.releaseDelay(pressedFor: .zero),
+            Theme.Motion.pressHold
+        )
+        XCTAssertGreaterThanOrEqual(Theme.Motion.pressHold, .milliseconds(100))
+        XCTAssertLessThanOrEqual(Theme.Motion.pressHold, .milliseconds(250))
     }
 
     // MARK: - Animation selection

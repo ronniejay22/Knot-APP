@@ -24,10 +24,13 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change makes the whole Journal milestone card a pressable
-        // surface — it settles under the finger, springs back, and opens the
-        // event's detail screen — with the footer's "See details" pill and
-        // recommendation icon still working inside it.
+        // The change makes the Journal milestone card's press feedback visible
+        // on a quick *tap*, not just a press-and-hold: the pressed look is held
+        // for a minimum beat and the detail cover waits for the release to
+        // play. A still capture can't show the motion; what it proves is that
+        // the deferred navigation still lands — a body tap opens the event's
+        // detail screen — with the footer's "See details" pill and
+        // recommendation icon still working inside the card.
         //
         // The Journal sits behind an authenticated session and a live milestone
         // fetch, neither of which a cold screenshot launch can reach; the
@@ -92,7 +95,9 @@ final class PRScreenshotTests: XCTestCase {
 
         // The detail screen's "Get more ideas" CTA exists nowhere on the
         // Journal itself, so its appearance proves the body tap opened
-        // `MilestoneDetailView` rather than merely being absorbed.
+        // `MilestoneDetailView` rather than merely being absorbed — and, now
+        // that the card holds the cover back until its press has released,
+        // that the deferred presentation still arrives.
         //
         // Anchored on the button, not the "Saved ideas" header: that header is
         // a merged accessibility element whose label carries the count
