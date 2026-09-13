@@ -182,3 +182,54 @@ class MilestoneRecommendationsResponse(BaseModel):
         default=None,
         description="Latest Claude briefing for this milestone, if one was generated.",
     )
+
+
+# ===================================================================
+# Recent Recommendation Batches (Step 19.59)
+# ===================================================================
+
+
+class RecentRecommendationBatch(BaseModel):
+    """
+    One generation run's stored picks, as served by GET /recommendations/recent.
+
+    A run inserts its trio in a single bulk insert, so the rows share a
+    `created_at` to within milliseconds; the endpoint groups stored rows back
+    into those runs. `batch_id` is the newest row's UUID rather than the
+    timestamp because two milestone webhooks firing on the same day can land
+    batches with identical timestamps — the row id is the only key that is
+    unique by construction.
+    """
+    batch_id: str = Field(
+        ...,
+        description="UUID of the batch's newest row; stable and unique per run.",
+    )
+    milestone_id: str | None = Field(
+        default=None,
+        description="Milestone the run was for; null for a just-because run.",
+    )
+    generated_at: str = Field(
+        ...,
+        description="ISO 8601 timestamp of the run (the batch's newest created_at).",
+    )
+    expires_at: str = Field(
+        ...,
+        description="ISO 8601 timestamp after which the batch leaves the Journal.",
+    )
+    recommendations: list[MilestoneRecommendationItem] = Field(
+        default_factory=list,
+        description="The run's picks, newest row first.",
+    )
+
+
+class RecentRecommendationsResponse(BaseModel):
+    """Response for GET /api/v1/recommendations/recent."""
+    batches: list[RecentRecommendationBatch] = Field(
+        default_factory=list,
+        description="Batches generated inside the window, newest run first.",
+    )
+    count: int = Field(..., description="Number of batches returned.")
+    window_days: int = Field(
+        ...,
+        description="Length of the recency window in days; a batch expires this long after it was generated.",
+    )

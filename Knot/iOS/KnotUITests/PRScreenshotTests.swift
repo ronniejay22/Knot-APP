@@ -24,19 +24,18 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change removes the full-width "Get more ideas" pill that closed
-        // the Journal event detail's scroll. In the empty state the "No ideas
-        // saved yet" card already carries its own "Get ideas" button, so the
-        // pill was a second CTA doing the same thing. The capture must show the
-        // detail's empty state with the card's "Get ideas" button intact and
-        // nothing below the card.
+        // The change adds a "Recent picks" section to the Journal: every set of
+        // recommendations generated in the last 7 days, each row reopening its
+        // cards until the set expires. The capture is the Journal itself with
+        // that section between the header and "Upcoming" — one milestone-named
+        // row ("Christmas") and one just-because row inside its last day, so
+        // the destructive expiry badge is in the shot too.
         //
-        // The Journal sits behind an authenticated session and a live milestone
-        // fetch, neither of which a cold screenshot launch can reach; the
-        // `journal` harness renders it standalone with three seeded cards and
-        // mirrors `ForYouView`'s detail-cover seam. Its detail cover reads the
-        // app's real (empty) store, so tapping through lands on exactly the
-        // empty state under review.
+        // The Journal sits behind an authenticated session and live backend
+        // fetches, neither of which a cold screenshot launch can reach; the
+        // `journal` harness renders it standalone with two seeded batches and
+        // three seeded cards, inside a `NavigationStack` that mirrors
+        // `ForYouView`'s push seam.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -51,72 +50,41 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        let cardTitle = app.staticTexts["Christmas"]
-        XCTAssertTrue(
-            cardTitle.waitForExistence(timeout: 15),
-            "The seeded Christmas card never appeared — the Journal harness did not render"
-        )
-
-        // The card is a `Button` with two buttons nested inside it (Step 19.56),
-        // and the one real risk of that composition is the outer card firing
-        // alongside an inner control. Keep proving it doesn't with the control
-        // whose destination differs from the card's: the recommendation icon
-        // must raise the sheet and ONLY the sheet.
-        let recommendIcon = app.buttons["Get recommendations for Christmas"]
-        XCTAssertTrue(recommendIcon.waitForExistence(timeout: 5), "The recommendation icon is missing from the card")
-        recommendIcon.tap()
-        XCTAssertTrue(
-            app.staticTexts["Get ideas for Christmas?"].waitForExistence(timeout: 10),
-            "Tapping the recommendation icon did not raise its sheet"
-        )
-        app.buttons["Not now"].tap()
-        XCTAssertTrue(
-            app.staticTexts["Get ideas for Christmas?"].waitForNonExistence(timeout: 5),
-            "The recommendation sheet never dismissed, so the card underneath can't be tapped"
-        )
-
-        // The double-fire check has to run HERE, after the sheet is gone — not
-        // while it was up. SwiftUI presents one modal at a time, so had the
-        // outer card fired through the icon and set the detail's item too, the
-        // cover would have been *suppressed* behind the sheet and an "absent
-        // while the sheet is showing" assertion would pass regardless. With the
-        // modal slot free, a still-set detail item would present now; giving it
-        // a moment and asserting it doesn't is what actually enforces the
-        // guarantee.
-        XCTAssertFalse(
-            app.buttons["Get ideas"].waitForExistence(timeout: 2),
-            "The detail opened after the recommendation sheet closed — the card button fired through the inner icon"
-        )
-
-        // Now open the changed screen. The card's title is a plain `Text` inside
-        // the card body, and tapping it exercises the whole-card press that
-        // presents the detail cover (Steps 19.55–19.57).
-        cardTitle.tap()
-
-        // The anchor is the empty state's "Get ideas" button — the one CTA the
-        // detail still carries, and the control this change deliberately kept.
-        // It exists nowhere on the Journal itself, so its appearance proves the
-        // tap opened `MilestoneDetailView`; the removed "Get more ideas" pill
-        // can no longer serve as the anchor because it no longer exists.
         //
-        // A button rather than the "Saved ideas" header: that header is a merged
-        // accessibility element whose label carries the count ("Saved ideas,
-        // none yet"), so an exact `staticTexts` match on it is brittle. The
-        // sheet's "Get ideas for Christmas?" headline is a `staticText`, so an
-        // exact `buttons["Get ideas"]` match cannot collide with it.
+        // The section header is a merged accessibility element whose label
+        // carries the count ("Recent picks, 2 sets"), so match on the label
+        // across element types rather than assuming a `staticText`.
+        let sectionHeader = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Recent picks, 2 sets"))
+            .firstMatch
         XCTAssertTrue(
-            app.buttons["Get ideas"].waitForExistence(timeout: 10),
-            "Tapping the card body did not open the milestone detail screen"
+            sectionHeader.waitForExistence(timeout: 15),
+            "The \"Recent picks\" header never appeared — the section did not render on the Journal harness"
         )
 
-        // Let the full-screen cover's presentation animation finish so the
-        // capture isn't taken mid-slide.
-        Thread.sleep(forTimeInterval: 1.0)
+        // The row is a `Button` whose label is the row's full accessibility
+        // sentence, built from the seeded batch (generated 2 days ago, expires
+        // in 5 days — both relative to launch, so the label is deterministic).
+        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
+        XCTAssertTrue(
+            christmasRow.waitForExistence(timeout: 5),
+            "The seeded Christmas batch row is missing from the Recent picks section"
+        )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        // Then prove the row actually reopens the set: tapping pushes
+        // `RecommendationsView` seeded with the stored batch, so the first
+        // pick's title — which exists nowhere on the Journal itself — must
+        // appear, with no generation run.
+        christmasRow.tap()
+        XCTAssertTrue(
+            app.staticTexts["Candlelit Pottery Class"].waitForExistence(timeout: 10),
+            "Tapping the Recent picks row did not reopen its cards"
+        )
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.
