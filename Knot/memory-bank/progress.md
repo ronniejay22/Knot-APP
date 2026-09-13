@@ -10102,6 +10102,109 @@ no `pytest` run applies.
 
 ---
 
+### Step 19.56 ✅ Journal — Make Milestone Cards Press Like a Physical Thing
+**Date:** 2026-09-13
+**Status:** Complete
+
+**Goal:** Step 19.55 made the whole Journal card open the event, but gave the finger nothing
+back: `.onTapGesture` has no pressed state, so the card sat inert until the cover slid up.
+Asked for a clean, satisfying press micro-interaction, the tap gesture was replaced with a
+`Button` wearing a new design-system style — the card now settles under the finger, springs
+back on release, taps a light haptic, and then opens. This supersedes 19.55's description
+of the mechanism; the destination and everything downstream are unchanged.
+
+**What changed:**
+- **`Components/UI/KnotPressableStyle.swift` (new primitive):** a `ButtonStyle` for a
+  tappable *surface* rather than a button's chrome. While pressed the label scales to
+  `pressedScale = 0.97` and dims to `pressedOpacity = 0.92`; the two halves run different
+  curves — a fast `.easeOut(0.1)` down so the surface reacts the instant the touch is
+  confirmed, and a lightly underdamped `.spring(response: 0.32, dampingFraction: 0.62)`
+  back so it settles with a small overshoot, the "give" that makes a press read as physical
+  rather than as an opacity flicker. The asymmetry lives in a pure
+  `static animation(pressed:reduceMotion:)`; under Reduce Motion the scale is dropped and
+  both directions run `Theme.Motion.quick`. The two curves are `Theme.Motion.pressDown` /
+  `pressRelease` tokens; the scale/opacity constants sit on the style, the way
+  `KnotButton.Variant` owns its fills.
+- **Why `Button` + style, not `.onTapGesture` + a pressed flag.** `Button` already owns the
+  hard parts of a press inside a `ScrollView`: it waits for the scroll view to rule out a
+  scroll before highlighting, and it *cancels* the pressed state when the finger drags away
+  or a scroll takes over. The hand-rolled alternative — `simultaneousGesture(DragGesture
+  (minimumDistance: 0))` toggling a flag — famously sticks "pressed" when the scroll view
+  cancels the gesture without calling `onEnded`. So `MilestoneCard.body` is now
+  `Button(action: cardTapped) { KnotCard { … } }.buttonStyle(KnotPressableStyle())`. This
+  reverses the "tap gesture, not a wrapping Button" call recorded in Step 19.55; that call
+  was pattern-following from `SavedView`, not a hard constraint, and the new requirement
+  is what a `Button` is for.
+- **The nested-button risk was tested, not assumed.** The one real hazard of wrapping a card
+  that contains two buttons in a third is the outer firing alongside an inner one. SwiftUI
+  resolves a touch to the *deepest* button, and both inner controls pin their own
+  `.buttonStyle(.plain)` so the card's style doesn't propagate to them — but the PR
+  screenshot test now proves it rather than trusting it: it taps the **recommendation
+  icon** first, asserts the sheet's "Get ideas for Christmas?" headline appears, dismisses
+  with "Not now", waits for the headline to leave, and *then* asserts the detail's "Get
+  more ideas" button does not appear within 2s — only after that does it tap the card
+  title for the capture. That icon is the right probe because it is the one control whose
+  destination *differs* from the card's. **The check has to run after the sheet is gone,
+  not while it is up** — review caught the first draft asserting "no detail" the instant
+  the sheet appeared, which proves nothing: SwiftUI presents one modal at a time, so a
+  detail item set by a double-fire would have been *suppressed* behind the sheet and the
+  assertion would pass regardless. With the modal slot free, a still-set item presents,
+  and asserting it doesn't is what actually enforces the guarantee.
+- **Accessibility parity is explicit.** A `Button` normally folds its label into one
+  accessibility element, which would have swallowed the footer's two controls — and the
+  recommendation icon has no other route from the Journal. `.accessibilityElement(children:
+  .contain)` on the button keeps every control reachable; the labelled "See details" pill
+  remains VoiceOver's way into the event, exactly as it was under the tap gesture.
+- **A light haptic on activation, from either way in.** `cardTapped()` now fires
+  `UIImpactFeedbackGenerator(style: .light)` before calling `onSeeDetails` — the prevailing
+  idiom (eight existing call sites) — and the "See details" pill's action was rerouted from
+  `onSeeDetails` directly to `cardTapped`, so the body and the pill feel identical: one
+  destination, one feel. The `guard let onSeeDetails` comes first, so a card with no
+  destination wired gives no haptic either; nothing happened.
+
+**Files created:**
+- `iOS/Knot/Components/UI/KnotPressableStyle.swift` — the primitive + preview
+- `iOS/KnotTests/Components/UI/KnotPressableStyleTests.swift` — 5 cases: renders alone and
+  with nested `.plain` buttons; the pressed treatment is a settle, not a collapse
+  (scale ≥ 0.9, opacity ≥ 0.8); press and release use *different* curves and the expected
+  tokens; Reduce Motion runs `quick` in both directions
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — `Motion.pressDown` / `Motion.pressRelease`
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — `Button` + style replaces the tap
+  gesture; haptic in `cardTapped()`; pill routed through `cardTapped`
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — the two new tokens in
+  `testMotionTokensExist`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — the nested-button probe described above
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate` for the two new
+  files
+- `docs/pr-screenshots/worktree-feat-journal-card-tap-details.png` — re-captured through
+  the extended UI test
+
+**Tests:** `KnotPressableStyleTests` 5/5, `ThemeTokensTests` 18/18,
+`MilestoneCardRenderingTests` 13/13 (the three tap cases are unchanged in meaning; the
+haptic is a no-op on the simulator). iOS Full plan green — **596 unit + 5 UI, 0 failures**
+— with the screenshot UI test now also carrying the nested-button proof. No backend, DTO,
+endpoint or migration change, so no `pytest` run applies.
+
+**Notes:**
+- **This was written as a second commit on PR #84 and became its own PR.** The tap
+  change (19.55) was merged while the press work was in flight; GitHub deleted the branch
+  and the next push silently recreated it — the tell was `* [new branch]` in the push
+  output for a branch that supposedly already existed, and `gh pr view` reporting the PR
+  closed. The commit was moved to its own branch and PR. Worth a glance at the push output
+  before assuming a push "updated the PR".
+- A mid-press frame is not capturable from XCUITest — `press(forDuration:)` blocks the test
+  thread for the whole hold — so the PR image is still the destination, not the settle.
+  The feel is what to check on a device: press and hold a card, it should shrink and dim
+  slightly and stay that way; drag your finger off and it should spring back with no
+  action; scroll starting on a card should never leave it stuck pressed.
+- `KnotPressableStyle` is built for reuse — `SavedView`'s cards and `SavedIdeaCard` still
+  use the bare `.onTapGesture` idiom and would get the same press for the cost of the same
+  `Button` wrap. Not done here; the ask was the Journal.
+
+---
+
 ## Next Steps
 
 
