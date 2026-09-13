@@ -24,18 +24,19 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change makes the Journal milestone card's press feedback visible
-        // on a quick *tap*, not just a press-and-hold: the pressed look is held
-        // for a minimum beat and the detail cover waits for the release to
-        // play. A still capture can't show the motion; what it proves is that
-        // the deferred navigation still lands — a body tap opens the event's
-        // detail screen — with the footer's "See details" pill and
-        // recommendation icon still working inside the card.
+        // The change removes the full-width "Get more ideas" pill that closed
+        // the Journal event detail's scroll. In the empty state the "No ideas
+        // saved yet" card already carries its own "Get ideas" button, so the
+        // pill was a second CTA doing the same thing. The capture must show the
+        // detail's empty state with the card's "Get ideas" button intact and
+        // nothing below the card.
         //
         // The Journal sits behind an authenticated session and a live milestone
         // fetch, neither of which a cold screenshot launch can reach; the
         // `journal` harness renders it standalone with three seeded cards and
-        // mirrors `ForYouView`'s detail-cover and recommendation-sheet seams.
+        // mirrors `ForYouView`'s detail-cover seam. Its detail cover reads the
+        // app's real (empty) store, so tapping through lands on exactly the
+        // empty state under review.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -56,11 +57,11 @@ final class PRScreenshotTests: XCTestCase {
             "The seeded Christmas card never appeared — the Journal harness did not render"
         )
 
-        // The card is now a `Button` with two buttons nested inside it, and the
-        // one real risk of that composition is the outer card firing alongside
-        // an inner control. Prove it doesn't with the control whose destination
-        // differs from the card's: the recommendation icon must raise the sheet
-        // and ONLY the sheet.
+        // The card is a `Button` with two buttons nested inside it (Step 19.56),
+        // and the one real risk of that composition is the outer card firing
+        // alongside an inner control. Keep proving it doesn't with the control
+        // whose destination differs from the card's: the recommendation icon
+        // must raise the sheet and ONLY the sheet.
         let recommendIcon = app.buttons["Get recommendations for Christmas"]
         XCTAssertTrue(recommendIcon.waitForExistence(timeout: 5), "The recommendation icon is missing from the card")
         recommendIcon.tap()
@@ -83,28 +84,28 @@ final class PRScreenshotTests: XCTestCase {
         // a moment and asserting it doesn't is what actually enforces the
         // guarantee.
         XCTAssertFalse(
-            app.buttons["Get more ideas"].waitForExistence(timeout: 2),
+            app.buttons["Get ideas"].waitForExistence(timeout: 2),
             "The detail opened after the recommendation sheet closed — the card button fired through the inner icon"
         )
 
-        // Now the change itself. The card's title is a plain `Text` inside the
-        // card body — NOT the "See details" pill and NOT the recommendation
-        // icon. Tapping it is what exercises the whole-card press; tapping the
-        // pill would only prove the pre-existing button still works.
+        // Now open the changed screen. The card's title is a plain `Text` inside
+        // the card body, and tapping it exercises the whole-card press that
+        // presents the detail cover (Steps 19.55–19.57).
         cardTitle.tap()
 
-        // The detail screen's "Get more ideas" CTA exists nowhere on the
-        // Journal itself, so its appearance proves the body tap opened
-        // `MilestoneDetailView` rather than merely being absorbed — and, now
-        // that the card holds the cover back until its press has released,
-        // that the deferred presentation still arrives.
+        // The anchor is the empty state's "Get ideas" button — the one CTA the
+        // detail still carries, and the control this change deliberately kept.
+        // It exists nowhere on the Journal itself, so its appearance proves the
+        // tap opened `MilestoneDetailView`; the removed "Get more ideas" pill
+        // can no longer serve as the anchor because it no longer exists.
         //
-        // Anchored on the button, not the "Saved ideas" header: that header is
-        // a merged accessibility element whose label carries the count
-        // ("Saved ideas, none yet"), so an exact `staticTexts` match on it is
-        // brittle. The CTA is a plain `KnotButton` with a fixed label.
+        // A button rather than the "Saved ideas" header: that header is a merged
+        // accessibility element whose label carries the count ("Saved ideas,
+        // none yet"), so an exact `staticTexts` match on it is brittle. The
+        // sheet's "Get ideas for Christmas?" headline is a `staticText`, so an
+        // exact `buttons["Get ideas"]` match cannot collide with it.
         XCTAssertTrue(
-            app.buttons["Get more ideas"].waitForExistence(timeout: 10),
+            app.buttons["Get ideas"].waitForExistence(timeout: 10),
             "Tapping the card body did not open the milestone detail screen"
         )
 

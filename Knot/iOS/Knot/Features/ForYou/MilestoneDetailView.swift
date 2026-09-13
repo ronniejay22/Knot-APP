@@ -7,15 +7,17 @@
 //
 //  Implements Figma node 579:421 (`christmas-detail`): a back/title header, the
 //  occasion hero, a three-column meta card (date / countdown / recipient), and
-//  the ideas saved for this event, with a CTA back into its recommendations.
+//  the ideas saved for this event. The only route back into its recommendations
+//  is the empty state's "Get ideas" button — the full-width "Get more ideas"
+//  pill that used to close the scroll was removed as redundant with it.
 //
 //  Two deliberate deviations from the comp, both recorded in progress.md:
 //  the `⋯` more button is omitted (edit and delete already live in
 //  `MilestonesManagementView`, and a menu with nothing behind it is worse than
 //  no menu), and the comp's "Gift Ideas" / "Add gift idea" wording is replaced
-//  with "Saved ideas" / "Get more ideas" — saved items can be dates,
-//  experiences or Knot Originals, and the button opens the recommendation flow
-//  rather than a manual entry form.
+//  with "Saved ideas" / "Get ideas" — saved items can be dates, experiences or
+//  Knot Originals, and the button opens the recommendation flow rather than a
+//  manual entry form.
 //
 
 import SwiftUI
@@ -56,18 +58,6 @@ struct MilestoneDetailView: View {
                     artwork
                     metaCard
                     savedIdeasSection
-
-                    // Last element of the scroll, as in the comp — not a pinned
-                    // bottom bar. A `safeAreaInset` here floated the pill over
-                    // the cards with nothing behind it, so they bled through.
-                    KnotButton(
-                        "Get more ideas",
-                        variant: .primary,
-                        size: .lg,
-                        shape: .pill,
-                        action: onGetIdeas
-                    )
-                    .padding(.top, 4)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
