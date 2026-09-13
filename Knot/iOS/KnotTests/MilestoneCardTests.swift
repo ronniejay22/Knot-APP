@@ -273,6 +273,53 @@ final class MilestoneCardRenderingTests: XCTestCase {
         view.onGetRecommendations?()
         XCTAssertTrue(fired)
     }
+
+    /// Tapping the card body goes to the same place as "See details" — the
+    /// whole container is a way into the event, not just the pill.
+    func testCardTapForwardsToSeeDetails() {
+        var fired = false
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: { fired = true },
+            onGetRecommendations: {}
+        )
+        view.cardTapped()
+        XCTAssertTrue(fired)
+    }
+
+    /// The body tap must never reach the *other* footer destination — a card
+    /// tap is "see details", never "get recommendations".
+    func testCardTapDoesNotFireRecommendationAction() {
+        var recommendationFired = false
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: {},
+            onGetRecommendations: { recommendationFired = true }
+        )
+        view.cardTapped()
+        XCTAssertFalse(recommendationFired)
+    }
+
+    /// With no detail destination wired (previews, harnesses), a body tap is a
+    /// silent no-op rather than a crash.
+    func testCardTapIsNoOpWithoutSeeDetails() {
+        let view = MilestoneCard(
+            milestone: makeMilestone(),
+            partnerName: "Jas",
+            formattedDate: "Dec 25",
+            urgency: .distant,
+            onSeeDetails: nil,
+            onGetRecommendations: {}
+        )
+        view.cardTapped()
+        XCTAssertNotNil(UIHostingController(rootView: view).view)
+    }
 }
 
 // MARK: - Partner Initial Avatar

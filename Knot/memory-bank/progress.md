@@ -10034,6 +10034,74 @@ the same.
 
 ---
 
+### Step 19.55 ✅ Journal — Tap the Whole Milestone Card to Open Its Details
+**Date:** 2026-09-13
+**Status:** Complete
+
+**Goal:** On the Journal tab, the only way into an event's detail screen was the small
+"See details" pill in the card's footer (Step 19.38). The artwork, date and title above it
+— most of the card — were inert. Pressing the card container itself now opens the same
+`MilestoneDetailView`.
+
+**What changed:**
+- **`Features/ForYou/MilestoneCard.swift`:** the `KnotCard` in `body` gained
+  `.contentShape(Rectangle())` + `.onTapGesture(perform: cardTapped)`, and a new internal
+  `cardTapped()` that forwards to `onSeeDetails?()`. That is the whole-card-tap idiom the
+  codebase already uses — `SavedView`'s cards (Step 19.9) and `MilestoneDetailView`'s
+  `SavedIdeaCard` (Step 19.48) — chosen over a wrapping `Button` because SwiftUI gives the
+  inner "See details" `KnotButton` and the recommendation-icon `Button` priority over an
+  outer tap gesture, so both footer controls keep working. `.contentShape` is what makes the
+  padding and the artwork tappable; without it only the text runs would register. The
+  forwarding lives in a named method rather than an inline closure so it is unit-testable
+  without view introspection. File-header doc comment updated to say the body opens the
+  event and only the sparkle icon is a *different* destination.
+- **"See details" stays.** It was not asked to go, and it remains the labelled VoiceOver
+  affordance — `.onTapGesture` does not expose the container as a button to assistive tech.
+  Removing it is a one-line deletion if wanted.
+- **Nothing downstream moved.** `ForYouView` already passed `onSeeDetails: { detailMilestone
+  = milestone }` into every card and presents the cover; the `journal` screenshot harness
+  already mirrored that seam. The card simply gained a second trigger for the closure it
+  already held.
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — body tap + `cardTapped()`; doc comment
+- `iOS/KnotTests/MilestoneCardTests.swift` — three new cases (below)
+- `iOS/KnotUITests/PRScreenshotTests.swift` — navigation slot repointed at the `journal`
+  harness, scripting a tap on the first card's **title** (a plain `Text`, not the pill and
+  not the icon) and asserting the detail's "Get more ideas" button appears — that is what
+  proves the *body* tap opens the detail, which a static shot of the detail could not.
+  Anchored on the CTA rather than the "Saved ideas" header because that header is a merged
+  accessibility element whose label carries the count ("Saved ideas, none yet"), so an
+  exact `staticTexts` match on it is brittle.
+- `docs/pr-screenshots/worktree-feat-journal-card-tap-details.png` — the detail screen as
+  reached by the body tap
+
+**Tests:** `MilestoneCardRenderingTests` 13/13 — new `testCardTapForwardsToSeeDetails`,
+`testCardTapDoesNotFireRecommendationAction` (a body tap is "see details", never "get
+recommendations"), and `testCardTapIsNoOpWithoutSeeDetails` (previews/harnesses wire `nil`;
+a tap must be a silent no-op, not a crash). iOS Full plan (unit + UI) green, including
+`PRScreenshotTests` driving the real tap. No backend, DTO, endpoint or migration change, so
+no `pytest` run applies.
+
+**Notes:**
+- **The first two capture runs produced a wrong image and a green exit code.** The shared
+  `/tmp/KnotDerivedData` held a corrupt incremental state — SPM package intermediates
+  referencing `ExplicitPrecompiledModules/*.pcm` files that no longer existed — so the UI-test
+  build failed and `capture-ui-screenshot.sh` fell through to its `simctl io booted
+  screenshot` fallback, which photographs whatever the booted simulator happens to be
+  showing and reports success. Deleting just the module caches was not enough; the fix was
+  `rm -rf /tmp/KnotDerivedData` and a clean rebuild. **Always check the capture log for
+  `TEST SUCCEEDED` (not just the exit code or the presence of a PNG) before treating the
+  image as evidence** — the fallback exists so a flaky simulator can't block a ship, not so
+  a broken build can pass off an unrelated screen.
+- The suite does no view introspection, so it cannot assert that the gesture is attached;
+  the screenshot's UI test is the artifact that proves the tap reaches the detail (the same
+  limitation Steps 19.34/19.35/19.38 recorded).
+- Vertical scrolling over the cards is unaffected: a drag is not a tap, and `ScrollView`
+  keeps priority for it.
+
+---
+
 ## Next Steps
 
 
