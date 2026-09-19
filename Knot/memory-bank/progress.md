@@ -10353,6 +10353,149 @@ change, so no `pytest` run applies.
 
 ---
 
+### Step 19.59 ✅ Recommendations as a Vertical "Curated Collections" Feed
+**Date:** 2026-09-19
+**Status:** Complete
+
+**Goal:** The user supplied a mock of how generated recommendations should read: a
+vertically scrolling list where each pick is a **bold section heading** above a
+**fixed-height, full-width photo card** — photo fills the card, a dark scrim covers only the
+bottom half, and a white title + two-line description sit over it, with the whole card
+tappable. Both places the three picks render (`RecommendationsView` on For You / push
+tap-through, and the in-onboarding reveal in `OnboardingCompletionView`) showed a
+horizontal paged carousel of one full-bleed card at a time with a "See Details" button and
+page dots (`SpotlightCarouselView` / `SpotlightCard`). Replace it with the feed, on both
+surfaces, via one shared list component — no backend or DTO change.
+
+**What changed:**
+- **`Features/Recommendations/RecommendationFeedView.swift` (new):**
+  - `RecommendationFeedCard(item:isSaved:onOpenDetail:)` — one pick as a 200pt-tall,
+    full-width photo card (`static let cardHeight`: the mock's cards are ~2:1 and both the
+    remote photos and the bundled `RecFallback*` assets are landscape, so the crop stays
+    close to the photos' own proportions while two cards + a heading share the viewport).
+    A `Button` wearing `KnotPressableStyle` with `cardTapped(delay:)` copied from
+    `MilestoneCard` (light haptic on touch-up, then `onOpenDetail()` after
+    `Theme.Motion.pressHold` so the cover never slides over a still-pressed card;
+    `delay: .zero` is synchronous for tests). Layers: the Spotlight card's `imageBackground`
+    carried over verbatim (`RecommendationFallbackImage` always underneath an `AsyncImage`,
+    image composed as an overlay on `Color.clear` — Step 19.31's layout-overflow lesson),
+    a bottom-half `LinearGradient` scrim (clear → black@80% from 45%) with **no** uniform
+    tint (the mock's photos read bright), the `.ultraThinMaterial` bookmark badge when
+    saved, and the text overlay (`cardTitleSemibold` white ≤2 lines, `bodySmall` white@90%
+    ≤2 lines; description omitted when nil/blank). `Theme.Radius.xl` continuous clip,
+    `Theme.Shadow.md`, matching `contentShape`. Accessibility: the Button's single merged
+    element with an explicit `accessibilityLabel(title:description:isSaved:)`
+    ("Title. Description, Saved") and the hint "Opens the details"; the photo and badge are
+    hidden from VoiceOver. No `partnerName` parameter — the old card never read it.
+  - `RecommendationFeedList(items:isSaved:onOpenDetail:)` — a plain `VStack(spacing: 20)`
+    of `ForEach` pairs (heading `Text` in `Theme.Typography.feedSectionHeader` with
+    `.isHeader`, 12pt above its card). Deliberately **no `ScrollView`** of its own: each
+    host supplies one so it can place its own content above (the "Knot's Take" briefing
+    card, the onboarding step header) and own gutters + bottom clearance. Static
+    `sectionLabel(for:)` maps the backend type to an editorial heading on-device —
+    gift → "Gift", experience → "Experience", date → "Date Idea", idea → "Knot Original",
+    plan → "Date Plan", anything else → "Recommendation". This is intentionally **not** the
+    uppercase type tag the detail hero badge / `RecommendationCard` render ("Date" reads
+    as a calendar date, "Idea" says nothing at 20pt; "Knot Original" is the detail page's
+    existing phrase for a non-purchasable); the doc comment records the divergence and the
+    badge switches are untouched.
+- **`Core/Theme.swift`:** new `Theme.Typography.feedSectionHeader` (DM Sans SemiBold 20,
+  `relativeTo: .title2`). Value-identical to `cardTitleSemibold` / `onboardingSubHeader` /
+  `modalTitle` and deliberately a fourth separate token (house rule, Steps 18.22 / 19.32 /
+  19.34 / 19.49): a section heading above a card must not be retyped by a tweak to a card
+  headline. `cardTitleSemibold`'s doc now names the feed card's title as a consumer.
+- **`Features/Recommendations/RecommendationsView.swift`:** `recommendationsContent` is now
+  `ScrollView { VStack(spacing: 20) { briefingCard?; RecommendationFeedList } }` with the
+  gutters (20pt), top (8pt) and bottom (`isModal ? 24 : 100`, the existing `KnotTabBar`
+  clearance) padding on the stack. The briefing card dropped its own padding (the stack
+  owns rhythm); `cardsVisible`'s opacity + 0.3s animation moved onto the list so it still
+  never dims the briefing; `.transition(.revealIn)` at the phase switch is unchanged.
+  File-header diagram redrawn for the feed; "deck card" wording → "feed card".
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** `recommendationsList` is
+  `ScrollView { VStack(spacing: 20) { OnboardingStepHeader("Here are your
+  recommendations"); RecommendationFeedList } }` at the **24pt** onboarding gutter (every
+  other step uses 24; the old carousel sat at 20 beside a 24pt header). `onOpenDetail`
+  still flips `hasOpenedRecommendation` before `viewModel.openDetail`, so the Continue
+  gating (`OnboardingCompletionViewContinueGatingTests`) is untouched.
+- **`Features/Recommendations/SpotlightDeckView.swift` — deleted.** `SpotlightDeckView`
+  (dormant since Step 18.49), `SpotlightCarouselView` and `SpotlightCard` had no live
+  caller left. Gone, not deprecated — the Step 19.51 `ForYouLoadingView` precedent.
+  `RecommendationsViewModel`'s `loadMoreForDeck` / `recordDislike` / `deckResetToken` stay
+  (doc comments reworded to drop the deck reference) for a future "show more".
+- **`App/UITestScreenshotHarness.swift`:** `spotlightFallback` and `spotlightCard` keys and
+  their harness views removed (they rendered the deleted card). New `recsFeed` key →
+  `RecsFeedScreenshotHarnessView`, a copy of `RecsLoadingScreenshotHarnessView`'s chrome
+  reproduction (real `navigationDestination` push from a root that hides its own bar,
+  `KnotTabBar` via `safeAreaInset`, `AppChrome` + `AuthViewModel` in the environment) whose
+  view-model factory seeds three **loaded** picks (experience / gift / idea via
+  `PreviewRecommendations.decode`, `partnerName = "Jas"`, `hasLoadedInitially = true`) so
+  the shot proves the bottom clearance and the bar restore, not just the cards ("a harness
+  only proves what it renders", Step 19.51). `milestoneRecs` / `occasionModal` render
+  `RecommendationsView` and picked the feed up with no edit.
+- **`KnotUITests/PRScreenshotTests.swift`:** slot moved off `journal` (the 19.56 double-fire
+  probe went with it) to `recsFeed`; asserts `staticTexts["Experience"]` (15s) **and**
+  `staticTexts["Gift"]` — existence *and* `isHittable`, because an offscreen element in a
+  scroll view still exists in the accessibility tree, so only a hittable second heading
+  proves two sections are on screen at once (a review finding) — and a `buttons` match
+  whose label `BEGINSWITH "Experience for Alex"` (the card is a single pressable
+  element), then a 1s settle for `.revealIn` and the bar hand-off.
+- **`Features/ForYou/MilestoneCard.swift`, `RecommendationDetailView.swift`:** comments
+  that cited `SpotlightCard` / "the Spotlight views" now cite `RecommendationFeedCard` /
+  the recommendation views. `.claude/skills/screenshot-screen/SKILL.md`'s example key
+  `spotlightFallback` → `recsFeed`.
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/RecommendationFeedView.swift` — `RecommendationFeedCard`, `RecommendationFeedList`, `sectionLabel(for:)`, preview
+- `iOS/KnotTests/RecommendationFeedTests.swift` — 17 tests: the label map (all five types,
+  the "date"/"idea" divergence from the tag, unknown/empty → "Recommendation", case
+  sensitivity); card renders for all types / saved / blank description; `cardHeight`;
+  `cardTapped(delay: .zero)` forwards synchronously; the default tap defers past the hold
+  (expectation-based, modeled on `MilestoneCardTests`); `accessibilityLabel` composition;
+  list renders 3 / 1 / 0 items; `isSaved` is consulted with every pick's id (hosted in a
+  `UIWindow` + `layoutIfNeeded()` so SwiftUI actually evaluates the body)
+- `docs/pr-screenshots/worktree-feat-recommendations-vertical-feed.png` — the feed inside
+  the real nav bar + `KnotTabBar`
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — `feedSectionHeader` token; `cardTitleSemibold` doc
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — feed content; header doc
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — feed at the 24pt gutter
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — doc comments only
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — `PreviewRecommendations` doc
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — comment repointed
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `recsFeed` added; `spotlightFallback` / `spotlightCard` removed
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot → `recsFeed`
+- `iOS/KnotTests/RecommendationsViewTests.swift` — the five deck / card / carousel render
+  tests deleted (they constructed the removed views); `testDetailRenders*`, `makeItem` and
+  `SpotlightDeckStateTests` kept
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `testFeedSectionHeaderTokenExists`
+- `.claude/skills/screenshot-screen/SKILL.md` — example key
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated (`xcodegen generate`) for the add + delete
+
+**Files deleted:**
+- `iOS/Knot/Features/Recommendations/SpotlightDeckView.swift`
+
+**Tests:** iOS Full plan green — **613 unit + 5 UI, 0 failures** (600 baseline − 5 removed
++ 17 feed + 1 token). Clean `build-for-testing` with zero warnings in any touched file (the
+warnings the build prints are pre-existing: `MilestoneRecommendationSheet.previewSheet`,
+the non-`@MainActor` UI-test files, `SubscriptionManagerTests`). Screenshot captured by the
+real UI test (`TEST SUCCEEDED`, not the `simctl` fallback). No backend, DTO, endpoint or
+migration change, so no `pytest` run applies.
+
+**Notes:**
+- Out of scope by decision: the mock's "Local Artisans" two-column grid (there are exactly
+  three picks and no data behind it), its nav chrome, and any "Show me more" control —
+  the 3-per-press limit is PRD F2 (`PRIMARY_RECOMMENDATION_COUNT = 3`), unchanged.
+- Dynamic Type at accessibility sizes: 2 + 2 lines can outgrow the scrim on a 200pt card;
+  the text is inside the clipped `ZStack` so it clips rather than growing the card.
+  `.minimumScaleFactor(0.85)` on the title is the cheap mitigation if it shows on device.
+- The seeded-loaded harness view model still resolves `.loading` for one frame
+  (`awaitingFirstLoad`) before `.loaded`, hence the settle before capture.
+- `PRScreenshotTests`'s slot is a shared single target; it moves off `journal` here, so a
+  concurrent branch that also edits it will contend (Steps 19.31–19.35 recorded the same).
+
+---
+
 ## Next Steps
 
 

@@ -111,18 +111,21 @@ final class RecommendationsViewModel {
     /// "Why Knot picked this for {name}" header. Loaded best-effort.
     var partnerName: String?
 
-    /// Whether a deck top-up fetch is currently in flight (drives the
-    /// end-of-deck "Finding more…" state in `SpotlightDeckView`).
+    /// Whether a top-up fetch (`loadMoreForDeck`) is currently in flight. It
+    /// drove the swipe deck's end-of-deck "Finding more…" state; that deck is
+    /// gone (Step 19.59), and no live surface reads this today — it is kept
+    /// with `loadMoreForDeck` for a future "show me more" control.
     var isLoadingMore = false
 
-    /// The recommendation whose Spotlight detail page is presented. Non-nil
-    /// drives the detail full-screen cover.
+    /// The recommendation whose detail page is presented. Non-nil drives the
+    /// detail full-screen cover.
     var selectedDetailItem: RecommendationItemResponse?
 
-    /// Bumped whenever the deck is replaced wholesale (a fresh generate or a
-    /// full refresh) so `SpotlightDeckView` resets to the first card. A deck
-    /// top-up (`loadMoreForDeck`) appends instead and deliberately does NOT bump
-    /// this — the user keeps their place.
+    /// Bumped whenever the picks are replaced wholesale (a fresh generate or a
+    /// full refresh); a top-up (`loadMoreForDeck`) appends instead and
+    /// deliberately does NOT bump this. It reset the swipe deck to its first
+    /// card; that deck is gone (Step 19.59) and nothing live reads this today,
+    /// but the generate/refresh/recovery paths still maintain it (tests pin it).
     var deckResetToken = 0
 
     // MARK: - Return-to-App State (Step 9.4)
@@ -808,12 +811,12 @@ final class RecommendationsViewModel {
         isLoadingMore = false
     }
 
-    /// Opens the Spotlight detail page for a recommendation (tap on a deck card).
+    /// Opens the detail page for a recommendation (tap on a feed card).
     func openDetail(_ item: RecommendationItemResponse) {
         selectedDetailItem = item
     }
 
-    /// Dismisses the Spotlight detail page.
+    /// Dismisses the detail page.
     func dismissDetail() {
         selectedDetailItem = nil
     }

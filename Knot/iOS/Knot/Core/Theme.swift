@@ -371,9 +371,11 @@ extension Theme {
         static let cardTitle: Font = .custom(FontFamily.DMSans.regular, size: 20, relativeTo: .title2)
 
         /// DMSans-SemiBold (600) @ 20pt. Headline *inside* a content card —
-        /// the Journal tab's `MilestoneCard` title. Sister to `cardTitle`:
-        /// same family, size, and Dynamic Type relation, only the weight
-        /// differs, so the headline still out-weights the card's meta labels.
+        /// the Journal tab's `MilestoneCard` title and the recommendation feed's
+        /// `RecommendationFeedCard` title (white, over the photo). Sister to
+        /// `cardTitle`: same family, size, and Dynamic Type relation, only the
+        /// weight differs, so the headline still out-weights the card's meta
+        /// labels.
         ///
         /// Value-identical to `onboardingSubHeader` today, but deliberately a
         /// separate token — those are onboarding *page* titles, these are card
@@ -382,6 +384,20 @@ extension Theme {
         /// `sectionHeaderSemibold`.
         /// Scales relative to `.title2`.
         static let cardTitleSemibold: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
+
+        /// DMSans-SemiBold (600) @ 20pt. The section heading *above* a card in
+        /// a vertical feed — currently the recommendation feed's per-pick
+        /// heading ("Gift", "Experience", "Date Idea", …) rendered by
+        /// `RecommendationFeedList`.
+        ///
+        /// Value-identical to `cardTitleSemibold` and `onboardingSubHeader`,
+        /// and deliberately a fourth token carrying that value: a heading above
+        /// a card, a headline inside one, and an onboarding page title are three
+        /// different semantics, and a tweak to any one of them must not silently
+        /// retype the others (Steps 18.22 / 19.32 / 19.34 / 19.49 all made the
+        /// same call). Weight is baked in — never chain `.weight(...)`.
+        /// Scales relative to `.title2`.
+        static let feedSectionHeader: Font = .custom(FontFamily.DMSans.semibold, size: 20, relativeTo: .title2)
 
         /// DMSans-Bold (700) @ 26pt. The headline of a bottom sheet that asks
         /// the user a question — currently `MilestoneRecommendationSheet`, whose

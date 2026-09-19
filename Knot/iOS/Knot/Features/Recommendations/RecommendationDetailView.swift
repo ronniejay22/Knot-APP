@@ -580,7 +580,8 @@ struct RecommendationDetailView: View {
     )
 }
 
-/// Shared sample recommendations for SwiftUI previews of the Spotlight views.
+/// Shared sample recommendations for SwiftUI previews of the recommendation views
+/// (the detail page, the feed card / list) and for the screenshot harnesses.
 enum PreviewRecommendations {
     static let gift = decode(type: "gift", isIdea: false)
     static let experience = decode(type: "experience", isIdea: false)

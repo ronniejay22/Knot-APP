@@ -166,8 +166,8 @@ struct OnboardingCompletionView: View {
                     }
                 }
             }
-            // Spotlight detail page — opened by tapping a deck card. Mirrors the
-            // For You tab so onboarding picks behave identically.
+            // Detail page — opened by tapping a feed card. Mirrors the For You
+            // tab so onboarding picks behave identically.
             .fullScreenCover(item: $viewModel.selectedDetailItem) { item in
                 RecommendationDetailView(
                     item: item,
@@ -321,30 +321,37 @@ struct OnboardingCompletionView: View {
     // MARK: - Loaded
 
     private var recommendationsList: some View {
-        VStack(spacing: 0) {
-            OnboardingStepHeader(title: "Here are your recommendations")
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+        // The host owns the scroll view and the gutters; `RecommendationFeedList`
+        // is the heading + card stack shared with `RecommendationsView`, which is
+        // what keeps this reveal and the For You tab identical (Step 18.49).
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                OnboardingStepHeader(title: "Here are your recommendations")
+                    .padding(.top, 8)
 
-            // A browse-only carousel of the first picks: the user swipes between
-            // the Spotlight cards (page dots track position) and taps "See Details"
-            // to open a pick. There's no save/pass voting here — saving happens
-            // later on the For You tab and the detail page. The container's
-            // "Continue" button appears only after the user opens a pick and
-            // returns to the carousel, then proceeds to the paywall.
-            SpotlightCarouselView(
-                items: viewModel.recommendations,
-                partnerName: viewModel.partnerName,
-                isSaved: { viewModel.isSaved($0) },
-                onOpenDetail: {
-                    // Opening a pick reveals the container's "Continue" button once
-                    // the user dismisses the detail and returns here (the button
-                    // sits behind the detail's full-screen cover). See
-                    // `shouldShowContinue`.
-                    hasOpenedRecommendation = true
-                    viewModel.openDetail($0)
-                }
-            )
+                // The first picks as a vertical feed: a type heading over each
+                // photo card, tap a card to open it. There's no save/pass voting
+                // here — saving happens later on the For You tab and the detail
+                // page. The container's "Continue" button appears only after the
+                // user opens a pick and returns to the feed, then proceeds to the
+                // paywall.
+                RecommendationFeedList(
+                    items: viewModel.recommendations,
+                    isSaved: { viewModel.isSaved($0) },
+                    onOpenDetail: {
+                        // Opening a pick reveals the container's "Continue" button once
+                        // the user dismisses the detail and returns here (the button
+                        // sits behind the detail's full-screen cover). See
+                        // `shouldShowContinue`.
+                        hasOpenedRecommendation = true
+                        viewModel.openDetail($0)
+                    }
+                )
+            }
+            // 24pt, not 20: every onboarding step lays out at a 24pt gutter, and
+            // the step header above already did — the old carousel sat at 20
+            // beside it, which this change corrects.
+            .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
     }

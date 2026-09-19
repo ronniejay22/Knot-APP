@@ -140,6 +140,10 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.Typography.cardTitleSemibold
     }
 
+    func testFeedSectionHeaderTokenExists() {
+        _ = Theme.Typography.feedSectionHeader
+    }
+
     // MARK: - Font registration
     //
     // `Font.custom` falls back to San Francisco *silently* when a face isn't
