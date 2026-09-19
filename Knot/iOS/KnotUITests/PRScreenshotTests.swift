@@ -24,20 +24,20 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change removes the full-width "Get more ideas" pill that closed
-        // the Journal event detail's scroll. In the empty state the "No ideas
-        // saved yet" card already carries its own "Get ideas" button, so the
-        // pill was a second CTA doing the same thing. The capture must show the
-        // detail's empty state with the card's "Get ideas" button intact and
-        // nothing below the card.
+        // The change replaces the one-card-at-a-time recommendation carousel
+        // with a vertical feed: a type heading over each fixed-height photo
+        // card. The capture must show more than one heading + card pair on
+        // screen at once (the whole point of the layout), plus the real
+        // navigation bar above and the real `KnotTabBar` below.
         //
-        // The Journal sits behind an authenticated session and a live milestone
-        // fetch, neither of which a cold screenshot launch can reach; the
-        // `journal` harness renders it standalone with three seeded cards and
-        // mirrors `ForYouView`'s detail-cover seam. Its detail cover reads the
-        // app's real (empty) store, so tapping through lands on exactly the
-        // empty state under review.
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // The screen sits behind an authenticated session and a ~25s
+        // generation run; the `recsFeed` harness renders the real
+        // `RecommendationsView` with a seeded, already-loaded view model —
+        // inside the same reproduction of production chrome the `recsLoading`
+        // harness uses (a real push from a root that hides its own bar, and the
+        // tab bar mounted via `safeAreaInset`), so the shot proves the bottom
+        // clearance and the bar restore, not just the cards.
+        app.launchArguments += ["-uiTestScreenshot", "recsFeed"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -51,66 +51,42 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        let cardTitle = app.staticTexts["Christmas"]
-        XCTAssertTrue(
-            cardTitle.waitForExistence(timeout: 15),
-            "The seeded Christmas card never appeared — the Journal harness did not render"
-        )
-
-        // The card is a `Button` with two buttons nested inside it (Step 19.56),
-        // and the one real risk of that composition is the outer card firing
-        // alongside an inner control. Keep proving it doesn't with the control
-        // whose destination differs from the card's: the recommendation icon
-        // must raise the sheet and ONLY the sheet.
-        let recommendIcon = app.buttons["Get recommendations for Christmas"]
-        XCTAssertTrue(recommendIcon.waitForExistence(timeout: 5), "The recommendation icon is missing from the card")
-        recommendIcon.tap()
-        XCTAssertTrue(
-            app.staticTexts["Get ideas for Christmas?"].waitForExistence(timeout: 10),
-            "Tapping the recommendation icon did not raise its sheet"
-        )
-        app.buttons["Not now"].tap()
-        XCTAssertTrue(
-            app.staticTexts["Get ideas for Christmas?"].waitForNonExistence(timeout: 5),
-            "The recommendation sheet never dismissed, so the card underneath can't be tapped"
-        )
-
-        // The double-fire check has to run HERE, after the sheet is gone — not
-        // while it was up. SwiftUI presents one modal at a time, so had the
-        // outer card fired through the icon and set the detail's item too, the
-        // cover would have been *suppressed* behind the sheet and an "absent
-        // while the sheet is showing" assertion would pass regardless. With the
-        // modal slot free, a still-set detail item would present now; giving it
-        // a moment and asserting it doesn't is what actually enforces the
-        // guarantee.
-        XCTAssertFalse(
-            app.buttons["Get ideas"].waitForExistence(timeout: 2),
-            "The detail opened after the recommendation sheet closed — the card button fired through the inner icon"
-        )
-
-        // Now open the changed screen. The card's title is a plain `Text` inside
-        // the card body, and tapping it exercises the whole-card press that
-        // presents the detail cover (Steps 19.55–19.57).
-        cardTitle.tap()
-
-        // The anchor is the empty state's "Get ideas" button — the one CTA the
-        // detail still carries, and the control this change deliberately kept.
-        // It exists nowhere on the Journal itself, so its appearance proves the
-        // tap opened `MilestoneDetailView`; the removed "Get more ideas" pill
-        // can no longer serve as the anchor because it no longer exists.
         //
-        // A button rather than the "Saved ideas" header: that header is a merged
-        // accessibility element whose label carries the count ("Saved ideas,
-        // none yet"), so an exact `staticTexts` match on it is brittle. The
-        // sheet's "Get ideas for Christmas?" headline is a `staticText`, so an
-        // exact `buttons["Get ideas"]` match cannot collide with it.
+        // Two headings, not one: a single heading could be satisfied by a
+        // one-card layout. Two different ones ON SCREEN is what proves the
+        // feed is a list — `exists` alone is not enough, since an offscreen
+        // element in a scroll view still exists in the accessibility tree, so
+        // the second heading is also asserted `isHittable`. The fixture seeds
+        // experience → gift → idea, and the headings are
+        // `RecommendationFeedList.sectionLabel(for:)`.
         XCTAssertTrue(
-            app.buttons["Get ideas"].waitForExistence(timeout: 10),
-            "Tapping the card body did not open the milestone detail screen"
+            app.staticTexts["Experience"].waitForExistence(timeout: 15),
+            "The first section heading never appeared — the recsFeed harness did not render the feed"
+        )
+        let secondHeading = app.staticTexts["Gift"]
+        XCTAssertTrue(
+            secondHeading.waitForExistence(timeout: 5),
+            "Only one section rendered — the feed is not a vertical list"
+        )
+        XCTAssertTrue(
+            secondHeading.isHittable,
+            "The second section heading exists but is not on screen — the capture would show a single card"
         )
 
-        // Let the full-screen cover's presentation animation finish so the
-        // capture isn't taken mid-slide.
+        // Each card is a single `Button` whose accessibility label starts with
+        // its title (`RecommendationFeedCard.accessibilityLabel`), so a prefix
+        // match finds the card without depending on the description text.
+        let firstCard = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex")
+        ).firstMatch
+        XCTAssertTrue(
+            firstCard.waitForExistence(timeout: 5),
+            "The first feed card is not exposed as a pressable button"
+        )
+
+        // Let the loader's recede (0.42s) and the feed's `.revealIn` (0.5s)
+        // finish, and the navigation/tab bars settle after the hand-off, so
+        // the capture isn't taken mid-animation.
         Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())

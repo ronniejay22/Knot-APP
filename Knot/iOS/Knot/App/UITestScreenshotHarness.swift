@@ -77,8 +77,6 @@ enum UITestScreenshotHarness {
             SettingsView(isTabEmbedded: true)
         case "forYouCard":
             ForYouCardScreenshotHarnessView()
-        case "spotlightFallback":
-            SpotlightFallbackScreenshotHarnessView()
         case "onboardingPaywall":
             OnboardingPaywallScreenshotHarnessView()
         case "onboardingPaywallSubscribed":
@@ -87,8 +85,6 @@ enum UITestScreenshotHarness {
             OnboardingPaywallLoadFailedScreenshotHarnessView()
         case "purchasePromptDate":
             PurchasePromptDateScreenshotHarnessView()
-        case "spotlightCard":
-            SpotlightCardScreenshotHarnessView()
         case "milestoneRecs":
             MilestoneRecsScreenshotHarnessView()
         case "milestoneRecsMissing":
@@ -99,6 +95,8 @@ enum UITestScreenshotHarness {
             NotificationBannerScreenshotHarnessView()
         case "recsLoading":
             RecsLoadingScreenshotHarnessView()
+        case "recsFeed":
+            RecsFeedScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -297,12 +295,6 @@ private struct MilestoneRecsMissingScreenshotHarnessView: View {
     }
 }
 
-/// Renders the milestone push tap-through destination: `RecommendationsView` in
-/// preloaded modal mode with milestone context ("Jas's Birthday", 7 days out),
-/// a seeded VM carrying 3 pre-generated recommendations and a briefing — exactly
-/// what a user sees after tapping a milestone push notification. The seeded VM
-/// has `hasLoadedInitially = true`, so the view's `.task` skips all networking
-/// and the shot is deterministic.
 @MainActor
 /// Renders the recommendation **generation** state through the real
 /// `RecommendationsView`, reached by a real push, inside a reproduction of the
@@ -378,6 +370,79 @@ private struct RecsLoadingScreenshotHarnessView: View {
     }
 }
 
+/// Renders the **loaded** recommendation feed through the real
+/// `RecommendationsView`, inside the same reproduction of production chrome as
+/// `RecsLoadingScreenshotHarnessView` above — a real `navigationDestination`
+/// push from a root that hides its own navigation bar, and `KnotTabBar`
+/// mounted via `.safeAreaInset` with a live `AppChrome`.
+///
+/// The chrome is the point (a harness only ever proves what it renders — see
+/// the previous view's doc): the feed's bottom clearance exists because
+/// `safeAreaInset` does not propagate through a push, and the navigation bar
+/// is restored on this screen after the loader recedes. A bare-root harness
+/// would show neither, and a capture without them would say nothing about the
+/// two things most likely to be wrong.
+///
+/// The view model is seeded loaded: `hasLoadedInitially` makes `.task` return
+/// without networking, and three `PreviewRecommendations` items (all with a
+/// null `image_url`, so every card renders its bundled fallback photo and the
+/// shot never depends on the network) put the phase at `.loaded`. Three
+/// different types on purpose, so the section headings differ and each card
+/// draws a different fallback photo.
+@MainActor
+private struct RecsFeedScreenshotHarnessView: View {
+    @State private var authViewModel = AuthViewModel()
+    @State private var chrome = AppChrome()
+    @State private var selectedTab: MainTabView.AppTab = .journal
+    @State private var isPushed = true
+
+    private static func loadedViewModel() -> RecommendationsViewModel {
+        let vm = RecommendationsViewModel()
+        vm.recommendations = [
+            PreviewRecommendations.decode(type: "experience", isIdea: false),
+            PreviewRecommendations.decode(type: "gift", isIdea: false),
+            PreviewRecommendations.decode(type: "idea", isIdea: true),
+        ]
+        vm.partnerName = "Jas"
+        // `.task` returns early on this, so nothing is fetched.
+        vm.hasLoadedInitially = true
+        return vm
+    }
+
+    private var tabBarItems: [KnotTabBar<MainTabView.AppTab>.Item] {
+        [
+            .init(id: .journal, title: "Journal", systemImage: "book"),
+            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
+            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
+        ]
+    }
+
+    var body: some View {
+        NavigationStack {
+            Color.clear
+                // Mirrors `ForYouView`: the Journal feed hides its own bar, and
+                // that state propagates into the destination.
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: $isPushed) {
+                    RecommendationsView(viewModel: Self.loadedViewModel())
+                }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !chrome.isTabBarHidden {
+                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+            }
+        }
+        .environment(authViewModel)
+        .environment(chrome)
+    }
+}
+
+/// Renders the milestone push tap-through destination: `RecommendationsView` in
+/// preloaded modal mode with milestone context ("Jas's Birthday", 7 days out),
+/// a seeded VM carrying 3 pre-generated recommendations and a briefing — exactly
+/// what a user sees after tapping a milestone push notification. The seeded VM
+/// has `hasLoadedInitially = true`, so the view's `.task` skips all networking
+/// and the shot is deterministic.
 private struct MilestoneRecsScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
 
@@ -478,32 +543,6 @@ private struct PurchasePromptDateScreenshotHarnessView: View {
             onSaveForLater: {},
             onDismiss: {}
         )
-    }
-}
-
-/// Renders a single idea-type Spotlight card standalone, so the screenshot shows
-/// the cleaned card this change produces: the top-left "IDEA" type badge and the
-/// row of matched-tag pills (vibes / love languages / interests) are both gone —
-/// only the photo, title, description, and red "See Details" button remain. The
-/// fixture (`PreviewRecommendations.idea`) is idea-typed and carries matched
-/// vibes/love-languages/interests, so before this change it would have shown both
-/// the badge and the pill row. Its `image_url` is null, so the card exercises the
-/// bundled per-type fallback photo (`RecommendationFallbackImage`). The real card
-/// sits behind auth + a live backend generate call, so this drops it in directly
-/// on the app background, framed like a single carousel page.
-@MainActor
-private struct SpotlightCardScreenshotHarnessView: View {
-    var body: some View {
-        SpotlightCard(
-            item: PreviewRecommendations.idea,
-            partnerName: "Ronnie",
-            isSaved: false,
-            onSeeDetails: {}
-        )
-        .padding(.horizontal, 20)
-        .padding(.vertical, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 
@@ -830,38 +869,6 @@ private struct JournalScreenshotHarnessView: View {
                 .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.accent)
         }
-    }
-}
-
-/// Renders the onboarding "Here are your recommendations" Spotlight carousel with
-/// items that carry NO image URL, so the screenshot proves the card always shows a
-/// real photo: a missing/failed remote image falls back to the bundled per-type
-/// photo (`RecommendationFallbackImage`) — never a gradient or blank card.
-/// `PreviewRecommendations.decode` always sets `image_url` to null, so every card
-/// here exercises the local-photo fallback. The real carousel sits behind auth + a
-/// live backend generate call, so this drops it in directly on the app background.
-@MainActor
-private struct SpotlightFallbackScreenshotHarnessView: View {
-    private let items: [RecommendationItemResponse] = [
-        PreviewRecommendations.decode(type: "experience", isIdea: false),
-        PreviewRecommendations.decode(type: "gift", isIdea: false),
-        PreviewRecommendations.decode(type: "date", isIdea: false),
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            OnboardingStepHeader(title: "Here are your recommendations")
-                .padding(.horizontal, 20)
-            SpotlightCarouselView(
-                items: items,
-                partnerName: "Jas",
-                isSaved: { _ in false },
-                onOpenDetail: { _ in }
-            )
-        }
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 

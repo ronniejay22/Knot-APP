@@ -33,7 +33,7 @@ Info.plists). Run from the `Knot/` directory.
 
 `grep -n 'case "' iOS/Knot/App/UITestScreenshotHarness.swift` to list existing keys (e.g.
 `interests`, `recDetail`, `savedMoments`, `settings`, `onboardingPaywall`, `forYouTimeline`,
-`spotlightFallback`). If one already renders the screen your change affects, reuse it — jump to
+`recsFeed`). If one already renders the screen your change affects, reuse it — jump to
 Phase 3.
 
 ## Phase 2 — Scaffold a new harness key

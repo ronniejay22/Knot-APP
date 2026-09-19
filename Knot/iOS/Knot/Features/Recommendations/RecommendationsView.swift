@@ -14,26 +14,32 @@
 //  June 23, 2026: Reuse the browse-only `SpotlightCarouselView` (the onboarding
 //  reveal) so the main-app recommendation experience matches onboarding exactly —
 //  no swipe voting, Refresh, or Adjust Vibe. Saving happens on the detail page.
+//  Step 19.59: The carousel became `RecommendationFeedList` — a vertically
+//  scrolling list of section-heading + photo-card pairs, still shared with the
+//  onboarding reveal. Tapping anywhere on a card opens its detail.
 //
 
 import SwiftUI
 import StoreKit
 import LucideIcons
 
-/// Displays the first picks in the same browse-only carousel as the onboarding
-/// reveal — one Spotlight card at a time, swipe to page, tap "See Details".
+/// Displays the picks as the same vertical feed the onboarding reveal uses —
+/// a bold type heading over each fixed-height photo card, tap a card to open
+/// its detail. The optional "Knot's Take" briefing card sits above the feed.
 ///
 /// Layout:
 /// ```
 /// ┌─────────────────────────────────────┐
 /// │  ← Recommendations                  │
 /// ├─────────────────────────────────────┤
-/// │                                     │
+/// │  Experience                         │
 /// │  ┌─────────────────────────────┐    │
-/// │  │      SpotlightCard (1/3)    │    │
-/// │  │   ← swipe to page →        │    │
+/// │  │ photo                       │    │
+/// │  │ Title / description         │    │
 /// │  └─────────────────────────────┘    │
-/// │              ● ● ○                   │
+/// │  Gift                               │
+/// │  ┌─────────────────────────────┐    │
+/// │  │ …                           │  ↓ │
 /// └─────────────────────────────────────┘
 /// ```
 struct RecommendationsView: View {
@@ -344,7 +350,7 @@ struct RecommendationsView: View {
                     }
                 }
             }
-            // Spotlight detail page (June 12, 2026) — opened by tapping a deck card.
+            // Detail page (June 12, 2026) — opened by tapping a feed card.
             .fullScreenCover(item: $viewModel.selectedDetailItem) { item in
                 RecommendationDetailView(
                     item: item,
@@ -359,8 +365,8 @@ struct RecommendationsView: View {
 
     // MARK: - Recommendations Body
 
-    /// The full recommendations UI — a browse-only carousel matching the
-    /// onboarding reveal, with no voting or action buttons.
+    /// The full recommendations UI — the vertical feed of heading + photo-card
+    /// pairs shared with the onboarding reveal, with no voting or action buttons.
     ///
     /// The loading screen hands straight off to the picks. There is no
     /// celebration in between: the 2.3-second confetti splash that used to sit
@@ -533,27 +539,31 @@ struct RecommendationsView: View {
     // MARK: - Recommendations Content
 
     private var recommendationsContent: some View {
-        VStack(spacing: 0) {
-            // Milestone briefing card (shown when a contextual briefing was generated)
-            if let briefing = viewModel.briefingText, !isBriefingDismissed {
-                briefingCard(briefing)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+        // The host owns the scroll view and the gutters; `RecommendationFeedList`
+        // is just the heading + card stack, shared with the onboarding reveal
+        // (`OnboardingCompletionView`) so the two surfaces stay identical.
+        // Gutters are 20pt to match the Journal tab this screen is pushed from.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Milestone briefing card (shown when a contextual briefing was generated)
+                if let briefing = viewModel.briefingText, !isBriefingDismissed {
+                    briefingCard(briefing)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
-            // Browse-only carousel — the same first-picks reveal used by the
-            // onboarding completion screen (`OnboardingCompletionView`). The user
-            // swipes between the Spotlight cards (page dots track position) and taps
-            // "See Details" to open a pick. There's no save/pass voting here —
-            // saving happens on the detail page.
-            SpotlightCarouselView(
-                items: viewModel.recommendations,
-                partnerName: viewModel.partnerName,
-                isSaved: { viewModel.isSaved($0) },
-                onOpenDetail: { viewModel.openDetail($0) }
-            )
+                // Tap a card to open its detail. There's no save/pass voting
+                // here — saving happens on the detail page.
+                RecommendationFeedList(
+                    items: viewModel.recommendations,
+                    isSaved: { viewModel.isSaved($0) },
+                    onOpenDetail: { viewModel.openDetail($0) }
+                )
+                // On the list, not the scroll view: `cardsVisible` has only ever
+                // faded the cards, never the briefing card above them.
+                .opacity(viewModel.cardsVisible ? 1 : 0)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
+            }
+            .padding(.horizontal, 20)
             .padding(.top, 8)
             // Clearance above the KnotTabBar (~93pt content + home indicator).
             // SwiftUI's `safeAreaInset` from MainTabView does not propagate through
@@ -561,8 +571,6 @@ struct RecommendationsView: View {
             // full-screen cover (push tap-through) there is no tab bar, so only a
             // small breathing-room pad is needed.
             .padding(.bottom, isModal ? 24 : 100)
-            .opacity(viewModel.cardsVisible ? 1 : 0)
-            .animation(.easeInOut(duration: 0.3), value: viewModel.cardsVisible)
         }
     }
 
