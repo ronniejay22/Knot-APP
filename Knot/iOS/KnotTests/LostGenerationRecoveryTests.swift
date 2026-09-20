@@ -36,7 +36,8 @@ private func makeItem(
         createdAt: createdAt,
         personalizationNote: "She has been taking pottery classes.",
         isIdea: false,
-        contentSections: nil
+        contentSections: nil,
+        headline: nil
     )
 }
 

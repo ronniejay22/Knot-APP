@@ -11,6 +11,7 @@
 //  Step 14.6: Added Knot Originals DTOs (IdeaContentSection, IdeaGeneratePayload,
 //             IdeaItemResponse, IdeaGenerateResponse, IdeaListResponse).
 //             Made externalUrl optional on RecommendationItemResponse for ideas.
+//  Step 19.60: Added headline to RecommendationItemResponse and MilestoneRecommendationItemResponse.
 //
 
 import Foundation
@@ -388,15 +389,22 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
     // Unified generation field (Step 15.1)
     var personalizationNote: String? { rawPersonalizationNote?.humanizingTagTokens }
     private let rawPersonalizationNote: String?
+    /// Editorial 2–4 word heading shown above the pick in the feed (Step 19.60),
+    /// e.g. "Weekend Curations". `nil` for batches generated before headlines
+    /// existed — `RecommendationFeedList` falls back to a type-derived heading.
+    /// Model prose, so it is sanitized like `description`.
+    var headline: String? { rawHeadline?.humanizingTagTokens }
+    private let rawHeadline: String?
 
     /// In-code initializer for building an item outside of JSON decoding.
     ///
     /// The synthesized memberwise init is `private` because `rawDescription` /
-    /// `rawPersonalizationNote` are private, so callers can otherwise only build
-    /// this type by decoding JSON. This exposes an `internal` init that maps the
-    /// public-facing `description` / `personalizationNote` to those raw fields, and
-    /// defaults every field a local snapshot lacks — letting the Saved tab rebuild
-    /// a detail-view item from a `SavedRecommendation` (see `toDetailItem()`).
+    /// `rawPersonalizationNote` / `rawHeadline` are private, so callers can
+    /// otherwise only build this type by decoding JSON. This exposes an `internal`
+    /// init that maps the public-facing `description` / `personalizationNote` /
+    /// `headline` to those raw fields, and defaults every field a local snapshot
+    /// lacks — letting the Saved tab rebuild a detail-view item from a
+    /// `SavedRecommendation` (see `toDetailItem()`).
     init(
         id: String,
         recommendationType: String,
@@ -419,7 +427,8 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         matchedInterests: [String]? = nil,
         matchedVibes: [String]? = nil,
         matchedLoveLanguages: [String]? = nil,
-        personalizationNote: String? = nil
+        personalizationNote: String? = nil,
+        headline: String? = nil
     ) {
         self.id = id
         self.recommendationType = recommendationType
@@ -443,6 +452,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         self.matchedVibes = matchedVibes
         self.matchedLoveLanguages = matchedLoveLanguages
         self.rawPersonalizationNote = personalizationNote
+        self.rawHeadline = headline
     }
 
     enum CodingKeys: String, CodingKey {
@@ -467,6 +477,7 @@ struct RecommendationItemResponse: Codable, Sendable, Identifiable {
         case matchedVibes = "matched_vibes"
         case matchedLoveLanguages = "matched_love_languages"
         case rawPersonalizationNote = "personalization_note"
+        case rawHeadline = "headline"
     }
 }
 
@@ -715,11 +726,13 @@ struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
     let isIdea: Bool?
     /// Structured idea content sections for idea-type recommendations.
     let contentSections: [IdeaContentSection]?
+    /// Editorial 2–4 word heading for the feed (nil for rows generated before Step 19.60).
+    let headline: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case recommendationType = "recommendation_type"
-        case title, description
+        case title, description, headline
         case externalUrl = "external_url"
         case priceCents = "price_cents"
         case merchantName = "merchant_name"
@@ -734,10 +747,10 @@ struct MilestoneRecommendationItemResponse: Codable, Sendable, Identifiable {
 extension MilestoneRecommendationItemResponse {
     /// Rebuild a full detail-capable item from a pre-generated milestone row so
     /// the notification tap-through can reuse the standard recommendations
-    /// surface (Spotlight carousel + `RecommendationDetailView`).
+    /// surface (the feed + `RecommendationDetailView`).
     ///
-    /// Routes `description` / `personalizationNote` through the in-code
-    /// initializer's raw fields, which applies the standard tag-token
+    /// Routes `description` / `personalizationNote` / `headline` through the
+    /// in-code initializer's raw fields, which applies the standard tag-token
     /// sanitation on read.
     func toRecommendationItem() -> RecommendationItemResponse {
         RecommendationItemResponse(
@@ -752,7 +765,8 @@ extension MilestoneRecommendationItemResponse {
             source: "milestone_pregenerated",
             isIdea: isIdea,
             contentSections: contentSections,
-            personalizationNote: personalizationNote
+            personalizationNote: personalizationNote,
+            headline: headline
         )
     }
 }

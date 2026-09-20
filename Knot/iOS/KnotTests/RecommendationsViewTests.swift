@@ -46,7 +46,8 @@ final class RecommendationDTOTests: XCTestCase {
             "final_score": 0.82,
             "matched_interests": ["Art", "Cooking"],
             "matched_vibes": ["bohemian"],
-            "matched_love_languages": ["quality_time"]
+            "matched_love_languages": ["quality_time"],
+            "headline": "Hands-On Weekends"
         }
         """.data(using: .utf8)!
 
@@ -55,6 +56,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.id, "abc-123")
         XCTAssertEqual(item.recommendationType, "gift")
         XCTAssertEqual(item.title, "Ceramic Pottery Class")
+        XCTAssertEqual(item.headline, "Hands-On Weekends")
         XCTAssertEqual(item.description, "A hands-on pottery experience.")
         XCTAssertEqual(item.priceCents, 8500)
         XCTAssertEqual(item.currency, "USD")
@@ -112,6 +114,8 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.matchedLoveLanguages)
         // Price confidence should be nil when not present in JSON (backward compatibility)
         XCTAssertNil(item.priceConfidence)
+        // Batches generated before headlines existed omit the key entirely.
+        XCTAssertNil(item.headline)
     }
 
     /// A purchasable the backend could not resolve to a real page arrives with a
@@ -155,6 +159,7 @@ final class RecommendationDTOTests: XCTestCase {
             "love_language_score": 0.5,
             "final_score": 0.5,
             "personalization_note": "Delivering acts_of_service and words_of_affirmation.",
+            "headline": "quiet_luxury Nights",
             "content_sections": [
                 {"type": "overview", "heading": "Overview", "body": "A quiet_luxury evening."},
                 {"type": "steps", "heading": "Steps", "items": ["Plan the words_of_affirmation toast"]}
@@ -167,6 +172,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.description, "Honoring their quiet luxury and street urban aesthetic.")
         XCTAssertEqual(item.personalizationNote, "Delivering acts of service and words of affirmation.")
         XCTAssertFalse(item.personalizationNote?.contains("_") ?? false)
+        XCTAssertEqual(item.headline, "quiet luxury Nights")
         let section = item.contentSections?.first
         XCTAssertEqual(section?.body, "A quiet luxury evening.")
         XCTAssertEqual(item.contentSections?.last?.items?.first, "Plan the words of affirmation toast")

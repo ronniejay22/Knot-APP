@@ -387,8 +387,10 @@ private struct RecsLoadingScreenshotHarnessView: View {
 /// without networking, and three `PreviewRecommendations` items (all with a
 /// null `image_url`, so every card renders its bundled fallback photo and the
 /// shot never depends on the network) put the phase at `.loaded`. Three
-/// different types on purpose, so the section headings differ and each card
-/// draws a different fallback photo.
+/// different types on purpose, so each card's type ribbon and fallback photo
+/// differ; each carries a backend-style `headline` so the headings in the shot
+/// are the generated editorial ones the feed actually renders, not the
+/// type-derived fallback (a harness only proves what it renders).
 @MainActor
 private struct RecsFeedScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
@@ -399,9 +401,9 @@ private struct RecsFeedScreenshotHarnessView: View {
     private static func loadedViewModel() -> RecommendationsViewModel {
         let vm = RecommendationsViewModel()
         vm.recommendations = [
-            PreviewRecommendations.decode(type: "experience", isIdea: false),
-            PreviewRecommendations.decode(type: "gift", isIdea: false),
-            PreviewRecommendations.decode(type: "idea", isIdea: true),
+            PreviewRecommendations.decode(type: "experience", isIdea: false, headline: "Weekend Curations"),
+            PreviewRecommendations.decode(type: "gift", isIdea: false, headline: "Small Luxuries"),
+            PreviewRecommendations.decode(type: "idea", isIdea: true, headline: "The Art of Pause"),
         ]
         vm.partnerName = "Jas"
         // `.task` returns early on this, so nothing is fetched.

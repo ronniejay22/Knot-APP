@@ -601,6 +601,7 @@ class TestMilestoneRecommendationsEndpoint:
                             "image_url": "https://example.com/gift.jpg",
                             "created_at": datetime.now(timezone.utc).isoformat(),
                             "personalization_note": "She loves handmade things.",
+                            "headline": "Small Luxuries",
                         },
                         {
                             "id": str(uuid.uuid4()),
@@ -643,10 +644,13 @@ class TestMilestoneRecommendationsEndpoint:
             assert gift["title"] == "Test Gift"
             assert gift["personalization_note"] == "She loves handmade things."
             assert gift["is_idea"] is False
+            assert gift["headline"] == "Small Luxuries"
 
             idea = data["recommendations"][1]
             assert idea["title"] == "Cozy Night In"
             assert idea["is_idea"] is True
+            # Stored before headlines existed — the key is absent, the client falls back.
+            assert idea["headline"] is None
             # JSON-string content_sections decoded to a list for the client
             assert idea["content_sections"][0]["type"] == "overview"
 
@@ -999,4 +1003,5 @@ class TestModuleImports:
         assert item.personalization_note is None
         assert item.is_idea is False
         assert item.content_sections is None
+        assert item.headline is None
         print("  MilestoneRecommendationItem new fields default correctly")

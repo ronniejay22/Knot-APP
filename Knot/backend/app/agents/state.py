@@ -153,6 +153,10 @@ class CandidateRecommendation(BaseModel):
     # Unified generation fields (Step 15.1)
     personalization_note: Optional[str] = None  # Claude's explanation of why this fits
     search_query: Optional[str] = None  # For purchasable items: query to find real URL
+    # Editorial 2–4 word heading shown above the pick in the feed (Step 19.60).
+    # None when the model omitted it or normalization rejected it — the client
+    # falls back to a type-derived heading.
+    headline: Optional[str] = None
 
     # Scoring fields — populated by filtering/matching nodes
     interest_score: float = 0.0

@@ -176,6 +176,37 @@ class TestFieldMapping:
 
         assert row["personalization_note"] is None
 
+    def test_headline_passes_through(self):
+        row = build_recommendation_row(
+            _candidate(headline="Small Luxuries"), vault_id=VAULT_ID
+        )
+
+        assert row["headline"] == "Small Luxuries"
+
+    def test_headline_is_null_not_absent_when_missing(self):
+        """
+        The column is nullable, so NULL is fine — but the KEY must still be
+        present, or a batch mixing a headlined pick with a legacy one would
+        have rows disagreeing on keys (the uniform-keys property above).
+        """
+        row = build_recommendation_row(_candidate(), vault_id=VAULT_ID)
+
+        assert "headline" in row
+        assert row["headline"] is None
+
+    def test_headline_is_null_for_a_duck_typed_candidate(self):
+        stand_in = SimpleNamespace(
+            type="gift",
+            title="A Thing",
+            description=None,
+            external_url=None,
+            price_cents=None,
+            merchant_name=None,
+            image_url="https://images.example.com/thing.jpg",
+        )
+
+        assert build_recommendation_row(stand_in, vault_id=VAULT_ID)["headline"] is None
+
 
 # ===================================================================
 # 3. Image guarantee

@@ -633,7 +633,11 @@ enum PreviewRecommendations {
         return try! JSONDecoder().decode(RecommendationItemResponse.self, from: json)
     }()
 
-    static func decode(type: String, isIdea: Bool) -> RecommendationItemResponse {
+    /// `headline` is the feed's editorial heading (Step 19.60). Left `nil` — as
+    /// the `gift` / `experience` / `idea` statics do — the JSON omits the key,
+    /// which is exactly what a batch stored before headlines existed looks like,
+    /// so those fixtures pin the type-derived fallback heading.
+    static func decode(type: String, isIdea: Bool, headline: String? = nil) -> RecommendationItemResponse {
         let sections = isIdea
             ? """
               , "content_sections": [
@@ -643,9 +647,10 @@ enum PreviewRecommendations {
               ]
               """
             : ""
+        let headlineField = headline.map { ", \"headline\": \"\($0)\"" } ?? ""
         let json = """
         {
-            "id": "\(type)-preview", "recommendation_type": "\(type)", "title": "\(type.capitalized) for Alex",
+            "id": "\(type)-preview", "recommendation_type": "\(type)", "title": "\(type.capitalized) for Alex"\(headlineField),
             "description": "A thoughtful \(type) chosen around her love of art and quiet luxury evenings.",
             "price_cents": \(isIdea ? "null" : "8500"), "currency": "USD",
             "external_url": \(isIdea ? "null" : "\"https://example.com/x\""),

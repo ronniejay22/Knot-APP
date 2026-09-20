@@ -10496,6 +10496,150 @@ migration change, so no `pytest` run applies.
 
 ---
 
+### Step 19.60 ✅ Generated Recommendation Headlines and an On-Card Type Ribbon
+**Date:** 2026-09-20
+**Status:** Complete
+
+**Goal:** Bring the feed's *content* up to the "Curated Collections" mock. Step 19.59's heading
+over each card was derived on-device from the pick's type ("Gift", "Experience", "Date Idea");
+the mock reads like a magazine — "Weekend Curations", "The Art of Pause". The user chose to have
+**Claude generate a one-line editorial headline per pick** (over a static per-type string), so
+the heading is now a backend field emitted by the existing unified-generation call, stored with
+the recommendation, and returned on every read path — with the old type heading kept as the
+fallback for batches stored before headlines existed. Since the heading no longer names the
+type, the **type moved onto the photo card as a ribbon**: an uppercase tag pinned to the card's
+top-leading corner.
+
+**What changed:**
+- **Backend — the headline contract.** `headline: Optional[str]`, JSON key `"headline"`: 2–4
+  words, Title Case, no terminal punctuation, ≤ 40 chars, never equal to the title; `null` for
+  anything generated before this step and for a pick whose headline fails normalization.
+  - `app/services/unified_generation.py`: `UNIFIED_SYSTEM_PROMPT` gains **Rule 11 HEADLINE**
+    (a 2–4 word Title Case editorial line that frames the pick like a curated-collection
+    heading — examples "Weekend Curations", "The Art of Pause", "Wellness Escapes", "Small
+    Luxuries"; must not repeat the title, must not merely name the type, no partner name, no
+    punctuation) and a `"headline"` line in the per-recommendation JSON field spec. New
+    `HEADLINE_MAX_CHARS = 40` and `_normalize_headline(raw, tag_vocab, title)`: non-str →
+    `None`; `normalize_whitespace(humanize_tags(...))`; strip wrapping quotes and trailing
+    `.!?:;,…`; an over-long line is cut at the last space inside 40 chars; `None` when blank
+    or case-insensitively equal to the title. Deliberately **not** routed through
+    `trim_to_complete_sentence` / `is_incomplete_sentence` (a 2-word phrase has no terminal
+    punctuation, so those would judge it "incomplete" and drop words) nor `truncate_prose`
+    (appends an ellipsis the heading has nowhere to put). `_normalize_recommendation` computes
+    `title` once and passes `headline=_normalize_headline(rec.get("headline"), tag_vocab,
+    title)`. `_validate_recommendation` is unchanged — the headline is **optional**, so a
+    model slip never costs a pick (the client falls back).
+  - `app/agents/state.py`: `CandidateRecommendation.headline: Optional[str] = None`.
+    `availability.py`'s `model_copy(update=…)` paths (URL resolution, the linkless-idea
+    conversion) preserve it with no edit.
+  - `app/api/recommendations.py`: `build_recommendation_row` emits `"headline"` on every row
+    (nullable column, so `None` keeps the batch's key set uniform — Step 19.27's rule);
+    `_build_response_items` and `_stored_rows_to_items` map it; the `/{recommendation_id}`
+    handler — which builds its `MilestoneRecommendationItem` inline rather than through the
+    shared mapper — gets `headline=rec.get("headline")` by hand. Every read path already
+    `select("*")`s, so nothing else changed. `notifications.py` inherits through
+    `build_recommendation_row`; `ideas.py` builds its own rows in separate batches and needs
+    nothing for a nullable column.
+  - `app/models/recommendations.py` `RecommendationItemResponse.headline` and
+    `app/models/notifications.py` `MilestoneRecommendationItem.headline`, both `= None`.
+  - **Migration `00029_add_headline_to_recommendations.sql`** — `ALTER TABLE recommendations
+    ADD COLUMN IF NOT EXISTS headline TEXT` + `COMMENT`. Nullable with **no default** on
+    purpose (a `NOT NULL DEFAULT` column fails a whole PostgREST batch the moment one row sends
+    an explicit NULL). **Applied to the live Supabase project as part of this step**, before
+    the PR merges — the additive column is harmless to the deployed backend, whereas deploying
+    the new backend first would 500 every insert on a schema-cache miss. Verified afterwards
+    with a `select=id,title,headline` through PostgREST (200; `null` on the legacy row) and one
+    real generation call through the new prompt: all five picks came back with usable
+    headlines ("Hands-On Creativity", "Golden Hour Together", "Small Luxuries", "Sound &
+    Taste", "Creative Wandering").
+- **iOS — DTOs (`/sync-dto`).** `RecommendationItemResponse` gains
+  `var headline: String? { rawHeadline?.humanizingTagTokens }` over a private `rawHeadline`
+  (`CodingKeys` `rawHeadline = "headline"`), sanitized like `description` since it is model
+  prose; the internal init gains `headline: String? = nil` as its last parameter.
+  `MilestoneRecommendationItemResponse` gains `let headline: String?` (its memberwise init
+  therefore grew a required trailing `headline:` — the three test call sites updated) and
+  `toRecommendationItem()` passes it through. Synthesized `Decodable`, so an absent key
+  decodes as `nil`. `SavedRecommendation` deliberately does **not** persist it (the detail
+  view never renders the feed heading — same treatment as `personalizationNote` and the
+  scores).
+- **iOS — `Features/Recommendations/RecommendationFeedView.swift`.**
+  - New `RecommendationTypeRibbon(recommendationType:)`: Lucide type icon (12pt) +
+    `Text(label)` in `Theme.Typography.label` `.textCase(.uppercase)`, white,
+    12/7pt padding, `Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)` —
+    the exact recipe of `RecommendationDetailView`'s hero badge, so the tag the user taps is
+    the tag they land on, and it shares the card's saved-bookmark material. Static
+    `label(for:)` / `icon(for:)` maps mirror the detail view's private switches (gift →
+    "Gift", experience → "Experience", date → "Date", idea → "Idea", plan → "Date Plan",
+    unknown → `.capitalized`); they are static so the card's VoiceOver label and tests read
+    them without rendering. Not a refactor of the two existing private copies (out of scope).
+  - `RecommendationFeedCard`: the old top-trailing `savedIndicator` scaffold became one
+    `topRow` — ribbon leading, bookmark trailing (when saved), 14pt inset, hidden from
+    VoiceOver. `accessibilityLabel(title:typeLabel:description:isSaved:)` now reads
+    **"Title, Type. Description, Saved"** (the type rides in the label because the ribbon is
+    hidden; the title stays first so a prefix match on the button label still finds the card).
+  - `RecommendationFeedList`: heading is `Self.heading(for: item)` — the trimmed non-blank
+    `headline`, else the existing `sectionLabel(for:)`, whose doc now describes it as the
+    fallback and points the "not the tag" note at the ribbon. Preview seeds two headlined
+    picks and one legacy one.
+- **`Features/Recommendations/RecommendationDetailView.swift`:**
+  `PreviewRecommendations.decode(type:isIdea:headline: String? = nil)` — emits `"headline"`
+  only when given, so the `gift` / `experience` / `idea` statics (no key) keep pinning the
+  fallback path. **`App/UITestScreenshotHarness.swift`:** `recsFeed` seeds experience →
+  "Weekend Curations", gift → "Small Luxuries", idea → "The Art of Pause" so the capture shows
+  the generated shape (a harness only proves what it renders); `milestoneRecs` keeps the
+  headline-less seed. **`Core/Theme.swift`:** `feedSectionHeader` doc updated (no new token —
+  the ribbon uses `label` like every type badge).
+- **`KnotUITests/PRScreenshotTests.swift`:** asserts `staticTexts["Weekend Curations"]` (15s)
+  and `staticTexts["Small Luxuries"]` (exists **and** `isHittable`) — the fixtures'
+  *headlines*, so a silent fallback to "Experience" / "Gift" fails rather than shipping a
+  capture that hides it — and a `buttons` match `BEGINSWITH "Experience for Alex,
+  Experience"`, which also proves the ribbon's type reached the card.
+
+**Files created:**
+- `backend/supabase/migrations/00029_add_headline_to_recommendations.sql` — nullable `headline TEXT` (applied)
+- `docs/pr-screenshots/worktree-feat-recommendation-headlines.png` — headlines + ribbons inside the real nav bar + `KnotTabBar`
+
+**Files modified:**
+- `backend/app/services/unified_generation.py` — Rule 11, `"headline"` field spec, `HEADLINE_MAX_CHARS`, `_normalize_headline`, wiring in `_normalize_recommendation`
+- `backend/app/agents/state.py` — `CandidateRecommendation.headline`
+- `backend/app/api/recommendations.py` — row builder, both shared mappers, the inline `/{id}` mapper
+- `backend/app/models/recommendations.py`, `backend/app/models/notifications.py` — `headline` fields
+- `backend/tests/test_unified_generation.py` — sample response carries headlines; `test_prompt_requests_headline`; `test_headline_is_optional`; new `TestNormalizeHeadline` (11 tests: passthrough, missing/non-string/blank → `None`, tag humanization, whitespace collapse, quote/punctuation stripping — including nested `"…".` / `"…."` forms, title-equality drop, word-boundary cut at 40, a word ending exactly on the cap kept, and a proof that the sentence-repair helper would have mangled a 2-word line); `test_includes_headline`
+- `backend/tests/test_recommendation_row_builder.py` — passthrough, key-present-but-null, duck-typed candidate
+- `backend/tests/test_latest_recommendations_endpoint.py` — `_row()` carries a headline; mapped / legacy-null tests
+- `backend/tests/test_notification_history.py` — by-milestone returns the stored headline (and null for a legacy row); model default
+- `backend/tests/test_recommendations_api.py`, `test_recommendation_state.py`, `test_availability_node.py` — field assertions (incl. survival through the linkless-idea `model_copy`)
+- `backend/tests/test_recommendation_deeplink.py` — new `TestGetRecommendationByIdFields` with a mocked service client: `/{id}` serves the stored headline and null for a legacy row (the first tests to exercise that handler's field mapping)
+- `iOS/Knot/Models/DTOs.swift` — both structs; header changelog line
+- `iOS/Knot/Features/Recommendations/RecommendationFeedView.swift` — ribbon, top row, label, heading
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — fixture `headline:` parameter
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `recsFeed` fixtures carry headlines
+- `iOS/Knot/Core/Theme.swift` — `feedSectionHeader` doc
+- `iOS/KnotUITests/PRScreenshotTests.swift` — headline + type-in-label assertions
+- `iOS/KnotTests/RecommendationFeedTests.swift` — new `RecommendationFeedHeadingTests` (prefers headline; falls back per type when missing; blank → fallback; trims) and `RecommendationTypeRibbonTests` (label map, unknown → capitalized, intended divergence from the heading map, an icon for every type, renders); card label tests rewritten for the new signature (+ empty-type skip, title-first prefix); a headlined-card render; list renders a headlined/legacy mix
+- `iOS/KnotTests/RecommendationsViewTests.swift` — full / minimal / humanization decode cases
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift`, `iOS/KnotTests/LostGenerationRecoveryTests.swift` — memberwise `headline:` argument; enriched / legacy decode and mapping assertions
+
+**Tests:** Full backend suite offline: **1560 passed, 622 skipped, 0 failures**. iOS Full plan
+green — **625 unit + 5 UI, 0 failures** (613 baseline + 12). Clean build; the only warning is
+the pre-existing `MilestoneRecommendationSheet.previewSheet` one. Screenshot captured by the
+real UI test (`TEST SUCCEEDED`). Migration applied and verified live (see above).
+
+**Notes:**
+- **Deploy order is settled:** the column exists in the live DB now; merging the backend is the
+  second half. Existing stored batches show the type heading until the next `/refresh` or
+  milestone generation produces headlines — nothing is backfilled.
+- The Supabase **direct** DB host (`db.<ref>.supabase.co`) is IPv6-only; on an IPv4-only
+  network (this was applied from hotel Wi-Fi) `migrate.py` cannot resolve it. The session
+  pooler (`aws-0-us-west-2.pooler.supabase.com:5432`, user `postgres.<ref>`, same password)
+  is IPv4 and worked as a one-off `DATABASE_URL` override (`load_dotenv` does not override an
+  existing env var); `.env` was left on the direct URL. Note 139-adjacent gotcha recorded
+  here rather than as a new numbered note.
+- If a literal diagonal corner sash is wanted instead of the capsule tag, that is a
+  rendering-only swap inside `RecommendationTypeRibbon`.
+
+---
+
 ## Next Steps
 
 

@@ -119,6 +119,9 @@ class RecommendationItemResponse(BaseModel):
     matched_love_languages: list[str] = Field(default_factory=list)
     # Personalization note — Claude's explanation of why this fits the partner (Step 15.1)
     personalization_note: Optional[str] = None
+    # Editorial 2-4 word heading shown above the pick in the feed (Step 19.60).
+    # None for batches generated before headlines existed.
+    headline: Optional[str] = None
 
 
 class RecommendationGenerateResponse(BaseModel):
