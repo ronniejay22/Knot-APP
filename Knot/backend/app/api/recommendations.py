@@ -14,7 +14,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from app.agents.pipeline import run_recommendation_pipeline
 from app.agents.state import (
@@ -665,6 +665,13 @@ async def get_recommendations_by_milestone(
 )
 async def get_latest_recommendations(
     user_id: str = Depends(get_active_user_id),
+    just_because: bool = Query(
+        default=False,
+        description=(
+            "When true, only consider batches generated with no milestone "
+            "(milestone_id IS NULL) — the \"Surprise them today\" runs."
+        ),
+    ),
 ) -> MilestoneRecommendationsResponse:
     """
     Return the newest stored batch of recommendations for the user's vault.
@@ -683,6 +690,15 @@ async def get_latest_recommendations(
     `created_at`, matching the by-milestone batch semantics — one generation
     run inserts its trio in a single call, so that is exactly the latest
     Choice-of-Three regardless of which surface produced it.
+
+    **`just_because=true` narrows the read to batches with no milestone.** The
+    client also uses this endpoint to *resume* the just-because picks the user
+    generated earlier (the Journal's "Surprise them today" entry point) instead
+    of re-running the pipeline. Without the filter the newest batch for the
+    vault might belong to a milestone — a push webhook fires on its own
+    schedule — and that batch would be shown as "just because" picks. The
+    milestone entry point has its own scoped read (`/by-milestone/{id}`), so
+    this is the one scope that needed one.
 
     **Excludes the Ideas feed, which shares this table.** `ideas.py` inserts
     its own rows for the same vault with `is_idea=True` and an explicitly NULL
@@ -737,15 +753,15 @@ async def get_latest_recommendations(
     vault_id = vault_result.data[0]["id"]
 
     try:
-        rec_result = (
+        query = (
             client.table("recommendations")
             .select("*")
             .eq("vault_id", vault_id)
             .not_.is_("image_url", "null")
-            .order("created_at", desc=True)
-            .limit(3)
-            .execute()
         )
+        if just_because:
+            query = query.is_("milestone_id", "null")
+        rec_result = query.order("created_at", desc=True).limit(3).execute()
     except Exception as exc:
         logger.error("Failed to load latest recommendations for vault %s: %s", vault_id, exc)
         raise HTTPException(

@@ -80,6 +80,8 @@ private final class StubLatestFetcher: MilestoneRecommendationsFetching {
 
     var behavior: Behavior
     private(set) var latestRequestCount = 0
+    /// The `justBecause` argument of each `/latest` read, in call order.
+    private(set) var latestJustBecauseArgs: [Bool] = []
 
     init(behavior: Behavior) {
         self.behavior = behavior
@@ -91,8 +93,9 @@ private final class StubLatestFetcher: MilestoneRecommendationsFetching {
         throw NotificationHistoryServiceError.networkError("not used in these tests")
     }
 
-    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+    func fetchLatestRecommendations(justBecause: Bool) async throws -> MilestoneRecommendationsResponse {
         latestRequestCount += 1
+        latestJustBecauseArgs.append(justBecause)
         switch behavior {
         case .success(let response):
             return response
@@ -326,6 +329,22 @@ final class RecoverRecentlyStoredBatchTests: XCTestCase {
         XCTAssertEqual(viewModel.recommendations.count, 3)
         XCTAssertEqual(viewModel.recommendations.first?.title, "Pick 0")
         XCTAssertTrue(viewModel.hasLoadedInitially)
+        XCTAssertNotNil(viewModel.batchGeneratedAt)
+    }
+
+    /// Recovery reads `/latest` unscoped: it must see whichever surface's batch
+    /// is newest and let `isRecoverableBatch` match the milestone. The
+    /// just-because scope belongs to the Journal's resume path, not here.
+    func testReadsTheLatestBatchUnscoped() async {
+        let (viewModel, fetcher) = makeViewModel(
+            .success(makeResponse(createdAt: isoTimestamp(secondsAgo: 30)))
+        )
+
+        _ = await viewModel.recoverRecentlyStoredBatch(
+            replacing: [], milestoneId: nil
+        )
+
+        XCTAssertEqual(fetcher.latestJustBecauseArgs, [false])
     }
 
     /// The deck must be reset, or the recovered picks render behind whatever

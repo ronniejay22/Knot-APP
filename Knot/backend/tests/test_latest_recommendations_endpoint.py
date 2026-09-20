@@ -25,6 +25,9 @@ Tests cover:
 8. The Ideas feed — which shares this table — is excluded
 9. Only the newest insert batch is returned, never a straddle into an older one
 10. Vault selection matches `load_vault_data`'s oldest-first rule
+11. `just_because=true` scopes the read to batches with no milestone (the
+    Journal's "Surprise them today" resume path); omitted/false leaves the
+    recovery read unscoped
 
 Runs fully offline — every Supabase call is mocked.
 
@@ -83,12 +86,24 @@ def _row(**overrides) -> dict:
     return row
 
 
+def _rec_filters(rec_table):
+    """
+    The recommendations chain up to and including the always-present filters:
+    `.select(...).eq(...).not_.is_(...)`. This is the object the endpoint
+    conditionally calls `.is_("milestone_id", "null")` on when
+    `just_because=true`, and `_mock_supabase` aliases that call back onto the
+    same object so the rest of the chain (`.order(...).limit(...)`) is one
+    shape whether or not the filter was applied.
+    """
+    return rec_table.select.return_value.eq.return_value.not_.is_.return_value
+
+
 def _rec_query(rec_table):
     """
     The recommendations query chain, in the order the endpoint builds it:
-    `.select(...).eq(...).not_.is_(...).order(...)`.
+    `.select(...).eq(...).not_.is_(...)[.is_(...)].order(...)`.
     """
-    return rec_table.select.return_value.eq.return_value.not_.is_.return_value.order.return_value
+    return _rec_filters(rec_table).order.return_value
 
 
 def _mock_supabase(*, vault_rows=None, rec_rows=None, vault_error=None, rec_error=None):
@@ -111,6 +126,12 @@ def _mock_supabase(*, vault_rows=None, rec_rows=None, vault_error=None, rec_erro
         vault_chain.execute.side_effect = vault_error
     else:
         vault_chain.execute.return_value = MagicMock(data=vault_rows)
+
+    # The optional `.is_("milestone_id", "null")` must return the same chain
+    # object, or a MagicMock leaks through `.order().limit().execute().data`
+    # into Pydantic and the endpoint 500s for the `just_because=true` case.
+    filters = _rec_filters(rec_table)
+    filters.is_.return_value = filters
 
     rec_chain = _rec_query(rec_table).limit.return_value
     if rec_error:
@@ -610,3 +631,66 @@ def test_load_vault_data_still_orders_oldest_first():
         "load_vault_data's vault ordering changed — /latest must match it"
     )
     print("  load_vault_data still selects the oldest vault")
+
+
+# ===================================================================
+# 9. `just_because=true` scopes the read to no-milestone batches
+# ===================================================================
+
+class TestJustBecauseFilter:
+    """
+    The Journal's "Surprise them today" entry resumes its stored picks through
+    this endpoint. The newest batch for the vault can belong to a milestone —
+    the push webhook generates on its own schedule — so without a scope the
+    just-because screen would resume a milestone's picks as its own.
+    """
+
+    def test_param_adds_the_null_milestone_filter(self, client, auth_override):
+        mock_client, _, rec_table = _mock_supabase(rec_rows=[_row()])
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest?just_because=true")
+
+        assert resp.status_code == 200
+        _rec_filters(rec_table).is_.assert_called_once_with("milestone_id", "null")
+        print("  just_because=true filters to milestone_id IS NULL")
+
+    def test_filtered_read_keeps_the_rest_of_the_query(self, client, auth_override):
+        """The scope narrows the read; it must not change what a batch is."""
+        rows = [_row(title="Mug"), _row(title="Picnic"), _row(title="Letter")]
+        mock_client, _, rec_table = _mock_supabase(rec_rows=rows)
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest?just_because=true")
+
+        assert resp.status_code == 200
+        rec_table.select.return_value.eq.return_value.not_.is_.assert_called_with(
+            "image_url", "null"
+        )
+        _rec_filters(rec_table).order.assert_called_with("created_at", desc=True)
+        _rec_query(rec_table).limit.assert_called_with(3)
+        data = resp.json()
+        assert [r["title"] for r in data["recommendations"]] == ["Mug", "Picnic", "Letter"]
+        assert data["milestone_id"] is None
+        print("  The just-because read still returns the newest trio, milestone_id null")
+
+    def test_omitted_param_applies_no_milestone_filter(self, client, auth_override):
+        """The recovery read (Step 19.54) must keep seeing every surface's batch."""
+        mock_client, _, rec_table = _mock_supabase(rec_rows=[_row()])
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest")
+
+        assert resp.status_code == 200
+        _rec_filters(rec_table).is_.assert_not_called()
+        print("  Without the param no milestone filter is applied")
+
+    def test_explicit_false_applies_no_milestone_filter(self, client, auth_override):
+        mock_client, _, rec_table = _mock_supabase(rec_rows=[_row()])
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest?just_because=false")
+
+        assert resp.status_code == 200
+        _rec_filters(rec_table).is_.assert_not_called()
+        print("  just_because=false is the same as omitting it")

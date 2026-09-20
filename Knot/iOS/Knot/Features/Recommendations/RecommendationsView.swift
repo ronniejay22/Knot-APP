@@ -17,6 +17,9 @@
 //  Step 19.59: The carousel became `RecommendationFeedList` — a vertically
 //  scrolling list of section-heading + photo-card pairs, still shared with the
 //  onboarding reveal. Tapping anywhere on a card opens its detail.
+//  Step 19.62: Re-entry resumes the stored batch for this context (up to
+//  `RecommendationsViewModel.resumableBatchWindow`) instead of regenerating;
+//  a "Picks from …" dateline with a "New picks" button sits above the feed.
 //
 
 import SwiftUI
@@ -25,13 +28,23 @@ import LucideIcons
 
 /// Displays the picks as the same vertical feed the onboarding reveal uses —
 /// a bold type heading over each fixed-height photo card, tap a card to open
-/// its detail. The optional "Knot's Take" briefing card sits above the feed.
+/// its detail. The optional "Knot's Take" briefing card sits above the feed,
+/// under a dateline ("Picks from 2 days ago") whose "New picks" button is the
+/// one way to regenerate from this screen.
+///
+/// **Loading is resume-first.** Every generation run is stored server-side, so
+/// a fresh visit for a context (a milestone, or just-because) asks for the
+/// newest stored batch and shows it when it is younger than
+/// `RecommendationsViewModel.resumableBatchWindow`; only when nothing fresh
+/// exists does it run the ~25s pipeline. The push tap-through keeps its own
+/// stricter rule (`preferPregenerated`: never generate unasked).
 ///
 /// Layout:
 /// ```
 /// ┌─────────────────────────────────────┐
 /// │  ← Recommendations                  │
 /// ├─────────────────────────────────────┤
+/// │  Picks from today      (New picks)  │
 /// │  Experience                         │
 /// │  ┌─────────────────────────────┐    │
 /// │  │ photo                       │    │
@@ -86,16 +99,33 @@ struct RecommendationsView: View {
         self.preferPregenerated = preferPregenerated
         self.isModal = isModal
         _viewModel = State(initialValue: viewModel)
-        // Seed the *first* frame's answer from the flag, before `.task` has run
-        // and set it from the operation actually in flight. Without this the
-        // push tap-through resolves to `.loading` for one frame and flashes the
-        // coral generation screen under the entry modal — the exact regression
-        // Step 19.30 removed.
-        _isPregeneratedRead = State(initialValue: preferPregenerated)
-        // The push tap-through's first phase is `.silent`, everything else's is
+        // Seed the *first* frame's answer before `.task` has run and set it
+        // from the operation actually in flight. Every fresh view model now
+        // starts with a sub-second stored read (the push tap-through's
+        // pre-generated batch, or the Journal's resume attempt), so the first
+        // frame is `.silent`; resolving to `.loading` instead would flash the
+        // coral generation screen for one frame — the regression Step 19.30
+        // removed for the push path. A VM that already has content (harness,
+        // tab revisit) keeps whatever phase its own state resolves to.
+        let storedRead = Self.startsWithStoredRead(
+            preferPregenerated: preferPregenerated,
+            viewModelHasContent: viewModel.hasLoadedInitially
+        )
+        _isPregeneratedRead = State(initialValue: storedRead)
+        // A stored read's first phase is `.silent`, a generation's is
         // `.loading` (via `awaitingFirstLoad`). Matching that here keeps the
         // first frame's chrome correct before `onChange` has run.
-        _loaderIsCovering = State(initialValue: !preferPregenerated)
+        _loaderIsCovering = State(initialValue: !storedRead)
+    }
+
+    /// Whether this view's first load is a stored-batch read rather than a
+    /// generation, which decides the first frame's phase (`.silent` vs
+    /// `.loading`). `true` for the push tap-through and for every fresh Journal
+    /// visit (both read before they would ever generate); `false` for a view
+    /// model that already holds content, which is how the `recsLoading`
+    /// harness pins `.loading` and the `recsFeed` harness lands on `.loaded`.
+    static func startsWithStoredRead(preferPregenerated: Bool, viewModelHasContent: Bool) -> Bool {
+        preferPregenerated || !viewModelHasContent
     }
 
     @State private var isBriefingExpanded = false
@@ -243,7 +273,7 @@ struct RecommendationsView: View {
                     awaitingFirstLoad = false
                     return
                 }
-                await loadContent()
+                await loadInitialContent()
                 awaitingFirstLoad = false
             }
             .sheet(isPresented: $viewModel.showConfirmationSheet) {
@@ -392,7 +422,40 @@ struct RecommendationsView: View {
 
     // MARK: - Content Loading
 
-    /// Single entry point for the initial load and the error/empty retries.
+    /// The first load of a fresh view, from `.task`.
+    ///
+    /// The Journal paths try to *resume* before they generate: the newest
+    /// stored batch for this context is shown when it is fresh enough
+    /// (`RecommendationsViewModel.resumableBatchWindow`), otherwise the
+    /// pipeline runs exactly as before. The resume is a sub-second read, so it
+    /// runs under the `.silent` phase; a fall-through to generation flips to
+    /// `.loading` inside `generateWithMilestoneContext()`.
+    ///
+    /// Deliberately separate from `loadContent()`, which is also the retry
+    /// entry for the error and empty states. Resuming from a *retry* would be
+    /// wrong: after "New picks" fails, Try Again would republish the very batch
+    /// the user just asked to replace — and, since resuming never clears
+    /// `errorMessage`, the screen would stay on `.error` with the old picks
+    /// behind it. Retries retry the thing that failed.
+    private func loadInitialContent() async {
+        guard !preferPregenerated else {
+            await loadContent()
+            return
+        }
+        isPregeneratedRead = true
+        if await viewModel.resumeFreshBatch(milestoneId: milestoneId) {
+            return
+        }
+        // `resumeFreshBatch` swallows every error, cancellation included, so
+        // backing out during the read would otherwise fall through here and
+        // start a ~25s pipeline run (and its "picks are ready" push) for a
+        // screen the user has already left.
+        guard !Task.isCancelled else { return }
+        await generateWithMilestoneContext()
+    }
+
+    /// Entry point for the push tap-through's initial load and for every
+    /// error/empty retry.
     ///
     /// Push tap-through (`preferPregenerated`): fetch the stored batch — this
     /// is instant and is exactly what the push described. If nothing is
@@ -512,18 +575,23 @@ struct RecommendationsView: View {
     @ViewBuilder
     private var suggestionsContent: some View {
         switch revealPhase {
-        case .loading, .silent:
-            // Neither case draws anything here.
-            //
-            // `.loading` is covered by `recommendationLoadingOverlay`, applied
-            // below — the loading screen is an overlay rather than a branch of
-            // this switch so that its recede can actually animate; a removal
-            // transition on a branch is unmounted instantly (see the note on
+        case .loading:
+            // Nothing drawn here: `.loading` is covered by
+            // `recommendationLoadingOverlay`, applied below — the loading
+            // screen is an overlay rather than a branch of this switch so that
+            // its recede can actually animate; a removal transition on a
+            // branch is unmounted instantly (see the note on
             // `RecommendationLoadingOverlay`).
-            //
-            // `.silent` is a sub-second read of an already-stored batch, where
-            // showing the generation screen would misrepresent the wait.
             Color.clear
+        case .silent:
+            // A sub-second read of an already-stored batch, where the
+            // generation screen would misrepresent the wait. The push
+            // tap-through sits under its entry modal here; the Journal's
+            // resume attempt does not, so a plain spinner keeps those few
+            // hundred milliseconds from reading as a blank screen.
+            ProgressView()
+                .tint(Theme.accent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .error:
             errorState(message: viewModel.errorMessage ?? "")
         case .missing:
@@ -545,6 +613,11 @@ struct RecommendationsView: View {
         // Gutters are 20pt to match the Journal tab this screen is pushed from.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // When these picks were made, and the way to get new ones.
+                if let generatedAt = viewModel.batchGeneratedAt {
+                    batchStatusRow(generatedAt: generatedAt)
+                }
+
                 // Milestone briefing card (shown when a contextual briefing was generated)
                 if let briefing = viewModel.briefingText, !isBriefingDismissed {
                     briefingCard(briefing)
@@ -571,6 +644,45 @@ struct RecommendationsView: View {
             // full-screen cover (push tap-through) there is no tab bar, so only a
             // small breathing-room pad is needed.
             .padding(.bottom, isModal ? 24 : 100)
+        }
+    }
+
+    // MARK: - Batch Status Row
+
+    /// The dateline above the feed — "Picks from today" / "yesterday" /
+    /// "N days ago" — and the "New picks" button that runs a fresh generation.
+    ///
+    /// The row appears on every loaded batch, not just a resumed one. A batch
+    /// made seconds ago reads "Picks from today", which is honest, and the
+    /// button has to exist there too: with re-entry now resuming, leaving and
+    /// coming back no longer produces new picks, so this is the only way to ask
+    /// for them. `generateWithMilestoneContext()` flips the phase to
+    /// `.loading`, so the coral loader covers the wait exactly as a first
+    /// generation does.
+    private func batchStatusRow(generatedAt: Date) -> some View {
+        HStack(spacing: 12) {
+            Text(RecommendationsViewModel.batchAgeLabel(generatedAt: generatedAt))
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            KnotButton(
+                "New picks",
+                variant: .outlineNeutral,
+                size: .sm,
+                shape: .pill,
+                action: {
+                    Task { await generateWithMilestoneContext() }
+                }
+            )
+            // `KnotButton` fills its width by default; pin it to its label so
+            // the dateline keeps the row — the `MilestoneCard` "See details"
+            // recipe.
+            .fixedSize()
+            .layoutPriority(1)
+            .disabled(viewModel.isLoading)
         }
     }
 

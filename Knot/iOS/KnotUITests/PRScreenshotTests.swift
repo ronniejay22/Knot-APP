@@ -24,21 +24,22 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change swaps the feed's type-derived headings ("Experience",
-        // "Gift") for the backend-generated editorial headline on each pick
-        // ("Weekend Curations"), and moves the type onto the photo card as an
-        // uppercase ribbon in the top-leading corner. The capture must show
-        // more than one headline + card on screen at once, each card wearing
-        // its ribbon, plus the real navigation bar above and the real
-        // `KnotTabBar` below.
+        // The change makes re-entering the recommendations screen *resume* the
+        // stored batch instead of regenerating, and adds a dateline row above
+        // the feed — "Picks from 2 days ago" with a "New picks" button — so the
+        // user can tell how old a resumed batch is and ask for a fresh one.
+        // The capture must show that row above the first headline + card, with
+        // the real navigation bar above and the real `KnotTabBar` below.
         //
         // The screen sits behind an authenticated session and a ~25s
         // generation run; the `recsFeed` harness renders the real
         // `RecommendationsView` with a seeded, already-loaded view model whose
-        // three fixtures carry backend-style headlines — inside the same
-        // reproduction of production chrome the `recsLoading` harness uses (a
-        // real push from a root that hides its own bar, and the tab bar
-        // mounted via `safeAreaInset`).
+        // batch is stamped two days old — inside the same reproduction of
+        // production chrome the `recsLoading` harness uses (a real push from a
+        // root that hides its own bar, and the tab bar mounted via
+        // `safeAreaInset`). The resume-vs-generate decision itself is a network
+        // round-trip and is proven by `ResumeStoredBatchTests`, not by this
+        // still image.
         app.launchArguments += ["-uiTestScreenshot", "recsFeed"]
         app.launch()
 
@@ -54,6 +55,21 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
+        // The dateline is the element this change adds. Asserting the exact
+        // two-day label (the harness stamps the batch two calendar days old)
+        // is what makes the capture prove the age is computed from the batch's
+        // timestamp rather than defaulting to "today"; the button is asserted
+        // by its label so a renamed or missing control fails here, not in
+        // review.
+        XCTAssertTrue(
+            app.staticTexts["Picks from 2 days ago"].waitForExistence(timeout: 15),
+            "The dateline never appeared — the recsFeed harness did not render the feed, or the batch age is not derived from batchGeneratedAt"
+        )
+        XCTAssertTrue(
+            app.buttons["New picks"].waitForExistence(timeout: 5),
+            "The \"New picks\" button is missing from the dateline row"
+        )
+
         // The headings asserted are the fixtures' *headlines*, not the type
         // words: if the feed silently fell back to "Experience" / "Gift" this
         // would fail rather than ship a capture that hides the regression.
@@ -64,8 +80,8 @@ final class PRScreenshotTests: XCTestCase {
         // the second heading is also asserted `isHittable`. The fixture seeds
         // experience → gift → idea.
         XCTAssertTrue(
-            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 15),
-            "The first headline never appeared — the recsFeed harness did not render the feed, or it fell back to the type heading"
+            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 5),
+            "The first headline never appeared — the feed did not render under the dateline, or it fell back to the type heading"
         )
         let secondHeading = app.staticTexts["Small Luxuries"]
         XCTAssertTrue(

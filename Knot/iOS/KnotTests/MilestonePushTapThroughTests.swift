@@ -342,6 +342,8 @@ private final class MockMilestoneFetcher: MilestoneRecommendationsFetching {
 
     private(set) var requestedMilestoneIds: [String] = []
     private(set) var latestRequestCount = 0
+    /// The `justBecause` argument of each `/latest` read, in call order.
+    private(set) var latestJustBecauseArgs: [Bool] = []
 
     init(behavior: Behavior) {
         self.behavior = behavior
@@ -359,8 +361,9 @@ private final class MockMilestoneFetcher: MilestoneRecommendationsFetching {
         }
     }
 
-    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+    func fetchLatestRecommendations(justBecause: Bool) async throws -> MilestoneRecommendationsResponse {
         latestRequestCount += 1
+        latestJustBecauseArgs.append(justBecause)
         switch latestBehavior ?? behavior {
         case .success(let response):
             return response
@@ -425,6 +428,12 @@ final class PregeneratedRecommendationsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
         XCTAssertFalse(vm.isLoading)
         XCTAssertEqual(fetcher.requestedMilestoneIds, ["ms-123"])
+        // The dateline above the feed reads the stored row's own timestamp,
+        // not the moment the tap-through opened.
+        XCTAssertEqual(
+            vm.batchGeneratedAt,
+            RecommendationsViewModel.parseTimestamp("2026-08-01T12:00:00Z")
+        )
     }
 
     /// No stored rows → returns false and leaves state untouched so the

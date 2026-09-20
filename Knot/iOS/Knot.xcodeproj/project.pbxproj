@@ -52,6 +52,7 @@
 		3536D1D4A74A18601003E198 /* KnotTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */; };
 		3561660C1350AECEE60CCE73 /* OnboardingLoveLanguagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */; };
 		365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */; };
+		36B19EA3C6D95E5EEA6BD703 /* ResumeStoredBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD81A5CC95E362FD842AB78A /* ResumeStoredBatchTests.swift */; };
 		3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */; };
 		3B1D5C4F5629034D13428B57 /* KnotPressableStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBAB929BECE689B357AB6DB /* KnotPressableStyleTests.swift */; };
 		3D73A45844893C6F9741D13A /* MilestoneRecommendationSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D246BBCEEE689E2A60573265 /* MilestoneRecommendationSheetTests.swift */; };
@@ -364,6 +365,7 @@
 		FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotApp.swift; sourceTree = "<group>"; };
 		FC5590816CB9E33FDF165FEE /* OnboardingPaywallViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPaywallViewTests.swift; sourceTree = "<group>"; };
 		FD6ED0CB18062570291BACCB /* EditBasicInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditBasicInfoSheet.swift; sourceTree = "<group>"; };
+		FD81A5CC95E362FD842AB78A /* ResumeStoredBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeStoredBatchTests.swift; sourceTree = "<group>"; };
 		FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsViewModel.swift; sourceTree = "<group>"; };
 		FE4C79FC327A17CD5D429407 /* DMSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Bold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -758,6 +760,7 @@
 				A8B4013F8B11474648A4473D /* RecommendationsReadyPushTests.swift */,
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
 				5015F04947428A3CCD23BE62 /* RelationshipLengthModalTests.swift */,
+				FD81A5CC95E362FD842AB78A /* ResumeStoredBatchTests.swift */,
 				789C4EAF315953E8E4A5AB29 /* SavedRecommendationDetailTests.swift */,
 				90925173E680B5538BCBD054 /* SettingsViewTests.swift */,
 				A89556B4935E6174F77F99B1 /* SubscriptionManagerTests.swift */,
@@ -1002,6 +1005,7 @@
 				88A41919C2AE939D2BA0B921 /* RecommendationsReadyPushTests.swift in Sources */,
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,
 				C11FDDA590E4984354043118 /* RelationshipLengthModalTests.swift in Sources */,
+				36B19EA3C6D95E5EEA6BD703 /* ResumeStoredBatchTests.swift in Sources */,
 				70AB8E1F8D07D097DD729678 /* SavedRecommendationDetailTests.swift in Sources */,
 				68730C13AE335778310BF282 /* SettingsViewTests.swift in Sources */,
 				897A936545738C0B9AB0E076 /* SubscriptionManagerTests.swift in Sources */,

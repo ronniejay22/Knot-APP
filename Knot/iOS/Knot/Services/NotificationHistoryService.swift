@@ -195,12 +195,23 @@ final class NotificationHistoryService: Sendable {
     /// Read-only: never triggers the ~25s pipeline. Callers decide whether the
     /// batch is recent enough to use (each item carries `createdAt`).
     ///
+    /// - Parameter justBecause: When `true`, the read is scoped to batches
+    ///   generated with no milestone (`?just_because=true`). The Journal's
+    ///   "Surprise them today" entry resumes its picks through this, and the
+    ///   newest batch for the vault can belong to a milestone the push webhook
+    ///   generated on its own schedule — that must not come back as
+    ///   just-because picks. Recovery passes `false` and matches the milestone
+    ///   itself.
     /// - Returns: The newest batch, possibly empty
     /// - Throws: `NotificationHistoryServiceError` if the request fails
-    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+    func fetchLatestRecommendations(justBecause: Bool) async throws -> MilestoneRecommendationsResponse {
         let token = try await getAccessToken()
 
-        guard let url = URL(string: "\(baseURL)/api/v1/recommendations/latest") else {
+        var urlString = "\(baseURL)/api/v1/recommendations/latest"
+        if justBecause {
+            urlString += "?just_because=true"
+        }
+        guard let url = URL(string: urlString) else {
             throw NotificationHistoryServiceError.networkError("Invalid server URL.")
         }
 

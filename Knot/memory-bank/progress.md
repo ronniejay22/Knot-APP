@@ -10701,6 +10701,150 @@ CWD is supported by the script as written.
 
 ---
 
+### Step 19.62 ✅ Resume a Stored Recommendation Batch on Re-entry (7-Day Window)
+**Date:** 2026-09-20
+**Status:** Complete
+
+**Goal:** After a user ran a round of picks from the Journal (the "Surprise them today" card or a
+milestone's sheet → "Get recommendations"), backing out of `RecommendationsView` and coming back
+re-ran the ~25s pipeline. The picks felt lost. They never were: every run is persisted (three
+rows per batch in `recommendations`) and already readable through `GET /by-milestone/{id}` and
+`GET /latest`, and the push tap-through already resumed a stored batch through
+`loadPregeneratedRecommendations`. The gap was only on the Journal path — `ForYouView` builds a
+fresh `RecommendationDestination` (new `UUID`) per push, so a fresh view model with
+`hasLoadedInitially = false` always fell into `generateWithMilestoneContext()`. Now re-entering
+for the same context shows the stored batch instantly when it is younger than **seven days**
+(one client-side constant), otherwise generates as before; a dateline row ("Picks from 2 days
+ago") with a **"New picks"** button lets the user regenerate at will — which also fills today's
+gap where a freshly generated batch had no regenerate control at all.
+
+**What changed:**
+- **Backend — `app/api/recommendations.py` `GET /latest`.** New query parameter
+  `just_because: bool = Query(default=False)`. When true, the recommendations query gains
+  `.is_("milestone_id", "null")` after the existing `.not_.is_("image_url", "null")`, so the
+  newest *just-because* batch is returned even when a milestone batch is newer. Without it the
+  "Surprise them today" entry could resume a milestone's picks. Everything else —
+  `_newest_insert_batch`, `_stored_rows_to_items`, `briefing_text=None`, the route's position
+  above `/{recommendation_id}` — is unchanged. Query param only, so no DTO sync.
+  `/by-milestone/{id}` is deliberately untouched: it lacks `_newest_insert_batch`, but the
+  pipeline guarantees three rows per run (Steps 19.1/19.4), so a straddle cannot occur.
+- **iOS — `RecommendationsViewModel.swift`.**
+  - `MilestoneRecommendationsFetching.fetchLatestRecommendations()` →
+    `fetchLatestRecommendations(justBecause: Bool)`; `recoverRecentlyStoredBatch` passes `false`
+    (Step 19.54's recovery behaviour is unchanged).
+  - `static let resumableBatchWindow: TimeInterval = 7 * 24 * 60 * 60` beside the 15-minute
+    `recoverableBatchWindow`. Seven days because milestone pushes run on a 14/7/3-day cadence,
+    so a batch stays alive until the next one; no server TTL, no deletion — the table remains
+    append-only history for the feedback loop.
+  - `var batchGeneratedAt: Date?`, set on every path that publishes a batch: `Date()` on
+    `generateRecommendations` / `refreshRecommendations` success; the newest row's parsed
+    `createdAt` (`static batchTimestamp(of:)`) on `loadPregeneratedRecommendations`,
+    `recoverRecentlyStoredBatch`, and the new resume.
+  - Pure `static isResumableBatch(_:milestoneId:now:)`: `response.milestoneId == milestoneId`
+    (nil-vs-nil matches; nil-vs-id does not, either way), newest `createdAt` parses via the
+    existing `parseTimestamp`, age `<= resumableBatchWindow` (exactly seven days resumes; one
+    second more does not). Mirrors `isRecoverableBatch` minus the id-disjointness check.
+  - `func resumeFreshBatch(milestoneId: String?) async -> Bool`: `guard !isLoading`;
+    `isLoading = true`, `currentPage = 0`, `defer { isLoading = false }`; a milestone id reads
+    `fetchMilestoneRecommendations`, nil reads `fetchLatestRecommendations(justBecause: true)`;
+    a fresh batch is published (`toRecommendationItem()` map, `briefingText` only when non-nil,
+    `hasLoadedInitially = true`, `batchGeneratedAt`, `deckResetToken += 1`) and returns `true`;
+    stale / empty / wrong-context returns `false` with state untouched; a **thrown read is
+    swallowed** and returns `false` — resume is best-effort and generation follows, so it never
+    writes `errorMessage`.
+  - Pure `static batchAgeLabel(generatedAt:now:calendar:)`: start-of-day difference (calendar
+    arithmetic, not `/ 86_400`, so DST cannot flap it) → "Picks from today" / "yesterday" /
+    "N days ago"; a future timestamp clamps to today.
+- **iOS — `RecommendationsView.swift`.**
+  - New pure `static startsWithStoredRead(preferPregenerated:viewModelHasContent:)` =
+    `preferPregenerated || !viewModelHasContent`; `init` seeds `_isPregeneratedRead` from it and
+    `_loaderIsCovering` from its negation. Every fresh view model now begins with a sub-second
+    stored read, so the first frame is `.silent` — no one-frame coral flash on the Journal path
+    (the Step 19.30/19.51 lesson). Harnesses are unaffected: `recsLoading` / `recsFeed` seed
+    `hasLoadedInitially = true` → `false` → `.loading` / `.loaded` as today; `milestoneRecsMissing`
+    keeps `true`. `RecommendationLoadingOverlay` sets `isCovering = true` itself when the phase
+    later becomes `.loading`, so the fall-through-to-generate path *is* the existing
+    "Find picks now" path.
+  - `.task` calls new `loadInitialContent()`: `preferPregenerated` → `loadContent()` verbatim;
+    otherwise `isPregeneratedRead = true`, then `resumeFreshBatch(milestoneId:)`, then
+    `generateWithMilestoneContext()` on `false`. **`loadContent()` is untouched** — it is also
+    the retry entry for the error and empty states. Resuming from a *retry* would be wrong: after
+    "New picks" fails, Try Again would republish the batch the user just asked to replace, and
+    since resuming never clears `errorMessage` the screen would stay on `.error` with the old
+    picks behind it. Retries retry the thing that failed. A `guard !Task.isCancelled` sits
+    between the resume and the generation (review finding): `resumeFreshBatch` swallows
+    cancellation like any other error, so backing out during the sub-second read would
+    otherwise start a pipeline run — and its "picks are ready" push — for a screen the user
+    had already left.
+  - `suggestionsContent` `.silent` now draws a centered `ProgressView().tint(Theme.accent)`
+    instead of nothing: the push path sits under its entry modal here, but the Journal's resume
+    read does not, so a plain spinner keeps those few hundred milliseconds from reading as a
+    blank screen. `.loading` stays `Color.clear` (the overlay covers it).
+  - `recommendationsContent` gains `batchStatusRow(generatedAt:)` as its first child whenever
+    `viewModel.batchGeneratedAt` is set: `Text(batchAgeLabel)` in `Theme.Typography.label` /
+    `Theme.textSecondary`, `Spacer`, `KnotButton("New picks", variant: .outlineNeutral, size: .sm,
+    shape: .pill)` → `generateWithMilestoneContext()`, `.fixedSize().layoutPriority(1)` (the
+    `MilestoneCard` "See details" recipe — `KnotButton` is full-width by default) and
+    `.disabled(viewModel.isLoading)`. The row appears on every loaded batch, including the push
+    tap-through: a batch made seconds ago honestly reads "Picks from today", and with re-entry now
+    resuming, this button is the only way to ask for new picks. "New picks" uses the live
+    `generateRecommendations` path (the backend prompt already excludes the last 200 titles),
+    **not** the dormant `refreshRecommendations`, which records a `refreshed` (−0.5) feedback
+    signal on all three picks — wrong for "show me more". Works in modal mode too
+    (`MilestoneRecommendationsCoverView` passes `occasionType: "major_milestone"`).
+- **iOS — `Services/NotificationHistoryService.swift`:** `fetchLatestRecommendations(justBecause:)`
+  appends `?just_because=true` when set.
+- **iOS — conformers:** `UITestScreenshotHarness.swift` `EmptyMilestoneFetcher`,
+  `MilestonePushTapThroughTests.swift` `MockMilestoneFetcher`, and
+  `LostGenerationRecoveryTests.swift` `StubLatestFetcher` take the new signature; the two test
+  mocks record `latestJustBecauseArgs`.
+- **Screenshot.** `RecsFeedScreenshotHarnessView.loadedViewModel()` stamps
+  `vm.batchGeneratedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())` (calendar
+  days, not `-2 * 86_400`). `PRScreenshotTests.swift` asserts `staticTexts["Picks from 2 days
+  ago"]` (15s) and `buttons["New picks"]` before the Step 19.60 headline / card asserts — the exact
+  two-day label proves the age is derived from the batch timestamp rather than defaulting to
+  "today". The resume-vs-generate decision is a network round-trip and is proven by
+  `ResumeStoredBatchTests`, not by the still image.
+
+**Files created:**
+- `iOS/KnotTests/ResumeStoredBatchTests.swift` — `ResumableBatchWindowTests` (13: window is 7 days, yesterday, exactly-at-window, +1s past, milestone match / mismatch, nil-vs-milestone both ways, empty, unparseable, fractional-second, `batchTimestamp` newest / nil), `ResumeFreshBatchTests` (11: milestone reads by-milestone only, nil reads latest with `[true]`, fresh publishes + flags + headline + briefing, timestamp is the stored row's, nil briefing leaves the existing one, stale / empty / wrong-context not published, failed read swallowed with `errorMessage == nil` on both paths, `isLoading` guard), `BatchAgeLabelTests` (5, fixed Gregorian `America/Los_Angeles` calendar: today, yesterday, 2 and 6 days, late-last-night = yesterday, future clamps to today). Private `RecordingFetcher`; fixed `referenceNow`; whole-second timestamps (Step 19.54's flake lesson)
+- `docs/pr-screenshots/worktree-feat-resume-stored-recommendations.png` — dateline + "New picks" above the feed inside the real nav bar + `KnotTabBar`
+
+**Files modified:**
+- `backend/app/api/recommendations.py` — `Query` import; `just_because` filter on `/latest`; docstring
+- `backend/tests/test_latest_recommendations_endpoint.py` — `_rec_filters` helper; the mock chain aliases the conditional `.is_()` back onto itself (without it the `MagicMock` leaks into Pydantic and 500s); new `TestJustBecauseFilter` (4: adds the null-milestone filter; filtered read keeps the rest of the query and reports `milestone_id: null`; omitted → no filter; explicit `false` → no filter); docstring index item 11
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — protocol signature, `batchGeneratedAt`, `resumableBatchWindow`, `isResumableBatch`, `resumeFreshBatch`, `batchTimestamp`, `batchAgeLabel`
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — `startsWithStoredRead`, `loadInitialContent`, `.silent` spinner, `batchStatusRow`; header doc + layout diagram
+- `iOS/Knot/Services/NotificationHistoryService.swift` — `just_because` query string
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — conformer signature; `recsFeed` stamps a two-day-old batch
+- `iOS/KnotUITests/PRScreenshotTests.swift` — dateline + button assertions; slot comment rewritten
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift` — mock signature; `testPreloadSuccessPopulatesState` asserts `batchGeneratedAt == parseTimestamp("2026-08-01T12:00:00Z")`
+- `iOS/KnotTests/LostGenerationRecoveryTests.swift` — stub signature; `testPublishesThisRunsBatch` asserts `batchGeneratedAt` set; new `testReadsTheLatestBatchUnscoped` (`[false]`)
+- `iOS/KnotTests/RecommendationsLoadingViewTests.swift` — `RecommendationsChromeTests` gains the `startsWithStoredRead` truth table (fresh VM → stored read; preloaded VM keeps its own phase; the push flag always means a stored read)
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the new test file
+
+**Tests:** Full backend suite offline: **1564 passed, 622 skipped, 0 failures** (1560 baseline + 4).
+iOS Full plan green — **658 unit + 5 UI, 0 failures** (625 baseline + 33). Clean build. Screenshot
+captured by the real UI test (`TEST SUCCEEDED`).
+
+**Notes:**
+- Push tap-through semantics are unchanged: `preferPregenerated` still means "read, never
+  generate unasked" (Step 19.24); it simply gains the dateline and the user-initiated
+  "New picks" button like every other loaded state.
+- The generate-path `batchGeneratedAt = Date()` is not unit-testable (`RecommendationService`
+  is a concrete class over `URLSession.shared`); it is covered by the resume / pregenerated /
+  recovery paths and the screenshot.
+- **Follow-ups, not built:** telling the user *before* they tap that picks exist (e.g. the
+  `MilestoneRecommendationSheet` CTA reading "View your picks", or the just-because card changing
+  copy) needs a per-milestone batch timestamp on `GET /api/v1/milestones` to avoid N per-card
+  round trips — the "N suggestions" follow-up from Step 19.31; the sheet's "We'll find…" copy
+  therefore slightly overstates the wait on a resumed batch. A "Recent picks" history section on
+  the Journal needs a batch-listing endpoint. `recoverRecentlyStoredBatch` could pass
+  `justBecause: milestoneId == nil` (a tightening of Step 19.54's recovery). `/by-milestone`
+  could gain `_newest_insert_batch` / vault-ordering parity with `/latest`.
+
+---
+
 ## Next Steps
 
 

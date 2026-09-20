@@ -254,7 +254,7 @@ private struct EmptyMilestoneFetcher: MilestoneRecommendationsFetching {
         )
     }
 
-    func fetchLatestRecommendations() async throws -> MilestoneRecommendationsResponse {
+    func fetchLatestRecommendations(justBecause: Bool) async throws -> MilestoneRecommendationsResponse {
         MilestoneRecommendationsResponse(
             recommendations: [],
             count: 0,
@@ -390,7 +390,10 @@ private struct RecsLoadingScreenshotHarnessView: View {
 /// different types on purpose, so each card's type ribbon and fallback photo
 /// differ; each carries a backend-style `headline` so the headings in the shot
 /// are the generated editorial ones the feed actually renders, not the
-/// type-derived fallback (a harness only proves what it renders).
+/// type-derived fallback (a harness only proves what it renders). The batch is
+/// stamped two calendar days old so the dateline above the feed reads
+/// "Picks from 2 days ago" — a *resumed* batch, the state this row exists for,
+/// rather than the "today" a freshly generated one would show.
 @MainActor
 private struct RecsFeedScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
@@ -408,6 +411,9 @@ private struct RecsFeedScreenshotHarnessView: View {
         vm.partnerName = "Jas"
         // `.task` returns early on this, so nothing is fetched.
         vm.hasLoadedInitially = true
+        // Calendar arithmetic, not `-2 * 86_400`: across a DST change 48 hours
+        // is one or three calendar days and the capture's assertion would flap.
+        vm.batchGeneratedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
         return vm
     }
 

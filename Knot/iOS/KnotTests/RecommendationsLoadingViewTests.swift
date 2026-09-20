@@ -537,6 +537,43 @@ final class RecommendationsChromeTests: XCTestCase {
         chrome.isTabBarHidden = false
         XCTAssertFalse(chrome.isTabBarHidden)
     }
+
+    // MARK: First frame
+
+    /// The first frame's phase is seeded in `init`, before `.task` has decided
+    /// anything. Every fresh view model now begins with a sub-second stored
+    /// read (the push tap-through's pre-generated batch, or the Journal's
+    /// resume attempt), so it must resolve `.silent` — resolving `.loading`
+    /// would flash the coral generation screen for one frame, the regression
+    /// Step 19.30 removed.
+    func testAFreshViewModelStartsWithAStoredRead() {
+        XCTAssertTrue(
+            RecommendationsView.startsWithStoredRead(preferPregenerated: false, viewModelHasContent: false),
+            "A fresh Journal visit resumes before it generates, so its first frame is the silent read"
+        )
+        XCTAssertTrue(
+            RecommendationsView.startsWithStoredRead(preferPregenerated: true, viewModelHasContent: false),
+            "The push tap-through's first frame stays the silent read"
+        )
+    }
+
+    /// A view model that already holds content is what the screenshot
+    /// harnesses inject: `recsLoading` seeds `isLoading` and needs `.loading`
+    /// from frame one, `recsFeed` seeds picks and lands on `.loaded`. Neither
+    /// runs a read, so neither may be seeded as one.
+    func testAPreloadedViewModelKeepsItsOwnPhase() {
+        XCTAssertFalse(
+            RecommendationsView.startsWithStoredRead(preferPregenerated: false, viewModelHasContent: true)
+        )
+    }
+
+    /// The push flag wins even over a preloaded VM: a cover that opens with
+    /// content and then re-reads must not flash the loader.
+    func testThePushFlagAlwaysMeansAStoredRead() {
+        XCTAssertTrue(
+            RecommendationsView.startsWithStoredRead(preferPregenerated: true, viewModelHasContent: true)
+        )
+    }
 }
 
 // MARK: - Hand-off timing
