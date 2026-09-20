@@ -431,10 +431,12 @@ class TestRecommendationModels:
             vibe_score=0.3,
             love_language_score=0.4,
             final_score=2.7,
+            headline="Wellness Escapes",
         )
         assert item.price_cents == 15000
         assert item.location.city == "San Francisco"
         assert item.final_score == 2.7
+        assert item.headline == "Wellness Escapes"
 
     def test_item_response_minimal(self):
         """RecommendationItemResponse with only required fields."""
@@ -450,6 +452,7 @@ class TestRecommendationModels:
         assert item.price_cents is None
         assert item.location is None
         assert item.interest_score == 0.0
+        assert item.headline is None
 
 
 # ===================================================================

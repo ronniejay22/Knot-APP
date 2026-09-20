@@ -534,6 +534,7 @@ class TestVerifyAvailability:
                 title="Dead Date B", candidate_id="b", rec_type="date",
                 merchant_name="Yelp", final_score=4.0,
                 external_url="https://yelp.com/biz/closed",
+                headline="Weekend Curations",
             ),
             _make_candidate(title="Plan C", candidate_id="c", rec_type="experience", final_score=3.0),
         ]
@@ -560,6 +561,8 @@ class TestVerifyAvailability:
         assert dead.type == "idea"
         assert dead.merchant_name is None
         assert dead.price_cents is None
+        # The feed heading is editorial, not purchase-related — it survives the conversion.
+        assert dead.headline == "Weekend Curations"
 
     async def test_price_verified_from_page_content(self):
         """Prices are updated when Claude verifies them from page content."""

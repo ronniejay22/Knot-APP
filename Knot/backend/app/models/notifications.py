@@ -161,6 +161,10 @@ class MilestoneRecommendationItem(BaseModel):
         default=None,
         description="Structured idea content sections for idea-type recommendations.",
     )
+    headline: str | None = Field(
+        default=None,
+        description="Editorial 2-4 word heading shown above the pick in the feed; None for rows generated before Step 19.60.",
+    )
 
 
 class MilestoneRecommendationsResponse(BaseModel):

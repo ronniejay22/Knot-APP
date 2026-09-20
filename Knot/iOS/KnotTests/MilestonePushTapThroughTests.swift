@@ -180,7 +180,8 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
                     "created_at": "2026-08-01T12:00:00Z",
                     "personalization_note": "She loves handmade things.",
                     "is_idea": false,
-                    "content_sections": null
+                    "content_sections": null,
+                    "headline": "Small Luxuries"
                 },
                 {
                     "id": "rec-2",
@@ -214,11 +215,14 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
         XCTAssertEqual(gift.personalizationNote, "She loves handmade things.")
         XCTAssertEqual(gift.isIdea, false)
         XCTAssertNil(gift.contentSections)
+        XCTAssertEqual(gift.headline, "Small Luxuries")
 
         let idea = response.recommendations[1]
         XCTAssertEqual(idea.isIdea, true)
         XCTAssertEqual(idea.contentSections?.first?.type, "overview")
         XCTAssertEqual(idea.contentSections?.first?.body, "A cozy night.")
+        // Stored before headlines existed — the key is absent, not null.
+        XCTAssertNil(idea.headline)
     }
 
     /// Legacy JSON (older backend without the new fields) still decodes.
@@ -249,6 +253,7 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
         XCTAssertNil(response.recommendations[0].personalizationNote)
         XCTAssertNil(response.recommendations[0].isIdea)
         XCTAssertNil(response.recommendations[0].contentSections)
+        XCTAssertNil(response.recommendations[0].headline)
     }
 
     /// Mapping to the full recommendation item preserves fields and applies
@@ -266,7 +271,8 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
             createdAt: "2026-08-01T12:00:00Z",
             personalizationNote: "Matches her acts_of_service love language.",
             isIdea: false,
-            contentSections: nil
+            contentSections: nil,
+            headline: "quiet_luxury Picks"
         )
 
         let mapped = item.toRecommendationItem()
@@ -282,6 +288,7 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
         // Snake_case tag tokens are humanized on read (model-layer sanitation).
         XCTAssertEqual(mapped.description, "Fits her quiet luxury style.")
         XCTAssertEqual(mapped.personalizationNote, "Matches her acts of service love language.")
+        XCTAssertEqual(mapped.headline, "quiet luxury Picks")
     }
 
     /// Idea rows keep their idea-ness through the mapping so the detail page
@@ -304,7 +311,8 @@ final class MilestoneRecommendationDTOTests: XCTestCase {
             createdAt: "2026-08-01T12:00:00Z",
             personalizationNote: nil,
             isIdea: true,
-            contentSections: [section]
+            contentSections: [section],
+            headline: nil
         )
 
         let mapped = item.toRecommendationItem()

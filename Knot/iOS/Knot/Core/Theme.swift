@@ -387,8 +387,10 @@ extension Theme {
 
         /// DMSans-SemiBold (600) @ 20pt. The section heading *above* a card in
         /// a vertical feed — currently the recommendation feed's per-pick
-        /// heading ("Gift", "Experience", "Date Idea", …) rendered by
-        /// `RecommendationFeedList`.
+        /// heading rendered by `RecommendationFeedList`: the pick's generated
+        /// editorial headline ("Weekend Curations"), or its type-derived
+        /// fallback ("Gift", "Date Idea", …) for batches stored before
+        /// headlines existed.
         ///
         /// Value-identical to `cardTitleSemibold` and `onboardingSubHeader`,
         /// and deliberately a fourth token carrying that value: a heading above

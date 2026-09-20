@@ -24,19 +24,21 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change replaces the one-card-at-a-time recommendation carousel
-        // with a vertical feed: a type heading over each fixed-height photo
-        // card. The capture must show more than one heading + card pair on
-        // screen at once (the whole point of the layout), plus the real
-        // navigation bar above and the real `KnotTabBar` below.
+        // The change swaps the feed's type-derived headings ("Experience",
+        // "Gift") for the backend-generated editorial headline on each pick
+        // ("Weekend Curations"), and moves the type onto the photo card as an
+        // uppercase ribbon in the top-leading corner. The capture must show
+        // more than one headline + card on screen at once, each card wearing
+        // its ribbon, plus the real navigation bar above and the real
+        // `KnotTabBar` below.
         //
         // The screen sits behind an authenticated session and a ~25s
         // generation run; the `recsFeed` harness renders the real
-        // `RecommendationsView` with a seeded, already-loaded view model —
-        // inside the same reproduction of production chrome the `recsLoading`
-        // harness uses (a real push from a root that hides its own bar, and the
-        // tab bar mounted via `safeAreaInset`), so the shot proves the bottom
-        // clearance and the bar restore, not just the cards.
+        // `RecommendationsView` with a seeded, already-loaded view model whose
+        // three fixtures carry backend-style headlines — inside the same
+        // reproduction of production chrome the `recsLoading` harness uses (a
+        // real push from a root that hides its own bar, and the tab bar
+        // mounted via `safeAreaInset`).
         app.launchArguments += ["-uiTestScreenshot", "recsFeed"]
         app.launch()
 
@@ -52,36 +54,40 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
+        // The headings asserted are the fixtures' *headlines*, not the type
+        // words: if the feed silently fell back to "Experience" / "Gift" this
+        // would fail rather than ship a capture that hides the regression.
         // Two headings, not one: a single heading could be satisfied by a
         // one-card layout. Two different ones ON SCREEN is what proves the
         // feed is a list — `exists` alone is not enough, since an offscreen
         // element in a scroll view still exists in the accessibility tree, so
         // the second heading is also asserted `isHittable`. The fixture seeds
-        // experience → gift → idea, and the headings are
-        // `RecommendationFeedList.sectionLabel(for:)`.
+        // experience → gift → idea.
         XCTAssertTrue(
-            app.staticTexts["Experience"].waitForExistence(timeout: 15),
-            "The first section heading never appeared — the recsFeed harness did not render the feed"
+            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 15),
+            "The first headline never appeared — the recsFeed harness did not render the feed, or it fell back to the type heading"
         )
-        let secondHeading = app.staticTexts["Gift"]
+        let secondHeading = app.staticTexts["Small Luxuries"]
         XCTAssertTrue(
             secondHeading.waitForExistence(timeout: 5),
-            "Only one section rendered — the feed is not a vertical list"
+            "Only one headline rendered — the feed is not a vertical list, or the second pick fell back to the type heading"
         )
         XCTAssertTrue(
             secondHeading.isHittable,
-            "The second section heading exists but is not on screen — the capture would show a single card"
+            "The second headline exists but is not on screen — the capture would show a single card"
         )
 
         // Each card is a single `Button` whose accessibility label starts with
-        // its title (`RecommendationFeedCard.accessibilityLabel`), so a prefix
-        // match finds the card without depending on the description text.
+        // its title, then the ribbon's type label
+        // (`RecommendationFeedCard.accessibilityLabel`: "Title, Type. …"). The
+        // ribbon itself is hidden from the tree, so matching the type in the
+        // label is what proves the card carries its type.
         let firstCard = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex")
+            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex, Experience")
         ).firstMatch
         XCTAssertTrue(
             firstCard.waitForExistence(timeout: 5),
-            "The first feed card is not exposed as a pressable button"
+            "The first feed card is not exposed as a pressable button carrying its type"
         )
 
         // Let the loader's recede (0.42s) and the feed's `.revealIn` (0.5s)
