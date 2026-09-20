@@ -10640,6 +10640,67 @@ real UI test (`TEST SUCCEEDED`). Migration applied and verified live (see above)
 
 ---
 
+### Step 19.61 ✅ Dev Tooling — Move /start-server to a Machine-Level Skill
+**Date:** 2026-09-20
+**Status:** Complete
+
+**Goal:** `/start-server` (Step 19.20) was a project skill at `.claude/skills/start-server/`, so
+it only existed while a session's working directory was inside `Knot/`. The backend it boots is a
+machine-level service — the phone and the Simulator both reach it regardless of which project is
+open — so the user asked for the command to be available everywhere on the Mac. Move it to the
+user-level skills directory.
+
+**What changed:**
+- **`~/.claude/skills/start-server/SKILL.md` (new, outside the repo):** the same five phases as
+  the Step 19.20 skill, rewritten so nothing depends on the current working directory. A single
+  `KNOT="/Users/ronniejay/Documents/Cursor Projects/Knot"` constant is pinned at the top and every
+  path in the file is absolute against it (`dev.sh`, `.env`, `.env.example`, `.dev-server.log`).
+  The skill also states that Bash-tool shell state does not persist between calls, so `KNOT` is
+  re-set inside each command block rather than assumed. A new failure-mode bullet covers
+  `dev.sh: No such file` — the checkout moved — and names the one constant to edit.
+- **`.claude/skills/start-server/SKILL.md` deleted from the repo.** Moved rather than copied:
+  a project skill shadows a user skill of the same name inside `Knot/`, so two copies would have
+  drifted silently and the global one would only ever be exercised from *other* directories.
+- **`memory-bank/architecture.md`:** the `start-server/SKILL.md` row in the Claude Code Skills
+  table now records where the skill lives and why it left.
+
+**Why the absolute path belongs outside the repo, not in it.** The obvious alternative was to
+keep the project skill and give it the same absolute path. That would have committed
+`/Users/ronniejay/…` to a file every clone receives, which is the same "never commit a
+machine-specific value" rule that keeps the LAN IP out of `Constants.swift` (Step 19.0). A user
+skill is the right home for a path that is only true on one Mac.
+
+**A rule became a guarantee.** The Step 19.20 skill *asked* to be run from the main checkout,
+because a worktree has no venv and `dev.sh` would bootstrap a throwaway one. Pinning the main
+checkout by absolute path makes that impossible to get wrong: the skill now boots the same server
+from the same tree no matter where it is invoked — including from inside a worktree, which is
+where most agent sessions actually run.
+
+**Files created:**
+- `~/.claude/skills/start-server/SKILL.md` — user-level skill (not tracked by this repo)
+
+**Files modified:**
+- `memory-bank/architecture.md` — `start-server/SKILL.md` row rewritten
+
+**Files deleted:**
+- `.claude/skills/start-server/SKILL.md`
+
+**Tests:** None apply — the diff is a Markdown skill file and two memory-bank docs; no Swift or
+Python changed, so neither suite has anything to exercise. Verified instead that the session's
+available-skills list resolves `/start-server` to the new user-level copy (its description now
+reads "Works from any directory") once the project copy is removed, and that `dev.sh` already
+resolves its own repo paths from `SCRIPT_DIR`, so invoking it by absolute path from an unrelated
+CWD is supported by the script as written.
+
+**Notes:**
+- `progress.md`'s Step 19.20 entry and the Step 19.22 verification note still reference
+  `.claude/skills/start-server/SKILL.md` and `/start-server`; those are history and the command
+  name is unchanged, so they were left as written.
+- If the main checkout is ever moved or renamed, the global skill's `KNOT=` line is the only
+  thing that needs updating. Nothing in the repo references the skill's location any more.
+
+---
+
 ## Next Steps
 
 
