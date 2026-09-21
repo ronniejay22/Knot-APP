@@ -330,6 +330,9 @@ final class RecoverRecentlyStoredBatchTests: XCTestCase {
         XCTAssertEqual(viewModel.recommendations.first?.title, "Pick 0")
         XCTAssertTrue(viewModel.hasLoadedInitially)
         XCTAssertNotNil(viewModel.batchGeneratedAt)
+        // A recovered batch is this run's own work, not something picked back
+        // up from an earlier visit — no resume banner.
+        XCTAssertFalse(viewModel.isResumedBatch)
     }
 
     /// Recovery reads `/latest` unscoped: it must see whichever surface's batch

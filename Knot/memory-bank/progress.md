@@ -10714,9 +10714,13 @@ rows per batch in `recommendations`) and already readable through `GET /by-miles
 fresh `RecommendationDestination` (new `UUID`) per push, so a fresh view model with
 `hasLoadedInitially = false` always fell into `generateWithMilestoneContext()`. Now re-entering
 for the same context shows the stored batch instantly when it is younger than **seven days**
-(one client-side constant), otherwise generates as before; a dateline row ("Picks from 2 days
-ago") with a **"New picks"** button lets the user regenerate at will — which also fills today's
-gap where a freshly generated batch had no regenerate control at all.
+(one client-side constant), otherwise generates as before. A resumed batch is announced by a
+new **`KnotAlertBanner`** above the feed — "Picking up where you left off / These are the picks
+we found for Jas 2 days ago. Want a fresh set?" — whose full-width **"Find new picks"** button
+regenerates. The first cut was a quiet grey dateline ("Picks from 2 days ago") with a small
+"New picks" pill on *every* loaded batch; the user rejected it in review as an afterthought and,
+through the questionnaire, chose an in-feed accent alert shown **only on a resumed batch** over a
+modal dialog or a toast. It never shipped; only the banner did.
 
 **What changed:**
 - **Backend — `app/api/recommendations.py` `GET /latest`.** New query parameter
@@ -10739,7 +10743,11 @@ gap where a freshly generated batch had no regenerate control at all.
   - `var batchGeneratedAt: Date?`, set on every path that publishes a batch: `Date()` on
     `generateRecommendations` / `refreshRecommendations` success; the newest row's parsed
     `createdAt` (`static batchTimestamp(of:)`) on `loadPregeneratedRecommendations`,
-    `recoverRecentlyStoredBatch`, and the new resume.
+    `recoverRecentlyStoredBatch`, and the new resume. `var isResumedBatch = false`, `true` only
+    when `resumeFreshBatch` publishes and reset to `false` by every other publishing path
+    (generate, refresh, pregenerated, recovered) — the banner's whole show/hide rule. A push
+    tap-through is not a resume (the user asked for exactly those picks) and neither is a
+    recovered batch (it is this run's own work).
   - Pure `static isResumableBatch(_:milestoneId:now:)`: `response.milestoneId == milestoneId`
     (nil-vs-nil matches; nil-vs-id does not, either way), newest `createdAt` parses via the
     existing `parseTimestamp`, age `<= resumableBatchWindow` (exactly seven days resumes; one
@@ -10751,10 +10759,21 @@ gap where a freshly generated batch had no regenerate control at all.
     `hasLoadedInitially = true`, `batchGeneratedAt`, `deckResetToken += 1`) and returns `true`;
     stale / empty / wrong-context returns `false` with state untouched; a **thrown read is
     swallowed** and returns `false` — resume is best-effort and generation follows, so it never
-    writes `errorMessage`.
-  - Pure `static batchAgeLabel(generatedAt:now:calendar:)`: start-of-day difference (calendar
-    arithmetic, not `/ 86_400`, so DST cannot flap it) → "Picks from today" / "yesterday" /
-    "N days ago"; a future timestamp clamps to today.
+    writes `errorMessage`. Its `defer` also calls `releaseBackgroundExecutionWindow()` and
+    `cancelPendingLoadingNotification()` (review finding): the scene-phase handler keys off
+    `isLoading`, so backgrounding during this sub-second read takes the same background window
+    and schedules the same 1s "Still working on it…" notice as a ~25s generation; without the
+    hand-back the assertion leaked until the next generate ended (whose own backgrounded path
+    then bailed at `guard backgroundTaskID == .invalid`) and the notice fired for a wait that
+    never happened. `backgroundTaskID` became `private(set)` so a test can observe it. The same
+    gap pre-exists in `loadPregeneratedRecommendations` (Step 15.2 era) and was left as is —
+    not this change's diff.
+  - Pure `static batchAgePhrase(generatedAt:now:calendar:)`: start-of-day difference (calendar
+    arithmetic, not `/ 86_400`, so DST cannot flap it) → "earlier today" / "yesterday" /
+    "N days ago"; a future timestamp clamps to "earlier today". Pure
+    `static resumeBannerMessage(partnerName:generatedAt:now:calendar:)` composes the banner
+    body — "These are the picks we found for Jas 2 days ago. Want a fresh set?" — dropping the
+    " for Jas" clause (not substituting a placeholder) when the name is nil or blank.
 - **iOS — `RecommendationsView.swift`.**
   - New pure `static startsWithStoredRead(preferPregenerated:viewModelHasContent:)` =
     `preferPregenerated || !viewModelHasContent`; `init` seeds `_isPregeneratedRead` from it and
@@ -10769,7 +10788,7 @@ gap where a freshly generated batch had no regenerate control at all.
     otherwise `isPregeneratedRead = true`, then `resumeFreshBatch(milestoneId:)`, then
     `generateWithMilestoneContext()` on `false`. **`loadContent()` is untouched** — it is also
     the retry entry for the error and empty states. Resuming from a *retry* would be wrong: after
-    "New picks" fails, Try Again would republish the batch the user just asked to replace, and
+    "Find new picks" fails, Try Again would republish the batch the user just asked to replace, and
     since resuming never clears `errorMessage` the screen would stay on `.error` with the old
     picks behind it. Retries retry the thing that failed. A `guard !Task.isCancelled` sits
     between the resume and the generation (review finding): `resumeFreshBatch` swallows
@@ -10780,57 +10799,73 @@ gap where a freshly generated batch had no regenerate control at all.
     instead of nothing: the push path sits under its entry modal here, but the Journal's resume
     read does not, so a plain spinner keeps those few hundred milliseconds from reading as a
     blank screen. `.loading` stays `Color.clear` (the overlay covers it).
-  - `recommendationsContent` gains `batchStatusRow(generatedAt:)` as its first child whenever
-    `viewModel.batchGeneratedAt` is set: `Text(batchAgeLabel)` in `Theme.Typography.label` /
-    `Theme.textSecondary`, `Spacer`, `KnotButton("New picks", variant: .outlineNeutral, size: .sm,
-    shape: .pill)` → `generateWithMilestoneContext()`, `.fixedSize().layoutPriority(1)` (the
-    `MilestoneCard` "See details" recipe — `KnotButton` is full-width by default) and
-    `.disabled(viewModel.isLoading)`. The row appears on every loaded batch, including the push
-    tap-through: a batch made seconds ago honestly reads "Picks from today", and with re-entry now
-    resuming, this button is the only way to ask for new picks. "New picks" uses the live
-    `generateRecommendations` path (the backend prompt already excludes the last 200 titles),
-    **not** the dormant `refreshRecommendations`, which records a `refreshed` (−0.5) feedback
-    signal on all three picks — wrong for "show me more". Works in modal mode too
-    (`MilestoneRecommendationsCoverView` passes `occasionType: "major_milestone"`).
+  - `recommendationsContent` gains `resumeBanner(generatedAt:)` as its first child — above the
+    "Knot's Take" card — when `viewModel.isResumedBatch && !isResumeBannerDismissed` and
+    `batchGeneratedAt` is set: a `KnotAlertBanner` with `Lucide.history`, title "Picking up where
+    you left off", `resumeBannerMessage(partnerName:generatedAt:)` as the body, and "Find new
+    picks" → `generateWithMilestoneContext()`, `.disabled(viewModel.isLoading)`; its ✕ sets a
+    per-visit `@State isResumeBannerDismissed` (the briefing card's pattern), and the batch a
+    successful "Find new picks" publishes is not a resumed one, which retires the banner by
+    itself. A freshly generated batch, a push tap-through, and a recovered batch show **no**
+    banner. "Find new picks" uses the live `generateRecommendations` path (the backend prompt
+    already excludes the last 200 titles), **not** the dormant `refreshRecommendations`, which
+    records a `refreshed` (−0.5) feedback signal on all three picks — wrong for "show me more".
+    Works in modal mode too (`MilestoneRecommendationsCoverView` passes
+    `occasionType: "major_milestone"`).
+- **iOS — new `Components/UI/KnotAlertBanner.swift`.** The "true alert component" the user asked
+  for: an accent-tinted in-content card — icon (18pt, `Theme.accent`) · title (`cta`) · optional ✕
+  (28pt hit target, `accessibilityLabel("Dismiss")`) / body (`body`, `textSecondary`) / a
+  full-width `KnotButton(.primary, .md)`. Fill is `Theme.accent.opacity(0.12)` layered over
+  `Theme.surface` (the `EditMilestonesSheet` selected-chip recipe, so it reads the same over any
+  page background), border `accent.opacity(0.4)`, `Theme.Radius.lg`. Same anatomy as the
+  "Knot's Take" briefing card, tinted and carrying a CTA. Deliberately **not** a system
+  `.alert` — those are the app's error/destructive-confirmation vocabulary and they interrupt;
+  this sits in the scroll and can be dismissed or ignored. `onDismiss` is optional so a notice
+  the user must act on can hide the ✕. No tone/variant enum: one caller, one look.
 - **iOS — `Services/NotificationHistoryService.swift`:** `fetchLatestRecommendations(justBecause:)`
   appends `?just_because=true` when set.
 - **iOS — conformers:** `UITestScreenshotHarness.swift` `EmptyMilestoneFetcher`,
   `MilestonePushTapThroughTests.swift` `MockMilestoneFetcher`, and
   `LostGenerationRecoveryTests.swift` `StubLatestFetcher` take the new signature; the two test
   mocks record `latestJustBecauseArgs`.
-- **Screenshot.** `RecsFeedScreenshotHarnessView.loadedViewModel()` stamps
-  `vm.batchGeneratedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())` (calendar
-  days, not `-2 * 86_400`). `PRScreenshotTests.swift` asserts `staticTexts["Picks from 2 days
-  ago"]` (15s) and `buttons["New picks"]` before the Step 19.60 headline / card asserts — the exact
-  two-day label proves the age is derived from the batch timestamp rather than defaulting to
-  "today". The resume-vs-generate decision is a network round-trip and is proven by
-  `ResumeStoredBatchTests`, not by the still image.
+- **Screenshot.** `RecsFeedScreenshotHarnessView.loadedViewModel()` sets `vm.isResumedBatch =
+  true` and stamps `vm.batchGeneratedAt = Calendar.current.date(byAdding: .day, value: -2, to:
+  Date())` (calendar days, not `-2 * 86_400`). `PRScreenshotTests.swift` asserts
+  `staticTexts["Picking up where you left off"]` (15s), a `staticTexts` predicate `label CONTAINS
+  "for Jas 2 days ago"`, and `buttons["Find new picks"]` before the Step 19.60 headline / card
+  asserts — the exact two-day body proves the age is derived from the batch timestamp rather than
+  defaulting to "earlier today". The resume-vs-generate decision is a network round-trip and is
+  proven by `ResumeStoredBatchTests`, not by the still image.
 
 **Files created:**
-- `iOS/KnotTests/ResumeStoredBatchTests.swift` — `ResumableBatchWindowTests` (13: window is 7 days, yesterday, exactly-at-window, +1s past, milestone match / mismatch, nil-vs-milestone both ways, empty, unparseable, fractional-second, `batchTimestamp` newest / nil), `ResumeFreshBatchTests` (11: milestone reads by-milestone only, nil reads latest with `[true]`, fresh publishes + flags + headline + briefing, timestamp is the stored row's, nil briefing leaves the existing one, stale / empty / wrong-context not published, failed read swallowed with `errorMessage == nil` on both paths, `isLoading` guard), `BatchAgeLabelTests` (5, fixed Gregorian `America/Los_Angeles` calendar: today, yesterday, 2 and 6 days, late-last-night = yesterday, future clamps to today). Private `RecordingFetcher`; fixed `referenceNow`; whole-second timestamps (Step 19.54's flake lesson)
-- `docs/pr-screenshots/worktree-feat-resume-stored-recommendations.png` — dateline + "New picks" above the feed inside the real nav bar + `KnotTabBar`
+- `iOS/Knot/Components/UI/KnotAlertBanner.swift` — accent-tinted in-content alert with one primary action (see above)
+- `iOS/KnotTests/Components/UI/KnotAlertBannerTests.swift` — renders with / without dismiss, action and dismiss closures fire, carries its copy, long copy renders
+- `iOS/KnotTests/ResumeStoredBatchTests.swift` — `ResumableBatchWindowTests` (13: window is 7 days, yesterday, exactly-at-window, +1s past, milestone match / mismatch, nil-vs-milestone both ways, empty, unparseable, fractional-second, `batchTimestamp` newest / nil), `ResumeFreshBatchTests` (13: milestone reads by-milestone only, nil reads latest with `[true]`, fresh publishes + flags + headline + briefing + `isResumedBatch`, a later non-resume publish clears the flag, timestamp is the stored row's, nil briefing leaves the existing one, stale / empty / wrong-context not published, failed read swallowed with `errorMessage == nil` on both paths, a read interrupted by backgrounding hands the background window back — via a private `GatedFetcher` that parks the read on a continuation so the test can background the view model mid-read — `isLoading` guard), `BatchAgePhraseTests` (8, fixed Gregorian `America/Los_Angeles` calendar: earlier today, yesterday, 2 and 6 days, late-last-night = yesterday, future clamps to today; the message names the partner and the age, drops the name when nil / blank, reads naturally for today). Private `RecordingFetcher`; fixed `referenceNow`; whole-second timestamps (Step 19.54's flake lesson)
+- `docs/pr-screenshots/worktree-feat-resume-stored-recommendations.png` — the resume banner above the feed inside the real nav bar + `KnotTabBar`
 
 **Files modified:**
 - `backend/app/api/recommendations.py` — `Query` import; `just_because` filter on `/latest`; docstring
 - `backend/tests/test_latest_recommendations_endpoint.py` — `_rec_filters` helper; the mock chain aliases the conditional `.is_()` back onto itself (without it the `MagicMock` leaks into Pydantic and 500s); new `TestJustBecauseFilter` (4: adds the null-milestone filter; filtered read keeps the rest of the query and reports `milestone_id: null`; omitted → no filter; explicit `false` → no filter); docstring index item 11
-- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — protocol signature, `batchGeneratedAt`, `resumableBatchWindow`, `isResumableBatch`, `resumeFreshBatch`, `batchTimestamp`, `batchAgeLabel`
-- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — `startsWithStoredRead`, `loadInitialContent`, `.silent` spinner, `batchStatusRow`; header doc + layout diagram
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — protocol signature, `batchGeneratedAt`, `isResumedBatch`, `resumableBatchWindow`, `isResumableBatch`, `resumeFreshBatch`, `batchTimestamp`, `batchAgePhrase`, `resumeBannerMessage`
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — `startsWithStoredRead`, `loadInitialContent`, `.silent` spinner, `resumeBanner` + `isResumeBannerDismissed`; header doc + layout diagram
 - `iOS/Knot/Services/NotificationHistoryService.swift` — `just_because` query string
-- `iOS/Knot/App/UITestScreenshotHarness.swift` — conformer signature; `recsFeed` stamps a two-day-old batch
-- `iOS/KnotUITests/PRScreenshotTests.swift` — dateline + button assertions; slot comment rewritten
-- `iOS/KnotTests/MilestonePushTapThroughTests.swift` — mock signature; `testPreloadSuccessPopulatesState` asserts `batchGeneratedAt == parseTimestamp("2026-08-01T12:00:00Z")`
-- `iOS/KnotTests/LostGenerationRecoveryTests.swift` — stub signature; `testPublishesThisRunsBatch` asserts `batchGeneratedAt` set; new `testReadsTheLatestBatchUnscoped` (`[false]`)
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — conformer signature; `recsFeed` seeds a resumed, two-day-old batch
+- `iOS/KnotUITests/PRScreenshotTests.swift` — banner title / body / button assertions; slot comment rewritten
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift` — mock signature; `testPreloadSuccessPopulatesState` asserts `batchGeneratedAt == parseTimestamp("2026-08-01T12:00:00Z")` and `isResumedBatch == false`
+- `iOS/KnotTests/LostGenerationRecoveryTests.swift` — stub signature; `testPublishesThisRunsBatch` asserts `batchGeneratedAt` set and `isResumedBatch == false`; new `testReadsTheLatestBatchUnscoped` (`[false]`)
 - `iOS/KnotTests/RecommendationsLoadingViewTests.swift` — `RecommendationsChromeTests` gains the `startsWithStoredRead` truth table (fresh VM → stored read; preloaded VM keeps its own phase; the push flag always means a stored read)
-- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the new test file
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the new files
 
 **Tests:** Full backend suite offline: **1564 passed, 622 skipped, 0 failures** (1560 baseline + 4).
-iOS Full plan green — **658 unit + 5 UI, 0 failures** (625 baseline + 33). Clean build. Screenshot
+iOS Full plan green — **669 unit + 5 UI, 0 failures** (625 baseline + 44). Clean build. Screenshot
 captured by the real UI test (`TEST SUCCEEDED`).
 
 **Notes:**
 - Push tap-through semantics are unchanged: `preferPregenerated` still means "read, never
-  generate unasked" (Step 19.24); it simply gains the dateline and the user-initiated
-  "New picks" button like every other loaded state.
+  generate unasked" (Step 19.24), and its batch is not flagged resumed, so it shows no banner.
+  With re-entry now resuming, "Find new picks" on the banner is the only regenerate control on
+  this screen — a freshly generated batch has none, by the user's choice (visibility "only on a
+  resumed batch"); leaving and re-entering after the window expires generates as before.
 - The generate-path `batchGeneratedAt = Date()` is not unit-testable (`RecommendationService`
   is a concrete class over `URLSession.shared`); it is covered by the resume / pregenerated /
   recovery paths and the screenshot.

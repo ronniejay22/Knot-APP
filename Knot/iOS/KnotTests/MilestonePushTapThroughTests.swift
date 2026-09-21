@@ -428,12 +428,15 @@ final class PregeneratedRecommendationsViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
         XCTAssertFalse(vm.isLoading)
         XCTAssertEqual(fetcher.requestedMilestoneIds, ["ms-123"])
-        // The dateline above the feed reads the stored row's own timestamp,
-        // not the moment the tap-through opened.
+        // The batch's timestamp is the stored row's own, not the moment the
+        // tap-through opened.
         XCTAssertEqual(
             vm.batchGeneratedAt,
             RecommendationsViewModel.parseTimestamp("2026-08-01T12:00:00Z")
         )
+        // A push tap-through is not a resume: the user asked for exactly these
+        // picks, so no "Picking up where you left off" banner.
+        XCTAssertFalse(vm.isResumedBatch)
     }
 
     /// No stored rows → returns false and leaves state untouched so the

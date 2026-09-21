@@ -34,6 +34,7 @@
 		1E1628F04530B51FA16CCD39 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */; };
 		1EEC27F09FB325CC41E7C1CF /* OccasionEntryModalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7600AD1ED22C1819677917BD /* OccasionEntryModalTests.swift */; };
 		1F0D195FF4412CBE938EEE59 /* LostGenerationRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7173E576F3B021A745AB2295 /* LostGenerationRecoveryTests.swift */; };
+		1F9C75AAAF3335E5B47E13EA /* KnotAlertBannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E35507BF39513237257F4A /* KnotAlertBannerTests.swift */; };
 		20F5F8C787700176C7A83296 /* KnotBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E66C0B47ACDE0BD4A7E6BA5 /* KnotBadge.swift */; };
 		221D63C98DC7F9529455B97A /* KnotBadgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E67470A9F668B0E113298E /* KnotBadgeTests.swift */; };
 		22C397D941D7B09846BAA628 /* EditVaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */; };
@@ -75,6 +76,7 @@
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
 		524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */; };
 		54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5C280C9E2257F8A526806C /* KnotInput.swift */; };
+		559BAAC66F79BBE5B563ECF7 /* KnotAlertBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0C885BAFFC778F9A62AEF6 /* KnotAlertBanner.swift */; };
 		584F24EACA48B0BEAB8BA211 /* MilestoneOccasionOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31A0DCA7A711817E76C2EAF /* MilestoneOccasionOptionTests.swift */; };
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
 		5C0948792EDCB23B6E652A8F /* KnotCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D78112D68DB3912DFC57EB /* KnotCardTests.swift */; };
@@ -315,6 +317,7 @@
 		AC0FF48787B62A2639183677 /* SavedRecommendation+Detail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SavedRecommendation+Detail.swift"; sourceTree = "<group>"; };
 		AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCard.swift; sourceTree = "<group>"; };
 		AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		AE0C885BAFFC778F9A62AEF6 /* KnotAlertBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotAlertBanner.swift; sourceTree = "<group>"; };
 		AE385E616111A330CB02F728 /* KnotButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotButton.swift; sourceTree = "<group>"; };
 		B46EF8B3CFD8712E2D9E65C3 /* DevAPIBaseURLResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevAPIBaseURLResolutionTests.swift; sourceTree = "<group>"; };
 		B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicator.swift; sourceTree = "<group>"; };
@@ -334,6 +337,7 @@
 		D153AC4B886D8345194E0B3D /* OnboardingLoveLanguagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLoveLanguagesView.swift; sourceTree = "<group>"; };
 		D246BBCEEE689E2A60573265 /* MilestoneRecommendationSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneRecommendationSheetTests.swift; sourceTree = "<group>"; };
 		D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierSliderCard.swift; sourceTree = "<group>"; };
+		D6E35507BF39513237257F4A /* KnotAlertBannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotAlertBannerTests.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSlider.swift; sourceTree = "<group>"; };
 		DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBar.swift; sourceTree = "<group>"; };
@@ -452,6 +456,7 @@
 		3C1B5AA170E048F2668C970A /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				D6E35507BF39513237257F4A /* KnotAlertBannerTests.swift */,
 				99E67470A9F668B0E113298E /* KnotBadgeTests.swift */,
 				0D7E2ADBC6B399AED76886E2 /* KnotButtonTests.swift */,
 				93D78112D68DB3912DFC57EB /* KnotCardTests.swift */,
@@ -674,6 +679,7 @@
 		C669177D34A683F58F16A5FC /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				AE0C885BAFFC778F9A62AEF6 /* KnotAlertBanner.swift */,
 				4E66C0B47ACDE0BD4A7E6BA5 /* KnotBadge.swift */,
 				AE385E616111A330CB02F728 /* KnotButton.swift */,
 				D092D74A93B0E7C988BCEBA3 /* KnotCard.swift */,
@@ -975,6 +981,7 @@
 				1A07C11CED68F4EE4C1CF0A3 /* ForYouViewModelTests.swift in Sources */,
 				0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */,
 				718FA2BB70412B92A5CC3E52 /* InterestListLayoutTests.swift in Sources */,
+				1F9C75AAAF3335E5B47E13EA /* KnotAlertBannerTests.swift in Sources */,
 				221D63C98DC7F9529455B97A /* KnotBadgeTests.swift in Sources */,
 				6D20B3CD59EA87BB169D4B15 /* KnotButtonTests.swift in Sources */,
 				5C0948792EDCB23B6E652A8F /* KnotCardTests.swift in Sources */,
@@ -1057,6 +1064,7 @@
 				933FBF0189C39E75315636E8 /* IdeaDetailView.swift in Sources */,
 				96462109E4898C16649196D4 /* InterestListRow.swift in Sources */,
 				A233D0878A5E94F553AA7322 /* JustBecauseCard.swift in Sources */,
+				559BAAC66F79BBE5B563ECF7 /* KnotAlertBanner.swift in Sources */,
 				BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */,
 				20F5F8C787700176C7A83296 /* KnotBadge.swift in Sources */,
 				AB8A884D6F0B4D808482D6AD /* KnotButton.swift in Sources */,

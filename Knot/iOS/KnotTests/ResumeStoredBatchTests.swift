@@ -17,6 +17,7 @@
 //
 
 import XCTest
+import UIKit
 @testable import Knot
 
 // MARK: - Fixtures
@@ -121,6 +122,39 @@ private final class RecordingFetcher: MilestoneRecommendationsFetching {
         case .success(let response): return response
         case .failure(let error): throw error
         }
+    }
+}
+
+/// A fetcher that parks every read on a gate until the test opens it, so the
+/// test can act — background the app, say — while the read is in flight.
+@MainActor
+private final class GatedFetcher: MilestoneRecommendationsFetching {
+    private let response: MilestoneRecommendationsResponse
+    private var gate: CheckedContinuation<Void, Never>?
+    private(set) var isParked = false
+
+    init(response: MilestoneRecommendationsResponse) {
+        self.response = response
+    }
+
+    func fetchMilestoneRecommendations(milestoneId: String) async throws -> MilestoneRecommendationsResponse {
+        await park()
+        return response
+    }
+
+    func fetchLatestRecommendations(justBecause: Bool) async throws -> MilestoneRecommendationsResponse {
+        await park()
+        return response
+    }
+
+    private func park() async {
+        isParked = true
+        await withCheckedContinuation { gate = $0 }
+    }
+
+    func open() {
+        gate?.resume()
+        gate = nil
     }
 }
 
@@ -307,13 +341,30 @@ final class ResumeFreshBatchTests: XCTestCase {
         XCTAssertEqual(viewModel.recommendations.first?.headline, "Small Luxuries")
         XCTAssertEqual(viewModel.briefingText, "Knot's take.")
         XCTAssertTrue(viewModel.hasLoadedInitially)
+        XCTAssertTrue(viewModel.isResumedBatch, "A resumed batch is what the banner announces")
         XCTAssertEqual(viewModel.deckResetToken, tokenBefore + 1)
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertFalse(viewModel.isLoading)
     }
 
-    /// The dateline reads the stored row's own timestamp, not the moment the
-    /// screen was opened — that is what makes "Picks from 2 days ago" true.
+    /// The banner exists only for a resumed batch. The next batch published by
+    /// any other path — here the push tap-through's read, the one other stored
+    /// read this seam serves without networking — retires it.
+    func testALaterNonResumePublishClearsTheResumedFlag() async {
+        let fetcher = RecordingFetcher(
+            .success(makeResponse(createdAt: freshTimestamp(), milestoneId: "ms-1"))
+        )
+        let viewModel = makeViewModel(fetcher)
+        _ = await viewModel.resumeFreshBatch(milestoneId: "ms-1")
+        XCTAssertTrue(viewModel.isResumedBatch)
+
+        _ = await viewModel.loadPregeneratedRecommendations(milestoneId: "ms-1")
+
+        XCTAssertFalse(viewModel.isResumedBatch)
+    }
+
+    /// The banner reads the stored row's own timestamp, not the moment the
+    /// screen was opened — that is what makes "2 days ago" true.
     func testTheBatchTimestampIsTheStoredRows() async {
         let createdAt = freshTimestamp()
         let fetcher = RecordingFetcher(.success(makeResponse(createdAt: createdAt)))
@@ -355,6 +406,7 @@ final class ResumeFreshBatchTests: XCTestCase {
         XCTAssertFalse(resumed)
         XCTAssertTrue(viewModel.recommendations.isEmpty)
         XCTAssertFalse(viewModel.hasLoadedInitially)
+        XCTAssertFalse(viewModel.isResumedBatch)
         XCTAssertNil(viewModel.batchGeneratedAt)
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertFalse(viewModel.isLoading)
@@ -412,6 +464,37 @@ final class ResumeFreshBatchTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
     }
 
+    // MARK: Backgrounding mid-read
+
+    /// The scene-phase handler keys off `isLoading`, so backgrounding during
+    /// this sub-second read takes the same background window (and schedules
+    /// the same "Still working on it…" notice) as a ~25s generation. The read
+    /// must hand the window back when it finishes; a leaked assertion makes
+    /// the *next* backgrounded generation bail at `guard backgroundTaskID ==
+    /// .invalid` and send no notice at all (review finding, Step 19.62).
+    func testAReadInterruptedByBackgroundingHandsTheWindowBack() async {
+        let fetcher = GatedFetcher(response: makeResponse(createdAt: freshTimestamp()))
+        let viewModel = RecommendationsViewModel(milestoneFetcher: fetcher)
+
+        let resume = Task { await viewModel.resumeFreshBatch(milestoneId: nil) }
+        for _ in 0..<50 where !fetcher.isParked { await Task.yield() }
+        XCTAssertTrue(fetcher.isParked, "The read never reached the gate")
+        XCTAssertTrue(viewModel.isLoading)
+
+        viewModel.handleAppBackgroundedWhileLoading()
+        // The simulator's test host is a real app, so a window is granted;
+        // without one this test would prove nothing, so say so rather than
+        // pass vacuously.
+        XCTAssertNotEqual(viewModel.backgroundTaskID, UIBackgroundTaskIdentifier.invalid, "No background window was taken")
+
+        fetcher.open()
+        let resumed = await resume.value
+
+        XCTAssertTrue(resumed)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertEqual(viewModel.backgroundTaskID, UIBackgroundTaskIdentifier.invalid, "The resume read leaked the background window")
+    }
+
     // MARK: Guards
 
     func testResumeIsSkippedWhileAnotherLoadIsInFlight() async {
@@ -427,10 +510,10 @@ final class ResumeFreshBatchTests: XCTestCase {
     }
 }
 
-// MARK: - The dateline
+// MARK: - The banner copy
 
 @MainActor
-final class BatchAgeLabelTests: XCTestCase {
+final class BatchAgePhraseTests: XCTestCase {
 
     /// A fixed calendar so the day arithmetic does not depend on the machine's
     /// zone, and a noon reference so no case straddles midnight by accident.
@@ -444,23 +527,23 @@ final class BatchAgeLabelTests: XCTestCase {
         calendar.date(from: DateComponents(year: 2026, month: 9, day: 20, hour: 12))!
     }
 
-    private func label(daysAgo: Int, hour: Int = 12) -> String {
+    private func phrase(daysAgo: Int, hour: Int = 12) -> String {
         let generated = calendar.date(byAdding: .day, value: -daysAgo, to: noon)!
         let shifted = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: generated)!
-        return RecommendationsViewModel.batchAgeLabel(generatedAt: shifted, now: noon, calendar: calendar)
+        return RecommendationsViewModel.batchAgePhrase(generatedAt: shifted, now: noon, calendar: calendar)
     }
 
     func testToday() {
-        XCTAssertEqual(label(daysAgo: 0), "Picks from today")
+        XCTAssertEqual(phrase(daysAgo: 0), "earlier today")
     }
 
     func testYesterday() {
-        XCTAssertEqual(label(daysAgo: 1), "Picks from yesterday")
+        XCTAssertEqual(phrase(daysAgo: 1), "yesterday")
     }
 
     func testDaysAgo() {
-        XCTAssertEqual(label(daysAgo: 2), "Picks from 2 days ago")
-        XCTAssertEqual(label(daysAgo: 6), "Picks from 6 days ago")
+        XCTAssertEqual(phrase(daysAgo: 2), "2 days ago")
+        XCTAssertEqual(phrase(daysAgo: 6), "6 days ago")
     }
 
     /// Calendar days, not 24-hour spans: a batch from late last night is
@@ -470,8 +553,8 @@ final class BatchAgeLabelTests: XCTestCase {
         let elevenPM = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: lateLastNight)!
         let earlyToday = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: noon)!
         XCTAssertEqual(
-            RecommendationsViewModel.batchAgeLabel(generatedAt: elevenPM, now: earlyToday, calendar: calendar),
-            "Picks from yesterday"
+            RecommendationsViewModel.batchAgePhrase(generatedAt: elevenPM, now: earlyToday, calendar: calendar),
+            "yesterday"
         )
     }
 
@@ -480,8 +563,49 @@ final class BatchAgeLabelTests: XCTestCase {
     func testAFutureTimestampClampsToToday() {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: noon)!
         XCTAssertEqual(
-            RecommendationsViewModel.batchAgeLabel(generatedAt: tomorrow, now: noon, calendar: calendar),
-            "Picks from today"
+            RecommendationsViewModel.batchAgePhrase(generatedAt: tomorrow, now: noon, calendar: calendar),
+            "earlier today"
+        )
+    }
+
+    // MARK: The sentence
+
+    private var twoDaysAgo: Date {
+        calendar.date(byAdding: .day, value: -2, to: noon)!
+    }
+
+    func testTheMessageNamesThePartnerAndTheAge() {
+        XCTAssertEqual(
+            RecommendationsViewModel.resumeBannerMessage(
+                partnerName: "Jas", generatedAt: twoDaysAgo, now: noon, calendar: calendar
+            ),
+            "These are the picks we found for Jas 2 days ago. Want a fresh set?"
+        )
+    }
+
+    /// No name → no "for": the sentence closes up rather than reading
+    /// "for  2 days ago" or naming a placeholder.
+    func testTheMessageDropsTheNameWhenUnknown() {
+        XCTAssertEqual(
+            RecommendationsViewModel.resumeBannerMessage(
+                partnerName: nil, generatedAt: twoDaysAgo, now: noon, calendar: calendar
+            ),
+            "These are the picks we found 2 days ago. Want a fresh set?"
+        )
+        XCTAssertEqual(
+            RecommendationsViewModel.resumeBannerMessage(
+                partnerName: "   ", generatedAt: twoDaysAgo, now: noon, calendar: calendar
+            ),
+            "These are the picks we found 2 days ago. Want a fresh set?"
+        )
+    }
+
+    func testTheMessageReadsNaturallyForToday() {
+        XCTAssertEqual(
+            RecommendationsViewModel.resumeBannerMessage(
+                partnerName: "Jas", generatedAt: noon, now: noon, calendar: calendar
+            ),
+            "These are the picks we found for Jas earlier today. Want a fresh set?"
         )
     }
 }

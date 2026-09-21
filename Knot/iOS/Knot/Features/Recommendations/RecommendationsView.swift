@@ -19,7 +19,8 @@
 //  onboarding reveal. Tapping anywhere on a card opens its detail.
 //  Step 19.62: Re-entry resumes the stored batch for this context (up to
 //  `RecommendationsViewModel.resumableBatchWindow`) instead of regenerating;
-//  a "Picks from …" dateline with a "New picks" button sits above the feed.
+//  a resumed batch is announced by a `KnotAlertBanner` above the feed whose
+//  "Find new picks" runs a fresh generation.
 //
 
 import SwiftUI
@@ -28,9 +29,10 @@ import LucideIcons
 
 /// Displays the picks as the same vertical feed the onboarding reveal uses —
 /// a bold type heading over each fixed-height photo card, tap a card to open
-/// its detail. The optional "Knot's Take" briefing card sits above the feed,
-/// under a dateline ("Picks from 2 days ago") whose "New picks" button is the
-/// one way to regenerate from this screen.
+/// its detail. The optional "Knot's Take" briefing card sits above the feed.
+/// When the batch on screen was *resumed* rather than made this visit, a
+/// "Picking up where you left off" banner sits above both, and its "Find new
+/// picks" button is the one way to regenerate from this screen.
 ///
 /// **Loading is resume-first.** Every generation run is stored server-side, so
 /// a fresh visit for a context (a milestone, or just-because) asks for the
@@ -39,12 +41,16 @@ import LucideIcons
 /// exists does it run the ~25s pipeline. The push tap-through keeps its own
 /// stricter rule (`preferPregenerated`: never generate unasked).
 ///
-/// Layout:
+/// Layout (resumed batch):
 /// ```
 /// ┌─────────────────────────────────────┐
 /// │  ← Recommendations                  │
 /// ├─────────────────────────────────────┤
-/// │  Picks from today      (New picks)  │
+/// │  ┌─────────────────────────────┐    │
+/// │  │ ⟳ Picking up where you…   ✕ │    │
+/// │  │ These are the picks we…     │    │
+/// │  │ [     Find new picks      ] │    │
+/// │  └─────────────────────────────┘    │
 /// │  Experience                         │
 /// │  ┌─────────────────────────────┐    │
 /// │  │ photo                       │    │
@@ -130,6 +136,11 @@ struct RecommendationsView: View {
 
     @State private var isBriefingExpanded = false
     @State private var isBriefingDismissed = false
+
+    /// The resume banner's ✕. Per visit, like the briefing's dismissal: a
+    /// fresh view starts with it showing again, and "Find new picks" makes it
+    /// moot by publishing a batch that was not resumed.
+    @State private var isResumeBannerDismissed = false
 
     /// True when the push tap-through found no stored recommendations. Shows
     /// an honest opt-in state rather than silently running a ~30s generation.
@@ -433,7 +444,7 @@ struct RecommendationsView: View {
     ///
     /// Deliberately separate from `loadContent()`, which is also the retry
     /// entry for the error and empty states. Resuming from a *retry* would be
-    /// wrong: after "New picks" fails, Try Again would republish the very batch
+    /// wrong: after "Find new picks" fails, Try Again would republish the very batch
     /// the user just asked to replace — and, since resuming never clears
     /// `errorMessage`, the screen would stay on `.error` with the old picks
     /// behind it. Retries retry the thing that failed.
@@ -613,9 +624,12 @@ struct RecommendationsView: View {
         // Gutters are 20pt to match the Journal tab this screen is pushed from.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // When these picks were made, and the way to get new ones.
-                if let generatedAt = viewModel.batchGeneratedAt {
-                    batchStatusRow(generatedAt: generatedAt)
+                // Only a resumed batch needs announcing — see `resumeBanner`.
+                if viewModel.isResumedBatch,
+                   !isResumeBannerDismissed,
+                   let generatedAt = viewModel.batchGeneratedAt {
+                    resumeBanner(generatedAt: generatedAt)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 // Milestone briefing card (shown when a contextual briefing was generated)
@@ -647,43 +661,38 @@ struct RecommendationsView: View {
         }
     }
 
-    // MARK: - Batch Status Row
+    // MARK: - Resume Banner
 
-    /// The dateline above the feed — "Picks from today" / "yesterday" /
-    /// "N days ago" — and the "New picks" button that runs a fresh generation.
+    /// "Picking up where you left off" — the alert above a *resumed* batch,
+    /// with the one control that regenerates from this screen.
     ///
-    /// The row appears on every loaded batch, not just a resumed one. A batch
-    /// made seconds ago reads "Picks from today", which is honest, and the
-    /// button has to exist there too: with re-entry now resuming, leaving and
-    /// coming back no longer produces new picks, so this is the only way to ask
-    /// for them. `generateWithMilestoneContext()` flips the phase to
-    /// `.loading`, so the coral loader covers the wait exactly as a first
-    /// generation does.
-    private func batchStatusRow(generatedAt: Date) -> some View {
-        HStack(spacing: 12) {
-            Text(RecommendationsViewModel.batchAgeLabel(generatedAt: generatedAt))
-                .knotFont(Theme.Typography.label)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            KnotButton(
-                "New picks",
-                variant: .outlineNeutral,
-                size: .sm,
-                shape: .pill,
-                action: {
-                    Task { await generateWithMilestoneContext() }
+    /// Shown only when `viewModel.isResumedBatch`: a batch the user just made
+    /// (or just tapped a push for) needs no explanation, and a banner that was
+    /// always there would become furniture. With re-entry now resuming,
+    /// leaving and coming back no longer produces new picks, so "Find new
+    /// picks" is the way to ask for them. `generateWithMilestoneContext()`
+    /// flips the phase to `.loading`, so the coral loader covers the wait
+    /// exactly as a first generation does, and the batch it publishes is not
+    /// a resumed one, which retires the banner by itself.
+    private func resumeBanner(generatedAt: Date) -> some View {
+        KnotAlertBanner(
+            icon: Lucide.history,
+            title: "Picking up where you left off",
+            message: RecommendationsViewModel.resumeBannerMessage(
+                partnerName: viewModel.partnerName,
+                generatedAt: generatedAt
+            ),
+            actionTitle: "Find new picks",
+            action: {
+                Task { await generateWithMilestoneContext() }
+            },
+            onDismiss: {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isResumeBannerDismissed = true
                 }
-            )
-            // `KnotButton` fills its width by default; pin it to its label so
-            // the dateline keeps the row — the `MilestoneCard` "See details"
-            // recipe.
-            .fixedSize()
-            .layoutPriority(1)
-            .disabled(viewModel.isLoading)
-        }
+            }
+        )
+        .disabled(viewModel.isLoading)
     }
 
     // MARK: - Error State
