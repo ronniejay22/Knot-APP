@@ -10880,6 +10880,197 @@ captured by the real UI test (`TEST SUCCEEDED`).
 
 ---
 
+### Step 19.63 ✅ Journal Alert for an Untapped Milestone Push → "View recent recommendations" Sheet
+**Date:** 2026-09-20
+**Status:** Complete (built on Step 19.62's branch; stacked PR)
+
+**Goal:** A milestone push ("Jas's birthday is in 7 days — we found 3 ideas") pre-generates and
+stores its batch *before* it is sent. Tapping the push shows the picks and marks the notification
+viewed (Step 19.22/19.24). Ignoring it and opening the app normally — two hours later, the next
+morning — showed nothing: a foreground-delivered push leaves no trace in the app, the only history
+reader (`NotificationsView`) is dead code, and the Journal knew nothing about notifications. The
+picks were reachable only by re-running "Get recommendations". The user asked for a prominent
+alert on the app's home surface that opens the recent recommendations in a sheet styled like the
+event screen. Decided through the questionnaire: **event-detail-style sheet** (over the push
+tap-through screen as a sheet, or a compact bottom sheet); alert stays **until viewed, while the
+event is upcoming** (over 7-day / 48-hour clocks); **built on PR #92** (over dropping its banner or
+closing it).
+
+**What changed:**
+- **No backend change.** `GET /api/v1/notifications/history` already returns `status`,
+  `viewed_at`, `sent_at`, `days_before`, `milestone_id`; `GET /recommendations/by-milestone/{id}`
+  is the batch read the push tap-through uses; `PATCH /notifications/{id}/viewed` is the existing
+  mark-viewed. `status == "sent"` implies the batch was stored (the webhook stores before it
+  pushes), and `viewed_at` is set only by the tap-through (and the dead `NotificationsView`), so
+  "unviewed" already means "never tapped".
+- **`Features/ForYou/PendingPicksAlert.swift` (new).** `struct PendingPicksAlert: Identifiable,
+  Equatable, Sendable { notificationIds: [String] (every unviewed push for the milestone, newest
+  first, never empty); milestone: MilestoneItemResponse; sentAt: Date; id = notificationIds[0] }`.
+  Pure `select(from:milestones:excluding:)`: a row qualifies iff `status == "sent"`, `viewedAt ==
+  nil`, not acknowledged, `sentAt` parses (`RecommendationsViewModel.parseTimestamp`, now
+  `nonisolated`; unparseable fails closed), its milestone is in the list (index built with
+  `Dictionary(_, uniquingKeysWith:)` — `uniqueKeysWithValues` traps on duplicates) and
+  `isUpcoming`; the newest qualifying row picks the milestone and all its qualifying rows ride
+  along. **`isUpcoming(milestone:daysBefore:)` = `0 <= daysUntil <= daysBefore`**, judged from the
+  Journal's own server-computed `daysUntil`, not from dates: `milestoneDate` carries the
+  year-2000 placeholder for yearly events, pushes fire at 00:00 UTC (a calendar compare against
+  the device clock is off by one west of UTC), and `daysUntil` is what the card and meta card
+  beside the alert render, so they can never disagree. On push day the server reports `daysUntil
+  == daysBefore`; it counts down to `0` (the event day still counts); the day after it jumps to
+  ~364 (yearly) or `nil` (one-time) → hidden. A milestone moved later (`daysUntil > daysBefore`)
+  hides it (those picks were for the old date); a milestone deleted after the push (absent from
+  the list) → no alert (the sheet needs it for hero / meta / "Get ideas"). `recommendationsCount`
+  is ignored — it is a cumulative per-milestone total. Copy helpers, pure: `actionTitle = "View
+  recent recommendations"`, `bannerTitle` ("New picks for Jas's Birthday"; blank →
+  `MilestoneRecommendationCopy.resolvedMilestoneName` → "this event"), `bannerMessage` ("We put
+  these together 2 hours ago — Jas's Birthday is in 4 days.", the timing clause from
+  `OccasionCopy.timingPhrase(daysUntil:)` so it reads "today" / "next week" like the entry modal,
+  dropped when `daysUntil` is nil), `agePhrase` (sub-day granularity on today's calendar day —
+  "just now" / "a minute ago" / "N minutes ago" / "an hour ago" / "N hours ago" — then
+  `batchAgePhrase`'s calendar-day rule: "yesterday" / "N days ago"; future clamps to "just now";
+  not `RelativeDateTimeFormatter`, whose 24-hour day boundary breaks the calendar-day rule and
+  whose locale output cannot be pinned).
+- **`Features/ForYou/ForYouViewModel.swift`.** Three seams, modeled on
+  `MilestoneRecommendationsFetching`: `MilestoneListing` (`MilestoneService` conforms via an
+  empty extension), `VaultReading` (`VaultService`), `NotificationHistoryReading`
+  (`fetchHistory(limit:offset:)` + `markViewed(notificationId:)`; `NotificationHistoryService`
+  conforms — a method with defaulted parameters still satisfies the full signature). `init` takes
+  all three with production defaults, so every `ForYouViewModel()` call site is unchanged. The
+  vault seam exists so a test that drives `loadData()` can never reach a live session (the
+  simulator keychain may hold one; `getVault` has a 30s timeout). New state: `pendingPicksAlert`,
+  `hasLoadedInitially`, private `historyRows` (last successful read) and
+  `acknowledgedNotificationIds` (session-level). `loadData()` runs milestones + partner name +
+  new `loadHistory()` as three `async let`s, then sets `hasLoadedInitially`. `loadHistory()` is
+  `try? fetchHistory(limit: 50, offset: 0)` — a failure keeps the previous rows and **never
+  touches `errorMessage`** (the Journal must not degrade because `/history` is down). Both
+  `loadMilestones()` and `loadHistory()` end with `reselectPendingPicks()`, so the two loads need
+  no ordering and the existing `refreshMilestones()` (add/manage `onDisappear`s, unchanged)
+  re-evaluates "upcoming" with the stored rows after a date edit. New `refresh()` (milestones +
+  history) backs pull-to-refresh, and `refreshOnForeground()` (`guard hasLoadedInitially,
+  !isLoading`) backs the scene-phase hook. `acknowledge(_:)`: union the ids into the acknowledged
+  set, **re-select** (review finding — nil-ing left another event's untapped push unannounced
+  until the next refresh; re-selecting also keeps a newer push that replaced this alert
+  meanwhile), then `markViewed` each id — local first, so the ✕ is instant and a silently failed
+  PATCH still clears it (it may reappear next launch, exactly as the tap-through behaves).
+  The selection excludes `acknowledgedNotificationIds ∪ historyReader.locallyViewedNotificationIds`
+  — the second is a process-wide registry on `NotificationHistoryService`
+  (`static locallyViewedNotificationIds`, inserted **synchronously** at the top of `markViewed`,
+  before its first await; exposed through the protocol). Review finding: tapping a push from the
+  background makes the tap-through cover PATCH viewed at the same moment the Journal's foreground
+  refresh GETs the history, and when the GET won, the row still read unviewed and the push the
+  user had just opened was announced as new. Instances are created ad hoc, so the registry is
+  static.
+- **`Features/ForYou/ForYouView.swift`.** `import LucideIcons`; injecting `init(viewModel:)`
+  (the `RecommendationsView` pattern — `MainTabView`, the `forYou` harness and
+  `MilestoneCardTests` keep calling `ForYouView()`); `.task` guards on `hasLoadedInitially`.
+  `@Environment(\.scenePhase)` + `.onChange(of: scenePhase)` → `refreshOnForeground()` on
+  `.active`, on the ZStack chain (a push that arrived while the app was away shows up only in the
+  history; the view stays mounted across tab switches, so this fires on every return regardless
+  of tab — the point). `@State presentedPicksAlert` — a *copy* of the VM's alert taken at tap
+  time, so a refresh that replaces or clears `viewModel.pendingPicksAlert` while the sheet is up
+  cannot yank it — drives `.sheet(item:onDismiss: pushPendingIdeas)` → `RecentPicksSheet`, placed
+  with the other presentations (never on `timelineContent`, which hides the nav bar). In
+  `timelineContent`, right after `journalHeader`: `pendingPicksBanner(alert)` — a
+  `KnotAlertBanner(icon: Lucide.sparkles, title: bannerTitle, message: bannerMessage,
+  actionTitle: "View recent recommendations", action: { presentedPicksAlert = alert },
+  onDismiss: acknowledge)` with `.transition(.opacity + .move(edge: .top))` and a value-keyed
+  `.animation(…, value: viewModel.pendingPicksAlert?.id)` on the VStack (the VM sets the value
+  asynchronously). `.refreshable` → `refresh()`; `showIdeas(for:)` also nils
+  `presentedPicksAlert`, so the sheet's empty-state "Get ideas" dismisses and then pushes
+  `RecommendationsView` through the same `pendingIdeasMilestone` hand-off as the other two
+  presentations.
+- **`Features/ForYou/MilestoneMetaCard.swift` + `MilestoneArtworkHero.swift` (new) —
+  extracted from `MilestoneDetailView`.** Pure moves: the DATE / COUNTDOWN / RECIPIENT `KnotCard`
+  (with its private `metaColumn` / `metaDivider` and the statics `fullDate(from:)` /
+  `countdownText(for:)`) and the 140pt occasion hero (with the `Color.clear.overlay` idiom from
+  Step 19.31 and the icon placeholder). `MilestoneDetailView` renders both and lost the moved
+  members; `MilestoneDetailViewTests` retargets its eight helper references to `MilestoneMetaCard`
+  (no shims). Extracted rather than duplicated so the detail screen and the sheet cannot drift.
+- **`Features/ForYou/RecentPicksSheet.swift` (new).** `RecentPicksSheet(alert:partnerName:
+  urgency:onViewed:onGetIdeas:onDismiss:viewModel:)`, a stock `.sheet` (`.presentationDetents
+  ([.large])`, drag indicator, corner radius 24; it covers `KnotTabBar` by itself — no `AppChrome`
+  work). Body mirrors `MilestoneDetailView`: `Theme.backgroundGradient`; header row (milestone
+  name + the plain `Lucide.x` close button from `MilestoneRecommendationSheet`, never
+  `KnotIconButton(.ghost)`, which paints accent); `MilestoneArtworkHero`; `MilestoneMetaCard`;
+  then the picks. **Reuses `RecommendationsViewModel`** rather than a new one:
+  `loadPregeneratedRecommendations(milestoneId:)` yields loading / error / empty / loaded for a
+  stored batch, and `isSaved` / `openDetail` / `saveRecommendation` / `openMerchantFromDetail`
+  are exactly what the detail cover needs — wired identically to `RecommendationsView`'s
+  `.fullScreenCover(item: $viewModel.selectedDetailItem)` → `RecommendationDetailView`. `.task`:
+  `configure(modelContext:milestoneId:)`, `onViewed()` (the host acknowledges before the batch is
+  even read), then the read unless the VM came in loaded (harness). Phases come from the existing
+  pure `RecommendationsLoadingView.phase(…, isPregeneratedRead: true, …)`: `.silent`/`.loading`
+  → spinner (never the coral generation screen); `.error` → `KnotCard` + "Try again" (re-runs the
+  read, never a generation); `.missing`/`.empty` → a `KnotCard` shaped like the detail screen's
+  `emptyIdeas` ("We're still putting these together", "Get ideas" → `onGetIdeas`; reached only
+  when a push was marked sent with nothing stored — local dev without APNs); `.loaded` → "Picks
+  for Jas" (`sectionHeaderSemibold`) with a trailing "Found 3 days ago" caption (`label`, accent;
+  `batchGeneratedAt ?? sentAt`) over `RecommendationFeedList`. No briefing card — the meta card
+  frames the occasion. The return-to-app purchase/rating prompts of `RecommendationsView` are
+  **not** wired here (same as `MilestoneDetailView`'s saved-ideas precedent).
+- **`Models/DTOs.swift`:** `MilestoneItemResponse` gains `Equatable` on its declaration (it has a
+  private stored property, so an extension could not synthesize it). Not a contract change.
+- **`Features/Recommendations/RecommendationsViewModel.swift`:** `parseTimestamp` is
+  `nonisolated` (pure; `PendingPicksAlert.select` calls it from a nonisolated context).
+- **Screenshot.** `UITestScreenshotHarness.swift` gains `StaticMilestoneLister` /
+  `StaticHistoryReader` stubs, a shared `JournalPicksAlertSeed` (Jas's Birthday `daysUntil: 4`,
+  Christmas 175, New Year's Eve 181 — every category with bundled art; one untapped 7-day push
+  stamped **three calendar days** old, so the story is consistent and the caption is stable — an
+  hours-old stamp reads "yesterday" for any run after midnight), and two keys:
+  **`journalPicksAlert`** — the real `ForYouView(viewModel:)` inside the `recsFeed` chrome
+  reproduction (`KnotTabBar` via `safeAreaInset`, `AppChrome` + `AuthViewModel`); the stubs answer
+  the scene-phase refresh the real view runs on becoming active with the same seeded rows, so the
+  state survives it — and **`recentPicksSheet`** — the same Journal with `RecentPicksSheet`
+  presented via a stock `.sheet(isPresented: .constant(true))` over a loaded `RecommendationsViewModel`
+  (the `recsFeed` fixtures). `PRScreenshotTests.swift`'s slot branches on
+  `ProcessInfo.processInfo.environment["KNOT_PR_SHOT"]` (default → the alert; `"sheet"` → the
+  sheet), asserting the alert's title / "3 days ago" body / button / ✕ / "Upcoming", and the
+  sheet's name / "COUNTDOWN" / "Picks for Jas" / two headlines (second `isHittable`) / card
+  predicate / "Close". Two captures: `iOS/scripts/capture-ui-screenshot.sh` and
+  `TEST_RUNNER_KNOT_PR_SHOT=sheet iOS/scripts/capture-ui-screenshot.sh <branch>-sheet`
+  (`xcodebuild` forwards `TEST_RUNNER_*` to the runner — verified, both `TEST SUCCEEDED`).
+
+**Files created:**
+- `iOS/Knot/Features/ForYou/PendingPicksAlert.swift` — model, `select`, `isUpcoming`, copy helpers
+- `iOS/Knot/Features/ForYou/RecentPicksSheet.swift` — the event-style picks sheet
+- `iOS/Knot/Features/ForYou/MilestoneMetaCard.swift`, `MilestoneArtworkHero.swift` — extracted from the detail screen
+- `iOS/KnotTests/PendingPicksAlertTests.swift` — `PendingPicksSelectionTests` (20: sent vs failed, viewed vs unviewed, push day / event day kept, `daysBefore + 1` / 364 / nil / negative dropped, negative `daysBefore` doesn't trap, all unviewed pushes ride along newest-first, a viewed older push is left out, newest across milestones wins, row order irrelevant, missing milestone / missing or unparseable `sentAt` dropped, fractional-second `sentAt` kept, empty inputs, duplicate milestone ids don't trap, acknowledged ids excluded), `PendingPicksCopyTests` (9, fixed Gregorian `America/Los_Angeles` calendar: age within the hour / in hours / late-last-night = yesterday / in days / future clamps; title with and without a name; message with `daysUntil` 4 / 7 / 0 and nil; action title)
+- `iOS/KnotTests/RecentPicksSheetTests.swift` — `ForYouPendingPicksViewModelTests` (13, over private `StubMilestoneLister` / `FailingVaultReader` / `StubHistoryReader`: `loadData` announces an untapped push; none → nil; a push another surface already marked viewed is not announced; the real service records an id before its PATCH and its conformance reads the registry (task cancelled, never awaited — no session or socket); a failed history read keeps the Journal working with no error; a failed refresh keeps the existing alert; acknowledge marks every id newest-first and clears; acknowledging one alert announces the next event's push at once; a refresh after acknowledge does not resurrect; a newer push replaces the alert and a stale acknowledge leaves it; `refreshOnForeground` no-ops before the first load and picks up a push that arrived while away; `refreshMilestones` re-evaluates "upcoming" with the stored rows), `RecentPicksSheetRenderingTests` (4: loaded, dark mode, empty, the phase mapping), `ForYouPendingPicksRenderingTests` (3: Journal with an alert, `MilestoneMetaCard`, `MilestoneArtworkHero`)
+- `docs/pr-screenshots/worktree-feat-journal-missed-push-alert.png` (the Journal alert) and `…-sheet.png` (the sheet)
+
+**Files modified:**
+- `iOS/Knot/Features/ForYou/ForYouViewModel.swift` — seams, state, `loadHistory` / `reselectPendingPicks` / `refresh` / `refreshOnForeground` / `acknowledge`
+- `iOS/Knot/Services/NotificationHistoryService.swift` — `static locallyViewedNotificationIds`, inserted at the top of `markViewed`
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — injecting init, scene-phase hook, banner, picks sheet, `showIdeas` update
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — renders the extracted hero and meta card; moved members removed
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — `parseTimestamp` `nonisolated`
+- `iOS/Knot/Models/DTOs.swift` — `MilestoneItemResponse: Equatable`
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — stubs, seed, two keys
+- `iOS/KnotUITests/PRScreenshotTests.swift` — env-var-driven slot with two assertion sets
+- `iOS/KnotTests/MilestoneDetailViewTests.swift` — helper references retargeted to `MilestoneMetaCard`
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the new files
+
+**Tests:** iOS Full plan green — **718 unit + 5 UI, 0 failures** (669 baseline on Step 19.62 + 49).
+Both screenshots captured by the real UI test (`TEST SUCCEEDED`). Backend untouched — nothing to run.
+
+**Notes:**
+- Several unviewed pushes for different milestones → only the newest is announced; the other
+  event's ids are untouched, so its alert takes the first one's place the moment it is
+  acknowledged. 14-day viewed, 7-day not → the alert is for the 7-day push only
+  (`notificationIds == ["n7"]`).
+- The ✕ counts as seen (marks viewed), so the alert never nags across launches; the picks stay
+  reachable through the milestone's sparkle button, which now resumes the stored batch (19.62).
+- The sheet holds its own copy of the alert, so a Journal refresh underneath cannot yank it; the
+  VM's alert may change meanwhile and is simply what the Journal shows after dismissal.
+- Scene-phase refresh = one `GET /milestones` + one `GET /history` per foreground, guarded by
+  `hasLoadedInitially` / `isLoading`. The bare `forYou` harness's failing calls are harmless.
+- `RecentPicksSheet`'s detail cover presents over the sheet (standard SwiftUI); worth a glance on
+  device. The return-to-app purchase prompt is a follow-up if wanted — sheet-over-sheet works.
+- **Stacked on PR #92** (`worktree-feat-resume-stored-recommendations`): the PR's base is that
+  branch and it reuses `KnotAlertBanner`; merge #92 first, then re-target this one to `main`.
+
+---
+
 ## Next Steps
 
 

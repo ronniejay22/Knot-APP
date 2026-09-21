@@ -7,12 +7,16 @@
 //
 
 import SwiftUI
+import LucideIcons
 
 /// The Journal tab (labelled "Journal" in `KnotTabBar`; the type keeps its
 /// original `ForYouView` name).
 ///
 /// Layout:
 /// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
+/// - When a milestone push was sent but never tapped (Step 19.63): a "New
+///   picks for …" `KnotAlertBanner` whose "View recent recommendations" raises
+///   `RecentPicksSheet` with the picks that push pre-generated
 /// - "Just Because" recommendation card
 /// - "Upcoming" header with a "View all" link into milestone management
 /// - A `MilestoneCard` per upcoming milestone, whose footer carries two
@@ -23,11 +27,19 @@ import SwiftUI
 ///   hint about what it is about to do
 struct ForYouView: View {
 
-    @State private var viewModel = ForYouViewModel()
+    @State private var viewModel: ForYouViewModel
     @State private var milestoneFormViewModel = MilestonesViewModel()
+
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Navigation destination for programmatic push.
     @State private var navigationDestination: RecommendationDestination?
+
+    /// The alert whose picks sheet is open — a *copy* of the view model's,
+    /// taken at tap time, so a refresh that replaces or clears
+    /// `viewModel.pendingPicksAlert` while the sheet is up cannot yank it.
+    /// Drives `.sheet(item:)`; `PendingPicksAlert` is `Identifiable`.
+    @State private var presentedPicksAlert: PendingPicksAlert?
 
     /// Presents the full milestone list (add / edit / delete) from "View all".
     @State private var showMilestoneManagement = false
@@ -46,6 +58,12 @@ struct ForYouView: View {
     /// more ideas" is tapped, consumed by whichever presentation was open so the
     /// push happens after it is really gone.
     @State private var pendingIdeasMilestone: MilestoneItemResponse?
+
+    /// Injectable so a screenshot harness or a test can hand in a seeded view
+    /// model; production (`MainTabView`) uses the default.
+    init(viewModel: ForYouViewModel = ForYouViewModel()) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
         NavigationStack {
@@ -89,7 +107,20 @@ struct ForYouView: View {
                 )
             }
             .task {
+                // A view model handed in already loaded (harness, tests) is
+                // not overwritten; production always starts empty.
+                guard !viewModel.hasLoadedInitially else { return }
                 await viewModel.loadData()
+            }
+            // A push that arrived while the app was away shows up only in the
+            // notification history, so returning to the foreground re-reads it
+            // (and the milestones its "upcoming" test needs). This view stays
+            // mounted across tab switches, so the hook fires on every return
+            // regardless of the selected tab — which is the point.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    Task { await viewModel.refreshOnForeground() }
+                }
             }
             .sheet(isPresented: $milestoneFormViewModel.showAddSheet) {
                 MilestoneFormSheet(viewModel: milestoneFormViewModel)
@@ -131,6 +162,20 @@ struct ForYouView: View {
                     onDismiss: { sheetMilestone = nil }
                 )
             }
+            // The picks behind an untapped push (Step 19.63). Same placement
+            // rule and the same `pushPendingIdeas` hand-off as the two above:
+            // its empty state's "Get ideas" dismisses this sheet and then
+            // pushes the recommendations screen.
+            .sheet(item: $presentedPicksAlert, onDismiss: pushPendingIdeas) { alert in
+                RecentPicksSheet(
+                    alert: alert,
+                    partnerName: viewModel.partnerName,
+                    urgency: viewModel.urgencyLevel(for: alert.milestone.daysUntil ?? 365),
+                    onViewed: { Task { await viewModel.acknowledge(alert) } },
+                    onGetIdeas: { showIdeas(for: alert.milestone) },
+                    onDismiss: { presentedPicksAlert = nil }
+                )
+            }
         }
     }
 
@@ -140,6 +185,12 @@ struct ForYouView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 journalHeader
+
+                // An untapped push's picks, announced above everything else.
+                if let alert = viewModel.pendingPicksAlert {
+                    pendingPicksBanner(alert)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
                 // "Just Because" card
                 JustBecauseCard(
@@ -172,10 +223,35 @@ struct ForYouView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 80)
+            // The view model sets the alert asynchronously, so a value-keyed
+            // animation is what animates its insertion and removal; the ✕
+            // path needs no `withAnimation` of its own.
+            .animation(.easeOut(duration: 0.25), value: viewModel.pendingPicksAlert?.id)
         }
         .refreshable {
-            await viewModel.refreshMilestones()
+            await viewModel.refresh()
         }
+    }
+
+    // MARK: - Pending Picks
+
+    /// "New picks for Jas's Birthday" → `RecentPicksSheet`. The ✕ counts as
+    /// seen, so the alert never nags across launches; the picks stay reachable
+    /// through the milestone's own recommendation button, which resumes the
+    /// stored batch.
+    private func pendingPicksBanner(_ alert: PendingPicksAlert) -> some View {
+        KnotAlertBanner(
+            icon: Lucide.sparkles,
+            title: PendingPicksAlert.bannerTitle(milestoneName: alert.milestone.milestoneName),
+            message: PendingPicksAlert.bannerMessage(
+                milestoneName: alert.milestone.milestoneName,
+                sentAt: alert.sentAt,
+                daysUntil: alert.milestone.daysUntil
+            ),
+            actionTitle: PendingPicksAlert.actionTitle,
+            action: { presentedPicksAlert = alert },
+            onDismiss: { Task { await viewModel.acknowledge(alert) } }
+        )
     }
 
     // MARK: - Header
@@ -297,12 +373,13 @@ struct ForYouView: View {
     }
 
     /// Closes whichever presentation asked for ideas, remembering that a push
-    /// should follow. Nils both because only one is ever open — the sheet and
-    /// the detail screen are raised by two different controls on the same card
-    /// — so one helper serves both without the caller having to say which.
+    /// should follow. Nils all three because only one is ever open — the sheet
+    /// and the detail screen are raised by two different controls on the same
+    /// card, and the picks sheet by the Journal's alert — so one helper serves
+    /// them all without the caller having to say which.
     ///
-    /// The push lands on this screen's `NavigationStack`, which both
-    /// presentations sit above, so the dismissal has to *finish* first — and it
+    /// The push lands on this screen's `NavigationStack`, which every
+    /// presentation sits above, so the dismissal has to *finish* first — and it
     /// animates for a few hundred milliseconds. Hopping one runloop turn is
     /// nowhere near long enough and would drop the push; `pushPendingIdeas` runs
     /// from the presentation's own `onDismiss`, which fires when the dismissal
@@ -311,6 +388,7 @@ struct ForYouView: View {
         pendingIdeasMilestone = milestone
         sheetMilestone = nil
         detailMilestone = nil
+        presentedPicksAlert = nil
     }
 
     /// Pushes the recommendations the sheet or the detail screen asked for, once

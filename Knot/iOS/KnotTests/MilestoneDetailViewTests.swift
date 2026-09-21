@@ -83,7 +83,7 @@ private func makeItem(id: String, title: String = "A gift") -> RecommendationIte
 final class MilestoneDetailDateTests: XCTestCase {
 
     func testFullDateExpandsStoredDate() {
-        XCTAssertEqual(MilestoneDetailView.fullDate(from: "2000-12-25"), "December 25")
+        XCTAssertEqual(MilestoneMetaCard.fullDate(from: "2000-12-25"), "December 25")
     }
 
     /// An unparseable stored date must never surface the raw "2000-MM-DD"
@@ -92,7 +92,7 @@ final class MilestoneDetailDateTests: XCTestCase {
     /// exactly the same failure.
     func testFullDateShowsPlaceholderWhenUnparseable() {
         for raw in ["not-a-date", "", "2000-12"] {
-            let shown = MilestoneDetailView.fullDate(from: raw)
+            let shown = MilestoneMetaCard.fullDate(from: raw)
             XCTAssertEqual(shown, "—", "Unparseable date '\(raw)' should render the placeholder")
             XCTAssertFalse(shown.contains("2000"), "The storage format must never reach the UI")
         }
@@ -101,7 +101,7 @@ final class MilestoneDetailDateTests: XCTestCase {
     /// Out-of-range months make `formattedMilestoneDate` return "", which must
     /// not reach the UI as a blank column.
     func testFullDateShowsPlaceholderOnOutOfRangeMonth() {
-        XCTAssertEqual(MilestoneDetailView.fullDate(from: "2000-13-25"), "—")
+        XCTAssertEqual(MilestoneMetaCard.fullDate(from: "2000-13-25"), "—")
     }
 
     /// `daysUntilText(nil)` is "" — which a past one-time milestone genuinely
@@ -109,14 +109,14 @@ final class MilestoneDetailDateTests: XCTestCase {
     /// rendering failure. The three-column grid can't drop a column without
     /// stranding a divider, so it shows the same placeholder as DATE.
     func testCountdownShowsPlaceholderWhenUnknown() {
-        XCTAssertEqual(MilestoneDetailView.countdownText(for: nil), "—")
-        XCTAssertFalse(MilestoneDetailView.countdownText(for: nil).isEmpty)
+        XCTAssertEqual(MilestoneMetaCard.countdownText(for: nil), "—")
+        XCTAssertFalse(MilestoneMetaCard.countdownText(for: nil).isEmpty)
     }
 
     func testCountdownUsesTheSharedPhrasingWhenKnown() {
-        XCTAssertEqual(MilestoneDetailView.countdownText(for: 0), "Today!")
-        XCTAssertEqual(MilestoneDetailView.countdownText(for: 1), "Tomorrow")
-        XCTAssertEqual(MilestoneDetailView.countdownText(for: 175), "in 175 days")
+        XCTAssertEqual(MilestoneMetaCard.countdownText(for: 0), "Today!")
+        XCTAssertEqual(MilestoneMetaCard.countdownText(for: 1), "Tomorrow")
+        XCTAssertEqual(MilestoneMetaCard.countdownText(for: 175), "in 175 days")
     }
 }
 

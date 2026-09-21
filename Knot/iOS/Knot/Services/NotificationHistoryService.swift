@@ -55,6 +55,18 @@ final class NotificationHistoryService: Sendable {
         self.session = URLSession.shared
     }
 
+    /// Every notification id this process has asked to mark viewed, recorded
+    /// *before* the PATCH goes out (Step 19.63).
+    ///
+    /// The PATCH is fire-and-forget and the Journal reads `/history` on every
+    /// foreground: tapping a push from the background makes the tap-through
+    /// cover PATCH at the same moment the Journal GETs, and if the GET wins,
+    /// the row still reads unviewed and the push the user just opened would be
+    /// announced as new. Instances are created ad hoc (the cover, the Journal,
+    /// the dead history screen), so the registry is process-wide; the Journal
+    /// excludes these ids whenever it selects an alert.
+    static var locallyViewedNotificationIds: Set<String> = []
+
     // MARK: - Fetch Notification History
 
     /// Fetches the user's notification history.
@@ -269,6 +281,11 @@ final class NotificationHistoryService: Sendable {
     ///
     /// - Parameter notificationId: The UUID of the notification to mark as viewed
     func markViewed(notificationId: String) async {
+        // Synchronously, before the first await: any `/history` read that
+        // resolves from here on must treat this id as viewed, whatever the
+        // server says.
+        Self.locallyViewedNotificationIds.insert(notificationId)
+
         do {
             let token = try await getAccessToken()
 

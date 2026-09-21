@@ -97,6 +97,10 @@ enum UITestScreenshotHarness {
             RecsLoadingScreenshotHarnessView()
         case "recsFeed":
             RecsFeedScreenshotHarnessView()
+        case "journalPicksAlert":
+            JournalPicksAlertScreenshotHarnessView()
+        case "recentPicksSheet":
+            RecentPicksSheetScreenshotHarnessView()
         default:
             EmptyView()
         }
@@ -444,6 +448,189 @@ private struct RecsFeedScreenshotHarnessView: View {
         }
         .environment(authViewModel)
         .environment(chrome)
+    }
+}
+
+// MARK: - Journal "New picks" alert (Step 19.63)
+
+/// Milestone list stub that always answers with the seeded rows, so the
+/// scene-phase refresh the real `ForYouView` runs on becoming active reloads
+/// the same state rather than blanking it.
+private struct StaticMilestoneLister: MilestoneListing {
+    let milestones: [MilestoneItemResponse]
+
+    func listMilestones() async throws -> MilestoneListResponse {
+        MilestoneListResponse(milestones: milestones, count: milestones.count)
+    }
+}
+
+/// Notification history stub: fixed rows, and a mark-viewed that does nothing
+/// (a harness never reaches the network).
+private struct StaticHistoryReader: NotificationHistoryReading {
+    let rows: [NotificationHistoryItemResponse]
+
+    func fetchHistory(limit: Int, offset: Int) async throws -> NotificationHistoryResponse {
+        NotificationHistoryResponse(notifications: rows, total: rows.count)
+    }
+
+    func markViewed(notificationId: String) async {}
+
+    var locallyViewedNotificationIds: Set<String> { [] }
+}
+
+/// The seed both Step 19.63 harnesses share: the Journal's milestones, its
+/// partner name, and one untapped 7-day push for the birthday.
+///
+/// The push is stamped **three calendar days** old (calendar arithmetic, not
+/// `-3 * 86_400`, so DST cannot move it) for an event four days out — a
+/// consistent story ("sent seven days before, three days ago") and a stable
+/// caption: an hours-old stamp would read "yesterday" for any run after
+/// midnight and the capture's assertion would flap. Every milestone carries an
+/// `occasionCategory` with bundled artwork, so the hero is the real
+/// illustration rather than the gradient placeholder.
+@MainActor
+private enum JournalPicksAlertSeed {
+    static let partnerName = "Jas"
+
+    static func milestone(
+        _ id: String,
+        _ type: String,
+        _ name: String,
+        _ days: Int,
+        _ occasionCategory: String
+    ) -> MilestoneItemResponse {
+        MilestoneItemResponse(
+            id: id,
+            milestoneType: type,
+            milestoneName: name,
+            milestoneDate: "2000-10-12",
+            recurrence: "yearly",
+            budgetTier: "major_milestone",
+            daysUntil: days,
+            createdAt: "2026-07-04",
+            occasionCategory: occasionCategory
+        )
+    }
+
+    static let birthday = milestone("h3", "birthday", "Jas's Birthday", 4, "birthday")
+
+    static let milestones: [MilestoneItemResponse] = [
+        birthday,
+        milestone("h1", "holiday", "Christmas", 175, "christmas"),
+        milestone("h2", "holiday", "New Year's Eve", 181, "new_years"),
+    ]
+
+    static var sentAt: Date {
+        Calendar.current.date(byAdding: .day, value: -3, to: Date()) ?? Date()
+    }
+
+    static var historyRow: NotificationHistoryItemResponse {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let sent = formatter.string(from: sentAt)
+        return NotificationHistoryItemResponse(
+            id: "harness-push-7day",
+            milestoneId: birthday.id,
+            milestoneName: birthday.milestoneName,
+            milestoneType: birthday.milestoneType,
+            milestoneDate: birthday.milestoneDate,
+            daysBefore: 7,
+            status: "sent",
+            sentAt: sent,
+            viewedAt: nil,
+            createdAt: sent,
+            recommendationsCount: 3
+        )
+    }
+
+    static var alert: PendingPicksAlert {
+        PendingPicksAlert(notificationIds: [historyRow.id], milestone: birthday, sentAt: sentAt)
+    }
+
+    /// The Journal's view model, loaded and already announcing the push. Its
+    /// services are the stubs above, so the `.task` early-return and the
+    /// foreground refresh both leave this state exactly as seeded.
+    static func journalViewModel() -> ForYouViewModel {
+        let vm = ForYouViewModel(
+            milestoneService: StaticMilestoneLister(milestones: milestones),
+            historyReader: StaticHistoryReader(rows: [historyRow])
+        )
+        vm.milestones = milestones
+        vm.partnerName = partnerName
+        vm.pendingPicksAlert = alert
+        vm.hasLoadedInitially = true
+        return vm
+    }
+
+    /// The batch the sheet shows: the `recsFeed` fixtures (three headlined
+    /// picks with bundled fallback photos), loaded, stamped with the push's age.
+    static func picksViewModel() -> RecommendationsViewModel {
+        let vm = RecommendationsViewModel()
+        vm.recommendations = [
+            PreviewRecommendations.decode(type: "experience", isIdea: false, headline: "Weekend Curations"),
+            PreviewRecommendations.decode(type: "gift", isIdea: false, headline: "Small Luxuries"),
+            PreviewRecommendations.decode(type: "idea", isIdea: true, headline: "The Art of Pause"),
+        ]
+        vm.partnerName = partnerName
+        vm.hasLoadedInitially = true
+        vm.batchGeneratedAt = sentAt
+        return vm
+    }
+}
+
+/// Renders the real `ForYouView` — not a hand-composed copy — with a seeded
+/// view model whose `pendingPicksAlert` is set, inside the same reproduction
+/// of production chrome `RecsFeedScreenshotHarnessView` uses (`KnotTabBar` via
+/// `safeAreaInset`, `AppChrome` and `AuthViewModel` in the environment). The
+/// capture proves the "New picks for …" banner sits between the header and
+/// "Surprise them today", above the real timeline, inside the real tab bar.
+@MainActor
+private struct JournalPicksAlertScreenshotHarnessView: View {
+    @State private var authViewModel = AuthViewModel()
+    @State private var chrome = AppChrome()
+    @State private var selectedTab: MainTabView.AppTab = .journal
+
+    private var tabBarItems: [KnotTabBar<MainTabView.AppTab>.Item] {
+        [
+            .init(id: .journal, title: "Journal", systemImage: "book"),
+            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
+            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
+        ]
+    }
+
+    var body: some View {
+        ForYouView(viewModel: JournalPicksAlertSeed.journalViewModel())
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !chrome.isTabBarHidden {
+                    KnotTabBar(selection: $selectedTab, items: tabBarItems)
+                }
+            }
+            .environment(authViewModel)
+            .environment(chrome)
+    }
+}
+
+/// The sheet behind the alert's "View recent recommendations", presented
+/// exactly as production presents it — a stock `.sheet` over the Journal (a
+/// harness that composes a modal differently from the app is testing a
+/// composition the app doesn't use, Steps 19.28/19.30). The sheet's view model
+/// is seeded loaded, so its `.task` skips the batch read; the model context it
+/// configures comes from the app root's container.
+@MainActor
+private struct RecentPicksSheetScreenshotHarnessView: View {
+    var body: some View {
+        JournalPicksAlertScreenshotHarnessView()
+            .sheet(isPresented: .constant(true)) {
+                RecentPicksSheet(
+                    alert: JournalPicksAlertSeed.alert,
+                    partnerName: JournalPicksAlertSeed.partnerName,
+                    urgency: .soon,
+                    onViewed: {},
+                    onGetIdeas: {},
+                    onDismiss: {},
+                    viewModel: JournalPicksAlertSeed.picksViewModel()
+                )
+            }
     }
 }
 

@@ -43,11 +43,6 @@ struct MilestoneDetailView: View {
     /// The saved idea whose full detail page is open.
     @State private var selectedDetailItem: RecommendationItemResponse?
 
-    /// Matches `MilestoneCard.artworkHeight`'s reasoning — the occasion
-    /// illustrations are 1050×480, so a hero this tall keeps the crop near
-    /// their native ratio.
-    private static let artworkHeight: CGFloat = 140
-
     var body: some View {
         ZStack {
             Theme.backgroundGradient.ignoresSafeArea()
@@ -55,8 +50,11 @@ struct MilestoneDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     headerRow
-                    artwork
-                    metaCard
+                    // The hero and the meta card are shared with
+                    // `RecentPicksSheet` (Step 19.63) so the two screens
+                    // cannot drift.
+                    MilestoneArtworkHero(milestone: milestone)
+                    MilestoneMetaCard(milestone: milestone, partnerName: partnerName, urgency: urgency)
                     savedIdeasSection
                 }
                 .padding(.horizontal, 20)
@@ -98,117 +96,6 @@ struct MilestoneDetailView: View {
 
             Spacer(minLength: 0)
         }
-    }
-
-    // MARK: - Artwork
-
-    /// Composed as an overlay on `Color.clear` rather than sized directly — a
-    /// `scaledToFill` image reports a size larger than its proposal and that
-    /// overflow propagates into *layout*, which is what shifted the whole
-    /// Journal sideways in Step 19.31. `clipShape` clips pixels; it does not
-    /// constrain layout.
-    @ViewBuilder
-    private var artwork: some View {
-        Group {
-            switch MilestoneCard.artwork(for: milestone.occasionCategory) {
-            case .illustration(let name):
-                Color.clear
-                    .overlay {
-                        Image(name)
-                            .resizable()
-                            .scaledToFill()
-                    }
-            case .placeholder:
-                LinearGradient(
-                    colors: [Theme.accent.opacity(0.28), Theme.accent.opacity(0.10)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay {
-                    Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
-                        .font(.system(size: 52, weight: .light))
-                        .foregroundStyle(Theme.accent.opacity(0.55))
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.artworkHeight)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous))
-        .accessibilityHidden(true)
-    }
-
-    // MARK: - Meta Card
-
-    /// Date · countdown · recipient, in three divider-separated columns.
-    private var metaCard: some View {
-        KnotCard(padding: .lg, radius: Theme.Radius.xl) {
-            HStack(alignment: .top, spacing: 0) {
-                metaColumn(label: "DATE") {
-                    Text(Self.fullDate(from: milestone.milestoneDate))
-                        .knotFont(Theme.Typography.cta)
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                metaDivider
-
-                metaColumn(label: "COUNTDOWN") {
-                    // The urgency ramp Step 19.31 kept on the card carries
-                    // through here — a milestone three days out should not read
-                    // the same as one 175 days out.
-                    //
-                    // `daysUntilText(nil)` is "", which a past one-time
-                    // milestone really does produce, so the column falls back to
-                    // the same "—" placeholder `fullDate` and `budgetTierLabel`
-                    // use rather than leaving a labelled column blank. The card
-                    // can drop its countdown entirely; a fixed three-column grid
-                    // cannot without stranding a divider.
-                    Text(Self.countdownText(for: milestone.daysUntil))
-                        .knotFont(Theme.Typography.cta)
-                        .foregroundStyle(MilestoneCard.countdownColor(for: urgency))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                metaDivider
-
-                metaColumn(label: "RECIPIENT") {
-                    HStack(spacing: 6) {
-                        PartnerInitialAvatar(name: partnerName, diameter: 18)
-
-                        Text(partnerName)
-                            .knotFont(Theme.Typography.cta)
-                            .foregroundStyle(Theme.textPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                }
-            }
-        }
-    }
-
-    private func metaColumn<Content: View>(
-        label: String,
-        @ViewBuilder value: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .knotFont(Theme.Typography.label)
-                .tracking(0.8)
-                .foregroundStyle(Theme.textSecondary)
-
-            value()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var metaDivider: some View {
-        Rectangle()
-            .fill(Theme.surfaceBorder)
-            .frame(width: 1, height: 32)
-            .padding(.horizontal, 8)
-            .accessibilityHidden(true)
     }
 
     // MARK: - Saved Ideas
@@ -399,35 +286,8 @@ private struct SavedIdeaCard: View {
 
 extension MilestoneDetailView {
 
-    /// "2000-12-25" → "December 25".
-    ///
-    /// Parses the stored value directly rather than taking the card's short
-    /// "MMM d" string as a fallback: `ForYouViewModel.formattedDate(_:)` returns
-    /// the *raw* stored string on exactly the same parse failure, so falling
-    /// back to it would surface the `2000-MM-DD` storage format to the user.
-    /// An unparseable date shows the same "—" `budgetTierLabel` uses for an
-    /// unknown value.
-    static func fullDate(from milestoneDate: String) -> String {
-        let parts = milestoneDate.split(separator: "-")
-        guard parts.count >= 3,
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
-            return "—"
-        }
-
-        let formatted = formattedMilestoneDate(month: month, day: day)
-        return formatted.isEmpty ? "—" : formatted
-    }
-
-    /// The countdown column's value, never blank.
-    ///
-    /// `MilestonesViewModel.daysUntilText(nil)` returns "" — which the backend
-    /// genuinely produces for a past one-time milestone — and an empty string
-    /// under a "COUNTDOWN" label reads as a rendering failure.
-    static func countdownText(for daysUntil: Int?) -> String {
-        let text = MilestonesViewModel.daysUntilText(daysUntil)
-        return text.isEmpty ? "—" : text
-    }
+    // `fullDate(from:)` and `countdownText(for:)` moved to `MilestoneMetaCard`
+    // with the card that renders them (Step 19.63).
 
     /// VoiceOver label for the section header and its count.
     ///

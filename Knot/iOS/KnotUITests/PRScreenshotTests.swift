@@ -24,24 +24,29 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change makes re-entering the recommendations screen *resume* the
-        // stored batch instead of regenerating, and announces a resumed batch
-        // with a `KnotAlertBanner` above the feed — "Picking up where you left
-        // off", a body that says how old the picks are, and a full-width
-        // "Find new picks" button. The capture must show that banner above the
-        // first headline + card, with the real navigation bar above and the
-        // real `KnotTabBar` below.
+        // The change adds two screens' worth of UI, so this one test produces
+        // two captures, chosen by the `KNOT_PR_SHOT` environment variable
+        // (`xcodebuild` forwards `TEST_RUNNER_KNOT_PR_SHOT=…` to the runner):
         //
-        // The screen sits behind an authenticated session and a ~25s
-        // generation run; the `recsFeed` harness renders the real
-        // `RecommendationsView` with a seeded, already-loaded view model whose
-        // batch is flagged resumed and stamped two days old — inside the same
-        // reproduction of production chrome the `recsLoading` harness uses (a
-        // real push from a root that hides its own bar, and the tab bar
-        // mounted via `safeAreaInset`). The resume-vs-generate decision itself
-        // is a network round-trip and is proven by `ResumeStoredBatchTests`,
-        // not by this still image.
-        app.launchArguments += ["-uiTestScreenshot", "recsFeed"]
+        //   (default) `journalPicksAlert` — the Journal with the "New picks for
+        //   Jas's Birthday" `KnotAlertBanner` between the header and "Surprise
+        //   them today", above the real timeline, inside the real `KnotTabBar`.
+        //   This is the alert shown when a milestone push was sent but never
+        //   tapped.
+        //
+        //   `sheet` → `recentPicksSheet` — the sheet the banner's "View recent
+        //   recommendations" raises: the event's artwork hero, its DATE /
+        //   COUNTDOWN / RECIPIENT card, then the stored picks as the feed's
+        //   headline + photo cards.
+        //
+        // Both screens sit behind an authenticated session, a milestone fetch
+        // and a notification-history read; the harnesses render the real
+        // `ForYouView` / `RecentPicksSheet` with seeded view models whose
+        // services are static stubs. The selection of *which* push to announce
+        // is a pure function proven by `PendingPicksAlertTests`, not by these
+        // still images.
+        let wantsSheet = ProcessInfo.processInfo.environment["KNOT_PR_SHOT"] == "sheet"
+        app.launchArguments += ["-uiTestScreenshot", wantsSheet ? "recentPicksSheet" : "journalPicksAlert"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -55,66 +60,13 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        //
-        // The banner is the element this change adds. Its title proves the
-        // resumed state rendered at all; the body is matched on "2 days ago"
-        // (the harness stamps the batch two calendar days old) so the capture
-        // proves the age is computed from the batch's timestamp rather than
-        // defaulting to "earlier today"; the button is asserted by its label
-        // so a renamed or missing control fails here, not in review.
-        XCTAssertTrue(
-            app.staticTexts["Picking up where you left off"].waitForExistence(timeout: 15),
-            "The resume banner never appeared — the recsFeed harness did not flag the batch resumed, or the feed did not render"
-        )
-        XCTAssertTrue(
-            app.staticTexts.matching(
-                NSPredicate(format: "label CONTAINS %@", "for Jas 2 days ago")
-            ).firstMatch.waitForExistence(timeout: 5),
-            "The banner body does not name the partner and the batch's age — the message is not derived from partnerName + batchGeneratedAt"
-        )
-        XCTAssertTrue(
-            app.buttons["Find new picks"].waitForExistence(timeout: 5),
-            "The \"Find new picks\" button is missing from the resume banner"
-        )
+        if wantsSheet {
+            assertRecentPicksSheet(in: app)
+        } else {
+            assertJournalPicksAlert(in: app)
+        }
 
-        // The headings asserted are the fixtures' *headlines*, not the type
-        // words: if the feed silently fell back to "Experience" / "Gift" this
-        // would fail rather than ship a capture that hides the regression.
-        // Two headings, not one: a single heading could be satisfied by a
-        // one-card layout. Two different ones ON SCREEN is what proves the
-        // feed is a list — `exists` alone is not enough, since an offscreen
-        // element in a scroll view still exists in the accessibility tree, so
-        // the second heading is also asserted `isHittable`. The fixture seeds
-        // experience → gift → idea.
-        XCTAssertTrue(
-            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 5),
-            "The first headline never appeared — the feed did not render under the banner, or it fell back to the type heading"
-        )
-        let secondHeading = app.staticTexts["Small Luxuries"]
-        XCTAssertTrue(
-            secondHeading.waitForExistence(timeout: 5),
-            "Only one headline rendered — the feed is not a vertical list, or the second pick fell back to the type heading"
-        )
-        XCTAssertTrue(
-            secondHeading.isHittable,
-            "The second headline exists but is not on screen — the capture would show a single card"
-        )
-
-        // Each card is a single `Button` whose accessibility label starts with
-        // its title, then the ribbon's type label
-        // (`RecommendationFeedCard.accessibilityLabel`: "Title, Type. …"). The
-        // ribbon itself is hidden from the tree, so matching the type in the
-        // label is what proves the card carries its type.
-        let firstCard = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex, Experience")
-        ).firstMatch
-        XCTAssertTrue(
-            firstCard.waitForExistence(timeout: 5),
-            "The first feed card is not exposed as a pressable button carrying its type"
-        )
-
-        // Let the loader's recede (0.42s) and the feed's `.revealIn` (0.5s)
-        // finish, and the navigation/tab bars settle after the hand-off, so
+        // Let the feed's `.revealIn` and the sheet's presentation settle, so
         // the capture isn't taken mid-animation.
         Thread.sleep(forTimeInterval: 1.0)
 
@@ -122,6 +74,84 @@ final class PRScreenshotTests: XCTestCase {
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// The banner is the element this change adds to the Journal. Its title
+    /// proves the alert rendered; the body is matched on "3 days ago" (the
+    /// harness stamps the push three calendar days old) so the capture proves
+    /// the age is computed from the push's timestamp rather than defaulting to
+    /// "just now"; the button and ✕ are asserted by label so a renamed or
+    /// missing control fails here, not in review. "Upcoming" proves the real
+    /// timeline rendered under the banner rather than a bare header.
+    private func assertJournalPicksAlert(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.staticTexts["New picks for Jas's Birthday"].waitForExistence(timeout: 15),
+            "The Journal alert never appeared — the journalPicksAlert harness did not seed pendingPicksAlert, or ForYouView did not render it"
+        )
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS %@", "3 days ago")
+            ).firstMatch.waitForExistence(timeout: 5),
+            "The alert body does not say how old the push is — the message is not derived from sentAt"
+        )
+        XCTAssertTrue(
+            app.buttons["View recent recommendations"].waitForExistence(timeout: 5),
+            "The \"View recent recommendations\" button is missing from the alert"
+        )
+        XCTAssertTrue(
+            app.buttons["Dismiss"].waitForExistence(timeout: 5),
+            "The alert's ✕ is missing"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Upcoming"].waitForExistence(timeout: 5),
+            "The milestone timeline did not render under the alert"
+        )
+    }
+
+    /// The sheet mirrors the event detail screen and then lists the picks.
+    /// The milestone name + "COUNTDOWN" prove the event framing (hero + meta
+    /// card) rendered; "Picks for Jas" is the section this sheet adds; the two
+    /// headlines — the second asserted `isHittable`, since an offscreen element
+    /// in a scroll view still exists in the tree — prove the picks are a list
+    /// on screen and not a single card; the card predicate proves each pick is
+    /// the same pressable feed card carrying its type.
+    private func assertRecentPicksSheet(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.staticTexts["Jas's Birthday"].waitForExistence(timeout: 15),
+            "The sheet never appeared — the recentPicksSheet harness did not present it, or its header did not render"
+        )
+        XCTAssertTrue(
+            app.staticTexts["COUNTDOWN"].waitForExistence(timeout: 5),
+            "The event meta card is missing from the sheet"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Picks for Jas"].waitForExistence(timeout: 5),
+            "The picks section header is missing — the seeded batch did not resolve to the loaded phase"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 5),
+            "The first headline never appeared — the feed did not render in the sheet, or it fell back to the type heading"
+        )
+        let secondHeading = app.staticTexts["Small Luxuries"]
+        XCTAssertTrue(
+            secondHeading.waitForExistence(timeout: 5),
+            "Only one headline rendered — the picks are not a list, or the second pick fell back to the type heading"
+        )
+        XCTAssertTrue(
+            secondHeading.isHittable,
+            "The second headline exists but is not on screen — the capture would show a single card"
+        )
+        let firstCard = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex, Experience")
+        ).firstMatch
+        XCTAssertTrue(
+            firstCard.waitForExistence(timeout: 5),
+            "The first pick is not exposed as a pressable feed card carrying its type"
+        )
+        XCTAssertTrue(
+            app.buttons["Close"].waitForExistence(timeout: 5),
+            "The sheet's close button is missing"
+        )
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.

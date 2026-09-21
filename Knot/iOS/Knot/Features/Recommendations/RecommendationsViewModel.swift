@@ -1229,7 +1229,10 @@ final class RecommendationsViewModel {
 
     /// Parses a Supabase ISO 8601 timestamp, which carries microseconds.
     /// Falls back to the non-fractional form for older rows.
-    static func parseTimestamp(_ value: String) -> Date? {
+    ///
+    /// `nonisolated`: it is a pure function, and `PendingPicksAlert.select`
+    /// (Step 19.63) needs it from a nonisolated context.
+    nonisolated static func parseTimestamp(_ value: String) -> Date? {
         let withFractional = ISO8601DateFormatter()
         withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFractional.date(from: value) { return date }

@@ -840,7 +840,11 @@ struct MilestoneUpdatePayload: Codable, Sendable {
 }
 
 /// A single milestone returned from the milestones API.
-struct MilestoneItemResponse: Codable, Sendable, Identifiable {
+///
+/// `Equatable` is declared here rather than in an extension because
+/// `rawOccasionCategory` is private; `PendingPicksAlert` (Step 19.63) carries a
+/// milestone and needs value equality for its own `Equatable`.
+struct MilestoneItemResponse: Codable, Sendable, Identifiable, Equatable {
     let id: String
     let milestoneType: String
     let milestoneName: String
