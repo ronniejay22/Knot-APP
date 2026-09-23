@@ -2,7 +2,7 @@
 //  RecentPicksSection.swift
 //  Knot
 //
-//  Step 19.59: The Journal's "Recent picks" — every set of recommendations
+//  Step 19.62: The Journal's "Recent picks" — every set of recommendations
 //  generated in the last few days, each reopenable until it expires.
 //
 //  Until this section existed, pressing Back after a generation run lost the
@@ -252,7 +252,7 @@ struct RecentPickRow: View {
             id: id, recommendationType: type, title: title, description: nil,
             externalUrl: nil, priceCents: 4200, merchantName: nil, imageUrl: nil,
             createdAt: iso.string(from: now), personalizationNote: nil,
-            isIdea: type == "idea", contentSections: nil
+            isIdea: type == "idea", contentSections: nil, headline: nil
         )
     }
     let fresh = RecentRecommendationBatchResponse(

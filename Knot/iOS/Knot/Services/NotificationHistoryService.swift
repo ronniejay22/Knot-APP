@@ -249,7 +249,7 @@ final class NotificationHistoryService: Sendable {
         }
     }
 
-    // MARK: - Recent Batches (Step 19.59)
+    // MARK: - Recent Batches (Step 19.62)
 
     /// Fetches every stored batch generated inside the backend's recency window
     /// (currently 7 days), newest run first — the Journal's "Recent picks".

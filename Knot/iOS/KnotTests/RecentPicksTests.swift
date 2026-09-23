@@ -2,7 +2,7 @@
 //  RecentPicksTests.swift
 //  KnotTests
 //
-//  Step 19.59: The Journal's "Recent picks" — stored recommendation batches
+//  Step 19.62: The Journal's "Recent picks" — stored recommendation batches
 //  stay reopenable for 7 days, then expire.
 //
 //  Covers the DTO contract, the pure label / expiry helpers on
@@ -62,7 +62,8 @@ private func makeItem(
         createdAt: isoTimestamp(for: fixedNow),
         personalizationNote: "She has been taking pottery classes.",
         isIdea: type == "idea",
-        contentSections: nil
+        contentSections: nil,
+        headline: nil
     )
 }
 

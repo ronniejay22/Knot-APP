@@ -10353,9 +10353,363 @@ change, so no `pytest` run applies.
 
 ---
 
-### Step 19.59 ✅ Journal — "Recent picks": Generated Sets Stay Reopenable for 7 Days
+### Step 19.59 ✅ Recommendations as a Vertical "Curated Collections" Feed
+**Date:** 2026-09-19
+**Status:** Complete
+
+**Goal:** The user supplied a mock of how generated recommendations should read: a
+vertically scrolling list where each pick is a **bold section heading** above a
+**fixed-height, full-width photo card** — photo fills the card, a dark scrim covers only the
+bottom half, and a white title + two-line description sit over it, with the whole card
+tappable. Both places the three picks render (`RecommendationsView` on For You / push
+tap-through, and the in-onboarding reveal in `OnboardingCompletionView`) showed a
+horizontal paged carousel of one full-bleed card at a time with a "See Details" button and
+page dots (`SpotlightCarouselView` / `SpotlightCard`). Replace it with the feed, on both
+surfaces, via one shared list component — no backend or DTO change.
+
+**What changed:**
+- **`Features/Recommendations/RecommendationFeedView.swift` (new):**
+  - `RecommendationFeedCard(item:isSaved:onOpenDetail:)` — one pick as a 200pt-tall,
+    full-width photo card (`static let cardHeight`: the mock's cards are ~2:1 and both the
+    remote photos and the bundled `RecFallback*` assets are landscape, so the crop stays
+    close to the photos' own proportions while two cards + a heading share the viewport).
+    A `Button` wearing `KnotPressableStyle` with `cardTapped(delay:)` copied from
+    `MilestoneCard` (light haptic on touch-up, then `onOpenDetail()` after
+    `Theme.Motion.pressHold` so the cover never slides over a still-pressed card;
+    `delay: .zero` is synchronous for tests). Layers: the Spotlight card's `imageBackground`
+    carried over verbatim (`RecommendationFallbackImage` always underneath an `AsyncImage`,
+    image composed as an overlay on `Color.clear` — Step 19.31's layout-overflow lesson),
+    a bottom-half `LinearGradient` scrim (clear → black@80% from 45%) with **no** uniform
+    tint (the mock's photos read bright), the `.ultraThinMaterial` bookmark badge when
+    saved, and the text overlay (`cardTitleSemibold` white ≤2 lines, `bodySmall` white@90%
+    ≤2 lines; description omitted when nil/blank). `Theme.Radius.xl` continuous clip,
+    `Theme.Shadow.md`, matching `contentShape`. Accessibility: the Button's single merged
+    element with an explicit `accessibilityLabel(title:description:isSaved:)`
+    ("Title. Description, Saved") and the hint "Opens the details"; the photo and badge are
+    hidden from VoiceOver. No `partnerName` parameter — the old card never read it.
+  - `RecommendationFeedList(items:isSaved:onOpenDetail:)` — a plain `VStack(spacing: 20)`
+    of `ForEach` pairs (heading `Text` in `Theme.Typography.feedSectionHeader` with
+    `.isHeader`, 12pt above its card). Deliberately **no `ScrollView`** of its own: each
+    host supplies one so it can place its own content above (the "Knot's Take" briefing
+    card, the onboarding step header) and own gutters + bottom clearance. Static
+    `sectionLabel(for:)` maps the backend type to an editorial heading on-device —
+    gift → "Gift", experience → "Experience", date → "Date Idea", idea → "Knot Original",
+    plan → "Date Plan", anything else → "Recommendation". This is intentionally **not** the
+    uppercase type tag the detail hero badge / `RecommendationCard` render ("Date" reads
+    as a calendar date, "Idea" says nothing at 20pt; "Knot Original" is the detail page's
+    existing phrase for a non-purchasable); the doc comment records the divergence and the
+    badge switches are untouched.
+- **`Core/Theme.swift`:** new `Theme.Typography.feedSectionHeader` (DM Sans SemiBold 20,
+  `relativeTo: .title2`). Value-identical to `cardTitleSemibold` / `onboardingSubHeader` /
+  `modalTitle` and deliberately a fourth separate token (house rule, Steps 18.22 / 19.32 /
+  19.34 / 19.49): a section heading above a card must not be retyped by a tweak to a card
+  headline. `cardTitleSemibold`'s doc now names the feed card's title as a consumer.
+- **`Features/Recommendations/RecommendationsView.swift`:** `recommendationsContent` is now
+  `ScrollView { VStack(spacing: 20) { briefingCard?; RecommendationFeedList } }` with the
+  gutters (20pt), top (8pt) and bottom (`isModal ? 24 : 100`, the existing `KnotTabBar`
+  clearance) padding on the stack. The briefing card dropped its own padding (the stack
+  owns rhythm); `cardsVisible`'s opacity + 0.3s animation moved onto the list so it still
+  never dims the briefing; `.transition(.revealIn)` at the phase switch is unchanged.
+  File-header diagram redrawn for the feed; "deck card" wording → "feed card".
+- **`Features/Onboarding/Steps/OnboardingCompletionView.swift`:** `recommendationsList` is
+  `ScrollView { VStack(spacing: 20) { OnboardingStepHeader("Here are your
+  recommendations"); RecommendationFeedList } }` at the **24pt** onboarding gutter (every
+  other step uses 24; the old carousel sat at 20 beside a 24pt header). `onOpenDetail`
+  still flips `hasOpenedRecommendation` before `viewModel.openDetail`, so the Continue
+  gating (`OnboardingCompletionViewContinueGatingTests`) is untouched.
+- **`Features/Recommendations/SpotlightDeckView.swift` — deleted.** `SpotlightDeckView`
+  (dormant since Step 18.49), `SpotlightCarouselView` and `SpotlightCard` had no live
+  caller left. Gone, not deprecated — the Step 19.51 `ForYouLoadingView` precedent.
+  `RecommendationsViewModel`'s `loadMoreForDeck` / `recordDislike` / `deckResetToken` stay
+  (doc comments reworded to drop the deck reference) for a future "show more".
+- **`App/UITestScreenshotHarness.swift`:** `spotlightFallback` and `spotlightCard` keys and
+  their harness views removed (they rendered the deleted card). New `recsFeed` key →
+  `RecsFeedScreenshotHarnessView`, a copy of `RecsLoadingScreenshotHarnessView`'s chrome
+  reproduction (real `navigationDestination` push from a root that hides its own bar,
+  `KnotTabBar` via `safeAreaInset`, `AppChrome` + `AuthViewModel` in the environment) whose
+  view-model factory seeds three **loaded** picks (experience / gift / idea via
+  `PreviewRecommendations.decode`, `partnerName = "Jas"`, `hasLoadedInitially = true`) so
+  the shot proves the bottom clearance and the bar restore, not just the cards ("a harness
+  only proves what it renders", Step 19.51). `milestoneRecs` / `occasionModal` render
+  `RecommendationsView` and picked the feed up with no edit.
+- **`KnotUITests/PRScreenshotTests.swift`:** slot moved off `journal` (the 19.56 double-fire
+  probe went with it) to `recsFeed`; asserts `staticTexts["Experience"]` (15s) **and**
+  `staticTexts["Gift"]` — existence *and* `isHittable`, because an offscreen element in a
+  scroll view still exists in the accessibility tree, so only a hittable second heading
+  proves two sections are on screen at once (a review finding) — and a `buttons` match
+  whose label `BEGINSWITH "Experience for Alex"` (the card is a single pressable
+  element), then a 1s settle for `.revealIn` and the bar hand-off.
+- **`Features/ForYou/MilestoneCard.swift`, `RecommendationDetailView.swift`:** comments
+  that cited `SpotlightCard` / "the Spotlight views" now cite `RecommendationFeedCard` /
+  the recommendation views. `.claude/skills/screenshot-screen/SKILL.md`'s example key
+  `spotlightFallback` → `recsFeed`.
+
+**Files created:**
+- `iOS/Knot/Features/Recommendations/RecommendationFeedView.swift` — `RecommendationFeedCard`, `RecommendationFeedList`, `sectionLabel(for:)`, preview
+- `iOS/KnotTests/RecommendationFeedTests.swift` — 17 tests: the label map (all five types,
+  the "date"/"idea" divergence from the tag, unknown/empty → "Recommendation", case
+  sensitivity); card renders for all types / saved / blank description; `cardHeight`;
+  `cardTapped(delay: .zero)` forwards synchronously; the default tap defers past the hold
+  (expectation-based, modeled on `MilestoneCardTests`); `accessibilityLabel` composition;
+  list renders 3 / 1 / 0 items; `isSaved` is consulted with every pick's id (hosted in a
+  `UIWindow` + `layoutIfNeeded()` so SwiftUI actually evaluates the body)
+- `docs/pr-screenshots/worktree-feat-recommendations-vertical-feed.png` — the feed inside
+  the real nav bar + `KnotTabBar`
+
+**Files modified:**
+- `iOS/Knot/Core/Theme.swift` — `feedSectionHeader` token; `cardTitleSemibold` doc
+- `iOS/Knot/Features/Recommendations/RecommendationsView.swift` — feed content; header doc
+- `iOS/Knot/Features/Onboarding/Steps/OnboardingCompletionView.swift` — feed at the 24pt gutter
+- `iOS/Knot/Features/Recommendations/RecommendationsViewModel.swift` — doc comments only
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — `PreviewRecommendations` doc
+- `iOS/Knot/Features/ForYou/MilestoneCard.swift` — comment repointed
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `recsFeed` added; `spotlightFallback` / `spotlightCard` removed
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot → `recsFeed`
+- `iOS/KnotTests/RecommendationsViewTests.swift` — the five deck / card / carousel render
+  tests deleted (they constructed the removed views); `testDetailRenders*`, `makeItem` and
+  `SpotlightDeckStateTests` kept
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `testFeedSectionHeaderTokenExists`
+- `.claude/skills/screenshot-screen/SKILL.md` — example key
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated (`xcodegen generate`) for the add + delete
+
+**Files deleted:**
+- `iOS/Knot/Features/Recommendations/SpotlightDeckView.swift`
+
+**Tests:** iOS Full plan green — **613 unit + 5 UI, 0 failures** (600 baseline − 5 removed
++ 17 feed + 1 token). Clean `build-for-testing` with zero warnings in any touched file (the
+warnings the build prints are pre-existing: `MilestoneRecommendationSheet.previewSheet`,
+the non-`@MainActor` UI-test files, `SubscriptionManagerTests`). Screenshot captured by the
+real UI test (`TEST SUCCEEDED`, not the `simctl` fallback). No backend, DTO, endpoint or
+migration change, so no `pytest` run applies.
+
+**Notes:**
+- Out of scope by decision: the mock's "Local Artisans" two-column grid (there are exactly
+  three picks and no data behind it), its nav chrome, and any "Show me more" control —
+  the 3-per-press limit is PRD F2 (`PRIMARY_RECOMMENDATION_COUNT = 3`), unchanged.
+- Dynamic Type at accessibility sizes: 2 + 2 lines can outgrow the scrim on a 200pt card;
+  the text is inside the clipped `ZStack` so it clips rather than growing the card.
+  `.minimumScaleFactor(0.85)` on the title is the cheap mitigation if it shows on device.
+- The seeded-loaded harness view model still resolves `.loading` for one frame
+  (`awaitingFirstLoad`) before `.loaded`, hence the settle before capture.
+- `PRScreenshotTests`'s slot is a shared single target; it moves off `journal` here, so a
+  concurrent branch that also edits it will contend (Steps 19.31–19.35 recorded the same).
+
+---
+
+### Step 19.60 ✅ Generated Recommendation Headlines and an On-Card Type Ribbon
+**Date:** 2026-09-20
+**Status:** Complete
+
+**Goal:** Bring the feed's *content* up to the "Curated Collections" mock. Step 19.59's heading
+over each card was derived on-device from the pick's type ("Gift", "Experience", "Date Idea");
+the mock reads like a magazine — "Weekend Curations", "The Art of Pause". The user chose to have
+**Claude generate a one-line editorial headline per pick** (over a static per-type string), so
+the heading is now a backend field emitted by the existing unified-generation call, stored with
+the recommendation, and returned on every read path — with the old type heading kept as the
+fallback for batches stored before headlines existed. Since the heading no longer names the
+type, the **type moved onto the photo card as a ribbon**: an uppercase tag pinned to the card's
+top-leading corner.
+
+**What changed:**
+- **Backend — the headline contract.** `headline: Optional[str]`, JSON key `"headline"`: 2–4
+  words, Title Case, no terminal punctuation, ≤ 40 chars, never equal to the title; `null` for
+  anything generated before this step and for a pick whose headline fails normalization.
+  - `app/services/unified_generation.py`: `UNIFIED_SYSTEM_PROMPT` gains **Rule 11 HEADLINE**
+    (a 2–4 word Title Case editorial line that frames the pick like a curated-collection
+    heading — examples "Weekend Curations", "The Art of Pause", "Wellness Escapes", "Small
+    Luxuries"; must not repeat the title, must not merely name the type, no partner name, no
+    punctuation) and a `"headline"` line in the per-recommendation JSON field spec. New
+    `HEADLINE_MAX_CHARS = 40` and `_normalize_headline(raw, tag_vocab, title)`: non-str →
+    `None`; `normalize_whitespace(humanize_tags(...))`; strip wrapping quotes and trailing
+    `.!?:;,…`; an over-long line is cut at the last space inside 40 chars; `None` when blank
+    or case-insensitively equal to the title. Deliberately **not** routed through
+    `trim_to_complete_sentence` / `is_incomplete_sentence` (a 2-word phrase has no terminal
+    punctuation, so those would judge it "incomplete" and drop words) nor `truncate_prose`
+    (appends an ellipsis the heading has nowhere to put). `_normalize_recommendation` computes
+    `title` once and passes `headline=_normalize_headline(rec.get("headline"), tag_vocab,
+    title)`. `_validate_recommendation` is unchanged — the headline is **optional**, so a
+    model slip never costs a pick (the client falls back).
+  - `app/agents/state.py`: `CandidateRecommendation.headline: Optional[str] = None`.
+    `availability.py`'s `model_copy(update=…)` paths (URL resolution, the linkless-idea
+    conversion) preserve it with no edit.
+  - `app/api/recommendations.py`: `build_recommendation_row` emits `"headline"` on every row
+    (nullable column, so `None` keeps the batch's key set uniform — Step 19.27's rule);
+    `_build_response_items` and `_stored_rows_to_items` map it; the `/{recommendation_id}`
+    handler — which builds its `MilestoneRecommendationItem` inline rather than through the
+    shared mapper — gets `headline=rec.get("headline")` by hand. Every read path already
+    `select("*")`s, so nothing else changed. `notifications.py` inherits through
+    `build_recommendation_row`; `ideas.py` builds its own rows in separate batches and needs
+    nothing for a nullable column.
+  - `app/models/recommendations.py` `RecommendationItemResponse.headline` and
+    `app/models/notifications.py` `MilestoneRecommendationItem.headline`, both `= None`.
+  - **Migration `00029_add_headline_to_recommendations.sql`** — `ALTER TABLE recommendations
+    ADD COLUMN IF NOT EXISTS headline TEXT` + `COMMENT`. Nullable with **no default** on
+    purpose (a `NOT NULL DEFAULT` column fails a whole PostgREST batch the moment one row sends
+    an explicit NULL). **Applied to the live Supabase project as part of this step**, before
+    the PR merges — the additive column is harmless to the deployed backend, whereas deploying
+    the new backend first would 500 every insert on a schema-cache miss. Verified afterwards
+    with a `select=id,title,headline` through PostgREST (200; `null` on the legacy row) and one
+    real generation call through the new prompt: all five picks came back with usable
+    headlines ("Hands-On Creativity", "Golden Hour Together", "Small Luxuries", "Sound &
+    Taste", "Creative Wandering").
+- **iOS — DTOs (`/sync-dto`).** `RecommendationItemResponse` gains
+  `var headline: String? { rawHeadline?.humanizingTagTokens }` over a private `rawHeadline`
+  (`CodingKeys` `rawHeadline = "headline"`), sanitized like `description` since it is model
+  prose; the internal init gains `headline: String? = nil` as its last parameter.
+  `MilestoneRecommendationItemResponse` gains `let headline: String?` (its memberwise init
+  therefore grew a required trailing `headline:` — the three test call sites updated) and
+  `toRecommendationItem()` passes it through. Synthesized `Decodable`, so an absent key
+  decodes as `nil`. `SavedRecommendation` deliberately does **not** persist it (the detail
+  view never renders the feed heading — same treatment as `personalizationNote` and the
+  scores).
+- **iOS — `Features/Recommendations/RecommendationFeedView.swift`.**
+  - New `RecommendationTypeRibbon(recommendationType:)`: Lucide type icon (12pt) +
+    `Text(label)` in `Theme.Typography.label` `.textCase(.uppercase)`, white,
+    12/7pt padding, `Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)` —
+    the exact recipe of `RecommendationDetailView`'s hero badge, so the tag the user taps is
+    the tag they land on, and it shares the card's saved-bookmark material. Static
+    `label(for:)` / `icon(for:)` maps mirror the detail view's private switches (gift →
+    "Gift", experience → "Experience", date → "Date", idea → "Idea", plan → "Date Plan",
+    unknown → `.capitalized`); they are static so the card's VoiceOver label and tests read
+    them without rendering. Not a refactor of the two existing private copies (out of scope).
+  - `RecommendationFeedCard`: the old top-trailing `savedIndicator` scaffold became one
+    `topRow` — ribbon leading, bookmark trailing (when saved), 14pt inset, hidden from
+    VoiceOver. `accessibilityLabel(title:typeLabel:description:isSaved:)` now reads
+    **"Title, Type. Description, Saved"** (the type rides in the label because the ribbon is
+    hidden; the title stays first so a prefix match on the button label still finds the card).
+  - `RecommendationFeedList`: heading is `Self.heading(for: item)` — the trimmed non-blank
+    `headline`, else the existing `sectionLabel(for:)`, whose doc now describes it as the
+    fallback and points the "not the tag" note at the ribbon. Preview seeds two headlined
+    picks and one legacy one.
+- **`Features/Recommendations/RecommendationDetailView.swift`:**
+  `PreviewRecommendations.decode(type:isIdea:headline: String? = nil)` — emits `"headline"`
+  only when given, so the `gift` / `experience` / `idea` statics (no key) keep pinning the
+  fallback path. **`App/UITestScreenshotHarness.swift`:** `recsFeed` seeds experience →
+  "Weekend Curations", gift → "Small Luxuries", idea → "The Art of Pause" so the capture shows
+  the generated shape (a harness only proves what it renders); `milestoneRecs` keeps the
+  headline-less seed. **`Core/Theme.swift`:** `feedSectionHeader` doc updated (no new token —
+  the ribbon uses `label` like every type badge).
+- **`KnotUITests/PRScreenshotTests.swift`:** asserts `staticTexts["Weekend Curations"]` (15s)
+  and `staticTexts["Small Luxuries"]` (exists **and** `isHittable`) — the fixtures'
+  *headlines*, so a silent fallback to "Experience" / "Gift" fails rather than shipping a
+  capture that hides it — and a `buttons` match `BEGINSWITH "Experience for Alex,
+  Experience"`, which also proves the ribbon's type reached the card.
+
+**Files created:**
+- `backend/supabase/migrations/00029_add_headline_to_recommendations.sql` — nullable `headline TEXT` (applied)
+- `docs/pr-screenshots/worktree-feat-recommendation-headlines.png` — headlines + ribbons inside the real nav bar + `KnotTabBar`
+
+**Files modified:**
+- `backend/app/services/unified_generation.py` — Rule 11, `"headline"` field spec, `HEADLINE_MAX_CHARS`, `_normalize_headline`, wiring in `_normalize_recommendation`
+- `backend/app/agents/state.py` — `CandidateRecommendation.headline`
+- `backend/app/api/recommendations.py` — row builder, both shared mappers, the inline `/{id}` mapper
+- `backend/app/models/recommendations.py`, `backend/app/models/notifications.py` — `headline` fields
+- `backend/tests/test_unified_generation.py` — sample response carries headlines; `test_prompt_requests_headline`; `test_headline_is_optional`; new `TestNormalizeHeadline` (11 tests: passthrough, missing/non-string/blank → `None`, tag humanization, whitespace collapse, quote/punctuation stripping — including nested `"…".` / `"…."` forms, title-equality drop, word-boundary cut at 40, a word ending exactly on the cap kept, and a proof that the sentence-repair helper would have mangled a 2-word line); `test_includes_headline`
+- `backend/tests/test_recommendation_row_builder.py` — passthrough, key-present-but-null, duck-typed candidate
+- `backend/tests/test_latest_recommendations_endpoint.py` — `_row()` carries a headline; mapped / legacy-null tests
+- `backend/tests/test_notification_history.py` — by-milestone returns the stored headline (and null for a legacy row); model default
+- `backend/tests/test_recommendations_api.py`, `test_recommendation_state.py`, `test_availability_node.py` — field assertions (incl. survival through the linkless-idea `model_copy`)
+- `backend/tests/test_recommendation_deeplink.py` — new `TestGetRecommendationByIdFields` with a mocked service client: `/{id}` serves the stored headline and null for a legacy row (the first tests to exercise that handler's field mapping)
+- `iOS/Knot/Models/DTOs.swift` — both structs; header changelog line
+- `iOS/Knot/Features/Recommendations/RecommendationFeedView.swift` — ribbon, top row, label, heading
+- `iOS/Knot/Features/Recommendations/RecommendationDetailView.swift` — fixture `headline:` parameter
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `recsFeed` fixtures carry headlines
+- `iOS/Knot/Core/Theme.swift` — `feedSectionHeader` doc
+- `iOS/KnotUITests/PRScreenshotTests.swift` — headline + type-in-label assertions
+- `iOS/KnotTests/RecommendationFeedTests.swift` — new `RecommendationFeedHeadingTests` (prefers headline; falls back per type when missing; blank → fallback; trims) and `RecommendationTypeRibbonTests` (label map, unknown → capitalized, intended divergence from the heading map, an icon for every type, renders); card label tests rewritten for the new signature (+ empty-type skip, title-first prefix); a headlined-card render; list renders a headlined/legacy mix
+- `iOS/KnotTests/RecommendationsViewTests.swift` — full / minimal / humanization decode cases
+- `iOS/KnotTests/MilestonePushTapThroughTests.swift`, `iOS/KnotTests/LostGenerationRecoveryTests.swift` — memberwise `headline:` argument; enriched / legacy decode and mapping assertions
+
+**Tests:** Full backend suite offline: **1560 passed, 622 skipped, 0 failures**. iOS Full plan
+green — **625 unit + 5 UI, 0 failures** (613 baseline + 12). Clean build; the only warning is
+the pre-existing `MilestoneRecommendationSheet.previewSheet` one. Screenshot captured by the
+real UI test (`TEST SUCCEEDED`). Migration applied and verified live (see above).
+
+**Notes:**
+- **Deploy order is settled:** the column exists in the live DB now; merging the backend is the
+  second half. Existing stored batches show the type heading until the next `/refresh` or
+  milestone generation produces headlines — nothing is backfilled.
+- The Supabase **direct** DB host (`db.<ref>.supabase.co`) is IPv6-only; on an IPv4-only
+  network (this was applied from hotel Wi-Fi) `migrate.py` cannot resolve it. The session
+  pooler (`aws-0-us-west-2.pooler.supabase.com:5432`, user `postgres.<ref>`, same password)
+  is IPv4 and worked as a one-off `DATABASE_URL` override (`load_dotenv` does not override an
+  existing env var); `.env` was left on the direct URL. Note 139-adjacent gotcha recorded
+  here rather than as a new numbered note.
+- If a literal diagonal corner sash is wanted instead of the capsule tag, that is a
+  rendering-only swap inside `RecommendationTypeRibbon`.
+
+---
+
+### Step 19.61 ✅ Dev Tooling — Move /start-server to a Machine-Level Skill
+**Date:** 2026-09-20
+**Status:** Complete
+
+**Goal:** `/start-server` (Step 19.20) was a project skill at `.claude/skills/start-server/`, so
+it only existed while a session's working directory was inside `Knot/`. The backend it boots is a
+machine-level service — the phone and the Simulator both reach it regardless of which project is
+open — so the user asked for the command to be available everywhere on the Mac. Move it to the
+user-level skills directory.
+
+**What changed:**
+- **`~/.claude/skills/start-server/SKILL.md` (new, outside the repo):** the same five phases as
+  the Step 19.20 skill, rewritten so nothing depends on the current working directory. A single
+  `KNOT="/Users/ronniejay/Documents/Cursor Projects/Knot"` constant is pinned at the top and every
+  path in the file is absolute against it (`dev.sh`, `.env`, `.env.example`, `.dev-server.log`).
+  The skill also states that Bash-tool shell state does not persist between calls, so `KNOT` is
+  re-set inside each command block rather than assumed. A new failure-mode bullet covers
+  `dev.sh: No such file` — the checkout moved — and names the one constant to edit.
+- **`.claude/skills/start-server/SKILL.md` deleted from the repo.** Moved rather than copied:
+  a project skill shadows a user skill of the same name inside `Knot/`, so two copies would have
+  drifted silently and the global one would only ever be exercised from *other* directories.
+- **`memory-bank/architecture.md`:** the `start-server/SKILL.md` row in the Claude Code Skills
+  table now records where the skill lives and why it left.
+
+**Why the absolute path belongs outside the repo, not in it.** The obvious alternative was to
+keep the project skill and give it the same absolute path. That would have committed
+`/Users/ronniejay/…` to a file every clone receives, which is the same "never commit a
+machine-specific value" rule that keeps the LAN IP out of `Constants.swift` (Step 19.0). A user
+skill is the right home for a path that is only true on one Mac.
+
+**A rule became a guarantee.** The Step 19.20 skill *asked* to be run from the main checkout,
+because a worktree has no venv and `dev.sh` would bootstrap a throwaway one. Pinning the main
+checkout by absolute path makes that impossible to get wrong: the skill now boots the same server
+from the same tree no matter where it is invoked — including from inside a worktree, which is
+where most agent sessions actually run.
+
+**Files created:**
+- `~/.claude/skills/start-server/SKILL.md` — user-level skill (not tracked by this repo)
+
+**Files modified:**
+- `memory-bank/architecture.md` — `start-server/SKILL.md` row rewritten
+
+**Files deleted:**
+- `.claude/skills/start-server/SKILL.md`
+
+**Tests:** None apply — the diff is a Markdown skill file and two memory-bank docs; no Swift or
+Python changed, so neither suite has anything to exercise. Verified instead that the session's
+available-skills list resolves `/start-server` to the new user-level copy (its description now
+reads "Works from any directory") once the project copy is removed, and that `dev.sh` already
+resolves its own repo paths from `SCRIPT_DIR`, so invoking it by absolute path from an unrelated
+CWD is supported by the script as written.
+
+**Notes:**
+- `progress.md`'s Step 19.20 entry and the Step 19.22 verification note still reference
+  `.claude/skills/start-server/SKILL.md` and `/start-server`; those are history and the command
+  name is unchanged, so they were left as written.
+- If the main checkout is ever moved or renamed, the global skill's `KNOT=` line is the only
+  thing that needs updating. Nothing in the repo references the skill's location any more.
+
+---
+
+### Step 19.62 ✅ Journal — "Recent picks": Generated Sets Stay Reopenable for 7 Days
 **Date:** 2026-09-13
 **Status:** Complete
+
+*(Numbered 19.62: authored as 19.59, but Steps 19.59–19.61 — the vertical recommendation feed,
+the generated headlines, and the `/start-server` skill move — all landed on `main` while this
+branch was open. The already-merged numbers win, so this renumbered on the way in rather than
+rewriting shipped history — the same shared-numbering contention Steps 19.29, 19.33, 19.39,
+19.48 and 19.51 recorded.)*
 
 **Goal:** A generated set of three recommendations vanished from the UI the moment the user
 pressed Back. `RecommendationsView` owns its `RecommendationsViewModel` as `@State`, and

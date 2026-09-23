@@ -14,7 +14,7 @@ import SwiftUI
 /// Layout:
 /// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
 /// - "Just Because" recommendation card
-/// - "Recent picks" (Step 19.59) — every set generated in the last 7 days, one
+/// - "Recent picks" (Step 19.62) — every set generated in the last 7 days, one
 ///   `RecentPickRow` per set, each reopening its cards via a seeded push until
 ///   it expires; absent entirely when there is nothing to show
 /// - "Upcoming" header with a "View all" link into milestone management

@@ -77,6 +77,7 @@ def _row(**overrides) -> dict:
         "milestone_id": None,
         "is_idea": False,
         "content_sections": None,
+        "headline": "Small Luxuries",
     }
     row.update(overrides)
     return row
@@ -419,6 +420,28 @@ class TestSharedRowMapping:
 
         assert resp.json()["recommendations"][0]["external_url"] is None
         print("  A legacy search URL is nulled")
+
+    def test_maps_the_stored_headline(self, client, auth_override):
+        mock_client, _, _ = _mock_supabase(rec_rows=[_row(headline="Weekend Curations")])
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest")
+
+        assert resp.json()["recommendations"][0]["headline"] == "Weekend Curations"
+        print("  The stored headline reaches the client")
+
+    def test_row_without_a_headline_serves_null(self, client, auth_override):
+        """Rows generated before the headline column exist; the client falls back."""
+        row = _row()
+        del row["headline"]
+        mock_client, _, _ = _mock_supabase(rec_rows=[row])
+
+        with patch("app.api.recommendations.get_service_client", return_value=mock_client):
+            resp = client.get("/api/v1/recommendations/latest")
+
+        assert resp.status_code == 200
+        assert resp.json()["recommendations"][0]["headline"] is None
+        print("  A legacy row without a headline serves null")
 
 
 # ===================================================================

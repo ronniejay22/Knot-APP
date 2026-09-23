@@ -353,6 +353,7 @@ class TestCandidateRecommendation:
         assert c.merchant_name is None
         assert c.location is None
         assert c.metadata == {}
+        assert c.headline is None
 
     def test_rejects_invalid_source(self):
         with pytest.raises(ValidationError):

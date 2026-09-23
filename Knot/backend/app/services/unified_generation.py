@@ -24,6 +24,7 @@ from app.services.llm_tuning import fast_generation_params
 from app.services.text_cleanup import (
     humanize_tags,
     is_incomplete_sentence,
+    normalize_whitespace,
     trim_to_complete_sentence,
     truncate_prose,
 )
@@ -69,6 +70,11 @@ MAX_RETRIES = 2
 PRIMARY_RECOMMENDATION_COUNT = 3
 BACKUP_RECOMMENDATION_COUNT = 2
 GENERATION_TARGET = PRIMARY_RECOMMENDATION_COUNT + BACKUP_RECOMMENDATION_COUNT
+
+# The feed heading is a 2-4 word line rendered at 20pt over a full-width card;
+# anything longer wraps or ellipsizes, so a runaway headline is cut at a word
+# boundary inside this many characters rather than shown.
+HEADLINE_MAX_CHARS = 40
 
 # Valid content section types (same as idea_generation.py)
 VALID_SECTION_TYPES = {
@@ -159,9 +165,16 @@ content_sections in natural, human language. NEVER print raw tag identifiers or 
 underscores in prose: write "quiet luxury", not "quiet_luxury"; "quality time", not \
 "quality_time". (The matched_vibes / matched_love_languages / matched_interests arrays \
 MUST still contain the exact tag values provided — only the prose is humanized.)
+11. HEADLINE — give every recommendation a "headline": a 2-4 word editorial line in \
+Title Case that frames the pick like the heading of a curated collection, e.g. \
+"Weekend Curations", "The Art of Pause", "Wellness Escapes", "Small Luxuries". It \
+sits ABOVE the title, so it must not repeat the title, must not merely name the type \
+("Gift", "Experience", "Date Idea"), must not contain the partner's name, and has no \
+punctuation.
 
 For each recommendation, return a JSON object with these keys:
 - "title": string (under 60 characters)
+- "headline": string (2-4 words, Title Case, no punctuation — see rule 11)
 - "description": string. For "gift", "idea", and "plan" types: 1-2 sentences. \
 For "date" and "experience" types: a fuller 3-4 sentence description that vividly \
 describes what the date/outing actually is (the setting, the activity, the feel of \
@@ -366,6 +379,48 @@ def _validate_recommendation(rec: dict[str, Any]) -> bool:
     return True
 
 
+def _normalize_headline(
+    raw: Any,
+    tag_vocab: list[str],
+    title: str,
+) -> Optional[str]:
+    """
+    Tidy the model's per-pick headline, or return None when there is nothing
+    worth showing (the client then falls back to a type-derived heading).
+
+    Deliberately NOT routed through `trim_to_complete_sentence` /
+    `is_incomplete_sentence`: a 2-4 word line has no terminal punctuation, so
+    those helpers would judge it "incomplete" and start dropping words. Nor
+    through `truncate_prose`, which appends an ellipsis — an over-long
+    headline is cut at a word boundary instead, since the feed heading has
+    nowhere to put a trailing "…".
+    """
+    if not isinstance(raw, str):
+        return None
+
+    text = normalize_whitespace(humanize_tags(raw, tag_vocab))
+    # The model occasionally wraps the line in quotes or ends it like a
+    # sentence; the feed heading is neither. Quotes and punctuation can nest
+    # either way round ('"Small Luxuries".' / '"Small Luxuries."'), so strip
+    # until nothing changes rather than once in a fixed order.
+    while True:
+        stripped = text.strip("\"'“”‘’").rstrip(".!?:;,…").strip()
+        if stripped == text:
+            break
+        text = stripped
+
+    if len(text) > HEADLINE_MAX_CHARS:
+        # Search one past the cap so a word that ends exactly at the cap is
+        # kept rather than dropped for the space that follows it.
+        last_space = text.rfind(" ", 0, HEADLINE_MAX_CHARS + 1)
+        cut = text[:last_space] if last_space > 0 else text[:HEADLINE_MAX_CHARS]
+        text = cut.rstrip(" ,;:—-")
+
+    if not text or text.casefold() == title.strip().casefold():
+        return None
+    return text
+
+
 def _normalize_recommendation(
     rec: dict[str, Any],
     vault_data: VaultData,
@@ -374,6 +429,7 @@ def _normalize_recommendation(
     rec_type = rec["recommendation_type"]
     is_idea = rec_type in ("idea", "plan")
     is_purchasable = rec.get("is_purchasable", not is_idea)
+    title = str(rec["title"])[:100]
 
     # Raw snake_case tags the model was given and may echo into prose.
     tag_vocab = [
@@ -418,7 +474,8 @@ def _normalize_recommendation(
         id=str(uuid.uuid4()),
         source="unified",
         type=rec_type,
-        title=str(rec["title"])[:100],
+        title=title,
+        headline=_normalize_headline(rec.get("headline"), tag_vocab, title),
         description=trim_to_complete_sentence(
             truncate_prose(humanize_tags(str(rec.get("description", "")), tag_vocab), 600)
         ),

@@ -4,7 +4,7 @@
 //
 //  Created on March 20, 2026.
 //  Manages timeline data for the Journal tab — milestone loading, partner name,
-//  and (Step 19.59) the "Recent picks" batches generated in the last few days.
+//  and (Step 19.62) the "Recent picks" batches generated in the last few days.
 //
 
 import Foundation

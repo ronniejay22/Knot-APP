@@ -46,7 +46,8 @@ final class RecommendationDTOTests: XCTestCase {
             "final_score": 0.82,
             "matched_interests": ["Art", "Cooking"],
             "matched_vibes": ["bohemian"],
-            "matched_love_languages": ["quality_time"]
+            "matched_love_languages": ["quality_time"],
+            "headline": "Hands-On Weekends"
         }
         """.data(using: .utf8)!
 
@@ -55,6 +56,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.id, "abc-123")
         XCTAssertEqual(item.recommendationType, "gift")
         XCTAssertEqual(item.title, "Ceramic Pottery Class")
+        XCTAssertEqual(item.headline, "Hands-On Weekends")
         XCTAssertEqual(item.description, "A hands-on pottery experience.")
         XCTAssertEqual(item.priceCents, 8500)
         XCTAssertEqual(item.currency, "USD")
@@ -112,6 +114,8 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertNil(item.matchedLoveLanguages)
         // Price confidence should be nil when not present in JSON (backward compatibility)
         XCTAssertNil(item.priceConfidence)
+        // Batches generated before headlines existed omit the key entirely.
+        XCTAssertNil(item.headline)
     }
 
     /// A purchasable the backend could not resolve to a real page arrives with a
@@ -155,6 +159,7 @@ final class RecommendationDTOTests: XCTestCase {
             "love_language_score": 0.5,
             "final_score": 0.5,
             "personalization_note": "Delivering acts_of_service and words_of_affirmation.",
+            "headline": "quiet_luxury Nights",
             "content_sections": [
                 {"type": "overview", "heading": "Overview", "body": "A quiet_luxury evening."},
                 {"type": "steps", "heading": "Steps", "items": ["Plan the words_of_affirmation toast"]}
@@ -167,6 +172,7 @@ final class RecommendationDTOTests: XCTestCase {
         XCTAssertEqual(item.description, "Honoring their quiet luxury and street urban aesthetic.")
         XCTAssertEqual(item.personalizationNote, "Delivering acts of service and words of affirmation.")
         XCTAssertFalse(item.personalizationNote?.contains("_") ?? false)
+        XCTAssertEqual(item.headline, "quiet luxury Nights")
         let section = item.contentSections?.first
         XCTAssertEqual(section?.body, "A quiet luxury evening.")
         XCTAssertEqual(item.contentSections?.last?.items?.first, "Plan the words of affirmation toast")
@@ -1617,12 +1623,12 @@ final class RecommendationDetailCTATests: XCTestCase {
     }
 }
 
-// MARK: - Spotlight View Rendering Tests (June 12, 2026)
+// MARK: - Detail Page Rendering Tests (June 12, 2026)
 
 @MainActor
 final class SpotlightViewRenderingTests: XCTestCase {
 
-    /// The Spotlight detail page renders for every recommendation type.
+    /// The detail page renders for every recommendation type.
     func testDetailRendersAllTypes() {
         for type in ["gift", "experience", "date", "idea", "plan"] {
             let item = makeItem(type: type)
@@ -1653,75 +1659,9 @@ final class SpotlightViewRenderingTests: XCTestCase {
         XCTAssertNotNil(host.view, "RecommendationDetailView should render for an already-saved item")
     }
 
-    /// The Spotlight deck renders with a multi-item deck.
-    func testDeckRendersWithItems() {
-        let items = [makeItem(type: "gift"), makeItem(type: "experience"), makeItem(type: "idea")]
-        let view = SpotlightDeckView(
-            items: items,
-            partnerName: "Alex",
-            isSaved: { _ in false },
-            onLike: { _ in },
-            onPass: { _ in },
-            onOpenDetail: { _ in },
-            onNeedMore: {}
-        )
-        let host = UIHostingController(rootView: view)
-        XCTAssertNotNil(host.view, "SpotlightDeckView should render with items")
-    }
-
-    /// The Spotlight deck renders its end-of-deck state when empty.
-    func testDeckRendersEmpty() {
-        let view = SpotlightDeckView(
-            items: [],
-            partnerName: nil,
-            isSaved: { _ in false },
-            onLike: { _ in },
-            onPass: { _ in },
-            onOpenDetail: { _ in },
-            onNeedMore: {}
-        )
-        let host = UIHostingController(rootView: view)
-        XCTAssertNotNil(host.view, "SpotlightDeckView should render its empty state")
-    }
-
-    /// The Spotlight card renders for every recommendation type.
-    func testSpotlightCardRendersAllTypes() {
-        for type in ["gift", "experience", "date", "idea", "plan"] {
-            let card = SpotlightCard(
-                item: makeItem(type: type),
-                partnerName: "Alex",
-                isSaved: false,
-                onSeeDetails: {}
-            )
-            let host = UIHostingController(rootView: card)
-            XCTAssertNotNil(host.view, "SpotlightCard should render for type: \(type)")
-        }
-    }
-
-    /// The browse-only Spotlight carousel renders with a multi-item set.
-    func testCarouselRendersWithItems() {
-        let items = [makeItem(type: "gift"), makeItem(type: "experience"), makeItem(type: "idea")]
-        let view = SpotlightCarouselView(
-            items: items,
-            partnerName: "Alex",
-            isSaved: { _ in false },
-            onOpenDetail: { _ in }
-        )
-        let host = UIHostingController(rootView: view)
-        XCTAssertNotNil(host.view, "SpotlightCarouselView should render with items")
-    }
-
-    /// The carousel renders with a single item (no page dots) without crashing.
-    func testCarouselRendersSingleItem() {
-        let view = SpotlightCarouselView(
-            items: [makeItem(type: "date")],
-            partnerName: nil,
-            isSaved: { _ in true },
-            onOpenDetail: { _ in }
-        )
-        let host = UIHostingController(rootView: view)
-        XCTAssertNotNil(host.view, "SpotlightCarouselView should render a single item")
-    }
+    // The deck / card / carousel rendering tests that used to live here went
+    // with `SpotlightDeckView.swift` (Step 19.59). The vertical feed that
+    // replaced them is covered in `RecommendationFeedTests.swift`.
 
     private func makeItem(type: String) -> RecommendationItemResponse {
         let isIdea = (type == "idea" || type == "plan")

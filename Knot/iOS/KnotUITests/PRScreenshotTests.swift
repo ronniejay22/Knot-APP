@@ -78,11 +78,20 @@ final class PRScreenshotTests: XCTestCase {
 
         // Then prove the row actually reopens the set: tapping pushes
         // `RecommendationsView` seeded with the stored batch, so the first
-        // pick's title — which exists nowhere on the Journal itself — must
-        // appear, with no generation run.
+        // pick — which exists nowhere on the Journal itself — must appear,
+        // with no generation run.
+        //
+        // Matched as a `Button` by label prefix, NOT as a `staticText`: since
+        // Step 19.59 each feed card is a single merged accessibility element
+        // (`RecommendationFeedCard.accessibilityLabel` → "Title, Type. …"), so
+        // the title is no longer exposed on its own. The title staying first in
+        // that label is exactly what keeps a prefix match working.
         christmasRow.tap()
+        let reopenedPick = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Candlelit Pottery Class")
+        ).firstMatch
         XCTAssertTrue(
-            app.staticTexts["Candlelit Pottery Class"].waitForExistence(timeout: 10),
+            reopenedPick.waitForExistence(timeout: 10),
             "Tapping the Recent picks row did not reopen its cards"
         )
     }

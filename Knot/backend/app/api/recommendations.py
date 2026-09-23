@@ -8,7 +8,7 @@ Step 5.9: POST /api/v1/recommendations/generate — Generate recommendations
 Step 5.10: POST /api/v1/recommendations/refresh — Refresh/re-roll with exclusions
 Step 6.3: POST /api/v1/recommendations/feedback — Record user feedback
 Step 7.7: GET /api/v1/recommendations/by-milestone/{milestone_id} — Fetch stored recommendations
-Step 19.59: GET /api/v1/recommendations/recent — Every stored batch inside the recency window
+Step 19.62: GET /api/v1/recommendations/recent — Every stored batch inside the recency window
 """
 
 import json
@@ -768,7 +768,7 @@ async def get_latest_recommendations(
 
 
 # ===================================================================
-# GET /api/v1/recommendations/recent (Step 19.59)
+# GET /api/v1/recommendations/recent (Step 19.62)
 # ===================================================================
 #
 # MUST stay registered ABOVE `GET /{recommendation_id}`, which is a catch-all
@@ -1166,6 +1166,7 @@ async def get_recommendation_by_id(
         # Guarantee an image even for rows stored before images were persisted.
         image_url=rec.get("image_url") or _default_image_for_type(rec.get("recommendation_type")),
         created_at=rec["created_at"],
+        headline=rec.get("headline"),
     )
 
 
@@ -1303,6 +1304,7 @@ def _stored_rows_to_items(rows: list[dict]) -> list[MilestoneRecommendationItem]
                 ),
                 is_idea=bool(r.get("is_idea")),
                 content_sections=content_sections,
+                headline=r.get("headline"),
             )
         )
     return items
@@ -1542,6 +1544,9 @@ def build_recommendation_row(
             json.dumps(content_sections) if is_idea and content_sections else None
         ),
         "personalization_note": getattr(candidate, "personalization_note", None),
+        # Nullable column: NULL for candidates without a headline keeps the
+        # key set identical across the batch (see above).
+        "headline": getattr(candidate, "headline", None),
     }
 
 
@@ -1607,6 +1612,7 @@ def _build_response_items(
                 personalization_note=trim_to_complete_sentence(
                     getattr(candidate, "personalization_note", None) or ""
                 ) or None,
+                headline=getattr(candidate, "headline", None),
             )
         )
     return response_items

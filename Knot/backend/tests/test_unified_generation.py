@@ -89,6 +89,7 @@ def _sample_claude_response() -> list[dict]:
     return [
         {
             "title": "Ceramic Pottery Class for Two",
+            "headline": "Hands-On Weekends",
             "description": "A hands-on pottery class where you create pieces together.",
             "recommendation_type": "experience",
             "is_purchasable": True,
@@ -103,6 +104,7 @@ def _sample_claude_response() -> list[dict]:
         },
         {
             "title": "Handmade Italian Leather Journal",
+            "headline": "Small Luxuries",
             "description": "A beautiful leather-bound journal from a Florentine artisan.",
             "recommendation_type": "gift",
             "is_purchasable": True,
@@ -117,6 +119,7 @@ def _sample_claude_response() -> list[dict]:
         },
         {
             "title": "Starlight Picnic Under the Stars",
+            "headline": "The Art of Pause",
             "description": "A curated outdoor picnic with fairy lights and her favorite music.",
             "recommendation_type": "idea",
             "is_purchasable": False,
@@ -328,6 +331,14 @@ class TestSystemPrompt:
         assert "NATURAL PROSE" in UNIFIED_SYSTEM_PROMPT
         assert "quiet_luxury" in UNIFIED_SYSTEM_PROMPT  # cited as the anti-example
 
+    def test_prompt_requests_headline(self):
+        """Every pick must carry a 2-4 word editorial headline distinct from title and type."""
+        assert "HEADLINE" in UNIFIED_SYSTEM_PROMPT
+        assert '"headline": string' in UNIFIED_SYSTEM_PROMPT
+        assert "Weekend Curations" in UNIFIED_SYSTEM_PROMPT  # cited as the example
+        assert "must not repeat the title" in UNIFIED_SYSTEM_PROMPT
+        assert "must not merely name the type" in UNIFIED_SYSTEM_PROMPT
+
 
 class TestLocationGroundingPrompt:
     """The user prompt must reinforce city grounding only when a city is set."""
@@ -382,6 +393,18 @@ class TestValidateRecommendation:
             "personalization_note": "She mentioned pottery.",
         }
         assert _validate_recommendation(rec) is True
+
+    def test_headline_is_optional(self):
+        """A pick without a headline is still accepted — the client has a fallback heading."""
+        rec = {
+            "title": "Pottery Class",
+            "description": "A class for two",
+            "recommendation_type": "experience",
+            "personalization_note": "She mentioned pottery.",
+        }
+        assert "headline" not in rec
+        assert _validate_recommendation(rec) is True
+        assert _validate_recommendation({**rec, "headline": "Hands-On Weekends"}) is True
 
     def test_valid_idea_with_sections(self):
         rec = {
@@ -743,6 +766,112 @@ class TestNormalizeRecommendation:
         assert len(candidate.content_sections) == 2  # invalid_section filtered out
 
 
+def _headline_rec(**overrides) -> dict:
+    """A minimal valid gift dict whose headline the tests below vary."""
+    rec = {
+        "title": "Leather Journal",
+        "description": "A handmade journal from Florence.",
+        "recommendation_type": "gift",
+        "is_purchasable": True,
+        "personalization_note": "She loves art and tactile things.",
+        "headline": "Small Luxuries",
+    }
+    rec.update(overrides)
+    return rec
+
+
+class TestNormalizeHeadline:
+    """The per-pick headline is tidied but never sentence-repaired or ellipsized."""
+
+    def test_passes_through_clean_headline(self):
+        candidate = _normalize_recommendation(_headline_rec(), _sample_vault_data())
+        assert candidate.headline == "Small Luxuries"
+
+    def test_missing_headline_is_none(self):
+        rec = _headline_rec()
+        del rec["headline"]
+        candidate = _normalize_recommendation(rec, _sample_vault_data())
+        assert candidate.headline is None
+
+    def test_non_string_headline_is_none(self):
+        for bad in (None, 42, ["Small", "Luxuries"], {"text": "Small Luxuries"}):
+            candidate = _normalize_recommendation(
+                _headline_rec(headline=bad), _sample_vault_data()
+            )
+            assert candidate.headline is None, bad
+
+    def test_blank_headline_is_none(self):
+        candidate = _normalize_recommendation(
+            _headline_rec(headline="   \n "), _sample_vault_data()
+        )
+        assert candidate.headline is None
+
+    def test_humanizes_leaked_tag(self):
+        candidate = _normalize_recommendation(
+            _headline_rec(headline="quiet_luxury Evenings"), _sample_vault_data()
+        )
+        assert candidate.headline == "quiet luxury Evenings"
+
+    def test_collapses_whitespace(self):
+        candidate = _normalize_recommendation(
+            _headline_rec(headline="  The   Art\nof  Pause "), _sample_vault_data()
+        )
+        assert candidate.headline == "The Art of Pause"
+
+    def test_strips_wrapping_quotes_and_trailing_punctuation(self):
+        for raw, expected in (
+            ('"Weekend Curations"', "Weekend Curations"),
+            ("“Wellness Escapes”", "Wellness Escapes"),
+            ("Small Luxuries.", "Small Luxuries"),
+            ("Small Luxuries!", "Small Luxuries"),
+            ("Small Luxuries…", "Small Luxuries"),
+            ("'Small Luxuries:'", "Small Luxuries"),
+            # Nested either way round — quote inside the period and vice versa.
+            ('"Small Luxuries".', "Small Luxuries"),
+            ('"Small Luxuries."', "Small Luxuries"),
+        ):
+            candidate = _normalize_recommendation(
+                _headline_rec(headline=raw), _sample_vault_data()
+            )
+            assert candidate.headline == expected, raw
+
+    def test_headline_equal_to_title_is_dropped(self):
+        for raw in ("Leather Journal", "leather journal", "  LEATHER JOURNAL. "):
+            candidate = _normalize_recommendation(
+                _headline_rec(headline=raw), _sample_vault_data()
+            )
+            assert candidate.headline is None, raw
+
+    def test_over_long_headline_is_cut_at_a_word_boundary(self):
+        raw = "An Extraordinarily Long Editorial Heading That Runs On"
+        candidate = _normalize_recommendation(
+            _headline_rec(headline=raw), _sample_vault_data()
+        )
+        assert candidate.headline == "An Extraordinarily Long Editorial"
+        assert len(candidate.headline) <= 40
+        assert not candidate.headline.endswith("…")
+
+    def test_word_ending_exactly_at_the_cap_is_kept(self):
+        """The boundary search looks one past the cap, so a word that ends on
+        character 40 survives instead of being dropped for the space after it."""
+        head = "Slow Mornings By The Lakes And The Pines"
+        assert len(head) == 40  # the case under test — keep the fixture honest
+        candidate = _normalize_recommendation(
+            _headline_rec(headline=head + " Extra"), _sample_vault_data()
+        )
+        assert candidate.headline == head
+
+    def test_short_headline_is_not_treated_as_incomplete(self):
+        """A 2-word line has no terminal punctuation; the sentence repair must not touch it."""
+        # "Escapes for" would be a dangling-word fragment to trim_to_complete_sentence,
+        # but the headline path leaves the model's wording alone.
+        candidate = _normalize_recommendation(
+            _headline_rec(headline="Wellness Escapes"), _sample_vault_data()
+        )
+        assert candidate.headline == "Wellness Escapes"
+        assert is_incomplete_sentence(candidate.headline)  # proves the helper would have flagged it
+
+
 # ======================================================================
 # Full generation flow tests (mocked Claude)
 # ======================================================================
@@ -802,6 +931,18 @@ class TestGenerateUnifiedRecommendations:
         for rec in results:
             assert rec.personalization_note is not None
             assert len(rec.personalization_note) > 0
+
+    async def test_includes_headline(self, mock_claude):
+        vault = _sample_vault_data()
+        results = await generate_unified_recommendations(
+            vault_data=vault,
+            hints=_sample_hints(),
+            occasion_type="just_because",
+            budget_range=_sample_budget_range(),
+        )
+        assert {r.headline for r in results} == {
+            "Hands-On Weekends", "Small Luxuries", "The Art of Pause"
+        }
 
     async def test_idea_has_content_sections(self, mock_claude):
         vault = _sample_vault_data()

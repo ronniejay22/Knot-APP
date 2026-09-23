@@ -128,7 +128,8 @@ struct MilestoneCard: View {
     // MARK: - Artwork
 
     /// The illustration is composed as an overlay on `Color.clear` rather than
-    /// sized directly — the same idiom `SpotlightCard` uses (Step 18.45).
+    /// sized directly — the same idiom `RecommendationFeedCard` and
+    /// `RecommendationFallbackImage` use (first adopted in Step 18.45).
     /// A `.resizable().scaledToFill()` image reports a size larger than the
     /// proposal to preserve its aspect ratio, and that overflow *propagates
     /// into layout*: sized directly, a 1050×480 illustration widened the card
