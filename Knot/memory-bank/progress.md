@@ -11360,6 +11360,148 @@ from that run is the committed image. No backend or DTO change, so no `pytest` r
 
 ---
 
+### Step 19.66 ✅ Profile Tab Redesign — Couple Hero, Grouped Cards, Quiet Account Actions
+**Date:** 2026-09-25
+**Status:** Complete
+
+**Goal:** The Profile tab (`SettingsView(isTabEmbedded: true)`) felt dull. It was eight
+separately bordered rows under uppercase captions, every icon the same bare pink glyph, Delete
+Account near the top, and nothing on screen said whose profile it was. The user asked for a
+redesign drawn from Mobbin references, choosing (via the questionnaire) **couple hero + grouped
+cards**, **design only** (no Premium card, no new features), and to **wait for the MUI icon PR**
+(Step 19.63) before building.
+
+**Mobbin references:** Paired's "Us" tab, Alma and Splitwise for the hero; Todoist, Meetup and
+Zocdoc for grouped lists; Satispay, Grok and Copilot for quiet account actions and a legal footer.
+
+**What changed:**
+- **Layout, top to bottom:**
+  1. A **couple hero** card: the partner's initial, "You & Jas", "Together 3 yrs · Austin", and
+     an "Edit profile" pill.
+  2. **Partner** group: "Partner profile" (→ `EditVaultView`) and "Milestones".
+  3. **Preferences** group: the notifications toggle.
+  4. **Account** group: email.
+  5. **Sign out** (neutral outline pill) and **Delete account** (red text, no fill).
+  6. A **Terms · Privacy** footer.
+  7. The DEBUG **Developer** group, last.
+
+  Everything behaves as before: sign out, the typed-confirmation delete sheet with its error
+  alert and overlay, the toggle and its `scenePhase` refresh, both covers, the DEBUG rows and
+  their alerts, the close toolbar and the "Profile"/"Settings" title. Labels moved to sentence
+  case. The row subtitles ("Update partner details and preferences", "Manage birthdays…") were
+  dropped for the cleaner grouped look.
+- **`Components/UI/KnotListRow.swift`:** a `KnotListRowStyle` environment value. `.standalone`
+  (the default) is the original chrome, moved verbatim. `.grouped` has no per-row surface or
+  border, and puts the icon in a 32pt `Theme.accentTint` tile. It also makes the whole row the
+  hit target, gives the title layout priority over a long email, and merges an info or toggle
+  row into one VoiceOver element. `KnotListRowMetrics` holds the shared measurements.
+- **`Components/UI/KnotListGroup.swift` (new):** `KnotListGroup(_ title:)` puts a caption header
+  over one `KnotCard(padding: .none)` and switches its rows to `.grouped`. `KnotListDivider` is
+  the 62pt-inset hairline between rows. Dividers are explicit because iOS 17 has no public API
+  for a container to interleave its children.
+- **`Features/Settings/ProfileHeroCard.swift` (new):** the pure `ProfileHeroContent` (every
+  formatting rule, unit-tested) and the `ProfileHeroCard` view.
+  - **Tenure** reads "N mo(s)" under a year, then whole years, floored: 38 months is "3 yrs".
+    `relationshipTenureSummary` ("0 years, 5 months") was too long for one line.
+  - **Place** is the city, else the state.
+  - **Name** is trimmed; a blank name falls back to "You & your partner".
+  - **Subtitle fit.** The first capture cut the subtitle to "Together 3 yrs · Au…". Beside the
+    Edit profile pill, a 402pt iPhone leaves the text column about 120pt, and the line needs about
+    140pt. A `ViewThatFits` now keeps the one-line form where it fits, and otherwise stacks the
+    parts ("Together 3 yrs" over "Austin"), so the place is never truncated away.
+  - **VoiceOver** reads one sentence: "You and Jas. Together 3 years, Austin".
+  - **While loading,** the text is redacted and Edit profile stays live.
+- **`Features/Settings/SettingsViewModel.swift`:** the hero's partner comes from a
+  `PartnerVaultFetching` seam (`VaultService` conforms) as a `PartnerProfileSummary`.
+  - `loadPartnerProfile()` never clears a summary that already loaded. When loads overlap, the
+    newest one wins (a generation counter), so a slow launch fetch can't undo the refresh after
+    an edit.
+  - `loadOnAppear()` loads email and partner once, in parallel, then refreshes notification
+    status on every appear. A first pass cut short by the view going away runs again on the
+    next appear.
+  - `refreshOnForeground()`, called by the `scenePhase` handler, refreshes notification status
+    and retries the partner if it never loaded, for example after an offline launch.
+  - `hasLoadedInitially` lets a seeded model skip the network.
+- **`Features/Settings/SettingsView.swift`:**
+  - Rebuilt around the above, with `Theme.Spacing` tokens.
+  - A new `init(isTabEmbedded:viewModel:)` seam.
+  - `static let termsURL` / `privacyURL` (same Drive literals), read by the footer `Link`s.
+  - The Edit Profile cover reloads the partner `onDismiss`, so edits reach the hero.
+- **`Components/UI/KnotButton.swift`:** `Variant.ghostDestructive` (clear, red label).
+  **`Core/Theme.swift`:** `accentTint` (accent at 12%).
+- **`App/UITestScreenshotHarness.swift`:** `settings` now renders `SettingsScreenshotHarnessView`.
+  It seeds the view model with a fixed partner and email, and mounts `KnotTabBar` the way
+  `MainTabView` does, with Profile selected.
+- **`KnotUITests/PRScreenshotTests.swift`:** the slot moved to `settings`. It asserts the hero's
+  exact spoken label, which proves the formatting end to end, plus the Edit profile, Partner
+  profile, Milestones and Sign out buttons and the selected Profile tab.
+
+**Files created:**
+- `iOS/Knot/Components/UI/KnotListGroup.swift` — `KnotListGroup` + `KnotListDivider`
+- `iOS/Knot/Features/Settings/ProfileHeroCard.swift` — `ProfileHeroContent` + `ProfileHeroCard`
+- `iOS/KnotTests/Components/UI/KnotListGroupTests.swift` — 8 tests:
+  - the environment default, and a group propagating `.grouped` (read back through a probe view)
+  - every factory rendering grouped, and a group with and without a title
+  - the divider-inset arithmetic
+  - `ImageRenderer` PNG checks: a default row is pixel-identical to `.standalone`, and `.grouped`
+    differs
+- `docs/pr-screenshots/worktree-feat-profile-settings-redesign.png`
+
+**Files modified:**
+- `iOS/Knot/Components/UI/KnotListRow.swift`, `iOS/Knot/Components/UI/KnotButton.swift`,
+  `iOS/Knot/Core/Theme.swift`
+- `iOS/Knot/Features/Settings/SettingsView.swift`, `iOS/Knot/Features/Settings/SettingsViewModel.swift`
+- `iOS/Knot/App/UITestScreenshotHarness.swift`
+- `iOS/KnotTests/SettingsViewTests.swift`:
+  - `testInitialState` covers the new state
+  - `ProfileHeroContentTests` — 14 tests
+  - `SettingsViewModelPartnerTests` — 8 tests, with a `StubVaultFetcher` and a
+    `ControlledVaultFetcher` that holds each fetch open so a test picks the order overlapping
+    loads answer in
+  - render tests for the seeded screen and every hero state
+  - the legal-URL literals
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `accentTint` is `accent` at 12% in
+  light and dark
+- `iOS/KnotUITests/PRScreenshotTests.swift`
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**Tests:** iOS Full plan green in a single run on an iPhone 17 simulator: **716 unit + 6 UI**,
+0 failures. That includes `PRScreenshotTests`, and the capture from that run is the committed
+image. It was taken with a private result bundle rather than `capture-ui-screenshot.sh`'s shared
+`/tmp` paths (see Step 19.65's note). No backend or DTO change, so no `pytest` run applies.
+
+**Code review (high):**
+- **Fixed:**
+  - A failed first partner load left the hero generic for the whole session, because the tab
+    stays mounted and `.task` runs once. The foreground refresh now retries it.
+  - Overlapping partner loads let whichever answered last win. Now the newest load wins.
+  - A first pass cancelled mid-load counted as done. It now runs again on the next appear.
+  - The new harness struct had been inserted between `SavedScreenshotHarnessView`'s doc comment
+    and `@MainActor` and its declaration. Both are back on the Saved harness.
+  - `ProfileHeroContent` had three overlapping subtitle joiners. It keeps one, `detailParts`,
+    and its summary init moved into an extension so the memberwise init is synthesized.
+  - The `accentTint` test only touched the token. It now checks `accent` at 12% alpha in both
+    appearances.
+- **Kept on purpose:**
+  - The extra `GET /api/v1/vault` at launch, since every tab mounts up front. It was a known
+    trade-off in the approved plan. A shared vault store is the real fix, and a larger one.
+  - Edit profile's `onDismiss` reloads the partner even after Cancel. Reloading only after a
+    save would mean changing `EditVaultView`, which this redesign doesn't touch.
+  - Home's partner name goes stale after an edit from Profile. That predates this change.
+  - The tab-bar chrome wrapper is now copied in four harnesses. Merging them into one helper
+    would mean refactoring the others.
+
+**Notes:**
+- **Deliberate duplicate:** the hero's "Edit profile" pill and the "Partner profile" row open
+  the same `EditVaultView`. That is the approved layout: the pill is the identity shortcut, the
+  row the list entry.
+- Mounting every tab at launch means the Profile tab's hero adds one `GET /api/v1/vault` at app
+  start.
+- `KnotIcon.descriptionOutlined` and `.shieldOutlined` lost their last callers (the About rows),
+  and `.logoutOutlined` is left only in `KnotListRow`'s preview. All three are left in place.
+
+---
+
 ## Next Steps
 
 

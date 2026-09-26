@@ -64,10 +64,12 @@
 		435FE3ED138D1475B5CBD686 /* KnotListRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A1AC76A335E8A0A59AEF8F /* KnotListRowTests.swift */; };
 		4447955A838A8E8CFB96C981 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB2C0E473B2693C71D80BC2 /* SignInView.swift */; };
 		453104C6A0C5D8E214ABC387 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */; };
+		46647170115D50E61C0878D4 /* ProfileHeroCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438FCA0D5FC521C2D08E60CA /* ProfileHeroCard.swift */; };
 		46AABA6A5A22905CDCAFA661 /* MilestoneCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D3CD12FF24236CC2300696 /* MilestoneCardTests.swift */; };
 		49AD544F61858BCDB867B9D7 /* ForYouViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E024DDF822D8F0F3C33EA2 /* ForYouViewModel.swift */; };
 		4A8D782C2C6213823CC3C6FD /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 2AB9DA03F64ECAF39D6C01B3 /* Auth */; };
 		4AA57C07036B773D45F3B15A /* EditBasicInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6ED0CB18062570291BACCB /* EditBasicInfoSheet.swift */; };
+		4AABC77CD78AA903E1559A9F /* KnotListGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A5E463F2B6583EC0FEE9A2 /* KnotListGroup.swift */; };
 		4C56400A123060F4311F9203 /* OnboardingBirthdayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BEC7B93990DCC896576B89 /* OnboardingBirthdayView.swift */; };
 		4EEC888690A3BBDE3426B466 /* MilestoneDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA4958939F5A8BA34E82E70 /* MilestoneDetailViewModel.swift */; };
 		4F11E62B42F6B6D67F9C7EA0 /* KnotIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914FECBA760D35D7247CEEA4 /* KnotIconButton.swift */; };
@@ -172,6 +174,7 @@
 		DAD0855EA7C412632401F1CA /* UITestScreenshotHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = E324E1D2CAE5C6F664779EE1 /* UITestScreenshotHarness.swift */; };
 		DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */; };
 		DDF62F31AA5CDFB0A50567A9 /* SavedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A9210BC3C12D656CB34484 /* SavedView.swift */; };
+		DE654E78520ED900CFFC3F68 /* KnotListGroupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C936AB563E6948FB6023BD /* KnotListGroupTests.swift */; };
 		DF8BBC091586EEA7D9D1C224 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554263B4D803E9B67716AEEF /* NetworkMonitor.swift */; };
 		E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */; };
 		E4833E28863AD353409A7973 /* VaultService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693B88ED4559E3D46BAC3E5D /* VaultService.swift */; };
@@ -250,6 +253,7 @@
 		4237849F833439F7AAE768E7 /* LaunchSplashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplashTests.swift; sourceTree = "<group>"; };
 		4247B99E99F834D9DCE623D0 /* NotificationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsViewModel.swift; sourceTree = "<group>"; };
 		42C0DFE789B202C84A0F6646 /* HintLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintLocal.swift; sourceTree = "<group>"; };
+		438FCA0D5FC521C2D08E60CA /* ProfileHeroCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileHeroCard.swift; sourceTree = "<group>"; };
 		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4726769364F3363201EE0535 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		48B33AEA969A81935AC17974 /* PartnerVaultLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerVaultLocal.swift; sourceTree = "<group>"; };
@@ -358,6 +362,7 @@
 		D246BBCEEE689E2A60573265 /* MilestoneRecommendationSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneRecommendationSheetTests.swift; sourceTree = "<group>"; };
 		D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTierSliderCard.swift; sourceTree = "<group>"; };
 		D73DE7CD931E0844D46A2B34 /* KnotTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9A5E463F2B6583EC0FEE9A2 /* KnotListGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotListGroup.swift; sourceTree = "<group>"; };
 		DA781B5A9B074F39EB5776A9 /* BudgetRangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRangeSlider.swift; sourceTree = "<group>"; };
 		DC23C86B6FE8ECEDF299F329 /* KnotTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotTabBar.swift; sourceTree = "<group>"; };
 		DDBD397500CA8003F134D272 /* KnotIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotIcon.swift; sourceTree = "<group>"; };
@@ -375,6 +380,7 @@
 		E83BE2463CD2906C42BAABEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		E9C936AB563E6948FB6023BD /* KnotListGroupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotListGroupTests.swift; sourceTree = "<group>"; };
 		EAB43F820B526A8EE99C0036 /* OnboardingLocationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLocationView.swift; sourceTree = "<group>"; };
 		EC0229342566FDA812637385 /* OccasionEntryModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccasionEntryModal.swift; sourceTree = "<group>"; };
 		EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCardTests.swift; sourceTree = "<group>"; };
@@ -481,6 +487,7 @@
 				85E9D910606429BBE05C784F /* KnotIconButtonTests.swift */,
 				56CF42773C04C4F784EAD0AC /* KnotIconTests.swift */,
 				80F2A43D31A1865709700823 /* KnotInputTests.swift */,
+				E9C936AB563E6948FB6023BD /* KnotListGroupTests.swift */,
 				19A1AC76A335E8A0A59AEF8F /* KnotListRowTests.swift */,
 				8FBAB929BECE689B357AB6DB /* KnotPressableStyleTests.swift */,
 				3344E208921ACDD3D2B3191A /* KnotProgressIndicatorTests.swift */,
@@ -665,6 +672,7 @@
 			children = (
 				1E224376F8CAB9906E1CEAB5 /* EditSheets */,
 				ABA3CAD2021E6067A6DDCB56 /* EditVaultView.swift */,
+				438FCA0D5FC521C2D08E60CA /* ProfileHeroCard.swift */,
 				8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */,
 				E529A365072848BDDB2D5608 /* SettingsView.swift */,
 				E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */,
@@ -709,6 +717,7 @@
 				DDBD397500CA8003F134D272 /* KnotIcon.swift */,
 				914FECBA760D35D7247CEEA4 /* KnotIconButton.swift */,
 				0A5C280C9E2257F8A526806C /* KnotInput.swift */,
+				D9A5E463F2B6583EC0FEE9A2 /* KnotListGroup.swift */,
 				BF842D5AE22164C7C51BADC0 /* KnotListRow.swift */,
 				BC25ED3F61D366A2009CECBF /* KnotPressableStyle.swift */,
 				B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */,
@@ -1015,6 +1024,7 @@
 				E4B8F84B58C6F37D93EC6CB6 /* KnotIconButtonTests.swift in Sources */,
 				BAF77D624A9A4876968B7B58 /* KnotIconTests.swift in Sources */,
 				2B658EFCCE71BB17DF48727A /* KnotInputTests.swift in Sources */,
+				DE654E78520ED900CFFC3F68 /* KnotListGroupTests.swift in Sources */,
 				435FE3ED138D1475B5CBD686 /* KnotListRowTests.swift in Sources */,
 				3B1D5C4F5629034D13428B57 /* KnotPressableStyleTests.swift in Sources */,
 				BA0F0F182E850CF45B99F2D1 /* KnotProgressIndicatorTests.swift in Sources */,
@@ -1104,6 +1114,7 @@
 				BED4D75A664CEF47DA3F1C1B /* KnotIcon.swift in Sources */,
 				4F11E62B42F6B6D67F9C7EA0 /* KnotIconButton.swift in Sources */,
 				54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */,
+				4AABC77CD78AA903E1559A9F /* KnotListGroup.swift in Sources */,
 				168A8F125687F66E13CCD309 /* KnotListRow.swift in Sources */,
 				81A6FDC1018BB266C40356B9 /* KnotPressableStyle.swift in Sources */,
 				58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */,
@@ -1154,6 +1165,7 @@
 				13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */,
 				868B2F83C136C7392D9DEF5B /* PartnerVaultLocal.swift in Sources */,
 				015B9791BD05434B8F8AB54C /* PendingDeletionView.swift in Sources */,
+				46647170115D50E61C0878D4 /* ProfileHeroCard.swift in Sources */,
 				A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */,
 				03B65E3B26EFA2D4644F34F9 /* PurchaseRatingSheet.swift in Sources */,
 				E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */,

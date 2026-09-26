@@ -68,13 +68,9 @@ enum UITestScreenshotHarness {
         case "milestoneDetail":
             MilestoneDetailScreenshotHarnessView()
         case "settings":
-            // Profile/Settings screen standalone — proves the Appearance/Dark
-            // Mode row is gone. `authViewModel` (injected by ContentView) and the
-            // model container (from KnotApp's WindowGroup) are already in scope,
-            // so no extra environment injection is needed. The view-model's async
-            // email/notification loads no-op without a live session; the sections
-            // still render.
-            SettingsView(isTabEmbedded: true)
+            // The Profile tab with a seeded partner and the tab bar, as
+            // `MainTabView` mounts it.
+            SettingsScreenshotHarnessView()
         case "forYouCard":
             ForYouCardScreenshotHarnessView()
         case "onboardingPaywall":
@@ -534,6 +530,45 @@ private struct PurchasePromptDateScreenshotHarnessView: View {
             onSaveForLater: {},
             onDismiss: {}
         )
+    }
+}
+
+/// Renders the Profile tab through the real `SettingsView`, inside the same
+/// chrome `MainTabView` gives it — `KnotTabBar` via `.safeAreaInset(edge:
+/// .bottom)` with Profile selected — because a harness only proves what it
+/// renders.
+///
+/// The view model is seeded instead of loaded: `hasLoadedInitially` makes
+/// `loadOnAppear()` skip the email and vault fetches, so the hero shows a
+/// fixed partner without a live session or backend. `authViewModel`
+/// (injected by ContentView) and the model container (from KnotApp's
+/// WindowGroup) are already in scope.
+private struct SettingsScreenshotHarnessView: View {
+    @State private var chrome = AppChrome()
+    @State private var selectedTab: MainTabView.AppTab = .profile
+
+    private static func seededViewModel() -> SettingsViewModel {
+        let vm = SettingsViewModel()
+        vm.userEmail = "you@example.com"
+        vm.partnerSummary = PartnerProfileSummary(
+            partnerName: "Jas",
+            relationshipTenureMonths: 38,
+            locationCity: "Austin",
+            locationState: "TX"
+        )
+        vm.hasResolvedPartner = true
+        vm.hasLoadedInitially = true
+        return vm
+    }
+
+    var body: some View {
+        SettingsView(isTabEmbedded: true, viewModel: Self.seededViewModel())
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !chrome.isTabBarHidden {
+                    KnotTabBar(selection: $selectedTab, items: MainTabView.tabBarItems)
+                }
+            }
+            .environment(chrome)
     }
 }
 

@@ -7,6 +7,7 @@
 //  notification toggle.
 //  Step 11.2: Account deletion state management — re-authentication flow,
 //  backend deletion call, local SwiftData cleanup.
+//  Profile redesign: partner summary loading for the Profile hero.
 //
 
 import Foundation
@@ -14,11 +15,40 @@ import SwiftData
 import UIKit
 import UserNotifications
 
+/// Seam for fetching the partner vault behind the Profile hero, so the
+/// hero's loading and failure paths are unit-testable without a live backend.
+/// Conformed to by the existing `VaultService`.
+@MainActor
+protocol PartnerVaultFetching {
+    func getVault() async throws -> VaultGetResponse
+}
+
+extension VaultService: PartnerVaultFetching {}
+
+/// The slice of the partner vault the Profile hero shows.
+struct PartnerProfileSummary: Equatable, Sendable {
+    let partnerName: String
+    let relationshipTenureMonths: Int?
+    let locationCity: String?
+    let locationState: String?
+}
+
+extension PartnerProfileSummary {
+    init(vault: VaultGetResponse) {
+        self.init(
+            partnerName: vault.partnerName,
+            relationshipTenureMonths: vault.relationshipTenureMonths,
+            locationCity: vault.locationCity,
+            locationState: vault.locationState
+        )
+    }
+}
+
 /// Manages state for the Settings screen.
 ///
-/// Handles loading the user's email from the Supabase session, checking
-/// notification authorization status, toggling notifications, and the
-/// account deletion flow.
+/// Handles loading the user's email from the Supabase session, loading the
+/// partner summary for the Profile hero, checking notification authorization
+/// status, toggling notifications, and the account deletion flow.
 @Observable
 @MainActor
 final class SettingsViewModel {
@@ -27,6 +57,30 @@ final class SettingsViewModel {
 
     /// The user's email address from the Supabase session.
     var userEmail: String = ""
+
+    /// The partner shown in the Profile hero, or nil before the vault loads
+    /// (or when it has never loaded). A failed refresh keeps the last value.
+    var partnerSummary: PartnerProfileSummary?
+
+    /// Whether a partner load has finished at least once, successfully or
+    /// not. Until then the hero shows its placeholder.
+    var hasResolvedPartner = false
+
+    /// Whether `loadOnAppear()` has already run its one-time loads. Set it
+    /// on a seeded model (screenshot harness, previews) to skip the network.
+    var hasLoadedInitially = false
+
+    private let vaultFetcher: any PartnerVaultFetching
+
+    /// Bumped by every partner load, so only the newest one's result lands.
+    private var partnerLoadGeneration = 0
+
+    /// Partner loads currently awaiting the backend.
+    private var partnerLoadsInFlight = 0
+
+    init(vaultFetcher: any PartnerVaultFetching = VaultService()) {
+        self.vaultFetcher = vaultFetcher
+    }
 
     /// Whether the typed-confirmation sheet is showing.
     /// The sheet itself carries the warning + confirmation, so the
@@ -55,6 +109,65 @@ final class SettingsViewModel {
         } catch {
             userEmail = "Not available"
         }
+    }
+
+    /// Loads the partner summary for the Profile hero. A failure is logged
+    /// and never replaces a summary that already loaded.
+    func loadPartnerProfile() async {
+        partnerLoadGeneration += 1
+        let generation = partnerLoadGeneration
+        partnerLoadsInFlight += 1
+        defer { partnerLoadsInFlight -= 1 }
+
+        let summary: PartnerProfileSummary?
+        do {
+            summary = try await PartnerProfileSummary(vault: vaultFetcher.getVault())
+        } catch {
+            print("[Knot] SettingsViewModel: Partner profile load failed — \(error.localizedDescription)")
+            summary = nil
+        }
+
+        // A newer load started while this one was in flight (the launch fetch
+        // still running when Edit profile closes); its result is fresher, so
+        // this one is dropped.
+        guard generation == partnerLoadGeneration else { return }
+        if let summary { partnerSummary = summary }
+        hasResolvedPartner = true
+    }
+
+    /// The screen's appear-time loads. Email and partner load once, in
+    /// parallel; notification status refreshes on every appear.
+    func loadOnAppear() async {
+        if !hasLoadedInitially {
+            hasLoadedInitially = true
+            async let email: Void = loadUserEmail()
+            async let partner: Void = loadPartnerProfile()
+            _ = await (email, partner)
+            // The view went away mid-load, so the loads were cut short: run
+            // them again on the next appear rather than keep their failures.
+            if Task.isCancelled { hasLoadedInitially = false }
+        }
+        await loadNotificationStatus()
+    }
+
+    /// The return-to-foreground refresh: notification status always, and the
+    /// partner again if it has never loaded (say, the app launched offline),
+    /// so the hero recovers without a relaunch.
+    func refreshOnForeground() async {
+        await loadNotificationStatus()
+        if hasLoadedInitially, partnerSummary == nil, partnerLoadsInFlight == 0 {
+            await loadPartnerProfile()
+        }
+    }
+
+    /// Whether the hero should show its loading placeholder.
+    var showsHeroPlaceholder: Bool {
+        partnerSummary == nil && !hasResolvedPartner
+    }
+
+    /// What the Profile hero displays.
+    var heroContent: ProfileHeroContent {
+        showsHeroPlaceholder ? .placeholder : ProfileHeroContent(summary: partnerSummary)
     }
 
     /// Loads the current notification authorization status from iOS.

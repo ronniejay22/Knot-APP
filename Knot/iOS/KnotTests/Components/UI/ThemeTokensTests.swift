@@ -82,6 +82,25 @@ final class ThemeTokensTests: XCTestCase {
         _ = Theme.statusInfoTint
     }
 
+    /// The icon-tile fill for grouped `KnotListRow`s is `accent` at 12% in
+    /// both appearances.
+    func testAccentTintIsAccentAtTwelvePercent() {
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            var tint: (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) = (0, 0, 0, 0)
+            var accent: (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) = (0, 0, 0, 0)
+            UIColor(Theme.accentTint).resolvedColor(with: traits)
+                .getRed(&tint.r, green: &tint.g, blue: &tint.b, alpha: &tint.a)
+            UIColor(Theme.accent).resolvedColor(with: traits)
+                .getRed(&accent.r, green: &accent.g, blue: &accent.b, alpha: &accent.a)
+
+            XCTAssertEqual(tint.a, 0.12, accuracy: 0.005, "\(style) alpha")
+            XCTAssertEqual(tint.r, accent.r, accuracy: 0.005, "\(style) red")
+            XCTAssertEqual(tint.g, accent.g, accuracy: 0.005, "\(style) green")
+            XCTAssertEqual(tint.b, accent.b, accuracy: 0.005, "\(style) blue")
+        }
+    }
+
     func testShadowScaleIsMonotonic() {
         let radii: [CGFloat] = [
             Theme.Shadow.sm.radius,
