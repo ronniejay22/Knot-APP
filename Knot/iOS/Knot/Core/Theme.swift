@@ -130,6 +130,27 @@ enum Theme {
         endPoint: .bottom
     )
 
+    /// Top stop of the launch splash — #FF385C, a brighter coral than
+    /// `colorPrimary`. Only ever paired with `colorPrimaryDeep` in
+    /// `launchGradient`.
+    static let colorLaunchTop = Color(red: 1.0, green: 0.22, blue: 0.36)
+
+    /// The launch splash's full-bleed gradient (Figma node 1004:1373):
+    /// #FF385C → #E0295C, linear top to bottom.
+    ///
+    /// A dedicated token, not `brandGradient` (which starts at #F54266), because
+    /// the system launch screen shows the same two stops from the stretched
+    /// `LaunchGradient` image in `LaunchScreen.storyboard`. The in-app
+    /// `LaunchSplashView` must match what that screen shows, or the hand-off
+    /// shifts color on the first frame. (The image itself stores these stops
+    /// color pre-compensated — see the storyboard — so compare on screen, not
+    /// byte for byte.)
+    static let launchGradient = LinearGradient(
+        colors: [colorLaunchTop, colorPrimaryDeep],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
     // MARK: - On Brand Surface
 
     // Chrome drawn *on top of* `brandGradient`. The `text*` and `progress*`

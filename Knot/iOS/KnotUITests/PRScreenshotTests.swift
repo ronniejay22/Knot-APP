@@ -24,19 +24,16 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change adds a "Recent picks" section to the Journal: every set of
-        // recommendations generated in the last 7 days, each row reopening its
-        // cards until the set expires. The capture is the Journal itself with
-        // that section between the header and "Upcoming" — one milestone-named
-        // row ("Christmas") and one just-because row inside its last day, so
-        // the destructive expiry badge is in the shot too.
+        // The change replaces the blank launch screen and the "Loading..."
+        // spinner with the branded launch splash (Figma node 1004:1373): the
+        // coral gradient with the Knot lockup, shown by the system launch
+        // screen and continued in-app by `LaunchSplashView` until startup
+        // finishes. The capture is the in-app splash.
         //
-        // The Journal sits behind an authenticated session and live backend
-        // fetches, neither of which a cold screenshot launch can reach; the
-        // `journal` harness renders it standalone with two seeded batches and
-        // three seeded cards, inside a `NavigationStack` that mirrors
-        // `ForYouView`'s push seam.
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // On a normal launch the splash is on screen only while startup runs,
+        // too briefly to capture reliably; the `launchSplash` harness renders
+        // it standalone.
+        app.launchArguments += ["-uiTestScreenshot", "launchSplash"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -51,49 +48,19 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
-        // The section header is a merged accessibility element whose label
-        // carries the count ("Recent picks, 2 sets"), so match on the label
-        // across element types rather than assuming a `staticText`.
-        let sectionHeader = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Recent picks, 2 sets"))
-            .firstMatch
+        // The lockup is the splash's only accessibility element; its label
+        // (`LaunchSplashView.accessibilityLabel`) carries the wordmark and the
+        // tagline, which are drawn into the image.
+        let lockup = app.images["Knot. Always know what they love"]
         XCTAssertTrue(
-            sectionHeader.waitForExistence(timeout: 15),
-            "The \"Recent picks\" header never appeared — the section did not render on the Journal harness"
-        )
-
-        // The row is a `Button` whose label is the row's full accessibility
-        // sentence, built from the seeded batch (generated 2 days ago, expires
-        // in 5 days — both relative to launch, so the label is deterministic).
-        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
-        XCTAssertTrue(
-            christmasRow.waitForExistence(timeout: 5),
-            "The seeded Christmas batch row is missing from the Recent picks section"
+            lockup.waitForExistence(timeout: 15),
+            "The launch splash lockup never appeared on the launchSplash harness"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
-
-        // Then prove the row actually reopens the set: tapping pushes
-        // `RecommendationsView` seeded with the stored batch, so the first
-        // pick — which exists nowhere on the Journal itself — must appear,
-        // with no generation run.
-        //
-        // Matched as a `Button` by label prefix, NOT as a `staticText`: since
-        // Step 19.59 each feed card is a single merged accessibility element
-        // (`RecommendationFeedCard.accessibilityLabel` → "Title, Type. …"), so
-        // the title is no longer exposed on its own. The title staying first in
-        // that label is exactly what keeps a prefix match working.
-        christmasRow.tap()
-        let reopenedPick = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Candlelit Pottery Class")
-        ).firstMatch
-        XCTAssertTrue(
-            reopenedPick.waitForExistence(timeout: 10),
-            "Tapping the Recent picks row did not reopen its cards"
-        )
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.

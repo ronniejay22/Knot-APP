@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  System launch screen (Figma node 1004:1373). iOS draws this before any app
+  code runs, so it cannot use custom fonts or CAGradientLayer:
+
+  - The gradient is the stretched `LaunchGradient` strip (#FF385C → #E0295C),
+    pinned to the superview edges, not the safe area.
+  - The lockup (tile + "Knot" wordmark + tagline) is the pre-rendered
+    `LaunchLockup` image, centered 10pt above screen center as in the design.
+
+  `LaunchSplashView` renders the same two things at the same geometry, which is
+  what makes the hand-off into the app invisible. Change one, change both.
+
+  Both images are color PRE-COMPENSATED: their bytes are the Display P3
+  encoding of the design colors, labelled sRGB. iOS saves the launch snapshot
+  with its sRGB pixel values but labels it Display P3, so ordinary sRGB assets
+  show oversaturated (#FF385C shows as ~#FF0058). Pre-compensated, the P3 label
+  reads them back as the design colors. That's also why this storyboard looks
+  slightly washed out in Interface Builder — that's expected. Don't add
+  storyboard colors (the same mislabel applies); put color in the images.
+-->
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="24506" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Lnc-VC-001">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="24504"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Launch Screen-->
+        <scene sceneID="Lnc-Sc-001">
+            <objects>
+                <viewController id="Lnc-VC-001" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Lnc-Vw-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="1" verticalHuggingPriority="1" horizontalCompressionResistancePriority="1" verticalCompressionResistancePriority="1" image="LaunchGradient" translatesAutoresizingMaskIntoConstraints="NO" id="Lnc-Gd-001" userLabel="Gradient">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                            </imageView>
+                            <imageView userInteractionEnabled="NO" contentMode="center" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchLockup" translatesAutoresizingMaskIntoConstraints="NO" id="Lnc-Lk-001" userLabel="Lockup">
+                                <rect key="frame" x="94.5" y="370" width="204" height="92"/>
+                            </imageView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Lnc-Sa-001"/>
+                        <constraints>
+                            <constraint firstItem="Lnc-Gd-001" firstAttribute="top" secondItem="Lnc-Vw-001" secondAttribute="top" id="Lnc-Cn-001"/>
+                            <constraint firstItem="Lnc-Gd-001" firstAttribute="bottom" secondItem="Lnc-Vw-001" secondAttribute="bottom" id="Lnc-Cn-002"/>
+                            <constraint firstItem="Lnc-Gd-001" firstAttribute="leading" secondItem="Lnc-Vw-001" secondAttribute="leading" id="Lnc-Cn-003"/>
+                            <constraint firstItem="Lnc-Gd-001" firstAttribute="trailing" secondItem="Lnc-Vw-001" secondAttribute="trailing" id="Lnc-Cn-004"/>
+                            <constraint firstItem="Lnc-Lk-001" firstAttribute="centerX" secondItem="Lnc-Vw-001" secondAttribute="centerX" id="Lnc-Cn-005"/>
+                            <constraint firstItem="Lnc-Lk-001" firstAttribute="centerY" secondItem="Lnc-Vw-001" secondAttribute="centerY" constant="-10" id="Lnc-Cn-006"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="Lnc-Fr-001" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchGradient" width="4" height="2868"/>
+        <image name="LaunchLockup" width="204" height="92"/>
+    </resources>
+</document>
