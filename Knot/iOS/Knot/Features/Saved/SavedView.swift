@@ -4,348 +4,141 @@
 //
 //  Created on February 26, 2026.
 //  Saved tab — displays all bookmarked recommendations.
-//  Added the post-date reward loop: "We did this" reflection + a "Moments" section.
+//  Restyled as "Saved recommendations" photo cards, sharing `SavedIdeaCard`
+//  with a Home event's detail screen.
 //
 
 import SwiftUI
 
 /// Saved tab showing all bookmarked recommendations.
 ///
-/// Splits saved items into two sections:
-/// - **Saved** — active items still to be done. Date plans get a "We did this"
-///   action that opens a post-date reflection.
-/// - **Moments** — date plans the user marked done, with the rating + note they
-///   left. This is the payoff/record that used to be missing after a date plan.
+/// One list, newest first: a large "Saved recommendations" header with its
+/// accent count underneath, then a `SavedIdeaCard` per saved item. The header
+/// lives in the content, like the "Saved ideas" section of
+/// `MilestoneDetailView`, so the screen has no navigation bar — and, since the
+/// detail opens as a full-screen cover, no `NavigationStack` either.
 struct SavedView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel = SavedViewModel()
-
-    /// The item currently being reflected on (drives the reflection sheet).
-    @State private var selectedForReflection: SavedRecommendation?
+    @State private var viewModel: SavedViewModel
 
     /// The saved item whose detail page is open (drives the full-screen detail cover).
     /// Rebuilt from the local snapshot via `SavedRecommendation.toDetailItem()`.
     @State private var selectedDetailItem: RecommendationItemResponse?
 
+    /// The default preserves every existing call site. The `viewModel:`
+    /// parameter lets tests hand in one that has already loaded, so the list
+    /// renders on the first layout pass rather than after `.task`.
+    init(viewModel: SavedViewModel = SavedViewModel()) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.backgroundGradient.ignoresSafeArea()
+        ZStack {
+            Theme.backgroundGradient.ignoresSafeArea()
 
-                if viewModel.savedRecommendations.isEmpty {
-                    emptyState
-                } else {
-                    ScrollView {
-                        VStack(spacing: 24) {
-                            if !viewModel.activeItems.isEmpty {
-                                section(
-                                    title: "Saved",
-                                    count: viewModel.activeItems.count,
-                                    items: viewModel.activeItems
-                                ) { activeCard($0) }
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header(count: viewModel.savedRecommendations.count)
 
-                            if !viewModel.completedItems.isEmpty {
-                                section(
-                                    title: "Moments",
-                                    count: viewModel.completedItems.count,
-                                    subtitle: momentsSubtitle(viewModel.completedItems.count),
-                                    items: viewModel.completedItems
-                                ) { momentCard($0) }
-                            }
-
-                            Spacer(minLength: 40)
+                    if viewModel.savedRecommendations.isEmpty {
+                        emptyState
+                    } else {
+                        // ForEach over the typed items (SavedRecommendation is
+                        // Identifiable) preserves SwiftUI item identity so
+                        // deletes animate/diff correctly.
+                        ForEach(viewModel.savedRecommendations) { saved in
+                            SavedIdeaCard(
+                                saved: saved,
+                                listName: "saved recommendations",
+                                onOpen: { selectedDetailItem = saved.toDetailItem() },
+                                onRemove: { viewModel.deleteSavedRecommendation(saved, modelContext: modelContext) }
+                            )
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 40)
             }
-            .navigationTitle("Saved")
-            .navigationBarTitleDisplayMode(.inline)
-            .task {
-                await viewModel.loadSavedRecommendations(modelContext: modelContext)
-            }
-            .sheet(item: $selectedForReflection) { saved in
-                PurchaseRatingSheet(
-                    itemTitle: saved.title,
-                    headline: "How did it go?",
-                    onSubmit: { rating, note in
-                        viewModel.markCompleted(saved, rating: rating, note: note, modelContext: modelContext)
-                        selectedForReflection = nil
-                    },
-                    onSkip: {
-                        selectedForReflection = nil
-                    }
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
-            .fullScreenCover(item: $selectedDetailItem) { item in
-                RecommendationDetailView(
-                    item: item,
-                    // The "Why Knot picked this" block is hidden for saved snapshots
-                    // (no note/chips stored), and partnerName is only used there.
-                    partnerName: nil,
-                    isSaved: true,
-                    onOpenMerchant: { viewModel.openMerchant(item) },
-                    onSave: {},
-                    onDismiss: { selectedDetailItem = nil }
-                )
-            }
-            .overlay(alignment: .top) {
-                if let title = viewModel.lastCelebratedTitle {
-                    rewardToast(title)
-                        .padding(.horizontal, 20)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .task {
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
-                            try? await Task.sleep(for: .seconds(2.2))
-                            withAnimation { viewModel.clearCelebration() }
-                        }
-                }
-            }
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.lastCelebratedTitle)
         }
+        .task {
+            await viewModel.loadSavedRecommendations(modelContext: modelContext)
+        }
+        .fullScreenCover(item: $selectedDetailItem) { item in
+            RecommendationDetailView(
+                item: item,
+                // The "Why Knot picked this" block is hidden for saved snapshots
+                // (no note/chips stored), and partnerName is only used there.
+                partnerName: nil,
+                isSaved: true,
+                onOpenMerchant: { viewModel.openMerchant(item) },
+                onSave: {},
+                onDismiss: { selectedDetailItem = nil }
+            )
+        }
+    }
+
+    // MARK: - Header
+
+    /// Always rendered: with the navigation title gone, this is the screen's
+    /// title, so it stays even when nothing is saved. The count sits on its
+    /// own line because "Saved recommendations" at this size leaves no room
+    /// beside it on most iPhones.
+    private func header(count: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Saved recommendations")
+                .knotFont(Theme.Typography.sectionHeaderSemibold)
+                .foregroundStyle(Theme.textPrimary)
+
+            // The count reads off the same array the list renders, so it can
+            // never disagree with what is on screen.
+            if count > 0 {
+                Text(Self.savedCountText(count))
+                    .knotFont(Theme.Typography.label)
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.savedAccessibilityLabel(count: count))
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            KnotIconView(.bookmarkBorder, size: 40)
-                .foregroundStyle(Theme.textTertiary)
+        KnotCard(padding: .lg, radius: Theme.Radius.xl) {
+            VStack(spacing: 12) {
+                KnotIconView(.bookmarkBorder, size: 32)
+                    .foregroundStyle(Theme.textTertiary)
 
-            VStack(spacing: 6) {
                 Text("No saved items")
-                    .knotFont(Theme.Typography.cardTitle)
+                    .knotFont(Theme.Typography.cta)
                     .foregroundStyle(Theme.textPrimary)
 
                 Text("Save recommendations from Home to find them here later.")
-                    .knotFont(Theme.Typography.body)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Section
-
-    private func section<Content: View>(
-        title: String,
-        count: Int,
-        subtitle: String? = nil,
-        items: [SavedRecommendation],
-        @ViewBuilder card: @escaping (SavedRecommendation) -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(title)
-                        .knotFont(Theme.Typography.cardTitle)
-                        .foregroundStyle(Theme.textPrimary)
-
-                    Text("\(count)")
-                        .knotFont(Theme.Typography.label)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-
-                if let subtitle {
-                    Text(subtitle)
-                        .knotFont(Theme.Typography.label)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // ForEach over the typed items (SavedRecommendation is Identifiable)
-            // preserves SwiftUI item identity so Saved→Moments moves and deletes
-            // animate/diff correctly.
-            ForEach(items) { item in
-                card(item)
-            }
-        }
-    }
-
-    private func momentsSubtitle(_ count: Int) -> String {
-        count == 1 ? "1 date you made real" : "\(count) dates you made real"
-    }
-
-    // MARK: - Active Card
-
-    private func activeCard(_ saved: SavedRecommendation) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            cardRow(saved)
-
-            if saved.isDoable {
-                Button {
-                    selectedForReflection = saved
-                } label: {
-                    HStack(spacing: 6) {
-                        KnotIconView(.checkCircleOutlined, size: 20)
-                        Text("We did this")
-                    }
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.accent.opacity(0.12))
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(12)
-        .background(cardBackground)
-        // Tapping anywhere on the card (except its inner buttons) opens the detail.
-        // `.onTapGesture` — not a wrapping Button — keeps the inner delete /
-        // "We did this" buttons hit-testing correctly.
-        .contentShape(Rectangle())
-        .onTapGesture { selectedDetailItem = saved.toDetailItem() }
-    }
-
-    // MARK: - Moment Card
-
-    private func momentCard(_ saved: SavedRecommendation) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            cardRow(saved)
-
-            if let rating = saved.rating {
-                starRow(rating)
-            }
-
-            if let note = saved.reflectionNote, !note.isEmpty {
-                Text("“\(note)”")
-                    .knotFont(Theme.Typography.body)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(12)
-        .background(cardBackground)
-        .contentShape(Rectangle())
-        .onTapGesture { selectedDetailItem = saved.toDetailItem() }
-    }
-
-    // MARK: - Shared Card Row
-
-    /// The common top row: type icon, title, merchant/price, and delete.
-    /// Used by both active and moment cards.
-    private func cardRow(_ saved: SavedRecommendation) -> some View {
-        HStack(spacing: 12) {
-            // Type icon
-            KnotIconView(savedTypeIcon(saved.recommendationType), size: 18)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 34, height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Theme.accent.opacity(0.12))
-                )
-
-            // Details
-            VStack(alignment: .leading, spacing: 2) {
-                Text(saved.title)
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-
-                HStack(spacing: 6) {
-                    if let merchantName = saved.merchantName, !merchantName.isEmpty {
-                        Text(merchantName)
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineLimit(1)
-                    }
-
-                    if let priceCents = saved.priceCents {
-                        Text(RecommendationCard.formattedPrice(cents: priceCents, currency: saved.currency))
-                            .knotFont(Theme.Typography.label)
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                }
-            }
-
-            Spacer()
-
-            // Delete button
-            Button {
-                viewModel.deleteSavedRecommendation(saved, modelContext: modelContext)
-            } label: {
-                KnotIconView(.closeOutlined, size: 12)
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Delete")
-        }
-    }
-
-    // MARK: - Reward Toast
-
-    private func rewardToast(_ title: String) -> some View {
-        HStack(spacing: 10) {
-            KnotIconView(.autoAwesomeOutlined, size: 20)
-                .foregroundStyle(Theme.accent)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Moment made real 💛")
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.textPrimary)
-
-                Text(title)
                     .knotFont(Theme.Typography.label)
                     .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
             }
-
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Theme.surfaceBorder, lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-        )
+    }
+}
+
+// MARK: - Pure Helpers
+
+extension SavedView {
+
+    /// "1 saved" / "3 saved" — the accent count under "Saved recommendations".
+    static func savedCountText(_ count: Int) -> String {
+        "\(count) saved"
     }
 
-    // MARK: - Helpers
-
-    /// Filled/empty star row for a completed moment's rating.
-    private func starRow(_ rating: Int) -> some View {
-        HStack(spacing: 4) {
-            ForEach(1...5, id: \.self) { star in
-                KnotIconView(star <= rating ? .star : .starBorder, size: 14)
-                    .foregroundStyle(star <= rating ? .yellow : Theme.textTertiary)
-            }
-        }
-        // The stars are decorative images, so the row speaks the rating itself.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(rating == 1 ? "1 of 5 stars" : "\(rating) of 5 stars")
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Theme.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Theme.surfaceBorder, lineWidth: 1)
-            )
-    }
-
-    /// Icon for saved recommendation type.
-    private func savedTypeIcon(_ type: String) -> KnotIcon {
-        switch type {
-        case "gift": return .cardGiftcardOutlined
-        case "experience": return .autoAwesomeOutlined
-        case "date": return .favoriteBorder
-        default: return .starBorder
-        }
+    /// VoiceOver label for the header and its count. Pure and `static` so the
+    /// wording is testable without rendering the screen.
+    static func savedAccessibilityLabel(count: Int) -> String {
+        count == 0 ? "Saved recommendations, none yet" : "Saved recommendations, \(savedCountText(count))"
     }
 }

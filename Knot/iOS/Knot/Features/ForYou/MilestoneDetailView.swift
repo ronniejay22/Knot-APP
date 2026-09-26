@@ -19,6 +19,9 @@
 //  Knot Originals, and the button opens the recommendation flow rather than a
 //  manual entry form.
 //
+//  Each saved idea renders through the shared `SavedIdeaCard`
+//  (Features/Saved/), which the Saved tab uses too.
+//
 
 import SwiftUI
 import SwiftData
@@ -277,110 +280,6 @@ struct MilestoneDetailView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
-        }
-    }
-}
-
-// MARK: - Saved Idea Card
-
-/// One saved idea, mirroring the comp's `Gift Card Item`: photo, title + price,
-/// note, then a "SAVED" tag opposite a control that removes it.
-private struct SavedIdeaCard: View {
-
-    let saved: SavedRecommendation
-    let onOpen: @MainActor () -> Void
-    let onRemove: @MainActor () -> Void
-
-    private static let imageHeight: CGFloat = 110
-
-    var body: some View {
-        KnotCard(padding: .md, radius: Theme.Radius.xl) {
-            VStack(alignment: .leading, spacing: 12) {
-                image
-                titleRow
-                notes
-
-                Divider()
-                    .overlay(Theme.surfaceBorder)
-
-                actionsRow
-            }
-        }
-        // `.onTapGesture` rather than a wrapping `Button` so the remove control
-        // inside keeps hit-testing (the Step 19.9 pattern from `SavedView`).
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpen)
-        .accessibilityElement(children: .contain)
-    }
-
-    /// The bundled per-type photo is an always-present base beneath the remote
-    /// image, so a card is never blank in any `AsyncImage` phase — the Step
-    /// 19.13 rule. No gradient fallbacks on recommendation surfaces.
-    private var image: some View {
-        RecommendationFallbackImage(recommendationType: saved.recommendationType)
-            .overlay {
-                if let urlString = saved.imageURL, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        if case .success(let remote) = phase {
-                            Color.clear
-                                .overlay { remote.resizable().scaledToFill() }
-                                .clipped()
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Self.imageHeight)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
-            .accessibilityHidden(true)
-    }
-
-    private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(saved.title)
-                .knotFont(Theme.Typography.cta)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-
-            Spacer(minLength: 8)
-
-            if let priceCents = saved.priceCents {
-                Text(RecommendationCard.formattedPrice(cents: priceCents, currency: saved.currency))
-                    .knotFont(Theme.Typography.cta)
-                    .foregroundStyle(Theme.accent)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .layoutPriority(1)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var notes: some View {
-        if let text = saved.descriptionText, !text.isEmpty {
-            Text(text)
-                .knotFont(Theme.Typography.bodySmall)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var actionsRow: some View {
-        HStack {
-            KnotBadge("SAVED", variant: .accent, size: .sm)
-
-            Spacer(minLength: 8)
-
-            Button(action: onRemove) {
-                KnotIconView(.bookmark, size: 20)
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 34, height: 34)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(saved.title) from saved ideas")
         }
     }
 }

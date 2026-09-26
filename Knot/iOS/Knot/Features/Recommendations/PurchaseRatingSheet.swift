@@ -15,9 +15,6 @@ import SwiftUI
 /// The user can submit a rating or skip.
 struct PurchaseRatingSheet: View {
     let itemTitle: String
-    /// Headline copy. Defaults to the purchase-rating prompt; the Saved-tab
-    /// post-date reflection passes "How did it go?".
-    var headline: String = "How was this pick?"
     let onSubmit: @MainActor @Sendable (Int, String?) -> Void
     let onSkip: @MainActor @Sendable () -> Void
 
@@ -34,7 +31,7 @@ struct PurchaseRatingSheet: View {
                     KnotIconView(.starBorder, size: 32)
                         .foregroundStyle(Theme.accent)
 
-                    Text(headline)
+                    Text("How was this pick?")
                         .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
 

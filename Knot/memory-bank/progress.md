@@ -11173,6 +11173,193 @@ Verified by hand:
 
 ---
 
+### Step 19.65 ✅ Saved Tab — "Saved recommendations" Photo Cards, and Moments Removed
+**Date:** 2026-09-25
+**Status:** Complete
+
+*(Numbered 19.65: this change was first logged as 19.63, which the Home/MUI-icons rename took
+when it merged first; 19.64 is the launch splash.)*
+
+**Goal:** Restyle the Saved tab to match a supplied mock: a large header with an accent
+**"N saved"** count, and each saved item as a white card with a 110pt rounded photo, the title,
+a two-line note, a divider, then a **SAVED** pill opposite an accent bookmark. After seeing the
+first version, the user asked for one list titled **"Saved recommendations"** and for **the
+Moments feature (Step 19.7) to be removed entirely**. Before this, the tab rendered compact icon
+rows (type glyph, one-line title, merchant/price, an "×" delete) under an inline "Saved" nav
+title, split into a "Saved" section and a "Moments" section of completed date plans.
+
+**The card already existed.** The mock is a near pixel-match for the file-private
+`SavedIdeaCard` that Step 19.48 built for a Home event's detail screen. So this promotes that
+card to a shared file and rebuilds the Saved tab around it.
+
+**Decided with the user:**
+- **Moments are gone:** "Just show 'Saved recommendations'. Remove the whole moments thing."
+  That covers everything Step 19.7 added: the section, the "We did this" button and its
+  reflection sheet, the reward toast, the view-model split, the model fields, and the rating
+  sheet's `headline` parameter.
+- **The count sits under the title**, not beside it. At `sectionHeaderSemibold` (28pt),
+  "Saved recommendations" measures about 338pt, from the bundled font's advance widths. Beside
+  the ~48pt count it needs about 398pt, but a 402pt-wide iPhone leaves 362pt inside the 20pt
+  gutters; only the Pro Max fits it. Two alternatives were rejected: shrinking the title to fit
+  (about 25pt on a standard iPhone), and letting it wrap onto two lines. The 375pt iPhones (SE,
+  13 mini) are 3pt too narrow even for the title alone, so it wraps there.
+
+**What changed:**
+- **`Features/Saved/SavedIdeaCard.swift` (new):** `SavedIdeaCard` moved out of
+  `MilestoneDetailView.swift`. Apart from dropping `private`, it gained one opt-in parameter.
+  It keeps:
+  - the `RecommendationFallbackImage` base under an `AsyncImage` composed on `Color.clear`
+    (Steps 19.13 and 19.31)
+  - `.onTapGesture` + `.contentShape` rather than a wrapping `Button`, so the bookmark keeps
+    hit-testing
+  - `KnotBadge("SAVED", .accent)` opposite the filled `KnotIconView(.bookmark, size: 20)` remove
+    control
+
+  The new parameter is `listName: String = "saved ideas"`. The remove control's VoiceOver label
+  names the list the card sits in, through the pure
+  `static removeAccessibilityLabel(title:listName:)`. The event detail screen keeps the default
+  ("Remove {title} from saved ideas"). The Saved tab passes "saved recommendations" so the label
+  matches its header.
+- **`Features/ForYou/MilestoneDetailView.swift`:** only the private struct was deleted. The call
+  site is untouched, so the event detail screen renders exactly as before.
+- **`Features/Saved/SavedView.swift`:** rebuilt as one list.
+  - **Header.** It moved into the content: "Saved recommendations" in `sectionHeaderSemibold`,
+    with the accent `label` count "N saved" on the line under it (hidden when nothing is saved).
+    The two are merged into one VoiceOver header element: "Saved recommendations, 3 saved" or
+    "…, none yet".
+  - **No `NavigationStack`.** It went with the navigation title: the screen pushes nothing, and
+    the detail opens as a full-screen cover. So there is no bar to hide either.
+  - **`init(viewModel:)`.** The default keeps every call site as it was. Tests pass in a view
+    model that has already loaded, so the list draws on the first layout pass.
+  - **Cards.** Every saved item renders as a `SavedIdeaCard`, newest first, straight from
+    `savedRecommendations`.
+  - **Empty state.** With nothing saved, a `KnotCard` holds it: `bookmarkBorder`,
+    "No saved items", "Save recommendations from Home to find them here later."
+  - **Statics.** Pure `savedCountText(_:)` and `savedAccessibilityLabel(count:)`.
+  - **Deleted:**
+    - the Moments section
+    - the "We did this" button and its `PurchaseRatingSheet` reflection
+    - the "Moment made real 💛" reward toast
+    - the old row helpers (`section`, `activeCard`, `momentCard`, `cardRow`, `starRow`,
+      `cardBackground`, `savedTypeIcon`, `momentsSubtitle`)
+- **Moments removed beneath the view:**
+  - **`SavedViewModel`:** removed `activeItems`, `completedItems`,
+    `markCompleted(_:rating:note:modelContext:)` (which also sent the `"rated"` feedback),
+    `lastCelebratedTitle` and `clearCelebration()`. `service` stays, for `openMerchant`'s
+    `"selected"` signal.
+  - **`SavedRecommendation`:** removed the stored `completedAt` / `rating` / `reflectionNote` and
+    the computed `isCompleted` / `isDoable`.
+    - **Migration.** `KnotApp` opens its store with no migration plan and `fatalError`s on
+      failure, so this relies on SwiftData's automatic lightweight migration dropping the
+      columns. `SavedRecommendationMigrationTests` pins that.
+    - **Existing data.** An install with completed Moments keeps those items, which now show as
+      ordinary saved cards. Their local rating and note are discarded; the rating already reached
+      the backend as `"rated"` feedback when it was given. The app has never shipped, so only dev
+      devices carry such rows.
+  - **`PurchaseRatingSheet`:** the `headline` parameter existed only for the reflection's
+    "How did it go?". The sheet reads "How was this pick?" again for its purchase and onboarding
+    callers.
+- **`App/UITestScreenshotHarness.swift`:** the `savedMoments` key became `saved`
+  (`SavedScreenshotHarnessView`). It seeds three plain saved items with fixed `savedAt` stamps,
+  so the newest-first order, with the priced card on top, is deterministic.
+- **`KnotUITests/PRScreenshotTests.swift`:**
+  - **The slot** moved to the `saved` harness. It asserts the merged header by label
+    ("Saved recommendations, 3 saved", matched across element types) and the top card's title,
+    then captures.
+  - **The Recent-picks check.** Main's slot, from the Home/MUI rename, ended with Step 19.62's
+    reopen check. That check moved verbatim into its own class, `RecentPicksUITests`
+    (`testRecentPicksRowReopensItsBatch`, on a `journal` launch). A slot move no longer takes
+    the only UI coverage of that path with it, as the Step 19.64 move once did.
+    `capture-ui-screenshot.sh` runs only the `PRScreenshotTests` class, so a Recent-picks
+    failure can't cost an unrelated PR its screenshot.
+  - **The SpringBoard-alert helper** `dismissSystemAlerts()` moved, unchanged, from a private
+    method to a shared `XCTestCase` extension (`XCTestCase+SystemAlerts.swift`) that both
+    classes call.
+
+**Files created:**
+- `iOS/Knot/Features/Saved/SavedIdeaCard.swift` — the shared saved-idea card
+- `iOS/KnotTests/SavedTabDesignTests.swift` — 10 tests:
+  - the card's remove label for both lists, and its "saved ideas" default
+  - card render paths: plain, price, no description, and every type
+  - header copy and VoiceOver labels
+  - `SavedView` hosted in a window over an in-memory store, empty and populated. The populated
+    test hands in a view model that has already loaded, so the cards draw on the first layout
+    pass.
+- `iOS/KnotTests/SavedRecommendationMigrationTests.swift` — 1 test. It writes a store with the
+  Moments columns, holding a completed Moment and a plain idea, then reopens it through the
+  current model and gets both rows back. Both containers register the same five models as
+  `KnotApp.sharedModelContainer`; only the store's location differs. The old class is a nested
+  `@Model` copy, so its entity keeps the name `SavedRecommendation`, the way `VersionedSchema`
+  models do.
+- `iOS/KnotUITests/RecentPicksUITests.swift` — Step 19.62's reopen check, in its own class
+- `iOS/KnotUITests/XCTestCase+SystemAlerts.swift` — the shared `dismissSystemAlerts()`
+- `docs/pr-screenshots/worktree-feat-saved-tab-ideas-cards.png`
+
+**Files modified:**
+- `iOS/Knot/Features/Saved/SavedView.swift`, `iOS/Knot/Features/Saved/SavedViewModel.swift`
+- `iOS/Knot/Models/SavedRecommendation.swift`
+- `iOS/Knot/Features/Recommendations/PurchaseRatingSheet.swift`
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — private card deleted, header comment
+- `iOS/Knot/App/UITestScreenshotHarness.swift`
+- `iOS/KnotTests/RecommendationsViewTests.swift`:
+  - Step 19.7's tests deleted: completion fields, `isDoable`, the active/completed split and
+    sort, and `markCompleted`
+  - `SavedViewModelTests` gains `testLoadListsEverySavedItemNewestFirst`
+- `iOS/KnotUITests/PRScreenshotTests.swift`
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+- `.claude/skills/screenshot-screen/SKILL.md` — its example harness key `savedMoments` → `saved`
+
+**Tests:** iOS Full plan green in a single run: **682 unit + 6 UI**, 0 failures, no
+test-host restart. That includes `PRScreenshotTests` and `RecentPicksUITests`, and the capture
+from that run is the committed image. No backend or DTO change, so no `pytest` run applies.
+
+**Code review (high):**
+- **Fixed:**
+  - The card's remove label said "saved ideas" under the Saved tab's "Saved recommendations"
+    header. It now takes `listName`.
+  - `SavedView` kept a `NavigationStack` that no longer did anything. It is removed.
+  - The populated `SavedView` render test could pass without drawing a card, if `.task` missed
+    `render`'s single run-loop turn. The view model now loads first, through `init(viewModel:)`.
+  - The migration test registered one model; it now registers the app's five.
+  - The Recent-picks check tied every PR screenshot to an unrelated flow. It moved to its own
+    class.
+  - The screenshot skill named the old harness key.
+- **Kept on purpose:**
+  - Scrolled content passes under the status bar with no bar material. Home and the event
+    detail screen hide their bars the same way.
+  - `SavedView`'s header and empty card are not shared with `MilestoneDetailView`'s. The two now
+    differ: count under the title versus beside it, and different empty-state copy.
+  - The migration test declares a second `@Model` class whose entity is also named
+    `SavedRecommendation`, the `VersionedSchema` pattern. The Full plan ran it in the middle of
+    the suite, with the real model's containers created after it, and stayed green.
+
+**Notes:**
+- **Render tests must take their window down inside the test.** The first version of
+  `SavedTabDesignTests`' `render` helper made a key window per render and never removed it,
+  leaving 16 hosting controllers alive after their tests. Both failures that caused landed in
+  *other* tests:
+  - `SavedView`'s `.task` loaded after its test had released the in-memory `ModelContainer`.
+    `container.mainContext` does not keep its container alive, so SwiftData trapped
+    (`EXC_BREAKPOINT` in `SavedViewModel.loadSavedRecommendations`) and took the test host down
+    in the middle of `SavedViewModelTests`.
+  - On another run, the leftover windows' appearance transitions ran inside
+    `SavedViewModelTests`' 2-second `wait(for:)`, which timed out on a loaded machine.
+
+  `render` now shows the window, runs one run-loop turn so the load lands against the live
+  store, then takes the window down and flushes the disappearance before returning.
+  `SavedViewDesignRenderingTests` also keeps its containers alive for the process, as a backstop
+  for a queued `.task` that misses that turn. An earlier run had passed with the leak in place,
+  so one green run proved nothing.
+- **`capture-ui-screenshot.sh` races between concurrent sessions.** It always prefers the
+  "iPhone 17 Pro" simulator and shares `/tmp/KnotDerivedData` and `/tmp/knot-shot.xcresult`.
+  Another session's Knot build on that simulator ran the real auth flow and put a
+  notification-permission prompt over three captures. Each run was still green, because the
+  asserted elements existed under the alert. The committed image came from running the script's
+  steps by hand against an idle iPhone 17 Pro Max, with private derived-data and result paths.
+  Look at the image, not only the exit code.
+
+---
+
 ## Next Steps
 
 
