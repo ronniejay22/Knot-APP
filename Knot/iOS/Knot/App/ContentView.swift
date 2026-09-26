@@ -23,7 +23,8 @@ struct MilestoneDeepLink: Identifiable, Equatable {
 /// Root view of the app. Routes between Sign-In, Onboarding, and Home based on auth state.
 ///
 /// On launch, the Supabase SDK checks the iOS Keychain for an existing session.
-/// While checking, a loading indicator is shown. Once resolved:
+/// While checking, the branded launch splash (`LaunchSplashView`) stays up,
+/// continuing the system launch screen. Once resolved it fades into:
 /// - No session → Sign-In screen
 /// - Session exists, no vault → Onboarding flow
 /// - Session exists, vault exists → Home screen
@@ -47,8 +48,11 @@ struct ContentView: View {
                 // MARK: - UI-test screenshot seam (no effect on normal launches)
                 UITestScreenshotHarness.rootView(for: screen)
             } else if authViewModel.isCheckingSession {
-                // MARK: - Loading (checking Keychain for session)
-                sessionCheckView
+                // MARK: - Starting up (restoring the session + startup checks)
+                // The branded splash itself is drawn by `launchSplashOverlay`
+                // below, so it can fade over whichever screen comes next. This
+                // is only the ground beneath it, in the same gradient.
+                Theme.launchGradient.ignoresSafeArea()
             } else if authViewModel.isAuthenticated {
                 if let scheduledAt = authViewModel.pendingDeletionScheduledAt {
                     // MARK: - Authenticated + Pending deletion → Restore gate (Step 15.5)
@@ -79,6 +83,14 @@ struct ContentView: View {
             }
         }
         .environment(authViewModel)
+        // Continues the system launch screen (`LaunchScreen.storyboard`) until
+        // startup finishes, then fades into Sign-In / Onboarding / the tabs.
+        .launchSplashOverlay(
+            isActive: LaunchSplashView.showsLaunchSplash(
+                isCheckingSession: authViewModel.isCheckingSession,
+                isHarnessActive: UITestScreenshotHarness.activeScreen != nil
+            )
+        )
         .fullScreenCover(isPresented: Binding(
             get: { deepLinkRecommendationId != nil },
             set: { if !$0 { deepLinkRecommendationId = nil } }
@@ -145,23 +157,6 @@ struct ContentView: View {
             return
         }
         deepLinkHandler.pendingDestination = nil
-    }
-
-    // MARK: - Session Check Loading View
-
-    /// Displayed briefly on app launch while the Supabase SDK checks the
-    /// Keychain for a stored session. Typically resolves in under 100ms.
-    private var sessionCheckView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .controlSize(.regular)
-                .tint(Theme.accent)
-            Text("Loading...")
-                .knotFont(Theme.Typography.body)
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.backgroundGradient.ignoresSafeArea())
     }
 }
 
