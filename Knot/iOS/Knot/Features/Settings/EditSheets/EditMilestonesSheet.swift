@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Step 5: Set up milestones — birthday (required), anniversary (optional),
 /// holiday quick-add, and custom milestones.
@@ -80,11 +79,7 @@ struct EditMilestonesSheet: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.calendar)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 36, height: 36)
+            KnotIconView(.calendarTodayOutlined, size: 36)
                 .foregroundStyle(Theme.accent)
 
             Text("Important Dates")
@@ -107,8 +102,7 @@ struct EditMilestonesSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             // Section label
             HStack(spacing: 8) {
-                Image(systemName: "birthday.cake.fill")
-                    .font(.body)
+                KnotIconView(.cakeOutlined, size: 20)
                     .foregroundStyle(Theme.accent)
 
                 Text("Birthday")
@@ -160,11 +154,7 @@ struct EditMilestonesSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             // Toggle header
             HStack(spacing: 8) {
-                Image(uiImage: Lucide.heart)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(.favoriteBorder, size: 18)
                     .foregroundStyle(Theme.accent)
 
                 Text("Anniversary")
@@ -236,11 +226,7 @@ struct EditMilestonesSheet: View {
     private var holidaySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Image(uiImage: Lucide.sparkles)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(.autoAwesomeOutlined, size: 18)
                     .foregroundStyle(Theme.accent)
 
                 Text("Holidays")
@@ -283,11 +269,7 @@ struct EditMilestonesSheet: View {
     private var customMilestonesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Image(uiImage: Lucide.plus)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(.addOutlined, size: 18)
                     .foregroundStyle(Theme.accent)
 
                 Text("Custom Milestones")
@@ -313,11 +295,7 @@ struct EditMilestonesSheet: View {
                 showingCustomSheet = true
             } label: {
                 HStack(spacing: 8) {
-                    Image(uiImage: Lucide.circlePlus)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
+                    KnotIconView(.addCircleOutlineOutlined, size: 20)
 
                     Text("Add Custom Milestone")
                         .knotFont(Theme.Typography.cta)
@@ -339,11 +317,7 @@ struct EditMilestonesSheet: View {
 
     private func customMilestoneRow(_ milestone: CustomMilestone) -> some View {
         HStack(spacing: 12) {
-            Image(uiImage: Lucide.star)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 18, height: 18)
+            KnotIconView(.starBorder, size: 18)
                 .foregroundStyle(Theme.accent)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -368,13 +342,10 @@ struct EditMilestonesSheet: View {
                     viewModel.validateCurrentStep()
                 }
             } label: {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
+                KnotIconView(.closeOutlined, size: 16)
                     .foregroundStyle(Theme.textTertiary)
             }
+            .accessibilityLabel("Delete")
         }
         .padding(14)
         .background(Theme.surface)
@@ -559,8 +530,7 @@ private struct HolidayChip: View {
     var body: some View {
         Button(action: onToggle) {
             HStack(spacing: 10) {
-                Image(systemName: holiday.iconName)
-                    .font(.body)
+                KnotIconView(holiday.icon, size: 20)
                     .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                     .frame(width: 24)
 
@@ -576,11 +546,7 @@ private struct HolidayChip: View {
 
                 Spacer()
 
-                Image(uiImage: isSelected ? Lucide.circleCheck : Lucide.circle)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(isSelected ? .checkCircle : .radioButtonUncheckedOutlined, size: 20)
                     .foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)
             }
             .padding(.horizontal, 14)

@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Full-screen ScrollView for reading the structured content of a Knot Original idea.
 ///
@@ -43,13 +42,10 @@ struct IdeaDetailView: View {
                     Button {
                         onDismiss()
                     } label: {
-                        Image(uiImage: Lucide.arrowLeft)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.arrowBackOutlined, size: 20)
                     }
                     .tint(Theme.textPrimary)
+                    .accessibilityLabel("Back")
                 }
 
                 ToolbarItem(placement: .principal) {
@@ -67,11 +63,7 @@ struct IdeaDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             // Type badge
             HStack(spacing: 5) {
-                Image(uiImage: Lucide.lightbulb)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
+                KnotIconView(.lightbulbOutlined, size: 14)
 
                 Text("KNOT ORIGINAL")
                     .knotFont(Theme.Typography.label)

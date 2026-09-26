@@ -3,16 +3,16 @@
 //  Knot
 //
 //  Created on March 20, 2026.
-//  The Journal tab — a header plus a card feed of upcoming milestones.
+//  The Home tab — a header plus a card feed of upcoming milestones.
 //
 
 import SwiftUI
 
-/// The Journal tab (labelled "Journal" in `KnotTabBar`; the type keeps its
-/// original `ForYouView` name).
+/// The Home tab (labelled "Home" in `KnotTabBar`; the type keeps its
+/// original `ForYouView` name — the tab was "For You", then "Journal").
 ///
 /// Layout:
-/// - "YOUR JOURNAL" eyebrow + partner name + initial avatar
+/// - "WELCOME HOME" eyebrow + partner name + initial avatar
 /// - "Just Because" recommendation card
 /// - "Recent picks" (Step 19.62) — every set generated in the last 7 days, one
 ///   `RecentPickRow` per set, each reopening its cards via a seeded push until
@@ -153,12 +153,12 @@ struct ForYouView: View {
         }
     }
 
-    // MARK: - Journal Content
+    // MARK: - Home Content
 
     private var timelineContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                journalHeader
+                homeHeader
 
                 // "Just Because" card
                 JustBecauseCard(
@@ -213,10 +213,10 @@ struct ForYouView: View {
     ///
     /// The avatar is a decorative identity mark — the app stores no partner
     /// photo at any layer, so `PartnerInitialAvatar` stands in for it.
-    private var journalHeader: some View {
+    private var homeHeader: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR JOURNAL")
+                Text("WELCOME HOME")
                     .knotFont(Theme.Typography.label)
                     .tracking(1.2)
                     .foregroundStyle(Theme.textSecondary)
@@ -360,7 +360,7 @@ struct ForYouView: View {
     /// changes while the push is up, and a fresh VM per evaluation is a trap
     /// even though `@State` would ignore the later instances.
     ///
-    /// When the batch's milestone is still on the Journal, the push reuses the
+    /// When the batch's milestone is still on Home, the push reuses the
     /// same display context the milestone's own CTA builds, so the toolbar
     /// reads the event name; otherwise it falls back to "Recommendations".
     private func openRecentBatch(_ batch: RecentRecommendationBatchResponse) {
@@ -391,8 +391,7 @@ struct ForYouView: View {
 
     private var emptyTimelineContent: some View {
         VStack(spacing: 16) {
-            Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 40))
+            KnotIconView(.editCalendarOutlined, size: 48)
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No milestones yet")

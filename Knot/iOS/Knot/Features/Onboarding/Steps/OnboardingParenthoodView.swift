@@ -10,7 +10,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 struct OnboardingParenthoodView: View {
     @Environment(OnboardingViewModel.self) private var viewModel
@@ -80,11 +79,7 @@ struct OnboardingParenthoodView: View {
     ) -> some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                Image(uiImage: isSelected ? Lucide.circleCheck : Lucide.circle)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 22, height: 22)
+                KnotIconView(isSelected ? .checkCircle : .radioButtonUncheckedOutlined, size: 22)
                     .foregroundStyle(isSelected ? Theme.accent : Theme.textTertiary)
 
                 VStack(alignment: .leading, spacing: 2) {

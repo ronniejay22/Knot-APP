@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Restaurant-list-style recommendation card for vertical scrolling.
 ///
@@ -171,11 +170,7 @@ struct RecommendationCard: View {
 
     private var typeBadge: some View {
         HStack(spacing: 5) {
-            Image(uiImage: typeIconLucide)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
+            KnotIconView(typeIcon, size: 12)
 
             Text(typeLabel)
                 .knotFont(Theme.Typography.label)
@@ -193,11 +188,7 @@ struct RecommendationCard: View {
 
     private var saveOverlay: some View {
         Button(action: onSave) {
-            Image(uiImage: isSaved ? Lucide.bookmarkCheck : Lucide.bookmark)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 14, height: 14)
+            KnotIconView(isSaved ? .bookmark : .bookmarkBorder, size: 14)
                 .foregroundStyle(isSaved ? Theme.accent : .white)
                 .padding(8)
                 .background(
@@ -212,11 +203,7 @@ struct RecommendationCard: View {
 
     private func personalizationOverlay(note: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 11, height: 11)
+            KnotIconView(.autoAwesomeOutlined, size: 11)
                 .foregroundStyle(.white)
                 .padding(.top, 2)
 
@@ -272,7 +259,7 @@ struct RecommendationCard: View {
                 variant: .primary,
                 size: .md,
                 shape: .pill,
-                trailingIcon: isIdea ? Lucide.book : Lucide.arrowRight,
+                trailingIcon: isIdea ? .menuBookOutlined : .arrowForwardOutlined,
                 action: onSelect
             )
             .padding(.top, 4)
@@ -292,11 +279,7 @@ struct RecommendationCard: View {
                             .frame(width: 3, height: 3)
                     }
                     HStack(spacing: 4) {
-                        Image(uiImage: part.icon)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 11, height: 11)
+                        KnotIconView(part.icon, size: 11)
                         Text(part.text)
                             .knotFont(Theme.Typography.label)
                             .lineLimit(1)
@@ -311,17 +294,17 @@ struct RecommendationCard: View {
     private var metaParts: [MetaPart] {
         var parts: [MetaPart] = []
         if let merchantName, !merchantName.isEmpty {
-            parts.append(MetaPart(icon: Lucide.store, text: merchantName))
+            parts.append(MetaPart(icon: .storefrontOutlined, text: merchantName))
         }
         if let priceCents {
             let prefix = priceConfidence == "estimated" ? "~" : ""
             parts.append(MetaPart(
-                icon: Lucide.dollarSign,
+                icon: .attachMoneyOutlined,
                 text: prefix + Self.formattedPrice(cents: priceCents, currency: currency)
             ))
         }
         if let locationText {
-            parts.append(MetaPart(icon: Lucide.mapPin, text: locationText))
+            parts.append(MetaPart(icon: .placeOutlined, text: locationText))
         }
         return parts
     }
@@ -336,14 +319,14 @@ struct RecommendationCard: View {
 
     // MARK: - Helpers
 
-    private var typeIconLucide: UIImage {
+    private var typeIcon: KnotIcon {
         switch recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        case "idea": return .lightbulbOutlined
+        case "plan": return .eventOutlined
+        default: return .starBorder
         }
     }
 
@@ -391,7 +374,7 @@ struct RecommendationCard: View {
 // MARK: - Meta Part
 
 private struct MetaPart {
-    let icon: UIImage
+    let icon: KnotIcon
     let text: String
 }
 

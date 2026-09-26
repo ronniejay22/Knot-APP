@@ -13,7 +13,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 // MARK: - Selection State
 
@@ -53,15 +52,15 @@ enum LoveLanguageDisplay {
         return descriptions[language] ?? ""
     }
 
-    /// Maps each love language to a Lucide icon.
-    static func icon(for language: String) -> UIImage {
+    /// Maps each love language to its icon.
+    static func icon(for language: String) -> KnotIcon {
         switch language {
-        case "words_of_affirmation": return Lucide.messageCircle
-        case "acts_of_service": return Lucide.heartHandshake
-        case "receiving_gifts": return Lucide.gift
-        case "quality_time": return Lucide.clock
-        case "physical_touch": return Lucide.hand
-        default: return Lucide.heart
+        case "words_of_affirmation": return .chatBubbleOutlineOutlined
+        case "acts_of_service": return .volunteerActivismOutlined
+        case "receiving_gifts": return .cardGiftcardOutlined
+        case "quality_time": return .scheduleOutlined
+        case "physical_touch": return .panToolOutlined
+        default: return .favoriteBorder
         }
     }
 }
@@ -97,11 +96,7 @@ struct LoveLanguageCard: View {
                         .fill(isSelected ? Theme.accent.opacity(0.20) : Theme.surfaceElevated)
                         .frame(width: 40, height: 40)
 
-                    Image(uiImage: LoveLanguageDisplay.icon(for: language))
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
+                    KnotIconView(LoveLanguageDisplay.icon(for: language), size: 20)
                         .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                 }
 

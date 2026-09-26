@@ -3,7 +3,7 @@
 //  Knot
 //
 //  Created on February 26, 2026.
-//  Bottom tab bar navigation — segments Journal, Saved, and Profile.
+//  Bottom tab bar navigation — segments Home, Saved, and Profile.
 //
 
 import SwiftUI
@@ -39,27 +39,27 @@ final class AppChrome {
 /// over a `ZStack` that keeps all three destinations alive (matching
 /// `TabView`'s default of preserving each tab's view-tree across switches).
 struct MainTabView: View {
-    @State private var selectedTab: AppTab = .journal
+    @State private var selectedTab: AppTab = .home
     @State private var networkMonitor = NetworkMonitor()
     @State private var chrome = AppChrome()
 
     enum AppTab: Int, Hashable {
-        case journal = 0
+        case home = 0
         case saved = 1
         case profile = 2
     }
 
-    private var tabBarItems: [KnotTabBar<AppTab>.Item] {
-        [
-            .init(id: .journal, title: "Journal", systemImage: "book"),
-            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
-            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
-        ]
-    }
+    /// The three tabs, each an Outlined MUI glyph that fills when selected.
+    /// Static so the screenshot harness renders the exact same bar.
+    static let tabBarItems: [KnotTabBar<AppTab>.Item] = [
+        .init(id: .home,    title: "Home",    icon: .homeOutlined,          selectedIcon: .home),
+        .init(id: .saved,   title: "Saved",   icon: .bookmarkBorder,        selectedIcon: .bookmark),
+        .init(id: .profile, title: "Profile", icon: .accountCircleOutlined, selectedIcon: .accountCircle),
+    ]
 
     var body: some View {
         ZStack {
-            tabContent(.journal) { ForYouView() }
+            tabContent(.home)    { ForYouView() }
             tabContent(.saved)   { SavedView() }
             tabContent(.profile) { SettingsView(isTabEmbedded: true) }
         }
@@ -68,7 +68,7 @@ struct MainTabView: View {
             // also give its inset back, or a full-bleed screen keeps a ~97pt
             // dead strip along the bottom.
             if !chrome.isTabBarHidden {
-                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+                KnotTabBar(selection: $selectedTab, items: Self.tabBarItems)
                     .transition(.move(edge: .bottom))
             }
         }

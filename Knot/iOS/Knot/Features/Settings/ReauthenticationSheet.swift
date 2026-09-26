@@ -11,7 +11,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Sheet presented during account deletion that requires the user to type
 /// `DELETE ACCOUNT` (case-sensitive, exact match) to enable the submit
@@ -46,11 +45,7 @@ struct ReauthenticationSheet: View {
                 VStack(spacing: 24) {
                     Spacer().frame(height: 24)
 
-                    Image(uiImage: Lucide.shieldAlert)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 48, height: 48)
+                    KnotIconView(.gppMaybeOutlined, size: 48)
                         .foregroundStyle(.red)
 
                     Text("Delete Account")
@@ -124,14 +119,11 @@ struct ReauthenticationSheet: View {
                         onCancel()
                         dismiss()
                     } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.closeOutlined, size: 20)
                     }
                     .tint(Theme.textPrimary)
                     .disabled(isSubmitting)
+                    .accessibilityLabel("Close")
                 }
             }
             .interactiveDismissDisabled(isSubmitting)

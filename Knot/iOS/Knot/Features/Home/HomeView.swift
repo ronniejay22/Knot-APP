@@ -15,7 +15,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Main Home screen displayed after authentication and onboarding.
 ///
@@ -65,11 +64,7 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     HStack(spacing: 6) {
-                        Image(uiImage: Lucide.heart)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 18, height: 18)
+                        KnotIconView(.favoriteBorder, size: 18)
                             .foregroundStyle(Theme.accent)
 
                         Text("Knot")
@@ -95,11 +90,7 @@ struct HomeView: View {
     /// Persistent banner shown when the device has no network connection.
     private var offlineBanner: some View {
         HStack(spacing: 10) {
-            Image(uiImage: Lucide.wifiOff)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
+            KnotIconView(.wifiOffOutlined, size: 16)
                 .foregroundStyle(.white)
 
             Text("No internet connection. Connect to use Knot.")
@@ -140,8 +131,7 @@ struct HomeView: View {
 
                         if let milestone = viewModel.nextMilestone {
                             HStack(spacing: 6) {
-                                Image(systemName: milestone.iconName)
-                                    .font(.caption)
+                                KnotIconView(milestone.icon, size: 14)
                                     .foregroundStyle(milestoneCountdownColor(milestone))
 
                                 Text("\(milestone.name) \(milestone.countdownText)")
@@ -178,7 +168,7 @@ struct HomeView: View {
     /// Displays the next 1-2 milestones as countdown cards.
     private var upcomingMilestonesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            KnotSectionHeader("Upcoming", icon: Lucide.calendar, style: .subhead)
+            KnotSectionHeader("Upcoming", icon: .calendarTodayOutlined, style: .subhead)
 
             if viewModel.isLoading {
                 // Loading state
@@ -232,8 +222,7 @@ struct HomeView: View {
         KnotCard(padding: .md) {
             HStack(spacing: 14) {
                 // Type icon — color-coded by milestone type, stays inline
-                Image(systemName: milestone.iconName)
-                    .font(.title3)
+                KnotIconView(milestone.icon, size: 24)
                     .foregroundStyle(milestoneCountdownColor(milestone))
                     .frame(width: 40, height: 40)
                     .background(
@@ -275,11 +264,7 @@ struct HomeView: View {
     private var emptyMilestoneCard: some View {
         KnotCard(variant: .outlinedDashed, padding: .md) {
             HStack(spacing: 12) {
-                Image(uiImage: Lucide.calendarPlus)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(.editCalendarOutlined, size: 20)
                     .foregroundStyle(Theme.textTertiary)
 
                 Text("No upcoming milestones. Edit your profile to add dates.")

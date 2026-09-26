@@ -5,7 +5,6 @@
 
 import XCTest
 import SwiftUI
-import LucideIcons
 @testable import Knot
 
 @MainActor
@@ -13,7 +12,7 @@ final class KnotListRowTests: XCTestCase {
 
     func testChevronRowRenders() throws {
         let row = KnotListRow.chevron(
-            icon: Lucide.userPen,
+            icon: .editOutlined,
             title: "Edit Profile",
             subtitle: "Update your details",
             action: {}
@@ -24,7 +23,7 @@ final class KnotListRowTests: XCTestCase {
     func testChevronRowActionFires() {
         var fired = false
         let row = KnotListRow.chevron(
-            icon: Lucide.userPen,
+            icon: .editOutlined,
             title: "Edit",
             action: { fired = true }
         )
@@ -34,7 +33,7 @@ final class KnotListRowTests: XCTestCase {
 
     func testInfoRowRenders() throws {
         let row = KnotListRow.info(
-            icon: Lucide.mail,
+            icon: .mailOutlined,
             title: "Email",
             value: "user@example.com"
         )
@@ -43,7 +42,7 @@ final class KnotListRowTests: XCTestCase {
 
     func testToggleRowRenders() throws {
         let row = KnotListRow.toggle(
-            icon: Lucide.bellRing,
+            icon: .notificationsActiveOutlined,
             title: "Notifications",
             isOn: .constant(true)
         )
@@ -52,7 +51,7 @@ final class KnotListRowTests: XCTestCase {
 
     func testActionRowRenders() throws {
         let row = KnotListRow.action(
-            icon: Lucide.logOut,
+            icon: .logoutOutlined,
             title: "Sign Out",
             action: {}
         )

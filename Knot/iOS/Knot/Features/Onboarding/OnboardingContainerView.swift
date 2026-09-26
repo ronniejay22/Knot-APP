@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// The root container for the onboarding flow. Manages step transitions,
 /// a progress bar, and the forward navigation button.
@@ -162,13 +161,14 @@ struct OnboardingContainerView: View {
     /// standard accent-tinted ghost icon button.
     private var backButton: some View {
         KnotIconButton(
-            icon: Lucide.chevronLeft,
+            icon: .chevronLeftOutlined,
             variant: .ghost,
             size: .lg
         ) {
             isNavigatingBack = true
             viewModel.goToPreviousStep()
         }
+        .accessibilityLabel("Back")
         // Offset the ghost button's transparent inset so the chevron glyph
         // aligns with the 24pt content margin.
         .padding(.leading, -10)

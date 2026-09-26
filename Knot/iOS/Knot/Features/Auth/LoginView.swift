@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Login screen presenting Apple, Google, and Email sign-in options.
 /// Reached via "Get Started" from SignInView.
@@ -44,7 +43,7 @@ struct LoginView: View {
                     } label: {
                         ProviderButtonLabel(
                             icon: AnyView(
-                                Image(systemName: "apple.logo")
+                                Image(systemName: "apple.logo") // icon-policy: apple-logo-exception
                                     .font(.system(size: 20, weight: .medium))
                                     .foregroundStyle(.black)
                             ),
@@ -68,11 +67,7 @@ struct LoginView: View {
                     NavigationLink(value: "magicLink") {
                         ProviderButtonLabel(
                             icon: AnyView(
-                                Image(uiImage: Lucide.mail)
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 20, height: 20)
+                                KnotIconView(.mailOutlined, size: 20)
                                     .foregroundStyle(.black.opacity(0.7))
                             ),
                             title: "Continue with Email"

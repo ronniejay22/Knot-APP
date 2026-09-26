@@ -45,8 +45,7 @@ struct MatchingFactorChip: View {
     var body: some View {
         HStack(spacing: 3) {
             if !onImage {
-                Image(systemName: iconName)
-                    .font(.system(size: 8, weight: .bold))
+                KnotIconView(icon, size: 10)
             }
             Text(label)
                 .font(.system(size: onImage ? 13 : 10, weight: .medium))
@@ -63,11 +62,11 @@ struct MatchingFactorChip: View {
         )
     }
 
-    private var iconName: String {
+    private var icon: KnotIcon {
         switch style {
-        case .interest: return "heart.fill"
-        case .vibe: return "sparkles"
-        case .loveLanguage: return "hand.raised.fill"
+        case .interest: return .favoriteBorder
+        case .vibe: return .autoAwesomeOutlined
+        case .loveLanguage: return .panToolOutlined
         }
     }
 

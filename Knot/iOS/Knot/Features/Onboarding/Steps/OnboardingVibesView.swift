@@ -5,28 +5,27 @@
 //  Created on February 7, 2026.
 //  Step 3.1: Placeholder for onboarding Step 6 — Aesthetic Vibes.
 //  Step 3.6: Full implementation — dark-themed 2-column visual card grid
-//            with Lucide icons, descriptions, and multi-select (min 1, no max).
+//            with icons, descriptions, and multi-select (min 1, no max).
 //  Updated: The onboarding step itself converted to the shared vertical-list
 //           experience (`InterestListRow`) used by the interests/dislikes steps —
-//           SF Symbol icon chips (`vibeSymbol(for:)`) plus a description subtitle.
-//           The Lucide `vibeIcon(for:)` + `vibeGradient(for:)` helpers are kept
-//           for the Recommendations and Completion screens that still render the
+//           MUI icon chips (`vibeIcon(for:)`) plus a description subtitle.
+//           `vibeIcon(for:)` + `vibeGradient(for:)` are also used by the
+//           Recommendations and Completion screens that still render the
 //           gradient vibe cards.
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Step 6: Select aesthetic vibes that describe the partner's style.
 ///
 /// Single-column vertical list of vibe rows, matching the onboarding
-/// interests/dislikes screens. Each row shows an SF Symbol icon chip, the vibe
+/// interests/dislikes screens. Each row shows an MUI icon chip, the vibe
 /// display name, and a short description subtitle. The user must select at
 /// least 1 vibe (no maximum).
 ///
 /// Features:
 /// - Personalized title using the partner's name from Step 3.2
-/// - Vertical list of 8 vibe rows (`InterestListRow`) with SF Symbol icons
+/// - Vertical list of 8 vibe rows (`InterestListRow`) with MUI icons
 /// - Selection counter showing "X selected" with checkmark when at least 1 chosen
 /// - No maximum limit — all 8 vibes can be selected
 /// - Accent border + checkmark for selected state
@@ -46,7 +45,7 @@ struct OnboardingVibesView: View {
                     ForEach(Constants.vibeOptions, id: \.self) { vibe in
                         InterestListRow(
                             title: Self.displayName(for: vibe),
-                            iconName: Self.vibeSymbol(for: vibe),
+                            icon: Self.vibeIcon(for: vibe),
                             subtitle: Self.vibeDescription(for: vibe),
                             isSelected: viewModel.selectedVibes.contains(vibe)
                         ) {
@@ -97,8 +96,7 @@ struct OnboardingVibesView: View {
                 Text("(pick at least 1)")
                     .knotFont(Theme.Typography.body)
             } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.subheadline)
+                KnotIconView(.checkCircle, size: 18)
             }
         }
         .foregroundStyle(Theme.accent)
@@ -151,39 +149,22 @@ struct OnboardingVibesView: View {
         return descriptions[vibe] ?? ""
     }
 
-    // MARK: - Vibe Symbols (list rows)
+    // MARK: - Vibe Icons
 
-    /// Maps each vibe to an SF Symbol, matching the icon-chip style used by the
-    /// interests/dislikes list rows. Used by the onboarding step's `InterestListRow`s.
-    static func vibeSymbol(for vibe: String) -> String {
+    /// Maps each vibe to an MUI icon. Used by the onboarding step's
+    /// `InterestListRow`s and by the Recommendations and Completion screens
+    /// that still render the gradient vibe cards.
+    static func vibeIcon(for vibe: String) -> KnotIcon {
         switch vibe {
-        case "quiet_luxury": return "diamond"
-        case "street_urban": return "building.2.fill"
-        case "outdoorsy":    return "leaf.fill"
-        case "vintage":      return "clock.arrow.circlepath"
-        case "minimalist":   return "circle"
-        case "bohemian":     return "sun.max.fill"
-        case "romantic":     return "heart.fill"
-        case "adventurous":  return "safari"
-        default:             return "sparkles"
-        }
-    }
-
-    // MARK: - Lucide Icons (gradient cards)
-
-    /// Maps each vibe to a Lucide icon. Used by the Recommendations and
-    /// Completion screens that still render the gradient vibe cards.
-    static func vibeIcon(for vibe: String) -> UIImage {
-        switch vibe {
-        case "quiet_luxury": return Lucide.gem
-        case "street_urban": return Lucide.building2
-        case "outdoorsy": return Lucide.trees
-        case "vintage": return Lucide.watch
-        case "minimalist": return Lucide.penLine
-        case "bohemian": return Lucide.sun
-        case "romantic": return Lucide.heart
-        case "adventurous": return Lucide.compass
-        default: return Lucide.sparkles
+        case "quiet_luxury": return .diamondOutlined
+        case "street_urban": return .locationCityOutlined
+        case "outdoorsy":    return .parkOutlined
+        case "vintage":      return .historyOutlined
+        case "minimalist":   return .cropSquareOutlined
+        case "bohemian":     return .wbSunnyOutlined
+        case "romantic":     return .favoriteBorder
+        case "adventurous":  return .exploreOutlined
+        default:             return .autoAwesomeOutlined
         }
     }
 

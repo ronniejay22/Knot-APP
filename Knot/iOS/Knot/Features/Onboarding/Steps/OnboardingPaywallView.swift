@@ -34,7 +34,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// A subscription plan rendered by `OnboardingPaywallView`. Its card copy is the
 /// designed placeholder (mirroring `Knot.storekit`); `productID` maps it to the
@@ -144,7 +143,8 @@ struct OnboardingPaywallView: View {
     private var closeRow: some View {
         HStack {
             Spacer()
-            KnotIconButton(icon: Lucide.x, variant: .ghost, size: .md, action: onClose)
+            KnotIconButton(icon: .closeOutlined, variant: .ghost, size: .md, action: onClose)
+                .accessibilityLabel("Close")
         }
         .padding(.horizontal, Theme.Spacing.xxl)
         .padding(.top, Theme.Spacing.sm)
@@ -173,11 +173,7 @@ struct OnboardingPaywallView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             ForEach(benefits, id: \.self) { line in
                 HStack(alignment: .top, spacing: Theme.Spacing.md) {
-                    Image(uiImage: Lucide.check)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
+                    KnotIconView(.checkOutlined, size: 20)
                         .foregroundStyle(Theme.accent)
 
                     Text(line)
@@ -253,11 +249,7 @@ struct OnboardingPaywallView: View {
             }
 
             HStack(spacing: Theme.Spacing.sm) {
-                Image(uiImage: Lucide.shieldCheck)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
+                KnotIconView(.verifiedUserOutlined, size: 16)
                     .foregroundStyle(Theme.textSecondary)
 
                 Text("Cancel anytime in your subscription settings.")

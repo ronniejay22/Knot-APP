@@ -167,14 +167,14 @@ final class MilestonesViewModel {
         !formName.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    /// Icon name for a milestone type.
-    static func iconName(for type: String) -> String {
+    /// MUI icon for a milestone type.
+    static func icon(for type: String) -> KnotIcon {
         switch type {
-        case "birthday": return "birthday.cake.fill"
-        case "anniversary": return "heart.fill"
-        case "holiday": return "star.fill"
-        case "custom": return "calendar"
-        default: return "calendar"
+        case "birthday": return .cakeOutlined
+        case "anniversary": return .favoriteBorder
+        case "holiday": return .starBorder
+        case "custom": return .calendarTodayOutlined
+        default: return .calendarTodayOutlined
         }
     }
 

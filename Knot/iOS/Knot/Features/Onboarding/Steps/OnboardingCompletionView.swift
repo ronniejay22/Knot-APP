@@ -11,7 +11,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// The final onboarding step: the user's very first recommendations, generated and
 /// shown *inside* the onboarding flow before they reach the Home / For You tab.
@@ -363,11 +362,7 @@ struct OnboardingCompletionView: View {
     /// even if this run errored. `retry` re-runs whichever step failed.
     private func errorState(message: String, retry: @escaping () -> Void) -> some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.circleAlert)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.errorOutlineOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             Text(message)
@@ -380,11 +375,7 @@ struct OnboardingCompletionView: View {
                 retry()
             } label: {
                 HStack(spacing: 6) {
-                    Image(uiImage: Lucide.refreshCw)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
+                    KnotIconView(.refreshOutlined, size: 14)
 
                     Text("Try Again")
                         .knotFont(Theme.Typography.cta)
@@ -405,11 +396,7 @@ struct OnboardingCompletionView: View {
 
     private var emptyState: some View {
         VStack(spacing: 20) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.autoAwesomeOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             VStack(spacing: 8) {
@@ -417,7 +404,7 @@ struct OnboardingCompletionView: View {
                     .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("We'll have personalized picks waiting for you on the Journal tab.")
+                Text("We'll have personalized picks waiting for you on the Home tab.")
                     .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textTertiary)
                     .multilineTextAlignment(.center)

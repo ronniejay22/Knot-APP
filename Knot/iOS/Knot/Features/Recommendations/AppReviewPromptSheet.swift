@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Bottom sheet asking the user if they'd like to share their experience
 /// via the App Store review mechanism.
@@ -25,11 +24,7 @@ struct AppReviewPromptSheet: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(uiImage: Lucide.heart)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 36, height: 36)
+                    KnotIconView(.favoriteBorder, size: 36)
                         .foregroundStyle(Theme.accent)
 
                     Text("Glad you loved it!")
@@ -50,11 +45,7 @@ struct AppReviewPromptSheet: View {
                 VStack(spacing: 12) {
                     Button(action: onAccept) {
                         HStack(spacing: 8) {
-                            Image(uiImage: Lucide.star)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
+                            KnotIconView(.starBorder, size: 16)
 
                             Text("Yes, let's do it!")
                                 .knotFont(Theme.Typography.cta)

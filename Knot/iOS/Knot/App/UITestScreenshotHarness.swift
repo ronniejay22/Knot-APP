@@ -63,8 +63,8 @@ enum UITestScreenshotHarness {
             RecDetailStaleLinkHarnessView()
         case "recDetailSaveCTA":
             RecDetailSaveCTAHarnessView()
-        case "savedMoments":
-            SavedMomentsScreenshotHarnessView()
+        case "saved":
+            SavedScreenshotHarnessView()
         case "milestoneDetail":
             MilestoneDetailScreenshotHarnessView()
         case "settings":
@@ -335,7 +335,7 @@ private struct MilestoneRecsMissingScreenshotHarnessView: View {
 private struct RecsLoadingScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
     @State private var chrome = AppChrome()
-    @State private var selectedTab: MainTabView.AppTab = .journal
+    @State private var selectedTab: MainTabView.AppTab = .home
     @State private var isPushed = true
 
     private static func loadingViewModel() -> RecommendationsViewModel {
@@ -347,18 +347,10 @@ private struct RecsLoadingScreenshotHarnessView: View {
         return vm
     }
 
-    private var tabBarItems: [KnotTabBar<MainTabView.AppTab>.Item] {
-        [
-            .init(id: .journal, title: "Journal", systemImage: "book"),
-            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
-            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
-        ]
-    }
-
     var body: some View {
         NavigationStack {
             Color.clear
-                // Mirrors `ForYouView`: the Journal feed hides its own bar, and
+                // Mirrors `ForYouView`: the Home feed hides its own bar, and
                 // that state propagates into the destination.
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(isPresented: $isPushed) {
@@ -367,7 +359,7 @@ private struct RecsLoadingScreenshotHarnessView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !chrome.isTabBarHidden {
-                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+                KnotTabBar(selection: $selectedTab, items: MainTabView.tabBarItems)
             }
         }
         .environment(authViewModel)
@@ -400,7 +392,7 @@ private struct RecsLoadingScreenshotHarnessView: View {
 private struct RecsFeedScreenshotHarnessView: View {
     @State private var authViewModel = AuthViewModel()
     @State private var chrome = AppChrome()
-    @State private var selectedTab: MainTabView.AppTab = .journal
+    @State private var selectedTab: MainTabView.AppTab = .home
     @State private var isPushed = true
 
     private static func loadedViewModel() -> RecommendationsViewModel {
@@ -416,18 +408,10 @@ private struct RecsFeedScreenshotHarnessView: View {
         return vm
     }
 
-    private var tabBarItems: [KnotTabBar<MainTabView.AppTab>.Item] {
-        [
-            .init(id: .journal, title: "Journal", systemImage: "book"),
-            .init(id: .saved,   title: "Saved",   systemImage: "bookmark"),
-            .init(id: .profile, title: "Profile", systemImage: "person.crop.circle"),
-        ]
-    }
-
     var body: some View {
         NavigationStack {
             Color.clear
-                // Mirrors `ForYouView`: the Journal feed hides its own bar, and
+                // Mirrors `ForYouView`: the Home feed hides its own bar, and
                 // that state propagates into the destination.
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(isPresented: $isPushed) {
@@ -436,7 +420,7 @@ private struct RecsFeedScreenshotHarnessView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !chrome.isTabBarHidden {
-                KnotTabBar(selection: $selectedTab, items: tabBarItems)
+                KnotTabBar(selection: $selectedTab, items: MainTabView.tabBarItems)
             }
         }
         .environment(authViewModel)
@@ -553,23 +537,19 @@ private struct PurchasePromptDateScreenshotHarnessView: View {
     }
 }
 
-/// Renders the Saved tab seeded with one active purchasable (a merchant/price
-/// row that previously carried the external-link icon — now removed), one active
-/// date plan (showing the "We did this" reflection action), and one completed
-/// date plan in the "Moments" section (showing its rating + reflection note).
-/// SavedView normally reads from the app's SwiftData store; this injects an
-/// isolated in-memory container with representative sample data so the
-/// screenshot is deterministic.
+/// Renders the Saved tab seeded with three saved recommendations: a priced
+/// purchasable and two date plans. SavedView normally reads from the app's
+/// SwiftData store; this injects an isolated in-memory container with
+/// representative sample data so the screenshot is deterministic. Fixed
+/// `savedAt` stamps pin the newest-first order, putting the priced card on top.
 @MainActor
-private struct SavedMomentsScreenshotHarnessView: View {
+private struct SavedScreenshotHarnessView: View {
     private let container: ModelContainer = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         // Force-unwrap is acceptable in this DEBUG-only screenshot seam.
         let container = try! ModelContainer(for: SavedRecommendation.self, configurations: config)
         let context = container.mainContext
 
-        // Active purchasable with a valid (non-search) merchant link — the card
-        // type that used to show the open-link icon, proving it's now gone.
         context.insert(SavedRecommendation(
             recommendationId: "harness-purchasable",
             recommendationType: "experience",
@@ -578,26 +558,26 @@ private struct SavedMomentsScreenshotHarnessView: View {
             externalURL: "https://republiqueculinary.com/classes/thai",
             priceCents: 14000,
             merchantName: "Republique Culinary Classes",
-            isIdea: false
+            isIdea: false,
+            savedAt: Date(timeIntervalSince1970: 1_700_000_300)
         ))
 
         context.insert(SavedRecommendation(
-            recommendationId: "harness-active",
+            recommendationId: "harness-picnic",
             recommendationType: "date",
             title: "Sunset Picnic in the Park",
             descriptionText: "A low-key evening for two.",
-            isIdea: true
+            isIdea: true,
+            savedAt: Date(timeIntervalSince1970: 1_700_000_200)
         ))
 
         context.insert(SavedRecommendation(
-            recommendationId: "harness-moment",
+            recommendationId: "harness-movie-night",
             recommendationType: "date",
             title: "Movie Night: Directors' Conversation",
             descriptionText: "A film + soundtrack deep-dive.",
             isIdea: true,
-            completedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            rating: 5,
-            reflectionNote: "We stayed up talking about the soundtrack for an hour."
+            savedAt: Date(timeIntervalSince1970: 1_700_000_100)
         ))
 
         try? context.save()
@@ -743,12 +723,16 @@ private struct ForYouCardScreenshotHarnessView: View {
     }
 }
 
-/// Renders the Journal tab's header + "Recent picks" + "Upcoming" milestone
+/// Renders the Home tab's header + "Recent picks" + "Upcoming" milestone
 /// card feed standalone. The real `ForYouView` sits behind auth and live
 /// backend fetches, which a cold screenshot launch can't deterministically
 /// seed, so this composes the same header, `RecentPicksSection`, and
 /// `MilestoneCard` rows with representative data — inside a `NavigationStack`
 /// so a Recent row's reopen push is the real one (Step 19.62).
+///
+/// The real `KnotTabBar` (`MainTabView.tabBarItems`, Home selected) is mounted
+/// the way `MainTabView` mounts it — `.safeAreaInset` with a live `AppChrome`
+/// — so the capture shows the tab bar's MUI icons alongside the feed.
 ///
 /// Every sample carries an `occasionCategory` that has bundled artwork, because
 /// the card's illustration is the point of the design — seeding no category
@@ -852,6 +836,9 @@ private struct JournalScreenshotHarnessView: View {
     /// seeded destination and the stack pushes `RecommendationsView` with it.
     @State private var navigationDestination: RecommendationDestination?
 
+    @State private var chrome = AppChrome()
+    @State private var selectedTab: MainTabView.AppTab = .home
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -896,6 +883,12 @@ private struct JournalScreenshotHarnessView: View {
                 )
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !chrome.isTabBarHidden {
+                KnotTabBar(selection: $selectedTab, items: MainTabView.tabBarItems)
+            }
+        }
+        .environment(chrome)
         .fullScreenCover(item: $detailMilestone) { milestone in
             MilestoneDetailView(
                 milestone: milestone,
@@ -922,7 +915,7 @@ private struct JournalScreenshotHarnessView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR JOURNAL")
+                Text("WELCOME HOME")
                     .knotFont(Theme.Typography.label)
                     .tracking(1.2)
                     .foregroundStyle(Theme.textSecondary)
