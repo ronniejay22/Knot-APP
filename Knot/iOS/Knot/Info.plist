@@ -35,13 +35,11 @@
         <key>UIApplicationSupportsMultipleScenes</key>
         <false/>
     </dict>
-    <key>UILaunchScreen</key>
-    <dict>
-        <key>UIColorName</key>
-        <string>LaunchScreenBackground</string>
-        <key>UIImageName</key>
-        <string>LaunchIcon</string>
-    </dict>
+    <!-- A storyboard, not the UILaunchScreen dict: the dict can only draw one
+         flat color, and the launch screen must reproduce the splash gradient
+         exactly so the hand-off into LaunchSplashView is invisible. -->
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
     <!-- arm64, not armv7. armv7 is the 32-bit ARM instruction set, and no
          device that supports it can run iOS 11, let alone this app's iOS 17
          deployment target — declaring it asks the App Store to restrict

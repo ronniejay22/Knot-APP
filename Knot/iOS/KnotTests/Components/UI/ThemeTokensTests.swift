@@ -194,6 +194,19 @@ final class ThemeTokensTests: XCTestCase {
         assertRGB(Theme.colorTertiary, in: dark, equals: (0.95, 0.93, 0.95), name: "colorTertiary")
     }
 
+    /// The launch splash gradient must be exactly the Figma stops, because the
+    /// storyboard's `LaunchGradient` image is drawn from the same values — any
+    /// drift here shows up as a color jump when the app takes over from the
+    /// system launch screen.
+    func testLaunchGradientStopsMatchTheDesign() {
+        _ = Theme.launchGradient
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        // #FF385C
+        assertRGB(Theme.colorLaunchTop, in: light, equals: (1.0, 56 / 255, 92 / 255), name: "colorLaunchTop")
+        // #E0295C
+        assertRGB(Theme.colorPrimaryDeep, in: light, equals: (224 / 255, 41 / 255, 92 / 255), name: "colorPrimaryDeep")
+    }
+
     private func assertRGB(
         _ color: Color,
         in traits: UITraitCollection,

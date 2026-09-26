@@ -97,6 +97,11 @@ enum UITestScreenshotHarness {
             RecsLoadingScreenshotHarnessView()
         case "recsFeed":
             RecsFeedScreenshotHarnessView()
+        case "launchSplash":
+            // The in-app splash that continues the system launch screen while
+            // startup runs. The overlay in `ContentView` is gated off under the
+            // harness, so render the view itself.
+            LaunchSplashView()
         default:
             EmptyView()
         }

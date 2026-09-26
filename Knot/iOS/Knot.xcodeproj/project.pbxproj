@@ -23,6 +23,7 @@
 		08FF4428155608D136787B78 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7711E0BB431FC8FD8742B30F /* GoogleSignIn */; };
 		0F10E179CDCEFC0E9E1627CD /* OnboardingTenureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D7F1B30E234B7ED5C3742B /* OnboardingTenureView.swift */; };
 		0F9E5AB3A12324753A60D1F1 /* HomeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8425A75E541DADE8D8A667 /* HomeViewTests.swift */; };
+		1090DCB70F66275773E00C9B /* LaunchSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DA791166BC0EBC5A0F84276 /* LaunchSplashView.swift */; };
 		13E6E626FEB0E2622C6FC95A /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB2D152F24DDD08929EAE777 /* OnboardingWelcomeView.swift */; };
 		14D42AECDFF7278AF328FAA6 /* RecommendationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF574149BB23CDC36DD19A2 /* RecommendationsViewModel.swift */; };
 		165A8F6527B1F20D47746B69 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E35FB404CC594AB0DC0537 /* OnboardingViewModel.swift */; };
@@ -72,6 +73,7 @@
 		4FD6489D84D884BF04286928 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */; };
 		50F10EDF709360EC079FD371 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BBBEDE2D284F67E649202C /* SettingsViewModel.swift */; };
 		524AB1F82087B6CA3B43A8AB /* BudgetTierSliderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D485346F65214EB74BF326F8 /* BudgetTierSliderCard.swift */; };
+		54209365C0BDE5F9AEB0CE9A /* LaunchSplashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4237849F833439F7AAE768E7 /* LaunchSplashTests.swift */; };
 		54F99AD45A6FDC7FB63C9C8F /* KnotInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5C280C9E2257F8A526806C /* KnotInput.swift */; };
 		584F24EACA48B0BEAB8BA211 /* MilestoneOccasionOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31A0DCA7A711817E76C2EAF /* MilestoneOccasionOptionTests.swift */; };
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
@@ -121,6 +123,7 @@
 		970DC3D1442560B7FB4BD6D0 /* MilestonePushTapThroughTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979676CBD103CA74150CCF92 /* MilestonePushTapThroughTests.swift */; };
 		98B2849C8DE2B34605B99EB6 /* IdeaContentSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A66EEB32FB414886000CE1 /* IdeaContentSectionsView.swift */; };
 		9BE80618A782CFF1A09FFF6B /* EditMilestonesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF59D7568ED636473B78170 /* EditMilestonesSheet.swift */; };
+		9E029499589F328BA2468CAE /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 959270CA6CAF7F34CCD4F49D /* LaunchScreen.storyboard */; };
 		9E94658B3F754231C13D1E5E /* KnotTabBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3004AEB082C62DE4C273BD /* KnotTabBarTests.swift */; };
 		9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D4AED680722D46D3983508 /* RecommendationsView.swift */; };
 		9FAC96B61EF1461EC496D870 /* MilestoneRecommendationCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760C1E366ADF455ED50ADC5A /* MilestoneRecommendationCopy.swift */; };
@@ -239,6 +242,7 @@
 		406EAF2E39B426C7DDB278D7 /* RecommendationsLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationsLoadingView.swift; sourceTree = "<group>"; };
 		41D3CD12FF24236CC2300696 /* MilestoneCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneCardTests.swift; sourceTree = "<group>"; };
 		41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		4237849F833439F7AAE768E7 /* LaunchSplashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplashTests.swift; sourceTree = "<group>"; };
 		4247B99E99F834D9DCE623D0 /* NotificationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsViewModel.swift; sourceTree = "<group>"; };
 		42C0DFE789B202C84A0F6646 /* HintLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintLocal.swift; sourceTree = "<group>"; };
 		45BDB88F497456B1B0555DB7 /* KnotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -295,6 +299,7 @@
 		8A501D3EBBEA7CF8A2C828AD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		8C9EC09B3083EE487192EE25 /* ReauthenticationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReauthenticationSheet.swift; sourceTree = "<group>"; };
 		8D71AB79ECF04F93B66F3CE7 /* OnboardingInterestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingInterestsView.swift; sourceTree = "<group>"; };
+		8DA791166BC0EBC5A0F84276 /* LaunchSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplashView.swift; sourceTree = "<group>"; };
 		8FBAB929BECE689B357AB6DB /* KnotPressableStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotPressableStyleTests.swift; sourceTree = "<group>"; };
 		8FFE262DAE19130A6305235A /* RecommendationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationDetailView.swift; sourceTree = "<group>"; };
 		90925173E680B5538BCBD054 /* SettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewTests.swift; sourceTree = "<group>"; };
@@ -303,6 +308,7 @@
 		91DD62D4760696C298A091D4 /* HintService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintService.swift; sourceTree = "<group>"; };
 		93D78112D68DB3912DFC57EB /* KnotCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotCardTests.swift; sourceTree = "<group>"; };
 		9576279FACB0210014A38F96 /* MilestoneLocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneLocal.swift; sourceTree = "<group>"; };
+		959270CA6CAF7F34CCD4F49D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		979676CBD103CA74150CCF92 /* MilestonePushTapThroughTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestonePushTapThroughTests.swift; sourceTree = "<group>"; };
 		98A9210BC3C12D656CB34484 /* SavedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedView.swift; sourceTree = "<group>"; };
 		99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantHandoffTests.swift; sourceTree = "<group>"; };
@@ -634,6 +640,7 @@
 				41F60D14F95DCAD6826E6A03 /* AppDelegate.swift */,
 				E83BE2463CD2906C42BAABEC /* ContentView.swift */,
 				FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */,
+				8DA791166BC0EBC5A0F84276 /* LaunchSplashView.swift */,
 				7582B8EB702201D602F5AE93 /* MainTabView.swift */,
 				E324E1D2CAE5C6F664779EE1 /* UITestScreenshotHarness.swift */,
 			);
@@ -667,6 +674,7 @@
 			children = (
 				4A14A8EA9AB446F9E53CA985 /* Fonts */,
 				DE9D66E58625F68B6DDADAD9 /* Assets.xcassets */,
+				959270CA6CAF7F34CCD4F49D /* LaunchScreen.storyboard */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -751,6 +759,7 @@
 				A2024037C162B92715F6B079 /* IconPolicyTests.swift */,
 				E5FBFBD59619A963A80CB4E0 /* InterestListLayoutTests.swift */,
 				8706879774F71CFAE5954F25 /* KnotTests.swift */,
+				4237849F833439F7AAE768E7 /* LaunchSplashTests.swift */,
 				40694013F15F1931FBD4B467 /* LoginViewTests.swift */,
 				7173E576F3B021A745AB2295 /* LostGenerationRecoveryTests.swift */,
 				99C7EF61601BE54E96353E26 /* MerchantHandoffTests.swift */,
@@ -922,6 +931,7 @@
 				C680BA7B1788FC22A44FC074 /* DMSans-Medium.ttf in Resources */,
 				79E843E0017B21A9C7E2769E /* DMSans-Regular.ttf in Resources */,
 				E8AD8F6413360C04430935AC /* DMSans-SemiBold.ttf in Resources */,
+				9E029499589F328BA2468CAE /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -996,6 +1006,7 @@
 				FDA27469D1DB3FC4B522E9F7 /* KnotSectionHeaderTests.swift in Sources */,
 				9E94658B3F754231C13D1E5E /* KnotTabBarTests.swift in Sources */,
 				897E78AB055D08AE5FC9B053 /* KnotTests.swift in Sources */,
+				54209365C0BDE5F9AEB0CE9A /* LaunchSplashTests.swift in Sources */,
 				2C66B7C39404011C6F9AD9AD /* LoginViewTests.swift in Sources */,
 				1F0D195FF4412CBE938EEE59 /* LostGenerationRecoveryTests.swift in Sources */,
 				365B12DE8F5D7A5C97AE110D /* MerchantHandoffTests.swift in Sources */,
@@ -1079,6 +1090,7 @@
 				58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */,
 				677839B0436DFCEC95974582 /* KnotSectionHeader.swift in Sources */,
 				3536D1D4A74A18601003E198 /* KnotTabBar.swift in Sources */,
+				1090DCB70F66275773E00C9B /* LaunchSplashView.swift in Sources */,
 				28398616A2FA06CA898657DB /* LocationSearchCompleter.swift in Sources */,
 				40AA0A8E7FD6ACD0F276B04B /* LoginView.swift in Sources */,
 				7257121EBD1EF81159B119CE /* LoveLanguageCard.swift in Sources */,

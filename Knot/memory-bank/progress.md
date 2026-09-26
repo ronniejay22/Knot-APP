@@ -11025,6 +11025,154 @@ prompt, occasion modal, Settings.
 
 ---
 
+### Step 19.64 ✅ Branded Launch Splash, and Startup Checks Run Concurrently
+**Date:** 2026-09-25
+**Status:** Complete
+
+*(Numbered 19.64: 19.62 is the merged "Recent picks" entry, and 19.63 is already claimed by
+three open branches — the Home/MUI-icons rename, the missed-push Journal alert, and the Saved
+ideas cards.)*
+
+**Goal:** User-testing prep. A cold launch showed two unbranded screens in a row: a **blank**
+system launch screen (`Info.plist`'s `UILaunchScreen` named a `LaunchIcon` image and a
+`LaunchScreenBackground` color that never existed, so it was white — or black on a dark-mode
+phone), then a small spinner with "Loading..." on a pale background (`ContentView.sessionCheckView`)
+while `AuthViewModel` restored the session and ran its startup checks. Replaced with the Figma
+launch frame (`pSH5gTc4J24uMA7GI3Wcyl`, node 1004:1373): a full-bleed coral gradient (#FF385C →
+#E0295C) with the centered lockup (coral-`K` tile, "Knot" wordmark, "Always know what **they
+love**"). The user now sees one continuous branded screen from the system launch frame through
+the in-app wait, fading into Sign-In, Onboarding or the tabs. Decided with the user: a **launch
+storyboard with the exact gradient** (not the flat-color `UILaunchScreen` dict), and — on my
+recommendation, since the splash alone doesn't make loading faster — **run the two sequential
+startup network checks concurrently**, which does cut real time.
+
+**What changed:**
+
+*The system launch screen.*
+- **`Resources/LaunchScreen.storyboard` (new, hand-authored, `ibtool`-validated):** two
+  `UIImageView`s — `LaunchGradient` (`scaleToFill`, pinned to the root view's edges, not the safe
+  area) and `LaunchLockup` (`center`, centerX + centerY −10pt: the design's 28pt-top /
+  48pt-bottom padding puts the content 10pt above center). Images because a launch storyboard
+  can't render the bundled DM Sans or use `CAGradientLayer`.
+- **`Info.plist`:** the `UILaunchScreen` dict → `UILaunchStoryboardName = LaunchScreen`.
+- **Assets:** `LaunchGradient` (4×2868 strip — the tallest current iPhone at 3x, so it is only
+  ever downsampled; a 512-row strip banded visibly), `LaunchLockup` (@2x/@3x on a 204×92pt canvas,
+  rendered from the Figma node 1004:1410 vector PDF export) and `SplashLockup` (the same lockup in
+  true color, for the in-app view — see the root cause below).
+
+*The in-app half and the hand-off.*
+- **`App/LaunchSplashView.swift` (new):** `Theme.launchGradient` + `Image("SplashLockup")` offset
+  `lockupCenterOffset` (−10), full screen ignoring the safe area — the storyboard's geometry
+  exactly. VoiceOver label "Knot. Always know what they love". Static, no spinner, no minimum
+  display time. `showsLaunchSplash(isCheckingSession:isHarnessActive:)` is the pure visibility
+  rule. The private `LaunchSplashOverlay` modifier (`View.launchSplashOverlay(isActive:)`) keeps
+  the splash mounted over the router and, when startup ends, fades it out (0.35s ease-out) and
+  then unmounts it. It is an overlay rather than a transition on the router branch because Step
+  19.51 found branch-removal transitions don't animate here — the `RecommendationLoadingOverlay`
+  pattern — and it is `.allowsHitTesting(false)` throughout, so Sign-In is tappable from its
+  first frame (the Step 18.18 lesson).
+- **`App/ContentView.swift`:** `sessionCheckView` deleted; the `isCheckingSession` branch is a bare
+  `Theme.launchGradient` ground and `.launchSplashOverlay` sits after `.environment(authViewModel)`.
+  Gated off when `UITestScreenshotHarness.activeScreen != nil` — the harness's `.task` returns
+  early, so `isCheckingSession` never flips false under it and the splash would otherwise cover
+  every PR screenshot.
+- **`Core/Theme.swift`:** `colorLaunchTop` (#FF385C) and `launchGradient` (→ the existing
+  `colorPrimaryDeep`, which already equals #E0295C). A dedicated token, not `brandGradient`
+  (which starts at #F54266).
+- **`App/UITestScreenshotHarness.swift`:** `launchSplash` → `LaunchSplashView()`.
+
+*Faster startup.*
+- **`Features/Auth/AuthViewModel.swift`:** `refreshPendingDeletionStatus()` and
+  `VaultService().vaultExists()` were two sequential round trips on every launch with a session;
+  they now overlap in both `.initialSession` and `.signedIn` through a new
+  `nonisolated static func concurrently(_:_:) async -> (A, B)` (two `async let`s, a named helper
+  so the overlap can be proven in a test). The results are applied in the **same order with the
+  same guards** as before — pending → restore gate; else the `!hasCompletedOnboarding` re-check
+  after the await — and `isCheckingSession` still flips last, so a pending user never sees a
+  flash of Home/Onboarding. In `.signedIn` the vault closure returns `nil` when onboarding is
+  already complete, preserving the old skip. (A pending-deletion user now also makes the vault
+  read, whose result is ignored — one wasted request for a rare state.)
+
+**Root cause (the launch screen's color):** the first cold-launch recording showed the handoff
+working but the system launch screen **oversaturated** — rgb(255,0,88) against the in-app splash's
+(250,54,91). Pinned down by elimination:
+1. A split-screen probe (a solid sRGB `UIColor` on one half, the gradient image on the other)
+   shifted **identically** on both halves, so it isn't an asset problem.
+2. Decoding the stored snapshot (`Library/SplashBoard/Snapshots/*.ktx` in the app's data
+   container, readable with ImageIO) showed the cause: iOS writes the storyboard's **sRGB pixel
+   values** but **labels the snapshot Display P3**. sRGB (255,56,92) read as P3 displays as
+   (255,0,87), which matches what was observed.
+3. The same mislabel is reported on real devices since iOS 18 (Apple developer forums thread
+   772859: a pure-red launch screen measured as P3 red on an iPhone XS running 18.2).
+
+**Fix:** pre-compensate. Both storyboard images store the **Display P3 encoding** of the design
+colors under an **sRGB label**; the snapshot's P3 label then reads them back as the true
+colors. Verified on a clean simulator:
+- The stored snapshot holds (229,73,96)-P3 at 20% height, the P3 encoding of the design's
+  (249,53,93).
+- The screen shows (248,52,90) for the system launch screen and (248,53,92) for the in-app
+  splash, a seamless handoff.
+
+Two dead ends worth recording:
+- **A P3-labelled PNG does not work.** `actool` converts any in-gamut P3 image back to sRGB bytes,
+  even in a `display-P3` gamut slot (`assetutil --info` reports `Colorspace: srgb`).
+- **The in-app view can't reuse the pre-compensated lockup.** Drawn with correct color
+  management, it looks washed out, hence the separate true-color `SplashLockup`.
+
+**Files created:**
+- `iOS/Knot/Resources/LaunchScreen.storyboard` — the system launch screen
+- `iOS/Knot/App/LaunchSplashView.swift` — in-app splash, visibility rule, fade-out overlay
+- `iOS/Knot/Resources/Assets.xcassets/LaunchGradient.imageset/` — pre-compensated gradient strip
+- `iOS/Knot/Resources/Assets.xcassets/LaunchLockup.imageset/` — pre-compensated lockup (@2x/@3x)
+- `iOS/Knot/Resources/Assets.xcassets/SplashLockup.imageset/` — true-color lockup (@2x/@3x)
+- `iOS/KnotTests/LaunchSplashTests.swift` — `LaunchSplashTests` + `AuthStartupChecksTests`
+- `docs/pr-screenshots/worktree-feat-launch-splash.png` — the in-app splash
+
+**Files modified:**
+- `iOS/Knot/Info.plist` — `UILaunchScreen` dict → `UILaunchStoryboardName`
+- `iOS/Knot/App/ContentView.swift` — splash overlay; `sessionCheckView` deleted
+- `iOS/Knot/Core/Theme.swift` — `colorLaunchTop`, `launchGradient`
+- `iOS/Knot/Features/Auth/AuthViewModel.swift` — concurrent startup checks, `concurrently(_:_:)`
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `launchSplash` case
+- `iOS/KnotTests/Components/UI/ThemeTokensTests.swift` — `testLaunchGradientStopsMatchTheDesign`
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot rewritten for this capture
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the storyboard and the two new Swift files
+
+**Tests:** iOS Full plan green — **666 unit + 5 UI, 0 failures**. That includes 11 in
+`LaunchSplashTests` and 2 in `AuthStartupChecksTests` (new), `ThemeTokensTests`'
+`testLaunchGradientStopsMatchTheDesign`, and `PRScreenshotTests` capturing the `launchSplash`
+harness. The UI tests ran twice. On the first pass the runner was killed before it connected
+("Test crashed with signal kill before establishing connection" — the shared-simulator
+interference in Notes), and they passed on the re-run.
+
+Code review then added a 12th `LaunchSplashTests` case,
+`testSplashGradientRunsFromTheTopStopToTheBottomStop`: it renders `Theme.launchGradient` with
+`ImageRenderer` and samples the top and bottom rows, since a `LinearGradient` doesn't expose its
+stops. Both new classes re-ran green (14 tests). No backend changes.
+
+Verified by hand:
+- Storyboard/SwiftUI geometry parity by pixel diff.
+- The stored launch snapshot's bytes.
+- A cold-launch recording on a clean simulator, where the system launch screen and the in-app
+  splash are within 2 levels of each other and of the design.
+
+**Notes:**
+- **On device, delete the app before testing.** iOS caches the launch snapshot across overwrite
+  installs (as it cached the icon in Step 19.41), so a phone that had the blank launch screen
+  keeps showing it after a plain reinstall. Restart the phone if a delete isn't enough.
+- **If Apple fixes the snapshot mislabel**, the pre-compensated launch screen will read slightly
+  *less* saturated than the in-app splash. That is still a much smaller jump than today's
+  oversaturated pink. Re-check after major iOS releases by comparing a cold-launch recording's
+  first frames against the splash.
+- **Simulators are shared between sessions.** During this work another session's
+  `simctl launch booted …` / installs landed on this session's simulator, which showed up as an
+  unexplained Settings screen, repeated launches in a recording, a stale snapshot and one test run
+  that failed with no failing assertion. When verifying anything on a simulator, confirm the
+  installed bundle is yours (compare `Assets.car` checksums against your build) or use a
+  throwaway `simctl create` device.
+
+---
+
 ## Next Steps
 
 
