@@ -8,9 +8,6 @@ options:
   groupSortPosition: top
 
 packages:
-  LucideIcons:
-    url: https://github.com/JakubMazur/lucide-icons-swift.git
-    from: "0.563.1"
   Supabase:
     url: https://github.com/supabase/supabase-swift.git
     from: "2.0.0"
@@ -61,7 +58,6 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_ENTITLEMENTS: Knot/Knot.entitlements
     dependencies:
-      - package: LucideIcons
       - package: Supabase
         product: Auth
       - package: Supabase

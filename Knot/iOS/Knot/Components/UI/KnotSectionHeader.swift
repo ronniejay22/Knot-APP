@@ -20,13 +20,13 @@ struct KnotSectionHeader<Trailing: View>: View {
     }
 
     let title: String
-    let icon: UIImage?
+    let icon: KnotIcon?
     let style: Style
     @ViewBuilder var trailing: () -> Trailing
 
     init(
         _ title: String,
-        icon: UIImage? = nil,
+        icon: KnotIcon? = nil,
         style: Style = .subhead,
         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }
     ) {
@@ -39,11 +39,7 @@ struct KnotSectionHeader<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 8) {
             if let icon, style == .subhead {
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(icon, size: 18)
                     .foregroundStyle(Theme.accent)
             }
 
@@ -80,14 +76,12 @@ struct KnotSectionHeader<Trailing: View>: View {
 // MARK: - Preview
 
 #if DEBUG
-import LucideIcons
-
 #Preview("KnotSectionHeader styles") {
     ZStack {
         Theme.backgroundGradient.ignoresSafeArea()
         VStack(alignment: .leading, spacing: 24) {
             KnotSectionHeader("Account", style: .caption)
-            KnotSectionHeader("Recent Hints", icon: Lucide.lightbulb)
+            KnotSectionHeader("Recent Hints", icon: .lightbulbOutlined)
             KnotSectionHeader("Upcoming") {
                 Text("View All")
                     .knotFont(Theme.Typography.label)

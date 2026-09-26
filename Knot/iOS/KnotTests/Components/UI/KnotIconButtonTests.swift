@@ -5,7 +5,6 @@
 
 import XCTest
 import SwiftUI
-import LucideIcons
 @testable import Knot
 
 @MainActor
@@ -13,7 +12,7 @@ final class KnotIconButtonTests: XCTestCase {
 
     func testRendersAllVariants() throws {
         for variant in KnotIconButton.Variant.allCases {
-            let button = KnotIconButton(icon: Lucide.x, variant: variant, action: {})
+            let button = KnotIconButton(icon: .closeOutlined, variant: variant, action: {})
             let host = UIHostingController(rootView: button)
             XCTAssertNotNil(host.view, "IconButton should render variant: \(variant)")
         }
@@ -21,7 +20,7 @@ final class KnotIconButtonTests: XCTestCase {
 
     func testRendersAllSizes() throws {
         for size in KnotIconButton.Size.allCases {
-            let button = KnotIconButton(icon: Lucide.x, size: size, action: {})
+            let button = KnotIconButton(icon: .closeOutlined, size: size, action: {})
             let host = UIHostingController(rootView: button)
             XCTAssertNotNil(host.view, "IconButton should render size: \(size)")
         }
@@ -29,7 +28,7 @@ final class KnotIconButtonTests: XCTestCase {
 
     func testActionFires() {
         var fired = false
-        let button = KnotIconButton(icon: Lucide.x, action: { fired = true })
+        let button = KnotIconButton(icon: .closeOutlined, action: { fired = true })
         button.action()
         XCTAssertTrue(fired)
     }

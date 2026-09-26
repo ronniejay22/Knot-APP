@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Bottom sheet for rating a purchased recommendation.
 ///
@@ -32,11 +31,7 @@ struct PurchaseRatingSheet: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 8) {
-                    Image(uiImage: Lucide.star)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
+                    KnotIconView(.starBorder, size: 32)
                         .foregroundStyle(Theme.accent)
 
                     Text(headline)
@@ -58,11 +53,12 @@ struct PurchaseRatingSheet: View {
                             rating = starValue
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         } label: {
-                            Image(systemName: starValue <= rating ? "star.fill" : "star")
-                                .font(.title2)
+                            KnotIconView(starValue <= rating ? .star : .starBorder, size: 26)
                                 .foregroundStyle(starValue <= rating ? .yellow : Theme.textTertiary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(starValue == 1 ? "1 star" : "\(starValue) stars")
+                        .accessibilityAddTraits(starValue == rating ? .isSelected : [])
                     }
                 }
                 .padding(.vertical, 8)

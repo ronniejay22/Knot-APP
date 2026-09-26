@@ -70,6 +70,25 @@ Every new feature must include tests before it is considered complete:
 
 A feature is not done until all new and existing tests pass.
 
+## Icons (MUI only)
+
+Every icon in the iOS app is an **MUI** (`@mui/icons-material`) glyph drawn through the
+`KnotIcon` enum (`iOS/Knot/Components/UI/KnotIcon.swift`) — `KnotIconView(.homeOutlined, size: 20)`,
+or `KnotIcon.x.image` where a raw `Image` is required (e.g. a `Label`'s icon).
+
+- **Never use Lucide.** Never use SF Symbols either (`Image(systemName:)`, `systemImage:`,
+  `.symbolVariant`). `IconPolicyTests` fails the suite if either comes back. The one allowlisted
+  exception is Apple's `apple.logo` on "Continue with Apple" (marked
+  `// icon-policy: apple-logo-exception`), kept for App Review.
+- **Adding an icon:** add a case whose raw value is the exact MUI component name, run
+  `node iOS/scripts/generate-mui-icons.mjs` (from `Knot/`), and commit the new
+  `Assets.xcassets/MUI/<Name>.imageset`. `KnotIconTests` fails if a case has no asset.
+- **Style:** Outlined by default; the Filled variant only for an "on" state (selected tab, saved
+  bookmark, checked row/radio or a met selection count, chosen star, the "primary set" marker,
+  Delivered/Failed status badge).
+- **Naming trap:** MUI's `FavoriteOutlined` / `BookmarkOutlined` / `StarOutlined` are *solid*.
+  The outlines are `FavoriteBorder` / `BookmarkBorder` / `StarBorder`.
+
 ## Documentation Updates
 
 After completing a new feature, update the following documentation:

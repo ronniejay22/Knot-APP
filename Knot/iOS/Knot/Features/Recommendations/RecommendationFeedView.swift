@@ -30,7 +30,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 // MARK: - Feed Card
 
@@ -213,11 +212,7 @@ struct RecommendationFeedCard: View {
 
     /// Bookmark glyph for a saved pick. Carried over from the Spotlight card.
     private var savedIndicator: some View {
-        Image(uiImage: Lucide.bookmarkCheck)
-            .renderingMode(.template)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 14, height: 14)
+        KnotIconView(.bookmark, size: 14)
             .foregroundStyle(Theme.accent)
             .padding(8)
             .background(
@@ -258,12 +253,12 @@ struct RecommendationFeedCard: View {
 
 /// The recommendation's type as an uppercase tag pinned over the photo.
 ///
-/// The same recipe as `RecommendationDetailView`'s hero badge — Lucide type
+/// The same recipe as `RecommendationDetailView`'s hero badge — MUI type
 /// icon + `Theme.Typography.label` in uppercase, white on a dark frosted
 /// capsule — so tapping the card lands on the tag the user just read, and the
 /// card's saved bookmark (same material) reads as part of one system. The
 /// label and icon maps mirror the detail view's private `typeLabel` /
-/// `typeIconLucide` switches; they are `static` here so the card's VoiceOver
+/// `typeIcon` switches; they are `static` here so the card's VoiceOver
 /// label and the tests can read them without rendering.
 ///
 /// NOT the feed heading's map (`RecommendationFeedList.sectionLabel(for:)`):
@@ -273,11 +268,7 @@ struct RecommendationTypeRibbon: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(uiImage: Self.icon(for: recommendationType))
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
+            KnotIconView(Self.icon(for: recommendationType), size: 12)
             Text(Self.label(for: recommendationType))
                 .knotFont(Theme.Typography.label)
                 .textCase(.uppercase)
@@ -306,14 +297,14 @@ struct RecommendationTypeRibbon: View {
         }
     }
 
-    static func icon(for recommendationType: String) -> UIImage {
+    static func icon(for recommendationType: String) -> KnotIcon {
         switch recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        case "idea": return .lightbulbOutlined
+        case "plan": return .eventOutlined
+        default: return .starBorder
         }
     }
 }

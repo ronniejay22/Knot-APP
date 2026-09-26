@@ -9,7 +9,6 @@
 
 import SwiftUI
 import MapKit
-import LucideIcons
 
 /// Step 2: Partner basic information collection.
 ///
@@ -84,11 +83,7 @@ struct EditBasicInfoSheet: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(uiImage: Lucide.user)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.personOutlineOutlined, size: 40)
                 .foregroundStyle(Theme.accent)
 
             Text("Tell us about your partner")
@@ -180,11 +175,7 @@ struct EditBasicInfoSheet: View {
     private var locationSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Image(uiImage: Lucide.mapPin)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
+                KnotIconView(.placeOutlined, size: 14)
                     .foregroundStyle(.secondary)
 
                 Text("Location")

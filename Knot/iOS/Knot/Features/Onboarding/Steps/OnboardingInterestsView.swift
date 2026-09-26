@@ -70,7 +70,7 @@ struct OnboardingInterestsView: View {
                         ForEach(filteredInterests, id: \.self) { interest in
                             InterestListRow(
                                 title: interest,
-                                iconName: Self.iconName(for: interest),
+                                icon: Self.icon(for: interest),
                                 isSelected: viewModel.selectedInterests.contains(interest)
                             ) {
                                 toggleInterest(interest)
@@ -116,8 +116,7 @@ struct OnboardingInterestsView: View {
 
     private var searchBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .knotFont(Theme.Typography.body)
+            KnotIconView(.searchOutlined, size: 20)
                 .foregroundStyle(Theme.textTertiary)
 
             TextField(
@@ -135,10 +134,10 @@ struct OnboardingInterestsView: View {
                 Button {
                     searchText = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .knotFont(Theme.Typography.body)
+                    KnotIconView(.cancelOutlined, size: 20)
                         .foregroundStyle(Theme.textTertiary)
                 }
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 16)
@@ -165,8 +164,7 @@ struct OnboardingInterestsView: View {
                 Text("(\(remaining) more needed)")
                     .knotFont(Theme.Typography.body)
             } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.subheadline)
+                KnotIconView(.checkCircle, size: 18)
             }
         }
         .foregroundStyle(Theme.accent)
@@ -251,53 +249,54 @@ struct OnboardingInterestsView: View {
         }
     }
 
-    // MARK: - SF Symbol Icons
+    // MARK: - Interest Icons
 
-    /// Maps each interest category to a themed SF Symbol.
-    static func iconName(for interest: String) -> String {
-        let icons: [String: String] = [
-            "Travel": "airplane",
-            "Cooking": "flame.fill",
-            "Movies": "film",
-            "Music": "music.note",
-            "Reading": "book.fill",
-            "Sports": "figure.run",
-            "Gaming": "gamecontroller.fill",
-            "Art": "paintbrush.pointed.fill",
-            "Photography": "camera.fill",
-            "Fitness": "dumbbell.fill",
-            "Fashion": "tshirt.fill",
-            "Technology": "laptopcomputer",
-            "Nature": "leaf.fill",
-            "Food": "fork.knife",
-            "Coffee": "cup.and.saucer.fill",
-            "Wine": "wineglass.fill",
-            "Dancing": "figure.dance",
-            "Theater": "theatermasks.fill",
-            "Concerts": "music.mic",
-            "Museums": "building.columns.fill",
-            "Shopping": "bag.fill",
-            "Yoga": "figure.mind.and.body",
-            "Hiking": "figure.hiking",
-            "Beach": "sun.max.fill",
-            "Pets": "pawprint.fill",
-            "Cars": "car.fill",
-            "DIY": "wrench.and.screwdriver.fill",
-            "Gardening": "sparkles",
-            "Meditation": "brain.head.profile",
-            "Podcasts": "headphones",
-            "Baking": "birthday.cake.fill",
-            "Camping": "tent.fill",
-            "Cycling": "bicycle",
-            "Running": "figure.run",
-            "Swimming": "figure.pool.swim",
-            "Skiing": "figure.skiing.downhill",
-            "Surfing": "figure.surfing",
-            "Painting": "paintpalette.fill",
-            "Board Games": "dice.fill",
-            "Karaoke": "mic.fill"
+    /// Maps each interest category to a themed MUI icon. Custom interests
+    /// fall back to `.starBorder`.
+    static func icon(for interest: String) -> KnotIcon {
+        let icons: [String: KnotIcon] = [
+            "Travel": .flightOutlined,
+            "Cooking": .outdoorGrillOutlined,
+            "Movies": .movieOutlined,
+            "Music": .musicNoteOutlined,
+            "Reading": .menuBookOutlined,
+            "Sports": .sportsSoccerOutlined,
+            "Gaming": .sportsEsportsOutlined,
+            "Art": .brushOutlined,
+            "Photography": .photoCameraOutlined,
+            "Fitness": .fitnessCenterOutlined,
+            "Fashion": .checkroomOutlined,
+            "Technology": .laptopMacOutlined,
+            "Nature": .natureOutlined,
+            "Food": .restaurantOutlined,
+            "Coffee": .localCafeOutlined,
+            "Wine": .wineBarOutlined,
+            "Dancing": .nightlifeOutlined,
+            "Theater": .theaterComedyOutlined,
+            "Concerts": .libraryMusicOutlined,
+            "Museums": .museumOutlined,
+            "Shopping": .shoppingBagOutlined,
+            "Yoga": .selfImprovementOutlined,
+            "Hiking": .hikingOutlined,
+            "Beach": .beachAccessOutlined,
+            "Pets": .petsOutlined,
+            "Cars": .directionsCarOutlined,
+            "DIY": .handymanOutlined,
+            "Gardening": .yardOutlined,
+            "Meditation": .spaOutlined,
+            "Podcasts": .podcastsOutlined,
+            "Baking": .bakeryDiningOutlined,
+            "Camping": .cabinOutlined,
+            "Cycling": .directionsBikeOutlined,
+            "Running": .directionsRunOutlined,
+            "Swimming": .poolOutlined,
+            "Skiing": .downhillSkiingOutlined,
+            "Surfing": .surfingOutlined,
+            "Painting": .paletteOutlined,
+            "Board Games": .casinoOutlined,
+            "Karaoke": .micOutlined
         ]
-        return icons[interest] ?? "star.fill"
+        return icons[interest] ?? .starBorder
     }
 }
 

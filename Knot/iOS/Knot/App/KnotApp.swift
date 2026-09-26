@@ -20,6 +20,24 @@ struct KnotApp: App {
 
     init() {
         Theme.registerFonts()
+        Self.configureNavigationBarBackArrow()
+    }
+
+    /// Swaps the system back chevron for the MUI `ArrowBackIosNewOutlined`
+    /// glyph on every navigation bar (Knot draws MUI icons only).
+    ///
+    /// Only `standardAppearance` is set, from the default initializer, so the
+    /// bar keeps iOS's own treatment: `compactAppearance` and
+    /// `scrollEdgeAppearance` stay nil, and UIKit derives them from this one
+    /// (scroll-edge with a transparent background), back indicator included.
+    /// The legacy `UINavigationBar.backIndicatorImage` is not an option — on
+    /// iOS 26 the system chevron still draws with it set. The transition mask
+    /// is the same glyph, the standard pairing for a custom indicator.
+    private static func configureNavigationBarBackArrow() {
+        let arrow = KnotIcon.arrowBackIosNewOutlined.uiImage
+        let appearance = UINavigationBarAppearance()
+        appearance.setBackIndicatorImage(arrow, transitionMaskImage: arrow)
+        UINavigationBar.appearance().standardAppearance = appearance
     }
 
     var sharedModelContainer: ModelContainer = {

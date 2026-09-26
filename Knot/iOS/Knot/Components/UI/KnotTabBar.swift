@@ -3,8 +3,8 @@
 //  Knot
 //
 //  Airbnb-style custom bottom tab bar. Replaces SwiftUI's `TabView` so the
-//  visuals (filled-on-active SF Symbol icons, brand-pink active color,
-//  notification dots, top hairline divider) are owned end-to-end.
+//  visuals (outlined → filled MUI icons on the active tab, brand-pink active
+//  color, notification dots, top hairline divider) are owned end-to-end.
 //
 
 import SwiftUI
@@ -17,23 +17,27 @@ import SwiftUI
 /// matching `TabView`'s default behavior.
 struct KnotTabBar<ID: Hashable>: View {
 
-    /// Single tab definition. `systemImage` is an SF Symbol name; the `.fill`
-    /// variant is applied automatically when the tab is selected.
+    /// Single tab definition. `icon` is drawn while the tab is unselected
+    /// (the Outlined MUI glyph) and `selectedIcon` while it is selected (the
+    /// Filled one) — MUI has no automatic fill variant, so the pair is explicit.
     struct Item: Identifiable {
         let id: ID
         let title: String
-        let systemImage: String
+        let icon: KnotIcon
+        let selectedIcon: KnotIcon
         let hasNotification: Bool
 
         init(
             id: ID,
             title: String,
-            systemImage: String,
+            icon: KnotIcon,
+            selectedIcon: KnotIcon,
             hasNotification: Bool = false
         ) {
             self.id = id
             self.title = title
-            self.systemImage = systemImage
+            self.icon = icon
+            self.selectedIcon = selectedIcon
             self.hasNotification = hasNotification
         }
     }
@@ -73,10 +77,7 @@ struct KnotTabBar<ID: Hashable>: View {
         } label: {
             VStack(spacing: 2) {
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: item.systemImage)
-                        .symbolVariant(isSelected ? .fill : .none)
-                        .font(.system(size: 22, weight: .regular))
-                        .frame(width: 24, height: 24)
+                    KnotIconView(isSelected ? item.selectedIcon : item.icon, size: 24)
 
                     if item.hasNotification {
                         Circle()
@@ -112,9 +113,9 @@ struct KnotTabBar<ID: Hashable>: View {
         KnotTabBar(
             selection: $sel,
             items: [
-                .init(id: 0, title: "Journal", systemImage: "book"),
-                .init(id: 1, title: "Saved", systemImage: "bookmark"),
-                .init(id: 2, title: "Profile", systemImage: "person.crop.circle"),
+                .init(id: 0, title: "Home", icon: .homeOutlined, selectedIcon: .home),
+                .init(id: 1, title: "Saved", icon: .bookmarkBorder, selectedIcon: .bookmark),
+                .init(id: 2, title: "Profile", icon: .accountCircleOutlined, selectedIcon: .accountCircle),
             ]
         )
     }

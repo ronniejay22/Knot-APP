@@ -43,10 +43,10 @@ final class InterestListLayoutTests: XCTestCase {
     /// The shared row renders in both selected and unselected states.
     func testInterestListRowRenders() {
         let selected = UIHostingController(
-            rootView: InterestListRow(title: "Travel", iconName: "airplane", isSelected: true) {}
+            rootView: InterestListRow(title: "Travel", icon: .flightOutlined, isSelected: true) {}
         )
         let unselected = UIHostingController(
-            rootView: InterestListRow(title: "Cooking", iconName: "flame.fill", isSelected: false) {}
+            rootView: InterestListRow(title: "Cooking", icon: .outdoorGrillOutlined, isSelected: false) {}
         )
         XCTAssertNotNil(selected.view)
         XCTAssertNotNil(unselected.view)
@@ -57,7 +57,7 @@ final class InterestListLayoutTests: XCTestCase {
         let selected = UIHostingController(
             rootView: InterestListRow(
                 title: "Quiet Luxury",
-                iconName: "diamond",
+                icon: .diamondOutlined,
                 subtitle: "Elegant & understated",
                 isSelected: true
             ) {}
@@ -65,7 +65,7 @@ final class InterestListLayoutTests: XCTestCase {
         let unselected = UIHostingController(
             rootView: InterestListRow(
                 title: "Outdoorsy",
-                iconName: "leaf.fill",
+                icon: .parkOutlined,
                 subtitle: "Nature & fresh air",
                 isSelected: false
             ) {}

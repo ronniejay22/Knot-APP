@@ -10,7 +10,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Airbnb-style full-screen detail page for a single recommendation.
 ///
@@ -196,11 +195,7 @@ struct RecommendationDetailView: View {
 
     private var typeBadge: some View {
         HStack(spacing: 5) {
-            Image(uiImage: typeIconLucide)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
+            KnotIconView(typeIcon, size: 12)
             Text(typeLabel)
                 .knotFont(Theme.Typography.label)
                 .textCase(.uppercase)
@@ -221,7 +216,7 @@ struct RecommendationDetailView: View {
     /// removed — saving is the bottom CTA's job, and Share was redundant chrome.
     private var topBar: some View {
         HStack {
-            circleButton(icon: Lucide.arrowLeft, label: "Back") { onDismiss() }
+            circleButton(icon: .arrowBackOutlined, label: "Back") { onDismiss() }
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -229,16 +224,12 @@ struct RecommendationDetailView: View {
     }
 
     private func circleButton(
-        icon: UIImage,
+        icon: KnotIcon,
         label: String,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 18, height: 18)
+            KnotIconView(icon, size: 18)
                 .foregroundStyle(.white)
                 .padding(11)
                 .background(
@@ -264,11 +255,7 @@ struct RecommendationDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(metaParts.enumerated()), id: \.offset) { _, part in
                         HStack(spacing: 5) {
-                            Image(uiImage: part.icon)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
+                            KnotIconView(part.icon, size: 13)
                             Text(part.text)
                                 .knotFont(Theme.Typography.bodySmall)
                                 .lineLimit(1)
@@ -281,24 +268,24 @@ struct RecommendationDetailView: View {
     }
 
     private struct MetaPart {
-        let icon: UIImage
+        let icon: KnotIcon
         let text: String
     }
 
     private var metaParts: [MetaPart] {
         var parts: [MetaPart] = []
         if !isIdea, let merchant = item.merchantName, !merchant.isEmpty {
-            parts.append(MetaPart(icon: Lucide.store, text: merchant))
+            parts.append(MetaPart(icon: .storefrontOutlined, text: merchant))
         }
         if !isIdea, let priceCents = item.priceCents {
             let prefix = item.priceConfidence == "estimated" ? "~" : ""
             parts.append(MetaPart(
-                icon: Lucide.dollarSign,
+                icon: .attachMoneyOutlined,
                 text: prefix + RecommendationCard.formattedPrice(cents: priceCents, currency: item.currency)
             ))
         }
         if let locationText {
-            parts.append(MetaPart(icon: Lucide.mapPin, text: locationText))
+            parts.append(MetaPart(icon: .placeOutlined, text: locationText))
         }
         return parts
     }
@@ -390,11 +377,7 @@ struct RecommendationDetailView: View {
                         .knotFont(Theme.Typography.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                     HStack(spacing: 8) {
-                        Image(uiImage: Lucide.mapPin)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
+                        KnotIconView(.placeOutlined, size: 16)
                             .foregroundStyle(Theme.accent)
                         Text(parts.joined(separator: ", "))
                             .knotFont(Theme.Typography.body)
@@ -472,7 +455,7 @@ struct RecommendationDetailView: View {
                 variant: .primary,
                 size: .lg,
                 shape: .pill,
-                trailingIcon: Lucide.externalLink,
+                trailingIcon: .openInNewOutlined,
                 action: onOpenMerchant
             )
             .frame(maxWidth: 220)
@@ -490,7 +473,7 @@ struct RecommendationDetailView: View {
                 variant: .primary,
                 size: .lg,
                 shape: .pill,
-                leadingIcon: Lucide.bookmark,
+                leadingIcon: .bookmarkBorder,
                 action: saveOnce
             )
         case .saved:
@@ -499,7 +482,7 @@ struct RecommendationDetailView: View {
                 variant: .secondary,
                 size: .lg,
                 shape: .pill,
-                leadingIcon: Lucide.bookmarkCheck,
+                leadingIcon: .bookmark,
                 action: saveOnce
             )
         case .continueOn:
@@ -508,7 +491,7 @@ struct RecommendationDetailView: View {
                 variant: .primary,
                 size: .lg,
                 shape: .pill,
-                trailingIcon: Lucide.arrowRight,
+                trailingIcon: .arrowForwardOutlined,
                 action: onDismiss
             )
         }
@@ -532,14 +515,14 @@ struct RecommendationDetailView: View {
         return cityState.joined(separator: ", ")
     }
 
-    private var typeIconLucide: UIImage {
+    private var typeIcon: KnotIcon {
         switch item.recommendationType {
-        case "gift": return Lucide.gift
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea": return Lucide.lightbulb
-        case "plan": return Lucide.calendarHeart
-        default: return Lucide.star
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        case "idea": return .lightbulbOutlined
+        case "plan": return .eventOutlined
+        default: return .starBorder
         }
     }
 

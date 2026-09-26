@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// "Edit Profile" screen that loads the user's existing vault data and
 /// presents each section (basic info, interests, vibes, etc.) as editable
@@ -120,11 +119,7 @@ struct EditVaultView: View {
 
     private func errorView(message: String) -> some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.circleAlert)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.errorOutlineOutlined, size: 40)
                 .foregroundStyle(.red)
 
             Text("Unable to Load Profile")
@@ -164,49 +159,49 @@ struct EditVaultView: View {
 
                 // Sections
                 editSectionButton(
-                    icon: Lucide.user,
+                    icon: .personOutlineOutlined,
                     title: "Basic Info",
                     subtitle: basicInfoSubtitle(vm: vm),
                     section: .basicInfo
                 )
 
                 editSectionButton(
-                    icon: Lucide.heart,
+                    icon: .favoriteBorder,
                     title: "Interests",
                     subtitle: "\(vm.selectedInterests.count) likes selected",
                     section: .interests
                 )
 
                 editSectionButton(
-                    icon: Lucide.thumbsDown,
+                    icon: .thumbDownOutlined,
                     title: "Dislikes",
                     subtitle: "\(vm.selectedDislikes.count) dislikes selected",
                     section: .dislikes
                 )
 
                 editSectionButton(
-                    icon: Lucide.calendar,
+                    icon: .calendarTodayOutlined,
                     title: "Milestones",
                     subtitle: milestonesSubtitle(vm: vm),
                     section: .milestones
                 )
 
                 editSectionButton(
-                    icon: Lucide.sparkles,
+                    icon: .autoAwesomeOutlined,
                     title: "Aesthetic Vibes",
                     subtitle: vm.selectedVibes.map { OnboardingVibesView.displayName(for: $0) }.joined(separator: ", "),
                     section: .vibes
                 )
 
                 editSectionButton(
-                    icon: Lucide.wallet,
+                    icon: .accountBalanceWalletOutlined,
                     title: "Budget Tiers",
                     subtitle: budgetSubtitle(vm: vm),
                     section: .budget
                 )
 
                 editSectionButton(
-                    icon: Lucide.heartHandshake,
+                    icon: .volunteerActivismOutlined,
                     title: "Love Languages",
                     subtitle: loveLanguagesSubtitle(vm: vm),
                     section: .loveLanguages
@@ -219,7 +214,7 @@ struct EditVaultView: View {
 
     // MARK: - Section Button
 
-    private func editSectionButton(icon: UIImage, title: String, subtitle: String, section: EditSection) -> some View {
+    private func editSectionButton(icon: KnotIcon, title: String, subtitle: String, section: EditSection) -> some View {
         KnotListRow.chevron(
             icon: icon,
             title: title,

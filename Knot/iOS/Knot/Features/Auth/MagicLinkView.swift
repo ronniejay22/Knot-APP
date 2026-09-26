@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Two-state view for email magic link authentication.
 /// First shows an email input form; after sending, shows a "check your email" confirmation.
@@ -60,11 +59,7 @@ struct MagicLinkView: View {
 
     private var emailInputView: some View {
         VStack(spacing: 24) {
-            Image(uiImage: Lucide.mail)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 48, height: 48)
+            KnotIconView(.mailOutlined, size: 48)
                 .foregroundStyle(Theme.accent)
 
             Text("Enter your email")
@@ -130,11 +125,7 @@ struct MagicLinkView: View {
 
     private var checkEmailView: some View {
         VStack(spacing: 20) {
-            Image(uiImage: Lucide.mailCheck)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 56, height: 56)
+            KnotIconView(.markEmailReadOutlined, size: 56)
                 .foregroundStyle(Theme.accent)
 
             Text("Check your email")

@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Notification History screen showing past notifications with milestone info.
 ///
@@ -70,13 +69,10 @@ struct NotificationsView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.closeOutlined, size: 20)
                             .foregroundStyle(Theme.textPrimary)
                     }
+                    .accessibilityLabel("Close")
                 }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -102,11 +98,7 @@ struct NotificationsView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.bellRing)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 48, height: 48)
+            KnotIconView(.notificationsActiveOutlined, size: 48)
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No notifications yet")
@@ -126,8 +118,7 @@ struct NotificationsView: View {
     private func notificationRow(_ notification: NotificationHistoryItemResponse) -> some View {
         HStack(spacing: 14) {
             // Milestone type icon
-            Image(systemName: viewModel.milestoneTypeIcon(notification.milestoneType))
-                .knotFont(Theme.Typography.body)
+            KnotIconView(viewModel.milestoneTypeIcon(notification.milestoneType), size: 20)
                 .foregroundStyle(Theme.accent)
                 .frame(width: 36, height: 36)
                 .background(
@@ -172,11 +163,7 @@ struct NotificationsView: View {
 
                     if notification.recommendationsCount > 0 {
                         HStack(spacing: 3) {
-                            Image(uiImage: Lucide.sparkles)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 10, height: 10)
+                            KnotIconView(.autoAwesomeOutlined, size: 10)
                                 .foregroundStyle(Theme.accent)
 
                             Text("\(notification.recommendationsCount) recommendations")
@@ -191,11 +178,7 @@ struct NotificationsView: View {
 
             // Chevron if has recommendations
             if notification.recommendationsCount > 0 {
-                Image(uiImage: Lucide.chevronRight)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 14, height: 14)
+                KnotIconView(.chevronRightOutlined, size: 14)
                     .foregroundStyle(Theme.textTertiary)
             }
         }
@@ -214,8 +197,7 @@ struct NotificationsView: View {
 
     private func statusBadge(_ status: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: status == "sent" ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .font(.system(size: 9))
+            KnotIconView(status == "sent" ? .checkCircle : .cancel, size: 11)
 
             Text(status == "sent" ? "Delivered" : "Failed")
                 .knotFont(Theme.Typography.label)
@@ -242,8 +224,7 @@ struct NotificationsView: View {
                         .scaleEffect(1.2)
                 } else if let error = viewModel.recommendationsError {
                     VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.title)
+                        KnotIconView(.warningAmberOutlined, size: 34)
                             .foregroundStyle(.orange)
                         Text(error)
                             .knotFont(Theme.Typography.body)
@@ -253,11 +234,7 @@ struct NotificationsView: View {
                     }
                 } else if viewModel.milestoneRecommendations.isEmpty {
                     VStack(spacing: 12) {
-                        Image(uiImage: Lucide.sparkles)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 40, height: 40)
+                        KnotIconView(.autoAwesomeOutlined, size: 40)
                             .foregroundStyle(Theme.textTertiary)
 
                         Text("No recommendations")
@@ -290,13 +267,10 @@ struct NotificationsView: View {
                     Button {
                         viewModel.dismissRecommendations()
                     } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.closeOutlined, size: 20)
                             .foregroundStyle(Theme.textPrimary)
                     }
+                    .accessibilityLabel("Close")
                 }
             }
         }
@@ -308,8 +282,7 @@ struct NotificationsView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header: type icon + title
             HStack(spacing: 10) {
-                Image(systemName: recommendationTypeIcon(rec.recommendationType))
-                    .knotFont(Theme.Typography.body)
+                KnotIconView(recommendationTypeIcon(rec.recommendationType), size: 20)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 34, height: 34)
                     .background(
@@ -356,11 +329,7 @@ struct NotificationsView: View {
                     UIApplication.shared.open(url)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(uiImage: Lucide.externalLink)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 12, height: 12)
+                        KnotIconView(.openInNewOutlined, size: 12)
 
                         Text("View Details")
                             .knotFont(Theme.Typography.label)
@@ -389,12 +358,12 @@ struct NotificationsView: View {
 
     // MARK: - Helpers
 
-    private func recommendationTypeIcon(_ type: String) -> String {
+    private func recommendationTypeIcon(_ type: String) -> KnotIcon {
         switch type {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        default: return "star.fill"
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        default: return .starBorder
         }
     }
 }

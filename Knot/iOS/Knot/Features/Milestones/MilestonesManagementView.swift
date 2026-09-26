@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Full-screen view for managing partner milestones after onboarding.
 /// Accessible from Settings → Milestones.
@@ -36,12 +35,9 @@ struct MilestonesManagementView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(uiImage: Lucide.arrowLeft)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.arrowBackOutlined, size: 20)
                     }
+                    .accessibilityLabel("Back")
                     .tint(Theme.textPrimary)
                 }
 
@@ -55,12 +51,9 @@ struct MilestonesManagementView: View {
                     Button {
                         viewModel.prepareAdd()
                     } label: {
-                        Image(uiImage: Lucide.plus)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.addOutlined, size: 20)
                     }
+                    .accessibilityLabel("Add milestone")
                     .tint(Theme.accent)
                 }
             }
@@ -91,8 +84,7 @@ struct MilestonesManagementView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 48))
+            KnotIconView(.editCalendarOutlined, size: 58)
                 .foregroundStyle(Theme.textTertiary)
 
             Text("No Milestones")
@@ -142,8 +134,7 @@ struct MilestonesManagementView: View {
     private func milestoneRow(_ milestone: MilestoneItemResponse) -> some View {
         HStack(spacing: 14) {
             // Type icon
-            Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
-                .font(.title3)
+            KnotIconView(MilestonesViewModel.icon(for: milestone.milestoneType), size: 24)
                 .foregroundStyle(milestoneColor(milestone))
                 .frame(width: 36, height: 36)
                 .background(
@@ -197,23 +188,20 @@ struct MilestonesManagementView: View {
                 Button {
                     viewModel.prepareEdit(milestone)
                 } label: {
-                    Label("Edit", systemImage: "pencil")
+                    Label { Text("Edit") } icon: { KnotIcon.editOutlined.image }
                 }
 
                 Button(role: .destructive) {
                     viewModel.confirmDelete(milestone)
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label { Text("Delete") } icon: { KnotIcon.deleteOutlined.image }
                 }
             } label: {
-                Image(uiImage: Lucide.ellipsisVertical)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(.moreVertOutlined, size: 18)
                     .foregroundStyle(Theme.textTertiary)
                     .padding(8)
             }
+            .accessibilityLabel("More actions")
         }
         .padding(14)
         .background(

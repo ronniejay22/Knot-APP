@@ -21,7 +21,6 @@
 
 import SwiftUI
 import StoreKit
-import LucideIcons
 
 /// Displays the picks as the same vertical feed the onboarding reveal uses —
 /// a bold type heading over each fixed-height photo card, tap a card to open
@@ -442,11 +441,7 @@ struct RecommendationsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header row — always visible
             HStack(spacing: 10) {
-                Image(uiImage: Lucide.messageCircle)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
+                KnotIconView(.chatBubbleOutlineOutlined, size: 16)
                     .foregroundStyle(Theme.accent)
 
                 Text("Knot's Take")
@@ -461,14 +456,11 @@ struct RecommendationsView: View {
                         isBriefingDismissed = true
                     }
                 } label: {
-                    Image(uiImage: Lucide.x)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
+                    KnotIconView(.closeOutlined, size: 14)
                         .foregroundStyle(Theme.textTertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -542,7 +534,7 @@ struct RecommendationsView: View {
         // The host owns the scroll view and the gutters; `RecommendationFeedList`
         // is just the heading + card stack, shared with the onboarding reveal
         // (`OnboardingCompletionView`) so the two surfaces stay identical.
-        // Gutters are 20pt to match the Journal tab this screen is pushed from.
+        // Gutters are 20pt to match the Home tab this screen is pushed from.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Milestone briefing card (shown when a contextual briefing was generated)
@@ -578,11 +570,7 @@ struct RecommendationsView: View {
 
     private func errorState(message: String) -> some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.circleAlert)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.errorOutlineOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             Text(message)
@@ -597,11 +585,7 @@ struct RecommendationsView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Image(uiImage: Lucide.refreshCw)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 14, height: 14)
+                    KnotIconView(.refreshOutlined, size: 14)
 
                     Text("Try Again")
                         .knotFont(Theme.Typography.cta)
@@ -626,11 +610,7 @@ struct RecommendationsView: View {
     /// opt in.
     private var pregeneratedMissingState: some View {
         VStack(spacing: 20) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.autoAwesomeOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             VStack(spacing: 8) {
@@ -653,11 +633,7 @@ struct RecommendationsView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                    KnotIconView(.autoAwesomeOutlined, size: 16)
                     Text("Find picks now")
                         .knotFont(Theme.Typography.cta)
                 }
@@ -678,11 +654,7 @@ struct RecommendationsView: View {
 
     private var emptyState: some View {
         VStack(spacing: 20) {
-            Image(uiImage: Lucide.sparkles)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.autoAwesomeOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             VStack(spacing: 8) {
@@ -701,11 +673,7 @@ struct RecommendationsView: View {
                 Task { await loadContent() }
             } label: {
                 HStack(spacing: 8) {
-                    Image(uiImage: Lucide.sparkles)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                    KnotIconView(.autoAwesomeOutlined, size: 16)
                     Text("Get Recommendations")
                         .knotFont(Theme.Typography.cta)
                 }
@@ -747,8 +715,7 @@ struct SelectionConfirmationSheet: View {
 
                     // Type badge
                     HStack(spacing: 5) {
-                        Image(systemName: typeIconSystemName)
-                            .knotFont(Theme.Typography.label)
+                        KnotIconView(typeIcon, size: 16)
 
                         Text(typeLabel)
                             .knotFont(Theme.Typography.label)
@@ -772,11 +739,7 @@ struct SelectionConfirmationSheet: View {
                     HStack {
                         if let merchantName = item.merchantName, !merchantName.isEmpty {
                             HStack(spacing: 5) {
-                                Image(uiImage: Lucide.store)
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 14, height: 14)
+                                KnotIconView(.storefrontOutlined, size: 14)
 
                                 Text(merchantName)
                                     .knotFont(Theme.Typography.cta)
@@ -807,11 +770,7 @@ struct SelectionConfirmationSheet: View {
                             .filter { !$0.isEmpty }
                         if !parts.isEmpty {
                             HStack(spacing: 5) {
-                                Image(uiImage: Lucide.mapPin)
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 14, height: 14)
+                                KnotIconView(.placeOutlined, size: 14)
 
                                 Text(parts.joined(separator: ", "))
                                     .knotFont(Theme.Typography.label)
@@ -828,11 +787,7 @@ struct SelectionConfirmationSheet: View {
                         // Confirm button
                         Button(action: onConfirm) {
                             HStack(spacing: 8) {
-                                Image(uiImage: Lucide.externalLink)
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
+                                KnotIconView(.openInNewOutlined, size: 16)
 
                                 Text(confirmButtonLabel)
                                     .knotFont(Theme.Typography.cta)
@@ -882,12 +837,12 @@ struct SelectionConfirmationSheet: View {
         return "Open Link"
     }
 
-    private var typeIconSystemName: String {
+    private var typeIcon: KnotIcon {
         switch item.recommendationType {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        default: return "star.fill"
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        default: return .starBorder
         }
     }
 
@@ -935,31 +890,31 @@ struct RefreshReasonSheet: View {
                     reasonButton(
                         id: "too_expensive",
                         label: "Too expensive",
-                        icon: "arrow.up.circle"
+                        icon: .arrowCircleUpOutlined
                     )
 
                     reasonButton(
                         id: "too_cheap",
                         label: "Too cheap",
-                        icon: "arrow.down.circle"
+                        icon: .arrowCircleDownOutlined
                     )
 
                     reasonButton(
                         id: "not_their_style",
                         label: "Not their style",
-                        icon: "hand.thumbsdown"
+                        icon: .thumbDownOutlined
                     )
 
                     reasonButton(
                         id: "already_have_similar",
                         label: "Already have something similar",
-                        icon: "doc.on.doc"
+                        icon: .contentCopyOutlined
                     )
 
                     reasonButton(
                         id: "show_different",
                         label: "Just show me different options",
-                        icon: "arrow.triangle.2.circlepath"
+                        icon: .autorenewOutlined
                     )
                 }
                 .padding(.horizontal, 20)
@@ -971,13 +926,12 @@ struct RefreshReasonSheet: View {
 
     // MARK: - Reason Button
 
-    private func reasonButton(id: String, label: String, icon: String) -> some View {
+    private func reasonButton(id: String, label: String, icon: KnotIcon) -> some View {
         Button {
             onSelectReason(id)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .knotFont(Theme.Typography.cta)
+                KnotIconView(icon, size: 20)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 24, height: 24)
 
@@ -987,8 +941,7 @@ struct RefreshReasonSheet: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .knotFont(Theme.Typography.label)
+                KnotIconView(.chevronRightOutlined, size: 16)
                     .foregroundStyle(Theme.textTertiary)
             }
             .padding(.vertical, 14)
@@ -1078,8 +1031,7 @@ struct VibeOverrideSheet: View {
                         if selectedVibes.isEmpty {
                             Text("(pick at least 1)")
                         } else {
-                            Image(systemName: "checkmark.circle.fill")
-                                .knotFont(Theme.Typography.body)
+                            KnotIconView(.checkCircle, size: 20)
                         }
                     }
                     .knotFont(Theme.Typography.body)
@@ -1090,11 +1042,7 @@ struct VibeOverrideSheet: View {
                         onSave(selectedVibes)
                     } label: {
                         HStack(spacing: 8) {
-                            Image(uiImage: Lucide.sparkles)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
+                            KnotIconView(.autoAwesomeOutlined, size: 16)
 
                             Text("Apply & Refresh")
                                 .knotFont(Theme.Typography.cta)
@@ -1153,7 +1101,7 @@ private struct VibeOverrideCard: View {
     let vibe: String
     let displayName: String
     let description: String
-    let icon: UIImage
+    let icon: KnotIcon
     let gradient: LinearGradient
     let isSelected: Bool
     let action: () -> Void
@@ -1170,11 +1118,7 @@ private struct VibeOverrideCard: View {
                 )
 
                 // Large icon watermark
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
+                KnotIconView(icon, size: 32)
                     .foregroundStyle(.white.opacity(0.18))
                     .offset(x: 28, y: -16)
 
@@ -1182,11 +1126,7 @@ private struct VibeOverrideCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Spacer()
 
-                    Image(uiImage: icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 18, height: 18)
+                    KnotIconView(icon, size: 18)
                         .foregroundStyle(.white.opacity(0.85))
 
                     Text(displayName)
@@ -1211,8 +1151,7 @@ private struct VibeOverrideCard: View {
                                 .fill(Color.pink)
                                 .frame(width: 22, height: 22)
                                 .overlay {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
+                                    KnotIconView(.checkOutlined, size: 13)
                                         .foregroundStyle(.white)
                                 }
                                 .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)

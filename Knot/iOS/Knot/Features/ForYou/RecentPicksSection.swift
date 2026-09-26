@@ -14,7 +14,6 @@
 //  to keep — the Saved library is the permanent copy.
 //
 
-import LucideIcons
 import SwiftUI
 
 /// The "Recent picks" block on the Journal: a header with a count, a one-line
@@ -141,11 +140,7 @@ struct RecentPickRow: View {
 
                     Spacer(minLength: 4)
 
-                    Image(uiImage: Lucide.chevronRight)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                    KnotIconView(.chevronRightOutlined, size: 16)
                         .foregroundStyle(Theme.textTertiary)
                 }
             }

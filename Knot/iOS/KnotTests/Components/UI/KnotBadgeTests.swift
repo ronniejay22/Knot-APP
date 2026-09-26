@@ -5,7 +5,6 @@
 
 import XCTest
 import SwiftUI
-import LucideIcons
 @testable import Knot
 
 @MainActor
@@ -28,7 +27,7 @@ final class KnotBadgeTests: XCTestCase {
     }
 
     func testRendersWithLeadingIcon() throws {
-        let badge = KnotBadge("Saved", leadingIcon: Lucide.bookmarkCheck)
+        let badge = KnotBadge("Saved", leadingIcon: .bookmark)
         XCTAssertNotNil(UIHostingController(rootView: badge).view)
     }
 

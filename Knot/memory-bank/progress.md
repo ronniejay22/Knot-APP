@@ -10899,6 +10899,132 @@ in `RecentPicksTests`; `PRScreenshotTests` passes end to end, including the row-
 
 ---
 
+### Step 19.63 ✅ "Journal" Tab → "Home", and Every Icon in the App → MUI
+**Date:** 2026-09-25
+**Status:** Complete
+
+**Goal:** The user asked to rename the Journal tab to **Home**, then widened the ask: **no SF
+Symbol and no Lucide icon anywhere — MUI (`@mui/icons-material`) only**, plus a standing rule to
+never use Lucide again. The app had drifted into three icon systems: Lucide (the `LucideIcons`
+SPM package — 183 references, 63 icons, imported in 51 files), SF Symbols (76 names across 39 draw
+sites and 12 string helpers) and exactly one MUI glyph (`RecommendationBadge`). Decided with the
+user: the header eyebrow reads **"WELCOME HOME"**; **Outlined everywhere, Filled only for "on"
+states** (selected tab, saved bookmark, checked row/radio, chosen star, the "primary set" marker,
+Delivered/Failed badges); the **navigation back arrow is replaced app-wide**, the chevrons iOS draws
+inside dropdown `Picker`s are left; **Apple's logo stays** on "Continue with Apple" for App Review.
+
+**What changed:**
+- **`Components/UI/KnotIcon.swift` (new)** — the single source of truth. `enum KnotIcon: String,
+  CaseIterable, Sendable` (122 cases), each raw value the exact MUI component name; `assetName`
+  (`"MUI/<Name>"`), `image` (**decorative** — a named asset otherwise hands VoiceOver its asset
+  name), `uiImage` (no force-unwrap). `KnotIconView(_:size:)` is the one way icons render.
+- **`scripts/generate-mui-icons.mjs` (new)** + **`Assets.xcassets/MUI/` (generated, 122
+  imagesets)** — reads the enum's raw values, `npm pack`s the pinned `@mui/icons-material@9.4.0`,
+  evaluates each icon's CommonJS module with a stubbed `require`, and writes 24×24 template SVG
+  imagesets (same format as `RecommendationBadge`), pruning unreferenced ones.
+- **Primitives take `KnotIcon`, not `UIImage`:** `KnotButton` (leading/trailing), `KnotIconButton`,
+  `KnotBadge`, `KnotChip`, `KnotListRow` (and its hard-coded chevron), `KnotSectionHeader`,
+  `KnotInput`. `KnotTabBar.Item` is now `(id, title, icon:, selectedIcon:)` — MUI has no automatic
+  fill variant, so the Outlined/Filled pair is explicit — and `.symbolVariant` is gone.
+  `InterestListRow.iconName: String` → `icon: KnotIcon`.
+- **Helper maps return `KnotIcon`:** `OnboardingInterestsView.icon(for:)` (renamed; all 40
+  interests, fallback `starBorder` — Sports and Running now differ), `OnboardingVibesView.vibeIcon(for:)`
+  (the Lucide `vibeIcon` and SF `vibeSymbol` maps merged into one), `HolidayOption.icon` (renamed),
+  `MilestonesViewModel.icon(for:)` (renamed), `UpcomingMilestone.icon` (renamed),
+  `NotificationsViewModel.milestoneTypeIcon`, `LoveLanguageDisplay.icon(for:)`,
+  `RecommendationTypeRibbon.icon(for:)` and every private type-icon copy (`typeIconLucide` /
+  `typeIconSystemName` → `typeIcon`).
+- **Every call site migrated** across Auth, ForYou, Home, Milestones, Notifications, Onboarding,
+  Recommendations, Saved and Settings — including compiled-but-unreachable code (`HomeView`,
+  `NotificationsView`, `RefreshReasonSheet`, `VibeOverrideSheet`). Lucide sites kept their exact
+  frame (both sets are 24-unit glyphs); SF sites converted point size → frame at ≈1.2×.
+  Menu items use `Label { Text } icon: { KnotIcon.x.image }`.
+- **Accessibility:** SF Symbols supplied implicit labels that decorative assets do not, so every
+  icon-only control now carries an explicit `accessibilityLabel` (Close, Back, Clear search, More
+  actions, Delete, Dismiss, Add milestone, Increase/Decrease years/months, "N stars").
+- **`App/KnotApp.swift`:** `configureNavigationBarBackArrow()` sets only
+  `UINavigationBar.appearance().standardAppearance` — a default-initialised
+  `UINavigationBarAppearance` with `setBackIndicatorImage(KnotIcon.arrowBackIosNewOutlined.uiImage,
+  transitionMaskImage:)` — and leaves `compactAppearance`/`scrollEdgeAppearance` nil so UIKit derives
+  them (scroll-edge with a transparent background, indicator included) and the bar keeps iOS's own
+  treatment. The legacy `UINavigationBar.backIndicatorImage` was tried first and is **ignored on
+  iOS 26** — the system chevron still drew (review follow-up; the first cut replaced all four
+  appearances, which overrode more of the system default than the arrow needed).
+- **`LoginView`:** the `apple.logo` line keeps its SF image and carries
+  `// icon-policy: apple-logo-exception` — the one allowlisted non-MUI glyph.
+- **Home rename:** `MainTabView.AppTab.journal` → `.home` (raw value 0 unchanged), title "Home",
+  icons `homeOutlined`/`home`; Saved `bookmarkBorder`/`bookmark`; Profile
+  `accountCircleOutlined`/`accountCircle`. `tabBarItems` is now `static` and the two harness copies
+  reuse it. `ForYouView` eyebrow "WELCOME HOME" (`journalHeader` → `homeHeader`); `SavedView` empty
+  state "…from Home…"; `OnboardingCompletionView` "…on the Home tab."; doc comments that say
+  "Journal tab" now say "Home tab". Type names (`ForYouView`), `refreshJournal()`, the harness key
+  `journal` and `JournalScreenshotHarnessView` were kept, as Step 19.31 kept `ForYouView`.
+- **`project.yml`:** `LucideIcons` package + dependency removed (`xcodegen generate`;
+  `Package.resolved` drops the pin), so `import LucideIcons` can no longer compile.
+- **Docs/rules:** `CLAUDE.md` gains an "Icons (MUI only)" section; `techstack.md` Icons → MUI.
+- **`App/UITestScreenshotHarness.swift`:** the `journal` harness mounts the real `KnotTabBar`
+  (`MainTabView.tabBarItems`, live `AppChrome`) via `.safeAreaInset` exactly as `MainTabView` does,
+  and reads "WELCOME HOME".
+- **`KnotUITests/PRScreenshotTests.swift`:** slot asserts the "WELCOME HOME" text, a selected
+  "Home" tab, "Saved" and "Profile", and no "Journal" tab, then captures. The alert helper now
+  also matches **"Don’t Allow" with a typographic apostrophe (U+2019)** — iOS renders the push
+  prompt's button that way, the straight-quote label never matched, and the prompt sat over the
+  harness hiding every element (the first run failed on exactly this).
+
+**Root cause / design detail worth keeping:**
+- **Accessibility follow-ups from review:** the Saved "Moments" star row is one element reading
+  "N of 5 stars"; the purchase-rating star buttons carry `.isSelected` on the chosen star.
+- **MUI naming trap:** `FavoriteOutlined`, `BookmarkOutlined` and `StarOutlined` are *solid*
+  glyphs (identical paths to `Favorite`/`Bookmark`/`Star`). The outlines are `FavoriteBorder`,
+  `BookmarkBorder`, `StarBorder`. `KnotIconTests` fails if a solid name sneaks in.
+- **Two simulators can be booted at once.** Mid-verification another session booted its own
+  simulator and `simctl … booted` silently resolved to it, so a batch of captures showed that
+  session's older build ("Journal", SF icons). Target the device by UDID when verifying.
+
+**Files created:**
+- `iOS/Knot/Components/UI/KnotIcon.swift` — enum + `KnotIconView`
+- `iOS/scripts/generate-mui-icons.mjs` — asset generator
+- `iOS/Knot/Resources/Assets.xcassets/MUI/` — 122 generated imagesets + namespace `Contents.json`
+- `iOS/KnotTests/Components/UI/KnotIconTests.swift` — 5 tests
+- `iOS/KnotTests/IconPolicyTests.swift` — 2 tests
+- `docs/pr-screenshots/worktree-feat-home-tab-mui-icons.png` — Home with the MUI tab bar
+
+**Files modified:**
+- `iOS/Knot/App/KnotApp.swift`, `MainTabView.swift`, `UITestScreenshotHarness.swift`
+- `iOS/Knot/Components/UI/` — `KnotButton`, `KnotIconButton`, `KnotBadge`, `KnotInput`,
+  `KnotListRow`, `KnotSectionHeader`, `KnotTabBar`
+- `iOS/Knot/Features/**` — every Swift file that drew a Lucide or SF icon (~60 files)
+- `iOS/Knot/Core/Theme.swift` — a doc comment ("Home tab")
+- `iOS/KnotTests/` — `KnotBadgeTests`, `KnotIconButtonTests`, `KnotInputTests`,
+  `KnotListRowTests`, `KnotSectionHeaderTests`, `KnotTabBarTests` (+ selected-icon test),
+  `InterestListLayoutTests`, `RecommendationFeedTests` (icon resolves to a bundled asset),
+  `TabNavigationTests` (`.home`, + `testTabBarItemsAreHomeSavedProfile`)
+- `iOS/KnotUITests/PRScreenshotTests.swift`
+- `iOS/project.yml`, `iOS/Knot.xcodeproj/project.pbxproj`, `Package.resolved`
+- `CLAUDE.md`, `memory-bank/techstack.md`, `memory-bank/architecture.md`
+
+**Tests:** iOS Full plan green after the review fixes — **661 unit + 5 UI tests, 0 failures**
+(7 new: `KnotIconTests` ×5, `IconPolicyTests` ×2), including `PRScreenshotTests` end to end with
+the restored Recent-picks reopen check (the capture itself was also green via
+`capture-ui-screenshot.sh`). An earlier Full run failed the screenshot test while
+`KnotUITestsLaunchTests` lost its app — the Mac was under extreme load and another session was
+driving a second simulator; re-runs passed. Backend untouched, so no `pytest` run. Visually checked on the Simulator: Home,
+interests, recommendations feed (MUI back arrow confirmed — flat-ended chevron, not SF's rounded
+one), rec detail + save CTA, milestone detail, login (Apple logo kept), Saved, paywall, purchase
+prompt, occasion modal, Settings.
+
+**Notes:**
+- **Dynamic Type:** SF icons that scaled with text are now fixed-size, as the Lucide ones already
+  were. `@ScaledMetric` is the follow-up if that matters.
+- **Open branches** touching the same screens will conflict on rebase; `IconPolicyTests` catches
+  any Lucide/SF usage they reintroduce.
+- Historical doc-comment mentions of "the Journal" (e.g. "pushed the whole Journal sideways in Step
+  19.31") were left as written; only comments naming the tab itself were updated.
+- `RecommendationBadge.imageset` (the one pre-existing MUI glyph, exported from Figma) is untouched
+  and lives outside `MUI/`.
+
+---
+
 ### Step 19.64 ✅ Branded Launch Splash, and Startup Checks Run Concurrently
 **Date:** 2026-09-25
 **Status:** Complete

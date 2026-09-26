@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Saved tab showing all bookmarked recommendations.
 ///
@@ -114,11 +113,7 @@ struct SavedView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.bookmark)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.bookmarkBorder, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             VStack(spacing: 6) {
@@ -126,7 +121,7 @@ struct SavedView: View {
                     .knotFont(Theme.Typography.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("Save recommendations from Journal to find them here later.")
+                Text("Save recommendations from Home to find them here later.")
                     .knotFont(Theme.Typography.body)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -189,7 +184,7 @@ struct SavedView: View {
                     selectedForReflection = saved
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle")
+                        KnotIconView(.checkCircleOutlined, size: 20)
                         Text("We did this")
                     }
                     .knotFont(Theme.Typography.cta)
@@ -243,8 +238,7 @@ struct SavedView: View {
     private func cardRow(_ saved: SavedRecommendation) -> some View {
         HStack(spacing: 12) {
             // Type icon
-            Image(systemName: savedTypeIcon(saved.recommendationType))
-                .font(.subheadline)
+            KnotIconView(savedTypeIcon(saved.recommendationType), size: 18)
                 .foregroundStyle(Theme.accent)
                 .frame(width: 34, height: 34)
                 .background(
@@ -281,14 +275,11 @@ struct SavedView: View {
             Button {
                 viewModel.deleteSavedRecommendation(saved, modelContext: modelContext)
             } label: {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
+                KnotIconView(.closeOutlined, size: 12)
                     .foregroundStyle(Theme.textTertiary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Delete")
         }
     }
 
@@ -296,8 +287,7 @@ struct SavedView: View {
 
     private func rewardToast(_ title: String) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.headline)
+            KnotIconView(.autoAwesomeOutlined, size: 20)
                 .foregroundStyle(Theme.accent)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -331,11 +321,13 @@ struct SavedView: View {
     private func starRow(_ rating: Int) -> some View {
         HStack(spacing: 4) {
             ForEach(1...5, id: \.self) { star in
-                Image(systemName: star <= rating ? "star.fill" : "star")
-                    .font(.caption)
+                KnotIconView(star <= rating ? .star : .starBorder, size: 14)
                     .foregroundStyle(star <= rating ? .yellow : Theme.textTertiary)
             }
         }
+        // The stars are decorative images, so the row speaks the rating itself.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rating == 1 ? "1 of 5 stars" : "\(rating) of 5 stars")
     }
 
     private var cardBackground: some View {
@@ -347,13 +339,13 @@ struct SavedView: View {
             )
     }
 
-    /// SF Symbol for saved recommendation type.
-    private func savedTypeIcon(_ type: String) -> String {
+    /// Icon for saved recommendation type.
+    private func savedTypeIcon(_ type: String) -> KnotIcon {
         switch type {
-        case "gift": return "gift.fill"
-        case "experience": return "sparkles"
-        case "date": return "heart.fill"
-        default: return "star.fill"
+        case "gift": return .cardGiftcardOutlined
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        default: return .starBorder
         }
     }
 }

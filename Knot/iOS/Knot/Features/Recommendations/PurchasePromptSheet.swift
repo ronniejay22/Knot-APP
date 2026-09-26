@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Bottom sheet shown when the user returns to Knot after a merchant handoff.
 /// The prompt adapts to the recommendation type — gifts are "purchased",
@@ -28,12 +27,12 @@ struct PurchasePromptSheet: View {
     private var copy: PurchasePromptCopy { PurchasePromptCopy(recommendationType: recommendationType) }
 
     /// Header icon matching the recommendation type (reuses the card's type icons).
-    private var headerIcon: UIImage {
+    private var headerIcon: KnotIcon {
         switch recommendationType {
-        case "experience": return Lucide.sparkles
-        case "date": return Lucide.heart
-        case "idea", "plan": return Lucide.lightbulb
-        default: return Lucide.shoppingBag  // gift + unknown
+        case "experience": return .autoAwesomeOutlined
+        case "date": return .favoriteBorder
+        case "idea", "plan": return .lightbulbOutlined
+        default: return .shoppingBagOutlined  // gift + unknown
         }
     }
 
@@ -44,11 +43,7 @@ struct PurchasePromptSheet: View {
             VStack(spacing: 20) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(uiImage: headerIcon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 36, height: 36)
+                    KnotIconView(headerIcon, size: 36)
                         .foregroundStyle(Theme.accent)
 
                     Text(copy.headline)
@@ -68,11 +63,7 @@ struct PurchasePromptSheet: View {
 
                     if let merchantName, !merchantName.isEmpty {
                         HStack(spacing: 4) {
-                            Image(uiImage: Lucide.store)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 12, height: 12)
+                            KnotIconView(.storefrontOutlined, size: 12)
                             Text("from \(merchantName)")
                                 .knotFont(Theme.Typography.label)
                         }
@@ -87,11 +78,7 @@ struct PurchasePromptSheet: View {
                 VStack(spacing: 12) {
                     Button(action: onConfirmPurchase) {
                         HStack(spacing: 8) {
-                            Image(uiImage: Lucide.check)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
+                            KnotIconView(.checkOutlined, size: 16)
                             Text(copy.confirmButtonTitle)
                                 .knotFont(Theme.Typography.cta)
                         }
@@ -107,11 +94,7 @@ struct PurchasePromptSheet: View {
 
                     Button(action: onSaveForLater) {
                         HStack(spacing: 8) {
-                            Image(uiImage: Lucide.bookmark)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
+                            KnotIconView(.bookmarkBorder, size: 16)
                             Text("No, save for later")
                                 .knotFont(Theme.Typography.cta)
                         }

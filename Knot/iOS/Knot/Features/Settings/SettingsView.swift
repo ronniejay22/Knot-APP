@@ -11,7 +11,6 @@
 
 import SwiftUI
 import SwiftData
-import LucideIcons
 
 /// Settings screen presented as a sheet from the Home screen.
 ///
@@ -168,9 +167,10 @@ struct SettingsView: View {
     @ToolbarContentBuilder
     private var settingsToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            KnotIconButton(icon: Lucide.x, variant: .ghost, size: .sm) {
+            KnotIconButton(icon: .closeOutlined, variant: .ghost, size: .sm) {
                 dismiss()
             }
+            .accessibilityLabel("Close")
         }
     }
 
@@ -181,19 +181,19 @@ struct SettingsView: View {
             KnotSectionHeader<EmptyView>("Account", style: .caption)
 
             KnotListRow.info(
-                icon: Lucide.mail,
+                icon: .mailOutlined,
                 title: "Email",
                 value: viewModel.userEmail
             )
 
             KnotListRow.action(
-                icon: Lucide.logOut,
+                icon: .logoutOutlined,
                 title: "Sign Out",
                 action: { Task { await authViewModel.signOut() } }
             )
 
             KnotListRow.action(
-                icon: Lucide.trash2,
+                icon: .deleteOutlined,
                 title: "Delete Account",
                 subtitle: "Permanently remove your data",
                 action: { viewModel.requestAccountDeletion() }
@@ -208,14 +208,14 @@ struct SettingsView: View {
             KnotSectionHeader<EmptyView>("Partner Profile", style: .caption)
 
             KnotListRow.chevron(
-                icon: Lucide.userPen,
+                icon: .editOutlined,
                 title: "Edit Profile",
                 subtitle: "Update partner details and preferences",
                 action: { showEditProfile = true }
             )
 
             KnotListRow.chevron(
-                icon: Lucide.calendarHeart,
+                icon: .eventOutlined,
                 title: "Milestones",
                 subtitle: "Manage birthdays, anniversaries & key dates",
                 action: { showMilestones = true }
@@ -230,7 +230,7 @@ struct SettingsView: View {
             KnotSectionHeader<EmptyView>("Notifications", style: .caption)
 
             KnotListRow.toggle(
-                icon: Lucide.bellRing,
+                icon: .notificationsActiveOutlined,
                 title: "Enable Notifications",
                 isOn: Binding(
                     get: { viewModel.notificationsEnabled },
@@ -250,7 +250,7 @@ struct SettingsView: View {
             KnotSectionHeader<EmptyView>("Developer", style: .caption)
 
             KnotListRow.action(
-                icon: Lucide.refreshCw,
+                icon: .refreshOutlined,
                 title: "Reset Onboarding (DEV)",
                 subtitle: "Wipe vault + pending deletion, return to onboarding",
                 action: { viewModel.showDevResetConfirmation = true }
@@ -258,7 +258,7 @@ struct SettingsView: View {
 
             // Step 19.23 — reach the paywall without replaying onboarding.
             KnotListRow.action(
-                icon: Lucide.creditCard,
+                icon: .creditCardOutlined,
                 title: "Show Paywall (DEV)",
                 subtitle: "Open the subscription paywall and test the free trial",
                 action: { showDevPaywall = true }
@@ -270,7 +270,7 @@ struct SettingsView: View {
             // own transactions (StoreKit exposes no such API, and `SKTestSession` aborts
             // outside an XCTest process), so this points at the tooling that can.
             KnotListRow.action(
-                icon: Lucide.rotateCcw,
+                icon: .restartAltOutlined,
                 title: "Reset Premium (DEV)",
                 subtitle: "Shows how to clear local StoreKit purchases",
                 action: {
@@ -295,7 +295,7 @@ struct SettingsView: View {
             KnotSectionHeader<EmptyView>("About", style: .caption)
 
             KnotListRow.chevron(
-                icon: Lucide.fileText,
+                icon: .descriptionOutlined,
                 title: "Terms of Service",
                 action: {
                     if let url = URL(string: "https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view") {
@@ -305,7 +305,7 @@ struct SettingsView: View {
             )
 
             KnotListRow.chevron(
-                icon: Lucide.shield,
+                icon: .shieldOutlined,
                 title: "Privacy Policy",
                 action: {
                     if let url = URL(string: "https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view") {

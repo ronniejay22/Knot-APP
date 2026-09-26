@@ -2,9 +2,7 @@
 //  KnotIconButton.swift
 //  Knot
 //
-//  Circular icon-only button. Encapsulates the
-//  `renderingMode(.template) + resizable + frame` boilerplate that appears
-//  in toolbars and inline controls across the app.
+//  Circular icon-only button for toolbars and inline controls.
 //
 
 import SwiftUI
@@ -41,13 +39,13 @@ struct KnotIconButton: View {
         }
     }
 
-    let icon: UIImage
+    let icon: KnotIcon
     let variant: Variant
     let size: Size
     let action: @MainActor () -> Void
 
     init(
-        icon: UIImage,
+        icon: KnotIcon,
         variant: Variant = .surface,
         size: Size = .md,
         action: @escaping @MainActor () -> Void
@@ -60,11 +58,7 @@ struct KnotIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: size.iconSize, height: size.iconSize)
+            KnotIconView(icon, size: size.iconSize)
                 .foregroundStyle(foregroundColor)
                 .frame(width: size.diameter, height: size.diameter)
                 .background(Circle().fill(backgroundColor))
@@ -98,8 +92,6 @@ struct KnotIconButton: View {
 // MARK: - Preview
 
 #if DEBUG
-import LucideIcons
-
 #Preview("KnotIconButton variants") {
     ZStack {
         Theme.backgroundGradient.ignoresSafeArea()
@@ -107,7 +99,7 @@ import LucideIcons
             ForEach(Array(KnotIconButton.Variant.allCases.enumerated()), id: \.offset) { _, variant in
                 HStack(spacing: 16) {
                     ForEach(Array(KnotIconButton.Size.allCases.enumerated()), id: \.offset) { _, size in
-                        KnotIconButton(icon: Lucide.x, variant: variant, size: size, action: {})
+                        KnotIconButton(icon: .closeOutlined, variant: variant, size: size, action: {})
                     }
                 }
             }

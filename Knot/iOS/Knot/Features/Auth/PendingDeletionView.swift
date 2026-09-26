@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 struct PendingDeletionView: View {
     /// The timestamp at which the hard-delete will run.
@@ -37,11 +36,7 @@ struct PendingDeletionView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                Image(uiImage: Lucide.shieldAlert)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 56, height: 56)
+                KnotIconView(.gppMaybeOutlined, size: 56)
                     .foregroundStyle(.red)
 
                 Text("Account Pending Deletion")

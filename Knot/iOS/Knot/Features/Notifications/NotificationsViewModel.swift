@@ -157,13 +157,13 @@ final class NotificationsViewModel {
         "\(daysBefore) days before"
     }
 
-    /// Returns an SF Symbol name for the milestone type.
-    func milestoneTypeIcon(_ type: String) -> String {
+    /// Returns the MUI icon for the milestone type.
+    func milestoneTypeIcon(_ type: String) -> KnotIcon {
         switch type {
-        case "birthday": return "gift.fill"
-        case "anniversary": return "heart.fill"
-        case "holiday": return "star.fill"
-        default: return "calendar.badge.clock"
+        case "birthday": return .cardGiftcardOutlined
+        case "anniversary": return .favoriteBorder
+        case "holiday": return .starBorder
+        default: return .eventOutlined
         }
     }
 

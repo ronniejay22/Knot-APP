@@ -12,7 +12,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 // MARK: - Formatting
 
@@ -83,11 +82,7 @@ struct RelationshipLengthField: View {
 
                     Spacer(minLength: 0)
 
-                    Image(uiImage: Lucide.chevronDown)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 18, height: 18)
+                    KnotIconView(.expandMoreOutlined, size: 18)
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .padding(.horizontal, 14)
@@ -215,9 +210,10 @@ struct RelationshipLengthModal: View {
                 .foregroundStyle(Theme.textSecondary)
 
             HStack(spacing: 16) {
-                KnotIconButton(icon: Lucide.minus, variant: .surface, size: .lg) {
+                KnotIconButton(icon: .removeOutlined, variant: .surface, size: .lg) {
                     value.wrappedValue = max(value.wrappedValue - 1, range.lowerBound)
                 }
+                .accessibilityLabel("Decrease \(label)")
 
                 Text("\(value.wrappedValue)")
                     .knotFont(Theme.Typography.heroDisplay)
@@ -225,9 +221,10 @@ struct RelationshipLengthModal: View {
                     .monospacedDigit()
                     .frame(maxWidth: .infinity)
 
-                KnotIconButton(icon: Lucide.plus, variant: .surface, size: .lg) {
+                KnotIconButton(icon: .addOutlined, variant: .surface, size: .lg) {
                     value.wrappedValue = min(value.wrappedValue + 1, range.upperBound)
                 }
+                .accessibilityLabel("Increase \(label)")
             }
         }
     }

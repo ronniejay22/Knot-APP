@@ -5,7 +5,7 @@
 \* \*\*Framework:\*\* SwiftUI  
 \* \*\*Design System:\*\* \*\*shadcn/ui (SwiftUI Port)\*\*  
     \* \*Purpose:\* Uses native Swift implementations of shadcn components (Cards, Buttons, Inputs) to maintain the clean, minimalist aesthetic.  
-\* \*\*Icons:\*\* Lucide-Swift (Consistent with shadcn visual language)  
+\* \*\*Icons:\*\* MUI (`@mui/icons-material`, bundled as template SVG assets via the `KnotIcon` enum and `iOS/scripts/generate-mui-icons.mjs`). Outlined by default, Filled for "on" states. No Lucide, no SF Symbols (Apple logo on Sign in with Apple is the sole exception)  
 \* \*\*Data Persistence:\*\* SwiftData (Local storage for the Partner Vault and offline access)
 
 \#\# 2\. Backend (AI & Orchestration)  

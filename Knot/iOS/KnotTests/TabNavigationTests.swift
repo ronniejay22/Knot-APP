@@ -18,18 +18,31 @@ final class MainTabViewTests: XCTestCase {
 
     /// Verify AppTab enum has correct raw values for all three tabs.
     ///
-    /// The first tab was renamed `forYou` → `journal`; its raw value stays 0 so
-    /// any persisted selection keeps pointing at the same tab.
+    /// The first tab was renamed `forYou` → `journal` → `home`; its raw value
+    /// stays 0 so any persisted selection keeps pointing at the same tab.
     func testAppTabRawValues() {
-        XCTAssertEqual(MainTabView.AppTab.journal.rawValue, 0)
+        XCTAssertEqual(MainTabView.AppTab.home.rawValue, 0)
         XCTAssertEqual(MainTabView.AppTab.saved.rawValue, 1)
         XCTAssertEqual(MainTabView.AppTab.profile.rawValue, 2)
     }
 
     /// Verify all three AppTab cases exist.
     func testAppTabHasThreeCases() {
-        let allCases: [MainTabView.AppTab] = [.journal, .saved, .profile]
+        let allCases: [MainTabView.AppTab] = [.home, .saved, .profile]
         XCTAssertEqual(allCases.count, 3)
+    }
+
+    /// The bar reads Home / Saved / Profile, in tab order, and every tab
+    /// swaps its Outlined glyph for the Filled one when selected.
+    func testTabBarItemsAreHomeSavedProfile() {
+        let items = MainTabView.tabBarItems
+        XCTAssertEqual(items.map(\.id), [.home, .saved, .profile])
+        XCTAssertEqual(items.map(\.title), ["Home", "Saved", "Profile"])
+        XCTAssertEqual(items.map(\.icon), [.homeOutlined, .bookmarkBorder, .accountCircleOutlined])
+        XCTAssertEqual(items.map(\.selectedIcon), [.home, .bookmark, .accountCircle])
+        for item in items {
+            XCTAssertNotEqual(item.icon, item.selectedIcon, "\(item.title) needs a distinct selected glyph")
+        }
     }
 
     /// Verify MainTabView renders without crashing.

@@ -163,10 +163,12 @@ final class RecommendationTypeRibbonTests: XCTestCase {
         XCTAssertEqual(RecommendationTypeRibbon.label(for: "gift"), RecommendationFeedList.sectionLabel(for: "gift"))
     }
 
-    /// Every type has an icon, and the unknown-type icon is a real glyph too.
+    /// Every type has an icon, and the unknown-type icon is a real bundled
+    /// glyph too.
     func testIconForEveryType() {
         for type in allTypes + ["surprise"] {
-            XCTAssertGreaterThan(RecommendationTypeRibbon.icon(for: type).size.width, 0, "no icon for \(type)")
+            let icon = RecommendationTypeRibbon.icon(for: type)
+            XCTAssertNotNil(UIImage(named: icon.assetName), "no bundled icon for \(type)")
         }
     }
 

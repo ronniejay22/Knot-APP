@@ -56,13 +56,13 @@ struct KnotBadge<Label: View>: View {
 
     let variant: Variant
     let size: Size
-    let leadingIcon: UIImage?
+    let leadingIcon: KnotIcon?
     @ViewBuilder var label: () -> Label
 
     init(
         variant: Variant = .default,
         size: Size = .sm,
-        leadingIcon: UIImage? = nil,
+        leadingIcon: KnotIcon? = nil,
         @ViewBuilder label: @escaping () -> Label
     ) {
         self.variant = variant
@@ -74,11 +74,7 @@ struct KnotBadge<Label: View>: View {
     var body: some View {
         HStack(spacing: 4) {
             if let leadingIcon {
-                Image(uiImage: leadingIcon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: size.iconSize, height: size.iconSize)
+                KnotIconView(leadingIcon, size: size.iconSize)
                     .foregroundStyle(foregroundColor)
             }
             label()
@@ -125,7 +121,7 @@ extension KnotBadge where Label == Text {
         _ text: String,
         variant: Variant = .default,
         size: Size = .sm,
-        leadingIcon: UIImage? = nil
+        leadingIcon: KnotIcon? = nil
     ) {
         self.init(
             variant: variant,
@@ -144,13 +140,13 @@ extension KnotBadge where Label == Text {
 struct KnotChip: View {
 
     let title: String
-    let icon: UIImage?
+    let icon: KnotIcon?
     let isSelected: Bool
     let action: @MainActor () -> Void
 
     init(
         title: String,
-        icon: UIImage? = nil,
+        icon: KnotIcon? = nil,
         isSelected: Bool,
         action: @escaping @MainActor () -> Void
     ) {
@@ -164,11 +160,7 @@ struct KnotChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let icon {
-                    Image(uiImage: icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 13, height: 13)
+                    KnotIconView(icon, size: 13)
                         .foregroundStyle(foregroundColor)
                 }
                 Text(title)
@@ -199,14 +191,12 @@ struct KnotChip: View {
 // MARK: - Preview
 
 #if DEBUG
-import LucideIcons
-
 #Preview("KnotBadge") {
     ZStack {
         Theme.backgroundGradient.ignoresSafeArea()
         VStack(spacing: 16) {
             ForEach(Array(KnotBadge<Text>.Variant.allCases.enumerated()), id: \.offset) { _, v in
-                KnotBadge(String(describing: v).capitalized, variant: v, size: .md, leadingIcon: Lucide.sparkles)
+                KnotBadge(String(describing: v).capitalized, variant: v, size: .md, leadingIcon: .autoAwesomeOutlined)
             }
         }
     }
