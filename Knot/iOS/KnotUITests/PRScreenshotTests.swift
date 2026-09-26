@@ -24,17 +24,15 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change restyles the Saved tab as a single "Saved recommendations"
-        // list: a large header with an accent "N saved" count under it, over
-        // photo cards (title, note, a SAVED tag opposite a bookmark) shared
-        // with a Home event's detail screen. The Moments section and its
-        // "We did this" action are gone.
+        // The change redesigns the Profile tab: a couple hero card ("You &
+        // Jas", "Together 3 yrs · Austin", Edit profile) over grouped cards
+        // (Partner, Preferences, Account), quiet Sign out / Delete account
+        // buttons, and a Terms · Privacy footer.
         //
-        // Saved items live in SwiftData behind an authenticated session, so the
-        // `saved` harness renders `SavedView` standalone over an in-memory store
-        // seeded with three saved recommendations (photos fall back to the
-        // bundled per-type images).
-        app.launchArguments += ["-uiTestScreenshot", "saved"]
+        // The partner lives behind an authenticated session and the backend,
+        // so the `settings` harness seeds the view model with a fixed partner
+        // and mounts the tab bar the way `MainTabView` does.
+        app.launchArguments += ["-uiTestScreenshot", "settings"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -49,22 +47,28 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
-        // The header is a merged accessibility element whose label carries the
-        // count ("Saved recommendations, 3 saved"), so match on the label across
-        // element types rather than assuming a `staticText`.
-        let header = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Saved recommendations, 3 saved"))
+        // The hero's text column is one accessibility element whose label is
+        // the spoken sentence, so an exact match proves the seeded partner went
+        // through the name, tenure, and place formatting end to end. Match
+        // across element types rather than assuming a `staticText`.
+        let hero = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "You and Jas. Together 3 years, Austin"))
             .firstMatch
         XCTAssertTrue(
-            header.waitForExistence(timeout: 15),
-            "The \"Saved recommendations\" header never appeared — the Saved tab did not render the new design"
+            hero.waitForExistence(timeout: 15),
+            "The couple hero never appeared — the Profile tab did not render the new design"
         )
 
-        // The card keeps its children as separate elements, so the title is a
-        // `staticText` of its own.
+        for label in ["Edit profile", "Partner profile", "Milestones", "Sign out"] {
+            XCTAssertTrue(
+                app.buttons[label].waitForExistence(timeout: 5),
+                "The \"\(label)\" button is missing from the Profile tab"
+            )
+        }
+
         XCTAssertTrue(
-            app.staticTexts["Cooking Class: Thai Cuisine"].waitForExistence(timeout: 5),
-            "The seeded purchasable's card is missing"
+            app.buttons["Profile"].isSelected,
+            "The tab bar is missing or Profile isn't the selected tab"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())

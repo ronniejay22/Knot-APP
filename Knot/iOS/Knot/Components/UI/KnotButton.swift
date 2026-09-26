@@ -29,6 +29,10 @@ struct KnotButton<Label: View>: View {
         case outlineNeutral
         case ghost            // transparent, no border, accent text
         case destructive      // red fill, white text
+        /// Transparent, no border, red text — a quiet destructive entry point
+        /// ("Delete account") whose own confirmation step carries the weight,
+        /// so it shouldn't shout like the filled `destructive`.
+        case ghostDestructive
     }
 
     enum Size: CaseIterable {
@@ -187,7 +191,7 @@ struct KnotButton<Label: View>: View {
         switch variant {
         case .primary: return Theme.accent
         case .secondary: return Theme.surfaceElevated
-        case .outline, .outlineNeutral, .ghost: return .clear
+        case .outline, .outlineNeutral, .ghost, .ghostDestructive: return .clear
         case .destructive: return Theme.statusError
         }
     }
@@ -197,6 +201,7 @@ struct KnotButton<Label: View>: View {
         case .primary, .destructive: return .white
         case .secondary, .outlineNeutral: return Theme.textPrimary
         case .outline, .ghost: return Theme.accent
+        case .ghostDestructive: return Theme.statusError
         }
     }
 }

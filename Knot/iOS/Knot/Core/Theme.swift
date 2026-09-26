@@ -80,6 +80,11 @@ enum Theme {
     /// Primary accent color used for buttons, selected states, progress indicators.
     static let accent = Color.pink
 
+    /// 12% tint of `accent` for icon tiles and soft accent fills — the accent
+    /// counterpart of `statusErrorTint`. Needs no `UIColor { tc in }` pair of
+    /// its own: `accent` is the system pink, which already adapts to dark mode.
+    static let accentTint = accent.opacity(0.12)
+
     // MARK: - Brand Palette
 
     /// Brand primary — the coral-pink that signals action and identity.

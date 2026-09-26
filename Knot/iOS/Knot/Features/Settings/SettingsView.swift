@@ -7,28 +7,41 @@
 //  and About sections. Replaces the temporary toolbar buttons in HomeView.
 //  Step 11.2: Account deletion with three-stage confirmation flow
 //  (warning, Apple Sign-In re-auth, final confirmation).
+//  Profile redesign: couple hero, grouped cards, quiet account actions,
+//  and a Terms · Privacy footer.
 //
 
 import SwiftUI
 import SwiftData
 
-/// Settings screen presented as a sheet from the Home screen.
+/// The Profile tab (and the Settings sheet when presented modally).
 ///
-/// Organizes user-facing actions into sections:
-/// - **Account** — email display, sign out, delete account (Step 11.2)
-/// - **Partner Profile** — edit vault (reuses `EditVaultView`), milestones
-/// - **Notifications** — enable/disable toggle
-/// - **About** — terms of service, privacy policy
+/// Top to bottom:
+/// - **Hero** — the couple card (`ProfileHeroCard`) with an Edit profile shortcut
+/// - **Partner** — partner profile (reuses `EditVaultView`), milestones
+/// - **Preferences** — notifications toggle
+/// - **Account** — email display
+/// - **Sign out** and **Delete account** (Step 11.2) as quiet buttons
+/// - **Footer** — Terms · Privacy links
+/// - **Developer** — DEBUG-only tools, last
 struct SettingsView: View {
     /// When `true`, the view is embedded in the tab bar and hides the dismiss button.
-    var isTabEmbedded: Bool = false
+    let isTabEmbedded: Bool
+
+    static let termsURL = URL(string: "https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view")!
+    static let privacyURL = URL(string: "https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view")!
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
 
-    @State private var viewModel = SettingsViewModel()
+    @State private var viewModel: SettingsViewModel
+
+    init(isTabEmbedded: Bool = false, viewModel: SettingsViewModel = SettingsViewModel()) {
+        self.isTabEmbedded = isTabEmbedded
+        _viewModel = State(initialValue: viewModel)
+    }
 
     /// Controls the Edit Profile fullScreenCover (moved from HomeView).
     @State private var showEditProfile = false
@@ -58,18 +71,24 @@ struct SettingsView: View {
                 Theme.backgroundGradient.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: Theme.Spacing.xxl) {
+                        ProfileHeroCard(
+                            content: viewModel.heroContent,
+                            isPlaceholder: viewModel.showsHeroPlaceholder,
+                            onEditProfile: { showEditProfile = true }
+                        )
+                        partnerSection
+                        preferencesSection
                         accountSection
-                        partnerProfileSection
-                        notificationsSection
-                        aboutSection
+                        accountActions
+                        legalFooter
                         #if DEBUG
                         developerSection
                         #endif
                         Spacer(minLength: 40)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.horizontal, Theme.Spacing.xl)
+                    .padding(.top, Theme.Spacing.sm)
                 }
 
                 // MARK: - Loading Overlays
@@ -105,7 +124,11 @@ struct SettingsView: View {
             ))
             #endif
             // MARK: - Sheets
-            .fullScreenCover(isPresented: $showEditProfile) {
+            // Reloads the partner on dismiss so an edited name, tenure, or
+            // city shows up in the hero.
+            .fullScreenCover(isPresented: $showEditProfile, onDismiss: {
+                Task { await viewModel.loadPartnerProfile() }
+            }) {
                 EditVaultView()
             }
             .fullScreenCover(isPresented: $showMilestones) {
@@ -147,12 +170,11 @@ struct SettingsView: View {
                 )
             }
             .task {
-                await viewModel.loadUserEmail()
-                await viewModel.loadNotificationStatus()
+                await viewModel.loadOnAppear()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
-                    Task { await viewModel.loadNotificationStatus() }
+                    Task { await viewModel.refreshOnForeground() }
                 }
             }
         }
@@ -174,64 +196,33 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Account Section
+    // MARK: - Partner Section
 
-    private var accountSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Account", style: .caption)
-
-            KnotListRow.info(
-                icon: .mailOutlined,
-                title: "Email",
-                value: viewModel.userEmail
-            )
-
-            KnotListRow.action(
-                icon: .logoutOutlined,
-                title: "Sign Out",
-                action: { Task { await authViewModel.signOut() } }
-            )
-
-            KnotListRow.action(
-                icon: .deleteOutlined,
-                title: "Delete Account",
-                subtitle: "Permanently remove your data",
-                action: { viewModel.requestAccountDeletion() }
-            )
-        }
-    }
-
-    // MARK: - Partner Profile Section
-
-    private var partnerProfileSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Partner Profile", style: .caption)
-
+    private var partnerSection: some View {
+        KnotListGroup("Partner") {
             KnotListRow.chevron(
-                icon: .editOutlined,
-                title: "Edit Profile",
-                subtitle: "Update partner details and preferences",
+                icon: .favoriteBorder,
+                title: "Partner profile",
                 action: { showEditProfile = true }
             )
+
+            KnotListDivider()
 
             KnotListRow.chevron(
                 icon: .eventOutlined,
                 title: "Milestones",
-                subtitle: "Manage birthdays, anniversaries & key dates",
                 action: { showMilestones = true }
             )
         }
     }
 
-    // MARK: - Notifications Section
+    // MARK: - Preferences Section
 
-    private var notificationsSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Notifications", style: .caption)
-
+    private var preferencesSection: some View {
+        KnotListGroup("Preferences") {
             KnotListRow.toggle(
                 icon: .notificationsActiveOutlined,
-                title: "Enable Notifications",
+                title: "Notifications",
                 isOn: Binding(
                     get: { viewModel.notificationsEnabled },
                     set: { _ in
@@ -242,19 +233,75 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Account Section
+
+    private var accountSection: some View {
+        KnotListGroup("Account") {
+            KnotListRow.info(
+                icon: .mailOutlined,
+                title: "Email",
+                value: viewModel.userEmail
+            )
+        }
+    }
+
+    /// Sign out and Delete account as quiet buttons below the cards, rather
+    /// than rows — Delete account's typed-confirmation sheet carries the
+    /// warning, so the entry point doesn't need to shout.
+    private var accountActions: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            KnotButton(
+                "Sign out",
+                variant: .outlineNeutral,
+                size: .lg,
+                shape: .pill,
+                action: { Task { await authViewModel.signOut() } }
+            )
+
+            KnotButton(
+                "Delete account",
+                variant: .ghostDestructive,
+                action: { viewModel.requestAccountDeletion() }
+            )
+            .accessibilityHint("Permanently remove your data")
+        }
+    }
+
+    // MARK: - Legal Footer
+
+    private var legalFooter: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            Link("Terms", destination: Self.termsURL)
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel("Terms of Service")
+
+            Text("·")
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textTertiary)
+                .accessibilityHidden(true)
+
+            Link("Privacy", destination: Self.privacyURL)
+                .knotFont(Theme.Typography.label)
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel("Privacy Policy")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Developer Section (Step 15.6 — DEBUG only)
 
     #if DEBUG
     private var developerSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("Developer", style: .caption)
-
+        KnotListGroup("Developer") {
             KnotListRow.action(
                 icon: .refreshOutlined,
                 title: "Reset Onboarding (DEV)",
                 subtitle: "Wipe vault + pending deletion, return to onboarding",
                 action: { viewModel.showDevResetConfirmation = true }
             )
+
+            KnotListDivider()
 
             // Step 19.23 — reach the paywall without replaying onboarding.
             KnotListRow.action(
@@ -263,6 +310,8 @@ struct SettingsView: View {
                 subtitle: "Open the subscription paywall and test the free trial",
                 action: { showDevPaywall = true }
             )
+
+            KnotListDivider()
 
             // Step 19.23 — the Simulator keeps StoreKit test purchases across launches, so
             // a completed trial makes the paywall CTA read "Continue" forever, which reads
@@ -287,34 +336,6 @@ struct SettingsView: View {
         }
     }
     #endif
-
-    // MARK: - About Section
-
-    private var aboutSection: some View {
-        VStack(spacing: 10) {
-            KnotSectionHeader<EmptyView>("About", style: .caption)
-
-            KnotListRow.chevron(
-                icon: .descriptionOutlined,
-                title: "Terms of Service",
-                action: {
-                    if let url = URL(string: "https://drive.google.com/file/d/1AeU_SpK1pJ1l8Cl1eLqYXSGEwIiEY7Bc/view") {
-                        UIApplication.shared.open(url)
-                    }
-                }
-            )
-
-            KnotListRow.chevron(
-                icon: .shieldOutlined,
-                title: "Privacy Policy",
-                action: {
-                    if let url = URL(string: "https://drive.google.com/file/d/1aBUcFdQoMj14dLWpF72gZkHlJtpbgZKW/view") {
-                        UIApplication.shared.open(url)
-                    }
-                }
-            )
-        }
-    }
 }
 
 // MARK: - Account Deletion Alerts (Step 11.2)
