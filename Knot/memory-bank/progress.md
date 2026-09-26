@@ -11324,13 +11324,6 @@ from that run is the committed image. No backend or DTO change, so no `pytest` r
   - The Recent-picks check tied every PR screenshot to an unrelated flow. It moved to its own
     class.
   - The screenshot skill named the old harness key.
-- **Not changed, because they predate this change:**
-  - **The Saved list never refreshes.** It loads once, in `.task`, and `MainTabView` keeps every
-    tab mounted from launch. So a recommendation saved from Home after launch doesn't appear
-    until relaunch. A saved idea removed on an event's detail screen stays listed, as a deleted
-    model the card still reads. `main`'s Saved tab behaves the same.
-  - **The bookmark is 34pt, under the 44pt touch minimum.** This is the card's design since
-    Step 19.48 and matches the mock. The old Saved row's "×" was smaller still.
 - **Kept on purpose:**
   - Scrolled content passes under the status bar with no bar material. Home and the event
     detail screen hide their bars the same way.
