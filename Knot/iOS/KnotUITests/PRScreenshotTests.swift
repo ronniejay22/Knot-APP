@@ -24,19 +24,16 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change adds a "Recent picks" section to the Journal: every set of
-        // recommendations generated in the last 7 days, each row reopening its
-        // cards until the set expires. The capture is the Journal itself with
-        // that section between the header and "Upcoming" — one milestone-named
-        // row ("Christmas") and one just-because row inside its last day, so
-        // the destructive expiry badge is in the shot too.
+        // The change restyles the Saved tab as "Saved ideas": a large header
+        // with an accent "N saved" count over photo cards (title, note, a
+        // SAVED tag opposite a bookmark), shared with a Journal event's detail
+        // screen. Date plans carry a "We did this" pill in the card footer.
         //
-        // The Journal sits behind an authenticated session and live backend
-        // fetches, neither of which a cold screenshot launch can reach; the
-        // `journal` harness renders it standalone with two seeded batches and
-        // three seeded cards, inside a `NavigationStack` that mirrors
-        // `ForYouView`'s push seam.
-        app.launchArguments += ["-uiTestScreenshot", "journal"]
+        // Saved items live in SwiftData behind an authenticated session, so the
+        // `savedMoments` harness renders `SavedView` standalone over an
+        // in-memory store seeded with a purchasable, a doable date plan and a
+        // completed moment (photos fall back to the bundled per-type images).
+        app.launchArguments += ["-uiTestScreenshot", "savedMoments"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -52,48 +49,34 @@ final class PRScreenshotTests: XCTestCase {
         // shipped in Step 19.31.
         //
         // The section header is a merged accessibility element whose label
-        // carries the count ("Recent picks, 2 sets"), so match on the label
-        // across element types rather than assuming a `staticText`.
+        // carries the count ("Saved ideas, 2 saved" — the moment is counted
+        // separately), so match on the label across element types rather than
+        // assuming a `staticText`.
         let sectionHeader = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Recent picks, 2 sets"))
+            .matching(NSPredicate(format: "label == %@", "Saved ideas, 2 saved"))
             .firstMatch
         XCTAssertTrue(
             sectionHeader.waitForExistence(timeout: 15),
-            "The \"Recent picks\" header never appeared — the section did not render on the Journal harness"
+            "The \"Saved ideas\" header never appeared — the Saved tab did not render the new design"
         )
 
-        // The row is a `Button` whose label is the row's full accessibility
-        // sentence, built from the seeded batch (generated 2 days ago, expires
-        // in 5 days — both relative to launch, so the label is deterministic).
-        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
+        // The card keeps its children as separate elements, so the title is a
+        // `staticText` of its own.
         XCTAssertTrue(
-            christmasRow.waitForExistence(timeout: 5),
-            "The seeded Christmas batch row is missing from the Recent picks section"
+            app.staticTexts["Sunset Picnic in the Park"].waitForExistence(timeout: 5),
+            "The seeded date plan's card is missing"
+        )
+
+        // The date plan is doable, so its footer carries the "We did this" pill.
+        XCTAssertTrue(
+            app.buttons["Mark Sunset Picnic in the Park as done"].waitForExistence(timeout: 5),
+            "The date plan's card is missing its \"We did this\" footer action"
         )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
-
-        // Then prove the row actually reopens the set: tapping pushes
-        // `RecommendationsView` seeded with the stored batch, so the first
-        // pick — which exists nowhere on the Journal itself — must appear,
-        // with no generation run.
-        //
-        // Matched as a `Button` by label prefix, NOT as a `staticText`: since
-        // Step 19.59 each feed card is a single merged accessibility element
-        // (`RecommendationFeedCard.accessibilityLabel` → "Title, Type. …"), so
-        // the title is no longer exposed on its own. The title staying first in
-        // that label is exactly what keeps a prefix match working.
-        christmasRow.tap()
-        let reopenedPick = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Candlelit Pottery Class")
-        ).firstMatch
-        XCTAssertTrue(
-            reopenedPick.waitForExistence(timeout: 10),
-            "Tapping the Recent picks row did not reopen its cards"
-        )
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.

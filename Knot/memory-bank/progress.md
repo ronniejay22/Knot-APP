@@ -10899,6 +10899,160 @@ in `RecentPicksTests`; `PRScreenshotTests` passes end to end, including the row-
 
 ---
 
+### Step 19.63 ✅ Saved Tab — "Saved ideas" Photo Cards
+**Date:** 2026-09-25
+**Status:** Complete
+
+**Goal:** Restyle the Saved tab to match a supplied mock: a large **"Saved ideas"** header with
+an accent **"N saved"** count, and each item as a white card. The card has a 110pt rounded
+photo, the title, a two-line note, a divider, then a **SAVED** pill opposite an accent
+bookmark-check. Before this, the tab rendered compact icon rows (type glyph, one-line title,
+merchant/price, an "×" delete) under an inline "Saved" nav title.
+
+**The design already existed.** The mock is a near pixel-match for the file-private
+`SavedIdeaCard` and "Saved ideas" header that Step 19.48 built for a Journal event's detail
+screen. So this is a promotion plus a rebuild, not new chrome. The card moved to a shared
+file, and the Saved tab now renders through it.
+
+**Decided with the user:**
+- **"We did this"** (date plans and Knot Originals, `saved.isDoable`) sits in the card's
+  **footer row**, between the SAVED pill and the bookmark. The alternative was a full-width
+  button above the divider, which keeps today's look but makes date cards taller than the mock.
+- **Moments** (completed dates) use the **same photo card** under a matching
+  "Moments / N made real" header. A green **DONE** pill replaces SAVED, and the star rating and
+  reflection quote sit under the note. The rejected alternative was a compact, photo-less card.
+- **The empty card shows only when nothing is saved at all** (decided when code review flagged
+  it). Once every idea has been done, "Saved ideas" stands alone above Moments, the way the old
+  tab hid its empty Saved section. Otherwise "No saved items" would sit directly above the
+  Moments that hold them. The rejected alternatives were swapping in "All caught up" copy, or
+  keeping the card as the plan first described.
+
+**What changed:**
+- **`Features/Saved/SavedIdeaCard.swift` (new):** `SavedIdeaCard` moved out of
+  `MilestoneDetailView.swift`, with every internal kept as it was. That includes the
+  `RecommendationFallbackImage` base under an `AsyncImage` composed on `Color.clear` (Steps 19.13
+  and 19.31), and `.onTapGesture` + `.contentShape` rather than a wrapping `Button`, so the inner
+  controls keep hit-testing. It gained two additive, opt-in extensions:
+  - `Style` (`.saved` default, `.moment`), mapped by the pure `static badge(for:)` to
+    `"SAVED"`/`.accent` or `"DONE"`/`.success`. `.moment` also renders the stars and the
+    `“reflectionNote”`.
+  - `onMarkDone: (@MainActor () -> Void)? = nil`. When set, the footer shows
+    `KnotButton("We did this", .outline, .sm, .pill, leadingIcon: Lucide.check)` with the
+    accessibility label "Mark {title} as done". Voice Control input labels keep "We did this"
+    as a name it answers to (WCAG 2.5.3). The pill needs `.fixedSize()`, because `KnotButton`
+    stretches to fill its row by default. That also means it cannot shrink, so the footer is
+    a `ViewThatFits`: one row whenever it fits, otherwise the pill gets a full-width row under
+    the tag and bookmark. On a 375pt phone the single row stops fitting at the largest standard
+    text size. Without `onMarkDone` the footer is the original `HStack`, untouched.
+  - The remove control's VoiceOver label names the card's section, through the pure
+    `static removeAccessibilityLabel(title:style:)`. A saved card keeps "Remove {title} from
+    saved ideas", and a Moment reads "Remove {title} from moments".
+- **`Features/ForYou/MilestoneDetailView.swift`:** only the private struct was deleted. The call
+  site is untouched and uses the defaults, so the event detail screen renders exactly as before.
+  That includes a completed idea listed there, which still reads SAVED because `.moment` is
+  opt-in.
+- **`Features/Saved/SavedView.swift`:**
+  - The header moved into the content. `.navigationTitle` is gone, and
+    `.toolbar(.hidden, for: .navigationBar)` is scoped to the scroll content, not the ZStack,
+    keeping the reflection sheet and the detail cover outside the hidden subtree (the Step 19.31
+    scoping).
+  - Two sections, each a `sectionHeaderSemibold` title plus a trailing accent `label` count,
+    merged into one VoiceOver header element:
+    - **"Saved ideas"** is always rendered. With the nav title gone it *is* the screen title,
+      so it stays when there is nothing left to do. Its cards pass `onMarkDone` only for
+      `isDoable` items. The `KnotCard` with the old empty-state icon and copy shows only when
+      nothing is saved at all.
+    - **"Moments"** renders only when something has been completed, and uses `.moment` cards.
+  - The body computes `activeItems` and `completedItems` once per render. Each is a filter
+    (and sort) over the whole library, and they are passed down into the sections.
+  - Pure statics: `savedCountText(_:)`, `momentsCountText(_:)`, `savedAccessibilityLabel(count:)`,
+    `momentsAccessibilityLabel(count:)` and `showsEmptyCard(activeCount:momentCount:)`.
+  - Deleted as dead code: `section`, `activeCard`, `momentCard`, `cardRow`, `starRow` (moved),
+    `cardBackground`, `savedTypeIcon`, `momentsSubtitle`. `SavedViewModel` is unchanged.
+  - The `onMarkDone` closure is written as `{ @MainActor in … }`, because inside a ternary it is
+    not inferred from the parameter's type. Without that it was a strict-concurrency warning.
+- **`KnotUITests/PRScreenshotTests.swift`:** the slot moved from `journal` to the existing
+  `savedMoments` harness, which is unchanged. It asserts the merged header by label
+  ("Saved ideas, 2 saved", matched across element types), the date plan's title, and its
+  "Mark Sunset Picnic in the Park as done" button, then captures.
+
+**Files created:**
+- `iOS/Knot/Features/Saved/SavedIdeaCard.swift` — the shared saved-idea card
+- `iOS/KnotTests/SavedTabDesignTests.swift` — 23 tests:
+  - the tag and remove-label mappings
+  - card render paths: plain, price, no description, doable with "We did this", the same at
+    an accessibility text size (the two-row footer), moment with and without a note, and every
+    type
+  - header copy and VoiceOver labels
+  - the empty-card rule
+  - `SavedView` hosted in a window over an in-memory store: empty, active only, moments only,
+    and both
+- `docs/pr-screenshots/worktree-feat-saved-tab-ideas-cards.png`
+
+**Files modified:**
+- `iOS/Knot/Features/Saved/SavedView.swift` — layout rebuilt around the shared card
+- `iOS/Knot/Features/ForYou/MilestoneDetailView.swift` — private card deleted, header comment
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot → `savedMoments`
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated by `xcodegen generate`
+
+**Tests:** iOS Full plan green in a single run: **675 unit + 5 UI**, 0 failures, no test-host
+restart. That includes `PRScreenshotTests`, whose capture is the committed image. Earlier
+Full-plan runs lost their unit bundle twice. The first time it was the host-bootstrap flake
+recorded in Step 19.31 ("Test crashed with signal kill before establishing connection"). The
+second time it was a bug in this change's own tests (first note below). No backend, DTO or
+migration change, so no `pytest` run applies.
+
+**Code review (high):**
+- **Fixed:**
+  - the empty card over Moments, via the user's decision above
+  - the footer overflow at large text sizes
+  - the remove label on Moments
+  - the Voice Control name of "We did this"
+  - the double `completedItems` pass
+  - render tests that asserted `XCTAssertNotNil` on a non-optional view; they are now plain
+    smoke tests, and only the `SavedView` ones spin the run loop
+- **Kept on purpose:**
+  - The card shows no merchant name. The mock has none, and the detail screen still shows it.
+  - `SavedView` has its own section header rather than sharing one with `MilestoneDetailView`,
+    because the plan leaves that screen's header untouched.
+  - The stars are SF Symbols in `.yellow`, moved verbatim from the old tab.
+  - A Moment is still deleted in one tap, as with the old tab's "×".
+  - VoiceOver still cannot open a card's detail. The whole card is tap-only, as the old rows
+    were.
+
+**Notes:**
+- **Render tests must take their window down inside the test.** The first version of
+  `SavedTabDesignTests`' `render` helper made a key window per render and never removed it,
+  which left 16 hosting controllers alive after their tests. Both failures it caused landed in
+  *other* tests:
+  - `SavedView`'s `.task` loaded after its test had returned and released the in-memory
+    `ModelContainer`. `container.mainContext` does not keep its container alive, so SwiftData
+    trapped (`EXC_BREAKPOINT` in `SavedViewModel.loadSavedRecommendations`) and took the test
+    host down in the middle of `SavedViewModelTests`.
+  - On another run, the leftover windows' appearance transitions ran inside
+    `SavedViewModelTests`' 2-second `wait(for:)`, which timed out on a heavily loaded machine.
+
+  `render` now shows the window, runs one run-loop turn so the load lands against the live
+  store, then takes the window down and flushes the disappearance before returning.
+  `SavedViewDesignRenderingTests` also keeps every container alive for the process, as a
+  backstop for a queued `.task` that misses that turn. An earlier Unit run had passed 670/670
+  with the leak in place: whether it fails depends on timing, so one green run proved nothing.
+- **The booted Simulator can be shared with another Claude session.** The first three captures
+  all showed a notification-permission prompt over the screen, even after uninstalling the app.
+  Launching the `journal` harness by hand then showed a *different build* — a "Home" tab and a
+  "WELCOME HOME" header that exist on no merged branch. Another session had installed its own
+  Knot on the same booted iPhone 17 Pro, and its app ran the real auth flow and asked for
+  permission. `capture-ui-screenshot.sh` always prefers "iPhone 17 Pro" and shares
+  `/tmp/KnotDerivedData` and `/tmp/knot-shot.xcresult`, so concurrent sessions race on all
+  three. The clean image came from running the script's steps by hand against the idle
+  iPhone 17 Pro Max, with private derived-data and result paths. A `SIM_NAME` override and
+  per-branch temp paths in the script would be the durable fix; this change leaves the script
+  as it was.
+- **A capture with an alert over it still passes.** The UI test found every element it
+  asserted, because they existed under the alert. Look at the image, not only the exit code.
+
+---
+
 ## Next Steps
 
 

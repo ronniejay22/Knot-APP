@@ -78,7 +78,9 @@
 		58BFED28A109BA1A0477610A /* KnotProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */; };
 		5C0948792EDCB23B6E652A8F /* KnotCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D78112D68DB3912DFC57EB /* KnotCardTests.swift */; };
 		5C606FA18835044C2DAD3DA4 /* OnboardingAnniversaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD16EDF7B03EAA5FBDD603EE /* OnboardingAnniversaryView.swift */; };
+		5D0B7D5392819A3D88AC4D05 /* SavedIdeaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B595B574EE4E63B99D400EC1 /* SavedIdeaCard.swift */; };
 		5F1D462AA8C8892C53A6324C /* KnotUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63009A2921AE32CE83B32B0C /* KnotUITestsLaunchTests.swift */; };
+		628030D4842B6CFEA4B34B90 /* SavedTabDesignTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B936A80345505159A7D8ACBE /* SavedTabDesignTests.swift */; };
 		6298CD41C2C411EDCD7C8E37 /* RecommendationLocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01EEFEFA72F5F2B66B814742 /* RecommendationLocal.swift */; };
 		630E974762BBB54C5A2FB962 /* DevAPIBaseURLResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46EF8B3CFD8712E2D9E65C3 /* DevAPIBaseURLResolutionTests.swift */; };
 		652D8B417ACD4A4924CAFA0A /* MilestoneCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDD9BD5C8A55C0F96AF4009 /* MilestoneCard.swift */; };
@@ -320,7 +322,9 @@
 		AE385E616111A330CB02F728 /* KnotButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotButton.swift; sourceTree = "<group>"; };
 		AF3581512CDF5C36D195243C /* RecentPicksSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentPicksSection.swift; sourceTree = "<group>"; };
 		B46EF8B3CFD8712E2D9E65C3 /* DevAPIBaseURLResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevAPIBaseURLResolutionTests.swift; sourceTree = "<group>"; };
+		B595B574EE4E63B99D400EC1 /* SavedIdeaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedIdeaCard.swift; sourceTree = "<group>"; };
 		B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicator.swift; sourceTree = "<group>"; };
+		B936A80345505159A7D8ACBE /* SavedTabDesignTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedTabDesignTests.swift; sourceTree = "<group>"; };
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		BB9665F0149ED2C21F5669B1 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		BC25ED3F61D366A2009CECBF /* KnotPressableStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotPressableStyle.swift; sourceTree = "<group>"; };
@@ -444,6 +448,7 @@
 		39AA98221C5209DC676C8E3B /* Saved */ = {
 			isa = PBXGroup;
 			children = (
+				B595B574EE4E63B99D400EC1 /* SavedIdeaCard.swift */,
 				AC0FF48787B62A2639183677 /* SavedRecommendation+Detail.swift */,
 				98A9210BC3C12D656CB34484 /* SavedView.swift */,
 				2325C1170451BB00CC54D30E /* SavedViewModel.swift */,
@@ -765,6 +770,7 @@
 				99CFF537493D818073B4ABD7 /* RecommendationsViewTests.swift */,
 				5015F04947428A3CCD23BE62 /* RelationshipLengthModalTests.swift */,
 				789C4EAF315953E8E4A5AB29 /* SavedRecommendationDetailTests.swift */,
+				B936A80345505159A7D8ACBE /* SavedTabDesignTests.swift */,
 				90925173E680B5538BCBD054 /* SettingsViewTests.swift */,
 				A89556B4935E6174F77F99B1 /* SubscriptionManagerTests.swift */,
 				7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */,
@@ -1010,6 +1016,7 @@
 				B6F1A39E67FA232A81258956 /* RecommendationsViewTests.swift in Sources */,
 				C11FDDA590E4984354043118 /* RelationshipLengthModalTests.swift in Sources */,
 				70AB8E1F8D07D097DD729678 /* SavedRecommendationDetailTests.swift in Sources */,
+				628030D4842B6CFEA4B34B90 /* SavedTabDesignTests.swift in Sources */,
 				68730C13AE335778310BF282 /* SettingsViewTests.swift in Sources */,
 				897A936545738C0B9AB0E076 /* SubscriptionManagerTests.swift in Sources */,
 				B2F480B32CF173ACAA00C01E /* TabNavigationTests.swift in Sources */,
@@ -1130,6 +1137,7 @@
 				9ED5D4EB55AF32719439FF35 /* RecommendationsView.swift in Sources */,
 				14D42AECDFF7278AF328FAA6 /* RecommendationsViewModel.swift in Sources */,
 				E840C8BB57C5B691B73F6DA9 /* RelationshipLengthModal.swift in Sources */,
+				5D0B7D5392819A3D88AC4D05 /* SavedIdeaCard.swift in Sources */,
 				2795128CC3EC8C4148E3BA34 /* SavedRecommendation+Detail.swift in Sources */,
 				A3EDB10EF71EF3D6DCD10DC4 /* SavedRecommendation.swift in Sources */,
 				DDF62F31AA5CDFB0A50567A9 /* SavedView.swift in Sources */,
