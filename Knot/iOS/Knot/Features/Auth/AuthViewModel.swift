@@ -8,6 +8,7 @@
 //  Step 2.4: Sign-out — clears Supabase session and Keychain, returns to Sign-In.
 //  Step 3.11: Vault existence check on session restore/sign-in to skip onboarding.
 //  Step 7.4: Push notification permission request after authentication.
+//  Step 19.64: Startup pending-deletion + vault checks run concurrently.
 //
 
 import AuthenticationServices
@@ -35,8 +36,9 @@ final class AuthViewModel {
 
     // MARK: - Published State
 
-    /// True while checking the Keychain for an existing session on app launch.
-    /// The UI shows a loading indicator during this phase.
+    /// True while checking the Keychain for an existing session on app launch
+    /// and running the startup checks. The UI shows the launch splash
+    /// (`LaunchSplashView`) during this phase. It only ever goes true → false.
     var isCheckingSession = true
 
     /// True while the Supabase sign-in network request is in flight.
@@ -105,14 +107,19 @@ final class AuthViewModel {
                     print("[Knot] Session restored from Keychain")
                     print("[Knot] User ID: \(session.user.id)")
 
-                    // Pending-deletion check (Step 15.5) — runs before vault check
-                    // so a pending user never sees a flash of Home/Onboarding.
-                    let isPending = await refreshPendingDeletionStatus()
+                    // The pending-deletion check (Step 15.5) and the vault check
+                    // (Step 3.11) are independent reads, so they run at the same
+                    // time: the launch splash waits for one network round trip
+                    // instead of two. Results are applied in the original order
+                    // below, and `isCheckingSession` only flips once both land, so
+                    // a pending user still never sees a flash of Home/Onboarding.
+                    let vaultService = VaultService()
+                    let (isPending, vaultFound) = await Self.concurrently(
+                        { await self.refreshPendingDeletionStatus() },
+                        { await vaultService.vaultExists() }
+                    )
 
                     if !isPending {
-                        // Check if user already has a vault → skip onboarding (Step 3.11)
-                        let vaultService = VaultService()
-                        let vaultFound = await vaultService.vaultExists()
                         // Re-check after await: onComplete() may have set this to true
                         // while vaultExists() was in flight (race across suspension points).
                         if !hasCompletedOnboarding {
@@ -135,15 +142,23 @@ final class AuthViewModel {
                 isAuthenticated = true
                 print("[Knot] Auth state: signed in")
 
-                let isPending = await refreshPendingDeletionStatus()
+                // Same concurrency as `.initialSession`. The vault check is
+                // skipped when onboarding is already complete (e.g., the user
+                // just finished onboarding and the SDK re-emits signedIn), so it
+                // yields `nil` rather than overwriting a known-good `true`.
+                let needsVaultCheck = !hasCompletedOnboarding
+                let vaultService = VaultService()
+                let (isPending, vaultFound) = await Self.concurrently(
+                    { await self.refreshPendingDeletionStatus() },
+                    { () async -> Bool? in
+                        guard needsVaultCheck else { return nil }
+                        return await vaultService.vaultExists()
+                    }
+                )
 
                 if !isPending {
                     // Check if returning user already has a vault → skip onboarding (Step 3.11)
-                    // Guard: don't overwrite if already true (e.g., user just finished onboarding
-                    // and the SDK re-emits signedIn, or vaultExists() fails transiently).
-                    if !hasCompletedOnboarding {
-                        let vaultService = VaultService()
-                        let vaultFound = await vaultService.vaultExists()
+                    if let vaultFound {
                         // Re-check after await: onComplete() may have set this to true
                         // while vaultExists() was in flight (race across suspension points).
                         if !hasCompletedOnboarding {
@@ -430,6 +445,21 @@ final class AuthViewModel {
             print("[Knot] Pending-deletion status check failed: \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Runs two independent async operations at the same time and returns both
+    /// results once both finish.
+    ///
+    /// Used by the startup path to overlap the pending-deletion and vault
+    /// checks. A named helper rather than inline `async let` so the overlap
+    /// itself can be unit-tested.
+    nonisolated static func concurrently<A: Sendable, B: Sendable>(
+        _ first: @escaping @Sendable () async -> A,
+        _ second: @escaping @Sendable () async -> B
+    ) async -> (A, B) {
+        async let a = first()
+        async let b = second()
+        return await (a, b)
     }
 
     /// Called by `PendingDeletionView` after a successful restore.
