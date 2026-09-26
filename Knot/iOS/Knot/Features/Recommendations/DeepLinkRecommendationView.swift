@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Full-screen view for displaying a single recommendation opened via deep link.
 ///
@@ -55,13 +54,10 @@ struct DeepLinkRecommendationView: View {
                     Button {
                         onDismiss()
                     } label: {
-                        Image(uiImage: Lucide.x)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 20, height: 20)
+                        KnotIconView(.closeOutlined, size: 20)
                     }
                     .tint(Theme.textPrimary)
+                    .accessibilityLabel("Close")
                 }
 
                 ToolbarItem(placement: .principal) {
@@ -179,11 +175,7 @@ struct DeepLinkRecommendationView: View {
 
     private func errorState(message: String) -> some View {
         VStack(spacing: 16) {
-            Image(uiImage: Lucide.circleAlert)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 40, height: 40)
+            KnotIconView(.errorOutlineOutlined, size: 40)
                 .foregroundStyle(Theme.textTertiary)
 
             Text(message)
@@ -199,11 +191,7 @@ struct DeepLinkRecommendationView: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(uiImage: Lucide.refreshCw)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 14, height: 14)
+                        KnotIconView(.refreshOutlined, size: 14)
 
                         Text("Try Again")
                             .knotFont(Theme.Typography.cta)

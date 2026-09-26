@@ -3,7 +3,7 @@
 //  Knot
 //
 //  Created on September 6, 2026.
-//  Journal tab — the destination behind a milestone card's "See details".
+//  Home tab — the destination behind a milestone card's "See details".
 //
 //  Implements Figma node 579:421 (`christmas-detail`): a back/title header, the
 //  occasion hero, a three-column meta card (date / countdown / recipient), and
@@ -22,7 +22,6 @@
 
 import SwiftUI
 import SwiftData
-import LucideIcons
 
 /// A single Journal event's own screen.
 struct MilestoneDetailView: View {
@@ -87,7 +86,7 @@ struct MilestoneDetailView: View {
 
     private var headerRow: some View {
         HStack(spacing: 12) {
-            KnotIconButton(icon: Lucide.arrowLeft, variant: .ghost, size: .md, action: onDismiss)
+            KnotIconButton(icon: .arrowBackOutlined, variant: .ghost, size: .md, action: onDismiss)
                 .accessibilityLabel("Back")
 
             Text(milestone.milestoneName)
@@ -125,8 +124,7 @@ struct MilestoneDetailView: View {
                     endPoint: .bottomTrailing
                 )
                 .overlay {
-                    Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
-                        .font(.system(size: 52, weight: .light))
+                    KnotIconView(MilestonesViewModel.icon(for: milestone.milestoneType), size: 62)
                         .foregroundStyle(Theme.accent.opacity(0.55))
                 }
             }
@@ -255,11 +253,7 @@ struct MilestoneDetailView: View {
     private var emptyIdeas: some View {
         KnotCard(padding: .lg, radius: Theme.Radius.xl) {
             VStack(spacing: 12) {
-                Image(uiImage: Lucide.bookmark)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
+                KnotIconView(.bookmarkBorder, size: 32)
                     .foregroundStyle(Theme.textTertiary)
 
                 Text("No ideas saved yet")
@@ -381,11 +375,7 @@ private struct SavedIdeaCard: View {
             Spacer(minLength: 8)
 
             Button(action: onRemove) {
-                Image(uiImage: Lucide.bookmarkCheck)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(.bookmark, size: 20)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 34, height: 34)
             }

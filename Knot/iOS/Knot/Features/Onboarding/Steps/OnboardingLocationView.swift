@@ -7,7 +7,6 @@
 
 import SwiftUI
 import MapKit
-import LucideIcons
 
 struct OnboardingLocationView: View {
     @Environment(OnboardingViewModel.self) private var viewModel

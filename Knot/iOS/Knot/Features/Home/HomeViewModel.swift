@@ -173,14 +173,14 @@ struct UpcomingMilestone: Identifiable, Sendable {
         }
     }
 
-    /// SF Symbol name for the milestone type icon.
-    var iconName: String {
+    /// MUI icon for the milestone type.
+    var icon: KnotIcon {
         switch type {
-        case "birthday": return "birthday.cake"
-        case "anniversary": return "heart.fill"
-        case "holiday": return "star.fill"
-        case "custom": return "calendar.badge.plus"
-        default: return "calendar"
+        case "birthday": return .cakeOutlined
+        case "anniversary": return .favoriteBorder
+        case "holiday": return .starBorder
+        case "custom": return .editCalendarOutlined
+        default: return .calendarTodayOutlined
         }
     }
 

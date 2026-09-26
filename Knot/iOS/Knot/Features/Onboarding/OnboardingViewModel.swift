@@ -37,7 +37,7 @@ struct HolidayOption: Identifiable, Sendable {
     let displayName: String
     let month: Int
     let day: Int
-    let iconName: String        // SF Symbol name
+    let icon: KnotIcon
 
     /// Stable occasion key persisted on the milestone. Drives the entry modal's
     /// copy + illustration and, for holidays that move, the backend's date math.
@@ -63,7 +63,7 @@ struct HolidayOption: Identifiable, Sendable {
         displayName: String,
         month: Int,
         day: Int,
-        iconName: String,
+        icon: KnotIcon,
         occasionCategory: String,
         hasComputedDate: Bool = false,
         isSeededByDefault: Bool = false,
@@ -73,7 +73,7 @@ struct HolidayOption: Identifiable, Sendable {
         self.displayName = displayName
         self.month = month
         self.day = day
-        self.iconName = iconName
+        self.icon = icon
         self.occasionCategory = occasionCategory
         self.hasComputedDate = hasComputedDate
         self.isSeededByDefault = isSeededByDefault
@@ -90,30 +90,30 @@ struct HolidayOption: Identifiable, Sendable {
         // — Seeded by default —
         HolidayOption(
             id: "valentines_day", displayName: "Valentine's Day",
-            month: 2, day: 14, iconName: "heart.fill",
+            month: 2, day: 14, icon: .favoriteBorder,
             occasionCategory: "valentines_day", isSeededByDefault: true
         ),
         HolidayOption(
             id: "christmas", displayName: "Christmas",
-            month: 12, day: 25, iconName: "gift.fill",
+            month: 12, day: 25, icon: .cardGiftcardOutlined,
             occasionCategory: "christmas", isSeededByDefault: true
         ),
         HolidayOption(
             id: "new_years_eve", displayName: "New Year's Eve",
-            month: 12, day: 31, iconName: "party.popper.fill",
+            month: 12, day: 31, icon: .celebrationOutlined,
             occasionCategory: "new_years", isSeededByDefault: true
         ),
 
         // — Seeded only when the partner is a parent —
         HolidayOption(
             id: "mothers_day", displayName: "Mother's Day",
-            month: 5, day: 11, iconName: "figure.and.child.holdinghands",
+            month: 5, day: 11, icon: .familyRestroomOutlined,
             occasionCategory: "mothers_day",
             hasComputedDate: true, isSeededByDefault: true, requiresParent: true
         ),
         HolidayOption(
             id: "fathers_day", displayName: "Father's Day",
-            month: 6, day: 15, iconName: "figure.and.child.holdinghands",
+            month: 6, day: 15, icon: .familyRestroomOutlined,
             occasionCategory: "fathers_day",
             hasComputedDate: true, isSeededByDefault: true, requiresParent: true
         ),
@@ -121,39 +121,39 @@ struct HolidayOption: Identifiable, Sendable {
         // — Opt-in: seasonal —
         HolidayOption(
             id: "thanksgiving", displayName: "Thanksgiving",
-            month: 11, day: 26, iconName: "fork.knife",
+            month: 11, day: 26, icon: .restaurantOutlined,
             occasionCategory: "thanksgiving", hasComputedDate: true
         ),
         HolidayOption(
             id: "halloween", displayName: "Halloween",
-            month: 10, day: 31, iconName: "moon.stars.fill",
+            month: 10, day: 31, icon: .nightsStayOutlined,
             occasionCategory: "halloween"
         ),
         HolidayOption(
             id: "easter", displayName: "Easter",
-            month: 4, day: 5, iconName: "leaf.fill",
+            month: 4, day: 5, icon: .eggOutlined,
             occasionCategory: "easter", hasComputedDate: true
         ),
 
         // — Opt-in: religious and cultural —
         HolidayOption(
             id: "hanukkah", displayName: "Hanukkah",
-            month: 12, day: 4, iconName: "flame.fill",
+            month: 12, day: 4, icon: .localFireDepartmentOutlined,
             occasionCategory: "hanukkah", hasComputedDate: true
         ),
         HolidayOption(
             id: "diwali", displayName: "Diwali",
-            month: 11, day: 8, iconName: "sparkles",
+            month: 11, day: 8, icon: .autoAwesomeOutlined,
             occasionCategory: "diwali", hasComputedDate: true
         ),
         HolidayOption(
             id: "lunar_new_year", displayName: "Lunar New Year",
-            month: 2, day: 17, iconName: "party.popper.fill",
+            month: 2, day: 17, icon: .celebrationOutlined,
             occasionCategory: "lunar_new_year", hasComputedDate: true
         ),
         HolidayOption(
             id: "eid", displayName: "Eid",
-            month: 3, day: 20, iconName: "moon.fill",
+            month: 3, day: 20, icon: .bedtimeOutlined,
             occasionCategory: "eid", hasComputedDate: true
         ),
     ]

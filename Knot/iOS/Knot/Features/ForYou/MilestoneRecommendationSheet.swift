@@ -12,7 +12,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Ideal height of the sheet's content, published up from the layout pass so
 /// the detent can track it.
@@ -169,11 +168,7 @@ struct MilestoneRecommendationSheet: View {
             // paints `Theme.accent`, and a pink X reads as an action rather than
             // a dismiss. Same call `OccasionEntryModal` makes.
             Button(action: onDismiss) {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(.closeOutlined, size: 20)
                     .foregroundStyle(Theme.textSecondary)
                     // Keeps the tap target generous without widening the layout.
                     .frame(width: 28, height: 28)

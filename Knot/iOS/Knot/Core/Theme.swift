@@ -371,7 +371,7 @@ extension Theme {
         static let cardTitle: Font = .custom(FontFamily.DMSans.regular, size: 20, relativeTo: .title2)
 
         /// DMSans-SemiBold (600) @ 20pt. Headline *inside* a content card —
-        /// the Journal tab's `MilestoneCard` title and the recommendation feed's
+        /// the Home tab's `MilestoneCard` title and the recommendation feed's
         /// `RecommendationFeedCard` title (white, over the photo). Sister to
         /// `cardTitle`: same family, size, and Dynamic Type relation, only the
         /// weight differs, so the headline still out-weights the card's meta

@@ -20,8 +20,8 @@ import SwiftUI
 ///   accent-tinted icon chip, checkmark — matching the onboarding radio rows
 struct InterestListRow: View {
     let title: String
-    /// SF Symbol name, from `OnboardingInterestsView.iconName(for:)`.
-    let iconName: String
+    /// From `OnboardingInterestsView.icon(for:)` (or a vibe's icon).
+    let icon: KnotIcon
     /// Optional secondary line shown beneath the title (e.g. a vibe description).
     /// Interests/dislikes leave this `nil`, rendering a title-only row.
     var subtitle: String? = nil
@@ -37,8 +37,7 @@ struct InterestListRow: View {
                         .fill(isSelected ? Theme.accent.opacity(0.20) : Theme.surfaceElevated)
                         .frame(width: 40, height: 40)
 
-                    Image(systemName: iconName)
-                        .font(.system(size: 18, weight: .medium))
+                    KnotIconView(icon, size: 22)
                         .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                 }
 
@@ -58,8 +57,7 @@ struct InterestListRow: View {
 
                 // Trailing checkmark — only when selected
                 if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                    KnotIconView(.checkCircle, size: 24)
                         .foregroundStyle(Theme.accent)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -86,12 +84,12 @@ struct InterestListRow: View {
 
 #Preview("Interest List Rows") {
     VStack(spacing: 10) {
-        InterestListRow(title: "Travel", iconName: "airplane", isSelected: true) {}
-        InterestListRow(title: "Cooking", iconName: "flame.fill", isSelected: false) {}
-        InterestListRow(title: "Movies", iconName: "film", isSelected: false) {}
+        InterestListRow(title: "Travel", icon: .flightOutlined, isSelected: true) {}
+        InterestListRow(title: "Cooking", icon: .outdoorGrillOutlined, isSelected: false) {}
+        InterestListRow(title: "Movies", icon: .movieOutlined, isSelected: false) {}
         InterestListRow(
             title: "Quiet Luxury",
-            iconName: "diamond",
+            icon: .diamondOutlined,
             subtitle: "Elegant & understated",
             isSelected: true
         ) {}

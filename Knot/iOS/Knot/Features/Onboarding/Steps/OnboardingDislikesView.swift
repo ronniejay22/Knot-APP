@@ -73,7 +73,7 @@ struct OnboardingDislikesView: View {
                         ForEach(filteredInterests, id: \.self) { interest in
                             InterestListRow(
                                 title: interest,
-                                iconName: OnboardingInterestsView.iconName(for: interest),
+                                icon: OnboardingInterestsView.icon(for: interest),
                                 isSelected: viewModel.selectedDislikes.contains(interest)
                             ) {
                                 toggleDislike(interest)
@@ -119,8 +119,7 @@ struct OnboardingDislikesView: View {
 
     private var searchBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .knotFont(Theme.Typography.body)
+            KnotIconView(.searchOutlined, size: 20)
                 .foregroundStyle(Theme.textTertiary)
 
             TextField(
@@ -138,10 +137,10 @@ struct OnboardingDislikesView: View {
                 Button {
                     searchText = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .knotFont(Theme.Typography.body)
+                    KnotIconView(.cancelOutlined, size: 20)
                         .foregroundStyle(Theme.textTertiary)
                 }
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 16)
@@ -168,8 +167,7 @@ struct OnboardingDislikesView: View {
                 Text("(\(remaining) more needed)")
                     .knotFont(Theme.Typography.body)
             } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.subheadline)
+                KnotIconView(.checkCircle, size: 18)
             }
         }
         .foregroundStyle(Theme.accent)

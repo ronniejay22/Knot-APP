@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// The sign-in screen displayed when no authenticated session exists.
 /// Features a two-section layout: a cream-colored photo grid on top (~55%)
@@ -186,11 +185,7 @@ private struct BrandingSection: View {
 
             VStack(spacing: 0) {
                 // MARK: - Heart Icon
-                Image(uiImage: Lucide.heart)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 48, height: 48)
+                KnotIconView(.favoriteBorder, size: 48)
                     .foregroundStyle(Theme.accent)
                     .padding(.top, 24)
                     .padding(.bottom, 12)

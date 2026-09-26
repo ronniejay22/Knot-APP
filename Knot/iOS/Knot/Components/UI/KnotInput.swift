@@ -27,7 +27,7 @@ struct KnotInput: View {
     @Binding var text: String
     let placeholder: String
     let style: Style
-    let leadingIcon: UIImage?
+    let leadingIcon: KnotIcon?
     let trailingAccessory: AnyView?
     let minHeight: CGFloat?
     let maxHeight: CGFloat?
@@ -39,7 +39,7 @@ struct KnotInput: View {
         text: Binding<String>,
         placeholder: String,
         style: Style = .singleLine,
-        leadingIcon: UIImage? = nil,
+        leadingIcon: KnotIcon? = nil,
         trailingAccessory: AnyView? = nil,
         minHeight: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
@@ -58,11 +58,7 @@ struct KnotInput: View {
     var body: some View {
         HStack(alignment: style == .multiLine ? .top : .center, spacing: 10) {
             if let leadingIcon {
-                Image(uiImage: leadingIcon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(leadingIcon, size: 18)
                     .foregroundStyle(Theme.textTertiary)
                     .padding(.top, style == .multiLine ? 12 : 0)
             }
@@ -147,8 +143,6 @@ struct KnotInput: View {
 // MARK: - Preview
 
 #if DEBUG
-import LucideIcons
-
 #Preview("KnotInput") {
     @Previewable @State var single = ""
     @Previewable @State var multi = ""
@@ -157,8 +151,8 @@ import LucideIcons
     return ZStack {
         Theme.backgroundGradient.ignoresSafeArea()
         VStack(spacing: 16) {
-            KnotInput(text: $single, placeholder: "Email", leadingIcon: Lucide.mail)
-            KnotInput(text: $errored, placeholder: "Email", leadingIcon: Lucide.mail, validationState: .error)
+            KnotInput(text: $single, placeholder: "Email", leadingIcon: .mailOutlined)
+            KnotInput(text: $errored, placeholder: "Email", leadingIcon: .mailOutlined, validationState: .error)
             KnotInput(text: $multi, placeholder: "Capture a hint...", style: .multiLine, minHeight: 100)
         }
         .padding()

@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// A row with a leading icon, title, optional subtitle, and a configurable
 /// trailing accessory (chevron, value, toggle, custom view).
@@ -19,14 +18,14 @@ import LucideIcons
 /// `toggle` / `action` static factories for the common shapes.
 struct KnotListRow<Trailing: View>: View {
 
-    let icon: UIImage
+    let icon: KnotIcon
     let title: String
     let subtitle: String?
     let action: (@MainActor () -> Void)?
     @ViewBuilder var trailing: () -> Trailing
 
     init(
-        icon: UIImage,
+        icon: KnotIcon,
         title: String,
         subtitle: String? = nil,
         action: (@MainActor () -> Void)? = nil,
@@ -50,11 +49,7 @@ struct KnotListRow<Trailing: View>: View {
 
     private var rowContent: some View {
         HStack(spacing: 14) {
-            Image(uiImage: icon)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
+            KnotIconView(icon, size: 20)
                 .foregroundStyle(Theme.accent)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -89,7 +84,7 @@ struct KnotListRow<Trailing: View>: View {
 extension KnotListRow where Trailing == _ChevronAccessory {
     /// A tappable row with a chevron on the right.
     static func chevron(
-        icon: UIImage,
+        icon: KnotIcon,
         title: String,
         subtitle: String? = nil,
         action: @escaping @MainActor () -> Void
@@ -107,7 +102,7 @@ extension KnotListRow where Trailing == _ChevronAccessory {
 extension KnotListRow where Trailing == _InfoValueAccessory {
     /// A non-tappable row with a trailing value (e.g. version, email).
     static func info(
-        icon: UIImage,
+        icon: KnotIcon,
         title: String,
         value: String
     ) -> KnotListRow<_InfoValueAccessory> {
@@ -124,7 +119,7 @@ extension KnotListRow where Trailing == _InfoValueAccessory {
 extension KnotListRow where Trailing == _ToggleAccessory {
     /// A non-tappable row with a trailing toggle.
     static func toggle(
-        icon: UIImage,
+        icon: KnotIcon,
         title: String,
         subtitle: String? = nil,
         isOn: Binding<Bool>
@@ -142,7 +137,7 @@ extension KnotListRow where Trailing == _ToggleAccessory {
 extension KnotListRow where Trailing == _ActionLabelAccessory {
     /// A tappable row with no chevron — for terminal actions like Sign Out.
     static func action(
-        icon: UIImage,
+        icon: KnotIcon,
         title: String,
         subtitle: String? = nil,
         action: @escaping @MainActor () -> Void
@@ -161,11 +156,7 @@ extension KnotListRow where Trailing == _ActionLabelAccessory {
 
 struct _ChevronAccessory: View {
     var body: some View {
-        Image(uiImage: Lucide.chevronRight)
-            .renderingMode(.template)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 16, height: 16)
+        KnotIconView(.chevronRightOutlined, size: 16)
             .foregroundStyle(Theme.textTertiary)
     }
 }
@@ -203,23 +194,23 @@ struct _ActionLabelAccessory: View {
         Theme.backgroundGradient.ignoresSafeArea()
         VStack(spacing: 10) {
             KnotListRow.chevron(
-                icon: Lucide.userPen,
+                icon: .editOutlined,
                 title: "Edit Profile",
                 subtitle: "Update partner details and preferences",
                 action: {}
             )
             KnotListRow.info(
-                icon: Lucide.mail,
+                icon: .mailOutlined,
                 title: "Email",
                 value: "user@example.com"
             )
             KnotListRow.toggle(
-                icon: Lucide.bellRing,
+                icon: .notificationsActiveOutlined,
                 title: "Enable Notifications",
                 isOn: .constant(true)
             )
             KnotListRow.action(
-                icon: Lucide.logOut,
+                icon: .logoutOutlined,
                 title: "Sign Out",
                 action: {}
             )

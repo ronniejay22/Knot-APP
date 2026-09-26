@@ -24,18 +24,16 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change adds a "Recent picks" section to the Journal: every set of
-        // recommendations generated in the last 7 days, each row reopening its
-        // cards until the set expires. The capture is the Journal itself with
-        // that section between the header and "Upcoming" — one milestone-named
-        // row ("Christmas") and one just-because row inside its last day, so
-        // the destructive expiry badge is in the shot too.
+        // The change renames the first tab "Journal" → "Home" (eyebrow now
+        // "WELCOME HOME") and replaces every icon in the app with MUI glyphs.
+        // The capture is the Home tab with the real `KnotTabBar` underneath —
+        // Home selected (filled glyph), Saved and Profile outlined — plus the
+        // feed's MUI icons (the Recent picks rows, the cards' action buttons).
         //
-        // The Journal sits behind an authenticated session and live backend
-        // fetches, neither of which a cold screenshot launch can reach; the
-        // `journal` harness renders it standalone with two seeded batches and
-        // three seeded cards, inside a `NavigationStack` that mirrors
-        // `ForYouView`'s push seam.
+        // Home sits behind an authenticated session and live backend fetches,
+        // neither of which a cold screenshot launch can reach; the `journal`
+        // harness renders it standalone with seeded data and mounts the tab
+        // bar exactly as `MainTabView` does.
         app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
@@ -50,42 +48,36 @@ final class PRScreenshotTests: XCTestCase {
         // ASSERT every wait. A discarded wait lets a screenshot of an entirely
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
-        //
-        // The section header is a merged accessibility element whose label
-        // carries the count ("Recent picks, 2 sets"), so match on the label
-        // across element types rather than assuming a `staticText`.
-        let sectionHeader = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Recent picks, 2 sets"))
-            .firstMatch
         XCTAssertTrue(
-            sectionHeader.waitForExistence(timeout: 15),
-            "The \"Recent picks\" header never appeared — the section did not render on the Journal harness"
+            app.staticTexts["WELCOME HOME"].waitForExistence(timeout: 15),
+            "The \"WELCOME HOME\" eyebrow never appeared — the Home harness did not render"
         )
 
-        // The row is a `Button` whose label is the row's full accessibility
-        // sentence, built from the seeded batch (generated 2 days ago, expires
-        // in 5 days — both relative to launch, so the label is deterministic).
-        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
-        XCTAssertTrue(
-            christmasRow.waitForExistence(timeout: 5),
-            "The seeded Christmas batch row is missing from the Recent picks section"
-        )
+        // The tab bar's buttons carry their titles as accessibility labels.
+        let homeTab = app.buttons["Home"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 5), "The Home tab is missing from the tab bar")
+        XCTAssertTrue(homeTab.isSelected, "Home should be the selected tab")
+        XCTAssertTrue(app.buttons["Saved"].exists, "The Saved tab is missing from the tab bar")
+        XCTAssertTrue(app.buttons["Profile"].exists, "The Profile tab is missing from the tab bar")
+        XCTAssertFalse(app.buttons["Journal"].exists, "A tab is still labelled \"Journal\"")
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        // Then prove the row actually reopens the set: tapping pushes
-        // `RecommendationsView` seeded with the stored batch, so the first
-        // pick — which exists nowhere on the Journal itself — must appear,
-        // with no generation run.
-        //
-        // Matched as a `Button` by label prefix, NOT as a `staticText`: since
-        // Step 19.59 each feed card is a single merged accessibility element
-        // (`RecommendationFeedCard.accessibilityLabel` → "Title, Type. …"), so
-        // the title is no longer exposed on its own. The title staying first in
-        // that label is exactly what keeps a prefix match working.
+        // Kept from Step 19.62 — the only UI coverage of the Recent picks
+        // reopen path: tapping a row pushes `RecommendationsView` seeded with
+        // the stored batch, so its first pick (which exists nowhere on Home
+        // itself) must appear with no generation run. The row is a `Button`
+        // labelled with its full accessibility sentence (timestamps are
+        // relative to launch, so the label is deterministic); feed cards are
+        // single merged elements whose label starts with the title.
+        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
+        XCTAssertTrue(
+            christmasRow.waitForExistence(timeout: 5),
+            "The seeded Christmas batch row is missing from the Recent picks section"
+        )
         christmasRow.tap()
         let reopenedPick = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Candlelit Pottery Class")
@@ -111,13 +103,16 @@ final class PRScreenshotTests: XCTestCase {
     ///
     /// "Don't Allow" is in the list because the push-permission prompt is the
     /// alert most likely to cover a harness screen, and its buttons match none
-    /// of the labels this helper originally knew about.
+    /// of the labels this helper originally knew about. It is listed with both
+    /// apostrophes: iOS renders the button as "Don’t Allow" (U+2019), which a
+    /// straight-quote label never matches — so the prompt stayed up over the
+    /// Home harness and hid every element behind it.
     private func dismissSystemAlerts() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let alert = springboard.alerts.firstMatch
         guard alert.exists else { return }
 
-        for label in ["Not Now", "Don't Allow", "Cancel", "Dismiss", "Later", "OK"] {
+        for label in ["Not Now", "Don’t Allow", "Don't Allow", "Cancel", "Dismiss", "Later", "OK"] {
             let button = alert.buttons[label]
             if button.exists {
                 button.tap()

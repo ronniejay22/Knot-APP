@@ -5,7 +5,6 @@
 
 import XCTest
 import SwiftUI
-import LucideIcons
 @testable import Knot
 
 @MainActor
@@ -45,7 +44,7 @@ final class KnotInputTests: XCTestCase {
         let input = KnotInput(
             text: .constant(""),
             placeholder: "Email",
-            leadingIcon: Lucide.mail
+            leadingIcon: .mailOutlined
         )
         XCTAssertNotNil(UIHostingController(rootView: input).view)
     }
@@ -54,7 +53,7 @@ final class KnotInputTests: XCTestCase {
         let input = KnotInput(
             text: .constant("text"),
             placeholder: "p",
-            trailingAccessory: AnyView(Image(uiImage: Lucide.x))
+            trailingAccessory: AnyView(KnotIconView(.closeOutlined, size: 16))
         )
         XCTAssertNotNil(UIHostingController(rootView: input).view)
     }

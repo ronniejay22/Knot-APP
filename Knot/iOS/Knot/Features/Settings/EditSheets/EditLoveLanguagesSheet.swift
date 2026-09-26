@@ -84,13 +84,11 @@ struct EditLoveLanguagesSheet: View {
             let secondarySet = !viewModel.secondaryLoveLanguage.isEmpty
 
             if primarySet && secondarySet {
-                Image(systemName: "checkmark.circle.fill")
-                    .knotFont(Theme.Typography.body)
+                KnotIconView(.checkCircle, size: 20)
                 Text("Both selected")
                     .knotFont(Theme.Typography.cta)
             } else if primarySet {
-                Image(systemName: "1.circle.fill")
-                    .knotFont(Theme.Typography.body)
+                KnotIconView(.looksOne, size: 20)
                 Text("Primary set — pick secondary")
                     .knotFont(Theme.Typography.cta)
             } else {

@@ -14,7 +14,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 struct OccasionEntryModal: View {
     let copy: OccasionCopy
@@ -142,11 +141,7 @@ struct OccasionEntryModal: View {
             Button {
                 animateOut(then: onClose)
             } label: {
-                Image(uiImage: Lucide.x)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(.closeOutlined, size: 20)
                     .foregroundStyle(Theme.textSecondary)
                     // Keeps the tap target at 44pt without widening the layout.
                     .frame(width: 28, height: 28)

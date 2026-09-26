@@ -2,7 +2,7 @@
 //  MilestoneDetailViewModel.swift
 //  Knot
 //
-//  Journal tab — the saved ideas belonging to one event.
+//  Home tab — the saved ideas belonging to one event.
 //
 
 import Foundation

@@ -12,7 +12,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 // MARK: - Field
 
@@ -45,11 +44,7 @@ struct MilestoneDateField: View {
 
                 Spacer(minLength: 0)
 
-                Image(uiImage: Lucide.chevronDown)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                KnotIconView(.expandMoreOutlined, size: 18)
                     .foregroundStyle(Theme.textSecondary)
             }
             .padding(.horizontal, 14)

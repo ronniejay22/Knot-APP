@@ -3,12 +3,12 @@
 //  Knot
 //
 //  Created on September 5, 2026.
-//  Journal tab — one upcoming milestone rendered as a full-width artwork card.
+//  Home tab — one upcoming milestone rendered as a full-width artwork card.
 //
 
 import SwiftUI
 
-/// A single upcoming milestone on the Journal tab.
+/// A single upcoming milestone on the Home tab.
 ///
 /// Replaces the vertical-timeline row (`TimelineEntryView`) with a card:
 ///
@@ -165,8 +165,7 @@ struct MilestoneCard: View {
             endPoint: .bottomTrailing
         )
         .overlay {
-            Image(systemName: MilestonesViewModel.iconName(for: milestone.milestoneType))
-                .font(.system(size: 44, weight: .light))
+            KnotIconView(MilestonesViewModel.icon(for: milestone.milestoneType), size: 53)
                 .foregroundStyle(Theme.accent.opacity(0.55))
         }
     }

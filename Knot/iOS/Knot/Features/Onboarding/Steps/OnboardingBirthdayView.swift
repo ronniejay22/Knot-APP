@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 struct OnboardingBirthdayView: View {
     @Environment(OnboardingViewModel.self) private var viewModel

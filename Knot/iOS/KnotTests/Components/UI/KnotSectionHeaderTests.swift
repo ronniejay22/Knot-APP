@@ -5,7 +5,6 @@
 
 import XCTest
 import SwiftUI
-import LucideIcons
 @testable import Knot
 
 @MainActor
@@ -17,7 +16,7 @@ final class KnotSectionHeaderTests: XCTestCase {
     }
 
     func testSubheadStyleWithIconRenders() throws {
-        let header = KnotSectionHeader<EmptyView>("Recent Hints", icon: Lucide.lightbulb)
+        let header = KnotSectionHeader<EmptyView>("Recent Hints", icon: .lightbulbOutlined)
         XCTAssertNotNil(UIHostingController(rootView: header).view)
     }
 

@@ -79,8 +79,8 @@ struct KnotButton<Label: View>: View {
     let size: Size
     let shape: Shape
     let isLoading: Bool
-    let leadingIcon: UIImage?
-    let trailingIcon: UIImage?
+    let leadingIcon: KnotIcon?
+    let trailingIcon: KnotIcon?
     let action: @MainActor () -> Void
     @ViewBuilder var label: () -> Label
 
@@ -89,8 +89,8 @@ struct KnotButton<Label: View>: View {
         size: Size = .md,
         shape: Shape = .rounded,
         isLoading: Bool = false,
-        leadingIcon: UIImage? = nil,
-        trailingIcon: UIImage? = nil,
+        leadingIcon: KnotIcon? = nil,
+        trailingIcon: KnotIcon? = nil,
         action: @escaping @MainActor () -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -140,12 +140,8 @@ struct KnotButton<Label: View>: View {
         }
     }
 
-    private func icon(_ image: UIImage) -> some View {
-        Image(uiImage: image)
-            .renderingMode(.template)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: size.iconSize, height: size.iconSize)
+    private func icon(_ icon: KnotIcon) -> some View {
+        KnotIconView(icon, size: size.iconSize)
             .foregroundStyle(foregroundColor)
     }
 
@@ -214,8 +210,8 @@ extension KnotButton where Label == Text {
         size: Size = .md,
         shape: Shape = .rounded,
         isLoading: Bool = false,
-        leadingIcon: UIImage? = nil,
-        trailingIcon: UIImage? = nil,
+        leadingIcon: KnotIcon? = nil,
+        trailingIcon: KnotIcon? = nil,
         action: @escaping @MainActor () -> Void
     ) {
         self.init(
@@ -234,8 +230,6 @@ extension KnotButton where Label == Text {
 // MARK: - Preview
 
 #if DEBUG
-import LucideIcons
-
 #Preview("KnotButton variants") {
     ZStack {
         Theme.backgroundGradient.ignoresSafeArea()
@@ -244,7 +238,7 @@ import LucideIcons
                 ForEach(Array(KnotButton<Text>.Variant.allCases.enumerated()), id: \.offset) { _, variant in
                     KnotButton("\(String(describing: variant).capitalized) action",
                                variant: variant,
-                               leadingIcon: Lucide.sparkles,
+                               leadingIcon: .autoAwesomeOutlined,
                                action: {})
                 }
 

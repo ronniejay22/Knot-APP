@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Renders the structured `IdeaContentSection` list of a Knot Original idea/plan.
 ///
@@ -50,7 +49,7 @@ struct IdeaContentSectionsView: View {
         case "steps":
             stepsSection(section)
         case "setup":
-            listSection(section, icon: Lucide.clipboardList)
+            listSection(section, icon: .assignmentOutlined)
         case "tips":
             tipsSection(section)
         case "conversation":
@@ -58,11 +57,11 @@ struct IdeaContentSectionsView: View {
         case "budget_tips":
             budgetTipsSection(section)
         case "variations":
-            listSection(section, icon: Lucide.shuffle)
+            listSection(section, icon: .shuffleOutlined)
         case "music":
-            iconCardSection(section, icon: Lucide.music)
+            iconCardSection(section, icon: .musicNoteOutlined)
         case "food_pairing":
-            iconCardSection(section, icon: Lucide.utensils)
+            iconCardSection(section, icon: .restaurantOutlined)
         default:
             genericSection(section)
         }
@@ -129,11 +128,7 @@ struct IdeaContentSectionsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(uiImage: Lucide.lightbulb)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                    KnotIconView(.lightbulbOutlined, size: 16)
                         .foregroundStyle(.yellow)
 
                     Text("Pro Tips")
@@ -181,11 +176,7 @@ struct IdeaContentSectionsView: View {
             if let items = section.items {
                 ForEach(items, id: \.self) { starter in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(uiImage: Lucide.messageCircle)
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 14, height: 14)
+                        KnotIconView(.chatBubbleOutlineOutlined, size: 14)
                             .foregroundStyle(Theme.accent)
                             .padding(.top, 2)
 
@@ -212,11 +203,7 @@ struct IdeaContentSectionsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(uiImage: Lucide.circleDollarSign)
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
+                    KnotIconView(.paidOutlined, size: 16)
                         .foregroundStyle(.green)
 
                     Text("Budget Friendly")
@@ -257,7 +244,7 @@ struct IdeaContentSectionsView: View {
 
     // MARK: - Generic List Section (setup, variations)
 
-    private func listSection(_ section: IdeaContentSection, icon: UIImage) -> some View {
+    private func listSection(_ section: IdeaContentSection, icon: KnotIcon) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeading(section.heading)
 
@@ -271,11 +258,7 @@ struct IdeaContentSectionsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(items, id: \.self) { item in
                         HStack(alignment: .top, spacing: 10) {
-                            Image(uiImage: icon)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 14, height: 14)
+                            KnotIconView(icon, size: 14)
                                 .foregroundStyle(Theme.accent)
                                 .padding(.top, 2)
 
@@ -297,16 +280,12 @@ struct IdeaContentSectionsView: View {
 
     // MARK: - Icon Card Section (music, food_pairing)
 
-    private func iconCardSection(_ section: IdeaContentSection, icon: UIImage) -> some View {
+    private func iconCardSection(_ section: IdeaContentSection, icon: KnotIcon) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionHeading(section.heading)
 
             HStack(alignment: .top, spacing: 12) {
-                Image(uiImage: icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
+                KnotIconView(icon, size: 20)
                     .foregroundStyle(Theme.accent)
                     .padding(.top, 2)
 

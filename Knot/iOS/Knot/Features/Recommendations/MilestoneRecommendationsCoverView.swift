@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import LucideIcons
 
 /// Full-screen shell for the milestone push tap-through.
 ///
@@ -78,13 +77,10 @@ struct MilestoneRecommendationsCoverView: View {
                         Button {
                             onDismiss()
                         } label: {
-                            Image(uiImage: Lucide.x)
-                                .renderingMode(.template)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 20, height: 20)
+                            KnotIconView(.closeOutlined, size: 20)
                         }
                         .tint(Theme.textPrimary)
+                        .accessibilityLabel("Close")
                     }
                 }
             }
