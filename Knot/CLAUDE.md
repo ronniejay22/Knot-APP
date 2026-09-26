@@ -34,9 +34,12 @@ workflow end-to-end on your own — the user should not have to type any slash c
      record it in the PR instead of an image. Do not block shipping on a flaky simulator.
    - Backend-only or non-visual changes skip this step entirely.
 4. **Ship automatically.** When the change works, invoke the **`/ship-pr`** skill *without being
-   asked*. It runs the test suite, runs `/code-review` and auto-fixes safe findings, commits with
-   the project's message conventions, pushes the branch, embeds the screenshot in the PR body
-   (for UI changes), and opens a PR.
+   asked*. It runs `/code-review` and auto-fixes safe findings, commits with the project's
+   message conventions, pushes the branch, embeds the screenshot in the PR body (for UI
+   changes), and opens a PR.
+   - **Testing inside `/ship-pr`:** its pre-review gate uses the targeted tests, which already
+     passed while building. The **one** full-suite run happens after the review fixes, right
+     before the commit (see Testing Requirements).
 5. **Report the PR URL** and stop. **Never merge** — the user is the final reviewer/merger.
 
 **Do NOT apply this workflow to read-only or question-only chats** (e.g. "how does X work?",
@@ -62,11 +65,23 @@ This is mandatory for every new session or agent task. Do not skip this step.
 
 Every new feature must include tests before it is considered complete:
 
-- **Backend (Python/FastAPI):** Write tests in `backend/tests/` and run `cd backend && python -m pytest`
-- **iOS (Swift/SwiftUI):** Write tests in `iOS/KnotTests/` and run via `xcodebuild test` or Xcode.
-  iOS tests are split into two test plans: the **Unit** plan (`KnotTests` only) is the default,
-  so a bare `xcodebuild test -scheme Knot` runs unit tests only (fast). Run the full suite —
-  unit **and** UI (`KnotUITests`) — with `-testPlan Full` before shipping any iOS change.
+- **Backend (Python/FastAPI):** Write tests in `backend/tests/`. The full suite is
+  `cd backend && python -m pytest`.
+- **iOS (Swift/SwiftUI):** Write tests in `iOS/KnotTests/`. iOS tests are split into two test
+  plans: the **Unit** plan (`KnotTests` only) is the default, so a bare
+  `xcodebuild test -scheme Knot` runs unit tests only. `-testPlan Full` runs unit **and** UI
+  (`KnotUITests`).
+
+**When to run what:**
+
+- **While building:** run only the tests for the code being changed. That takes about a minute.
+  - iOS: `xcodebuild test -scheme Knot -only-testing:KnotTests/<TestClass>`, with one
+    `-only-testing:` per class. The screenshot script already runs only `PRScreenshotTests`.
+  - Backend: `python -m pytest tests/<test_file>.py`
+- **Once at the end:** run the full suite after all fixes, including `/ship-pr`'s review fixes,
+  right before committing. Use `-testPlan Full` for iOS and the whole `pytest` run for the
+  backend. That single run is the safety net, so don't re-run the full suite after each fix
+  along the way.
 
 A feature is not done until all new and existing tests pass.
 

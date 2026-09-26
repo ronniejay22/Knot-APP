@@ -84,15 +84,22 @@ The project is configured with:
 Tests are split into two Xcode test plans:
 
 - **Unit** (`Unit.xctestplan`) — `KnotTests` only. The **default** plan, so it's what
-  Xcode ⌘U and a bare `xcodebuild test` run. Fast; use it for local iteration.
+  Xcode ⌘U and a bare `xcodebuild test` run.
 - **Full** (`Full.xctestplan`) — `KnotTests` + `KnotUITests` (the UI tests boot the
-  simulator and are slow). Run this before merging/shipping.
+  simulator and are slow).
+
+While building, run only the test classes for the code you're changing, which takes about a
+minute. Run the Full plan **once** at the end, after all fixes and right before committing.
+Don't re-run it after every fix.
 
 ```bash
-# Fast: unit tests only (the default plan)
+# While building: only the classes you changed (one -only-testing: per class)
+xcodebuild test -scheme Knot -only-testing:KnotTests/SettingsViewModelTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+
+# Unit tests only (the default plan)
 xcodebuild test -scheme Knot -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 
-# Full suite: unit + UI tests (run before merging/shipping)
+# Full suite: unit + UI tests (once, right before committing)
 xcodebuild test -scheme Knot -testPlan Full -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 
 # Just the UI tests
