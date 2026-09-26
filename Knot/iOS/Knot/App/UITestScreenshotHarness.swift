@@ -738,10 +738,12 @@ private struct ForYouCardScreenshotHarnessView: View {
     }
 }
 
-/// Renders the Journal tab's header + "Upcoming" milestone card feed standalone.
-/// The real `ForYouView` sits behind auth and a live backend milestone fetch,
-/// which a cold screenshot launch can't deterministically seed, so this composes
-/// the same header and `MilestoneCard` rows with representative milestones.
+/// Renders the Journal tab's header + "Recent picks" + "Upcoming" milestone
+/// card feed standalone. The real `ForYouView` sits behind auth and live
+/// backend fetches, which a cold screenshot launch can't deterministically
+/// seed, so this composes the same header, `RecentPicksSection`, and
+/// `MilestoneCard` rows with representative data — inside a `NavigationStack`
+/// so a Recent row's reopen push is the real one (Step 19.62).
 ///
 /// Every sample carries an `occasionCategory` that has bundled artwork, because
 /// the card's illustration is the point of the design — seeding no category
@@ -780,37 +782,115 @@ private struct JournalScreenshotHarnessView: View {
 
     private let partnerName = "Jas"
 
+    /// Two stored batches for the "Recent picks" section (Step 19.62): one
+    /// for Christmas (`h1`) generated two days ago, and one just-because run
+    /// that is inside its last day, so the screenshot captures both the
+    /// milestone-named row and the destructive "Expires today" badge. Items
+    /// carry no `imageUrl`, so the thumbnails show the bundled per-type
+    /// photos. Timestamps are relative to launch so the labels never go stale.
+    private static let recentBatches: [RecentRecommendationBatchResponse] = {
+        let now = Date()
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        func pick(_ id: String, _ type: String, _ title: String, _ price: Int) -> MilestoneRecommendationItemResponse {
+            MilestoneRecommendationItemResponse(
+                id: id,
+                recommendationType: type,
+                title: title,
+                description: "Picked for \(title.lowercased()) — a small thing that says you were paying attention.",
+                externalUrl: "https://example.com/\(id)",
+                priceCents: price,
+                merchantName: "Knot Picks",
+                imageUrl: nil,
+                createdAt: iso.string(from: now),
+                personalizationNote: nil,
+                isIdea: type == "idea",
+                contentSections: nil,
+                headline: nil
+            )
+        }
+
+        return [
+            RecentRecommendationBatchResponse(
+                id: "recent-christmas",
+                milestoneId: "h1",
+                generatedAt: iso.string(from: now.addingTimeInterval(-2 * 86_400)),
+                expiresAt: iso.string(from: now.addingTimeInterval(5 * 86_400)),
+                recommendations: [
+                    pick("rc1", "experience", "Candlelit Pottery Class", 9_500),
+                    pick("rc2", "gift", "Hand-thrown Stoneware Mug", 4_200),
+                    pick("rc3", "idea", "Bake Her Grandmother's Shortbread", 0),
+                ]
+            ),
+            RecentRecommendationBatchResponse(
+                id: "recent-just-because",
+                milestoneId: nil,
+                generatedAt: iso.string(from: now.addingTimeInterval(-6 * 86_400)),
+                expiresAt: iso.string(from: now.addingTimeInterval(3 * 3_600)),
+                recommendations: [
+                    pick("rj1", "date", "Rooftop Dinner at Dusk", 12_000),
+                    pick("rj2", "gift", "Linen-bound Recipe Journal", 3_600),
+                    pick("rj3", "experience", "Sunday Farmers' Market Run", 2_500),
+                ]
+            ),
+        ]
+    }()
+
     /// Mirror `ForYouView`'s two presentation seams so the harness exercises the
     /// real button → destination paths rather than handing the card dead `{}`
     /// closures.
     @State private var detailMilestone: MilestoneItemResponse?
     @State private var sheetMilestone: MilestoneItemResponse?
 
+    /// The push seam, mirroring `ForYouView`: a "Recent picks" row builds a
+    /// seeded destination and the stack pushes `RecommendationsView` with it.
+    @State private var navigationDestination: RecommendationDestination?
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    header
 
-                VStack(alignment: .leading, spacing: 16) {
-                    upcomingHeader
+                    RecentPicksSection(
+                        batches: Self.recentBatches,
+                        occasionLabel: occasionLabel,
+                        onOpen: openRecentBatch
+                    )
 
-                    ForEach(entries, id: \.0.id) { entry in
-                        MilestoneCard(
-                            milestone: entry.0,
-                            partnerName: partnerName,
-                            formattedDate: entry.1,
-                            urgency: entry.2,
-                            onSeeDetails: { detailMilestone = entry.0 },
-                            onGetRecommendations: { sheetMilestone = entry.0 }
-                        )
+                    VStack(alignment: .leading, spacing: 16) {
+                        upcomingHeader
+
+                        ForEach(entries, id: \.0.id) { entry in
+                            MilestoneCard(
+                                milestone: entry.0,
+                                partnerName: partnerName,
+                                formattedDate: entry.1,
+                                urgency: entry.2,
+                                onSeeDetails: { detailMilestone = entry.0 },
+                                onGetRecommendations: { sheetMilestone = entry.0 }
+                            )
+                        }
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Theme.backgroundGradient.ignoresSafeArea())
+            // Scoped to the scroll content exactly as production scopes it, so
+            // the hidden-bar state stays off the push and the presentations.
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $navigationDestination) { destination in
+                RecommendationsView(
+                    milestoneId: destination.milestoneId,
+                    milestoneContext: destination.context,
+                    preferPregenerated: destination.seededViewModel != nil,
+                    viewModel: destination.seededViewModel ?? RecommendationsViewModel()
+                )
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.backgroundGradient.ignoresSafeArea())
         .fullScreenCover(item: $detailMilestone) { milestone in
             MilestoneDetailView(
                 milestone: milestone,
@@ -870,6 +950,44 @@ private struct JournalScreenshotHarnessView: View {
             Text("View all")
                 .knotFont(Theme.Typography.cta)
                 .foregroundStyle(Theme.accent)
+        }
+    }
+
+    // MARK: Recent picks
+
+    /// Same resolution `ForYouViewModel.occasionLabel(for:)` makes, against the
+    /// seeded entries instead of a loaded milestone list.
+    private func occasionLabel(for batch: RecentRecommendationBatchResponse) -> String {
+        guard let milestoneId = batch.milestoneId else { return "Just because" }
+        return entries.first { $0.0.id == milestoneId }?.0.milestoneName ?? "Special occasion"
+    }
+
+    /// Mirrors `ForYouView.openRecentBatch`: a milestone-backed batch reuses
+    /// the milestone's display context (toolbar shows name + days until); a
+    /// just-because batch pushes with no context.
+    private func openRecentBatch(_ batch: RecentRecommendationBatchResponse) {
+        let seeded = ForYouViewModel.seededRecommendationsViewModel(
+            for: batch,
+            partnerName: partnerName
+        )
+        if let milestone = entries.first(where: { $0.0.id == batch.milestoneId })?.0 {
+            navigationDestination = RecommendationDestination(
+                milestoneId: milestone.id,
+                context: MilestoneDisplayContext(
+                    name: milestone.milestoneName,
+                    type: milestone.milestoneType,
+                    daysUntil: milestone.daysUntil ?? 365,
+                    partnerName: partnerName,
+                    occasionType: milestone.budgetTier ?? "major_milestone"
+                ),
+                seededViewModel: seeded
+            )
+        } else {
+            navigationDestination = RecommendationDestination(
+                milestoneId: batch.milestoneId,
+                context: nil,
+                seededViewModel: seeded
+            )
         }
     }
 }

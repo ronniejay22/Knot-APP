@@ -24,22 +24,19 @@ final class PRScreenshotTests: XCTestCase {
         let app = XCUIApplication()
 
         // >>> NAVIGATE TO THE CHANGED SCREEN HERE <<<
-        // The change swaps the feed's type-derived headings ("Experience",
-        // "Gift") for the backend-generated editorial headline on each pick
-        // ("Weekend Curations"), and moves the type onto the photo card as an
-        // uppercase ribbon in the top-leading corner. The capture must show
-        // more than one headline + card on screen at once, each card wearing
-        // its ribbon, plus the real navigation bar above and the real
-        // `KnotTabBar` below.
+        // The change adds a "Recent picks" section to the Journal: every set of
+        // recommendations generated in the last 7 days, each row reopening its
+        // cards until the set expires. The capture is the Journal itself with
+        // that section between the header and "Upcoming" — one milestone-named
+        // row ("Christmas") and one just-because row inside its last day, so
+        // the destructive expiry badge is in the shot too.
         //
-        // The screen sits behind an authenticated session and a ~25s
-        // generation run; the `recsFeed` harness renders the real
-        // `RecommendationsView` with a seeded, already-loaded view model whose
-        // three fixtures carry backend-style headlines — inside the same
-        // reproduction of production chrome the `recsLoading` harness uses (a
-        // real push from a root that hides its own bar, and the tab bar
-        // mounted via `safeAreaInset`).
-        app.launchArguments += ["-uiTestScreenshot", "recsFeed"]
+        // The Journal sits behind an authenticated session and live backend
+        // fetches, neither of which a cold screenshot launch can reach; the
+        // `journal` harness renders it standalone with two seeded batches and
+        // three seeded cards, inside a `NavigationStack` that mirrors
+        // `ForYouView`'s push seam.
+        app.launchArguments += ["-uiTestScreenshot", "journal"]
         app.launch()
 
         _ = app.wait(for: .runningForeground, timeout: 10)
@@ -54,51 +51,49 @@ final class PRScreenshotTests: XCTestCase {
         // different screen ship green — that is exactly how a wrong image
         // shipped in Step 19.31.
         //
-        // The headings asserted are the fixtures' *headlines*, not the type
-        // words: if the feed silently fell back to "Experience" / "Gift" this
-        // would fail rather than ship a capture that hides the regression.
-        // Two headings, not one: a single heading could be satisfied by a
-        // one-card layout. Two different ones ON SCREEN is what proves the
-        // feed is a list — `exists` alone is not enough, since an offscreen
-        // element in a scroll view still exists in the accessibility tree, so
-        // the second heading is also asserted `isHittable`. The fixture seeds
-        // experience → gift → idea.
+        // The section header is a merged accessibility element whose label
+        // carries the count ("Recent picks, 2 sets"), so match on the label
+        // across element types rather than assuming a `staticText`.
+        let sectionHeader = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Recent picks, 2 sets"))
+            .firstMatch
         XCTAssertTrue(
-            app.staticTexts["Weekend Curations"].waitForExistence(timeout: 15),
-            "The first headline never appeared — the recsFeed harness did not render the feed, or it fell back to the type heading"
-        )
-        let secondHeading = app.staticTexts["Small Luxuries"]
-        XCTAssertTrue(
-            secondHeading.waitForExistence(timeout: 5),
-            "Only one headline rendered — the feed is not a vertical list, or the second pick fell back to the type heading"
-        )
-        XCTAssertTrue(
-            secondHeading.isHittable,
-            "The second headline exists but is not on screen — the capture would show a single card"
+            sectionHeader.waitForExistence(timeout: 15),
+            "The \"Recent picks\" header never appeared — the section did not render on the Journal harness"
         )
 
-        // Each card is a single `Button` whose accessibility label starts with
-        // its title, then the ribbon's type label
-        // (`RecommendationFeedCard.accessibilityLabel`: "Title, Type. …"). The
-        // ribbon itself is hidden from the tree, so matching the type in the
-        // label is what proves the card carries its type.
-        let firstCard = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Experience for Alex, Experience")
-        ).firstMatch
+        // The row is a `Button` whose label is the row's full accessibility
+        // sentence, built from the seeded batch (generated 2 days ago, expires
+        // in 5 days — both relative to launch, so the label is deterministic).
+        let christmasRow = app.buttons["Christmas, 3 picks, generated 2 days ago, expires in 5 days"]
         XCTAssertTrue(
-            firstCard.waitForExistence(timeout: 5),
-            "The first feed card is not exposed as a pressable button carrying its type"
+            christmasRow.waitForExistence(timeout: 5),
+            "The seeded Christmas batch row is missing from the Recent picks section"
         )
-
-        // Let the loader's recede (0.42s) and the feed's `.revealIn` (0.5s)
-        // finish, and the navigation/tab bars settle after the hand-off, so
-        // the capture isn't taken mid-animation.
-        Thread.sleep(forTimeInterval: 1.0)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "PR Screenshot"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        // Then prove the row actually reopens the set: tapping pushes
+        // `RecommendationsView` seeded with the stored batch, so the first
+        // pick — which exists nowhere on the Journal itself — must appear,
+        // with no generation run.
+        //
+        // Matched as a `Button` by label prefix, NOT as a `staticText`: since
+        // Step 19.59 each feed card is a single merged accessibility element
+        // (`RecommendationFeedCard.accessibilityLabel` → "Title, Type. …"), so
+        // the title is no longer exposed on its own. The title staying first in
+        // that label is exactly what keeps a prefix match working.
+        christmasRow.tap()
+        let reopenedPick = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Candlelit Pottery Class")
+        ).firstMatch
+        XCTAssertTrue(
+            reopenedPick.waitForExistence(timeout: 10),
+            "Tapping the Recent picks row did not reopen its cards"
+        )
     }
 
     /// Tap the dismissive button on any SpringBoard system alert covering the app.

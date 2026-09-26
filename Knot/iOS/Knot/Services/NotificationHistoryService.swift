@@ -249,6 +249,73 @@ final class NotificationHistoryService: Sendable {
         }
     }
 
+    // MARK: - Recent Batches (Step 19.62)
+
+    /// Fetches every stored batch generated inside the backend's recency window
+    /// (currently 7 days), newest run first — the Journal's "Recent picks".
+    ///
+    /// The generation pipeline stores its picks before responding, but until
+    /// this read existed the app only re-read them on the push tap-through or
+    /// in error recovery: pressing Back after a run lost the cards. Each batch
+    /// carries `expiresAt`, and the client drops anything past it at render
+    /// time too, so a batch never lingers on the Journal beyond the window.
+    ///
+    /// Read-only: never triggers the ~25s pipeline.
+    ///
+    /// - Returns: The batches in the window, possibly empty
+    /// - Throws: `NotificationHistoryServiceError` if the request fails
+    func fetchRecentRecommendations() async throws -> RecentRecommendationsResponse {
+        let token = try await getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/api/v1/recommendations/recent") else {
+            throw NotificationHistoryServiceError.networkError("Invalid server URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw NotificationHistoryServiceError.networkError(mapURLError(urlError))
+        } catch {
+            throw NotificationHistoryServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotificationHistoryServiceError.networkError("Invalid server response.")
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try decoder.decode(RecentRecommendationsResponse.self, from: data)
+            } catch {
+                throw NotificationHistoryServiceError.decodingError(error.localizedDescription)
+            }
+
+        case 401:
+            throw NotificationHistoryServiceError.noAuthSession
+
+        case 404:
+            throw NotificationHistoryServiceError.serverError(
+                statusCode: 404,
+                message: "No vault found."
+            )
+
+        default:
+            let message = parseErrorMessage(from: data)
+            throw NotificationHistoryServiceError.serverError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+    }
+
     // MARK: - Mark Notification as Viewed
 
     /// Marks a notification as viewed by setting its viewed_at timestamp.

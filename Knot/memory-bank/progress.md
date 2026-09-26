@@ -10701,6 +10701,204 @@ CWD is supported by the script as written.
 
 ---
 
+### Step 19.62 ✅ Journal — "Recent picks": Generated Sets Stay Reopenable for 7 Days
+**Date:** 2026-09-13
+**Status:** Complete
+
+*(Numbered 19.62: authored as 19.59, but Steps 19.59–19.61 — the vertical recommendation feed,
+the generated headlines, and the `/start-server` skill move — all landed on `main` while this
+branch was open. The already-merged numbers win, so this renumbered on the way in rather than
+rewriting shipped history — the same shared-numbering contention Steps 19.29, 19.33, 19.39,
+19.48 and 19.51 recorded.)*
+
+**Goal:** A generated set of three recommendations vanished from the UI the moment the user
+pressed Back. `RecommendationsView` owns its `RecommendationsViewModel` as `@State`, and
+`ForYouView` pushes it through a `RecommendationDestination` whose `id = UUID()`, so every
+push was a fresh identity and every pop destroyed the picks — even though the backend had
+already stored all three rows. The user wants a window in which past sets can be checked,
+after which they go away, so saving the ones they like matters. Decided with the user: **7
+days**, surfaced as a **"Recent picks" section on the Journal tab**. Each row reopens its
+cards instantly; the existing save flow (`RecommendationDetailView` → `SavedRecommendation`)
+is how a pick outlives the window. The "Get recommendations" actions keep generating fresh
+sets — Recent is the history surface, not a replacement for generation.
+
+**What changed:**
+
+*Backend — one read-only endpoint, no migration, no change to generation.*
+- **`app/api/recommendations.py`:** new `GET /api/v1/recommendations/recent`, registered
+  right after `/latest` and above the `GET /{recommendation_id}` catch-all (same "MUST stay
+  above" banner). Constants `RECENT_WINDOW_DAYS = 7`, `RECENT_MAX_ROWS = 60` (≤ 20 full
+  batches). Oldest-first vault lookup as `/latest` does (404 when none); `cutoff =
+  datetime.now(timezone.utc) - timedelta(days=7)` — tz-aware because
+  `_parse_row_timestamp` yields aware datetimes; query `.eq("vault_id")
+  .not_.is_("image_url", "null")` (the Ideas-feed rows share the table and carry no image,
+  the same discriminator `/latest` uses) `.gte("created_at", cutoff).order(desc=True)
+  .limit(60)`. Rows are regrouped into their original insert runs by the new pure helper
+  **`_group_into_insert_batches(rows)`** (newest-first walk; a new group starts when
+  `milestone_id` changes *or* the gap to the group anchor exceeds `_BATCH_INSERT_WINDOW`
+  (5s); unparseable row timestamps stay with the current group, as `_newest_insert_batch`
+  does). The `milestone_id` split is load-bearing: two same-day milestone webhooks can
+  bulk-insert inside 5s of each other and a pure time gap would merge them under the wrong
+  milestone. The query reads **one row past the cap** (`limit(61)`): only when that sentinel
+  row came back can the oldest group have been cut by the limit, and only then is it
+  dropped — so a user with exactly twenty complete runs sees all twenty, not nineteen
+  (review finding; the first cut dropped the oldest group whenever the cap was merely
+  reached). Each group → `RecentRecommendationBatch`
+  (`batch_id` = newest row's UUID — unique even when two batches share a `created_at`,
+  `milestone_id`, `generated_at`, `expires_at = generated_at + 7d`, `recommendations` via the
+  shared `_stored_rows_to_items`, so stale search URLs are nulled exactly as `/latest` nulls
+  them). A group whose anchor `created_at` cannot be parsed is skipped with a warning —
+  `expires_at` is required and it cannot be placed in the window — which is the one place
+  this differs from `_newest_insert_batch`'s keep rule. `_newest_insert_batch` untouched.
+- **`app/models/notifications.py`:** `RecentRecommendationBatch` and
+  `RecentRecommendationsResponse` (`batches`, `count`, `window_days`) after
+  `MilestoneRecommendationsResponse`.
+
+*iOS — the section, the seeded reopen push, and the pop-back reload.*
+- **`Models/DTOs.swift`:** `RecentRecommendationBatchResponse` (`Identifiable` on
+  `batch_id`) and `RecentRecommendationsResponse`, memberwise inits kept usable for tests and
+  the harness.
+- **`Services/NotificationHistoryService.swift`:** `fetchRecentRecommendations()` — a
+  clone of `fetchLatestRecommendations()` against `/recent` (15s timeout, 200 / 401 / 404 /
+  default mapping).
+- **`Features/ForYou/ForYouViewModel.swift`:** its own seam, `RecentRecommendationsFetching`
+  (+ `extension NotificationHistoryService`), rather than a third method on
+  `MilestoneRecommendationsFetching` — widening that would have forced every existing
+  conformer (push tap-through mocks, harness stubs) to implement a read they never make.
+  `recentBatches` + computed `visibleRecentBatches` (client-side `isExpired` filter — belt
+  and suspenders over the server window: covers a set expiring while the app sits open, and
+  clock skew). `loadRecentBatches()` is best-effort: failure keeps the previous value and
+  never touches `errorMessage`, because a stale Recent list is a far smaller cost than an
+  error alert over the whole Journal; a successful read also stores `recentWindowDays` from
+  the response so the section's hint copy can never disagree with the badges. Third
+  `async let` in `loadData()`, but **`isLoading` clears after milestones + partner name,
+  before the recent read is awaited** — `ForYouView` shows the milestone spinner while
+  `isLoading && milestones.isEmpty`, and gating it on `/recent` would have let a slow read
+  (up to its 15s timeout) hold the milestone empty state and its CTA hostage (review
+  finding). New `refreshJournal()` (milestones + recent) for pull-to-refresh,
+  `refreshMilestones()` left for the two sheet-dismiss paths. Pure statics with injectable
+  `now`/`calendar`, parsing
+  through the existing `RecommendationsViewModel.parseTimestamp` (no second parser):
+  `isExpired` (unparseable → expired, so a batch with no usable expiry can never sit on the
+  Journal forever), `isExpiringSoon` (< 24h), `expiryLabel` / `generatedLabel` counted in
+  **calendar days** so a set generated five minutes ago reads "Expires in 7 days", not "6",
+  `picksCountLabel`. Instance `milestone(for:)` / `occasionLabel(for:)` — nil `milestoneId` →
+  "Just because" (also what a deleted milestone comes back as; FK is `ON DELETE SET NULL`),
+  found → its name, not found → "Special occasion"; the label updates in place when
+  milestones arrive. `seededRecommendationsViewModel(for:partnerName:)` builds a
+  `RecommendationsViewModel` with the batch's items, `partnerName`, and
+  `hasLoadedInitially = true`.
+- **`Features/ForYou/RecentPicksSection.swift` (new):** `RecentPicksSection(batches:
+  windowDays:occasionLabel:onOpen:)` renders **nothing** when empty (no spinner, no gate —
+  the Step 18.18 rule). Header mirrors "Upcoming": `sectionHeaderSemibold` +
+  `KnotBadge(count, .accent, .sm)` merged into one accessibility element ("Recent picks, 2
+  sets"), then the one-line hint from `expiryHint(windowDays:)` — "Picks disappear after 7
+  days — save the ones you want to keep." — in `label`/`textSecondary`; the number is read
+  from the served `window_days` rather than hardcoded (review finding), `windowDays`
+  defaulting to 7 until the first read. `RecentPickRow` is a `Button` wearing `KnotPressableStyle` (the
+  Step 19.56 composition, so it defers to the `ScrollView`), with `rowTapped(delay:)`
+  identical to `MilestoneCard.cardTapped` (haptic, `.zero` short-circuit, `Task.sleep` for
+  `Theme.Motion.pressHold`, then `onOpen`). Layout: an overlapping trio of 44pt thumbnails
+  (`HStack(spacing: -14)`, 2pt `Theme.surface` ring, first pick in front via `zIndex`; the
+  bundled per-type `RecommendationFallbackImage` with the remote image composed on
+  `Color.clear` and clipped — never sized directly, the Step 19.31 overflow) | a
+  **three-line** column: occasion (`cta`), generated label, expiry `KnotBadge` | chevron.
+  Explicit accessibility label ("Christmas, 3 picks, generated 2 days ago, expires in 5
+  days"). No hardcoded colours, no `.weight()` chaining.
+- **`Features/ForYou/ForYouView.swift`:** `RecentPicksSection` between `JustBecauseCard`
+  and the timeline. `RecommendationDestination` gains `var seededViewModel:
+  RecommendationsViewModel? = nil` — built **once at tap time** (a VM built inside the
+  `navigationDestination` closure would allocate per re-evaluation), left out of `==`/`hash`
+  so identity stays `id`. The destination closure now pushes
+  `RecommendationsView(preferPregenerated: destination.seededViewModel != nil, viewModel:
+  destination.seededViewModel ?? RecommendationsViewModel())`: with `preferPregenerated:
+  true` the first frame's phase is `.silent` (no coral loader flashing over cards that are
+  already there), the `.task` guard on `hasLoadedInitially` runs no pipeline, and
+  `configure(modelContext:milestoneId:)` still stamps the milestone so saves from a reopened
+  set attribute correctly. `openRecentBatch(_:)` reuses `recommendationDestination(for:)`'s
+  `MilestoneDisplayContext` when the milestone is loaded (toolbar shows name + days-until),
+  else pushes with `context: nil`. `.onChange(of: navigationDestination)` reloads the
+  batches when it returns to nil — `.task` does not re-fire because `MainTabView` keeps every
+  tab mounted, so the pop is the only signal that a freshly generated set exists.
+  `.refreshable` now calls `refreshJournal()`.
+- **`App/UITestScreenshotHarness.swift`:** `JournalScreenshotHarnessView` now sits inside a
+  `NavigationStack` with `.toolbar(.hidden, for: .navigationBar)` scoped to the scroll
+  content and `.navigationDestination(item:)` on the stack child, exactly as production;
+  seeds two batches (Christmas `h1`, generated −2d / expires +5d; a just-because set
+  generated −6d / expiring +3h so the destructive badge is captured), items with
+  `imageUrl: nil` so the fallback photos render; `onOpen` builds the seeded destination as
+  `ForYouView.openRecentBatch` does.
+- **`KnotUITests/PRScreenshotTests.swift`:** `journal` harness → asserts the merged header
+  by label (`"Recent picks, 2 sets"`, across element types — it is not a `staticText`) →
+  asserts the Christmas row `Button` by its full accessibility sentence (deterministic:
+  timestamps are relative to launch) → capture → taps the row → asserts the seeded first
+  pick's title ("Candlelit Pottery Class", which exists nowhere on the Journal) appears,
+  proving the push + seeded VM with no generation run.
+
+**Root cause / design detail worth keeping:** the first capture showed two real problems the
+unit suite cannot see. "2 days ago" beside an "Expires in 5 days" badge overran the ~146pt
+text column on a 390pt device and truncated to "2 days…" — fixed by stacking the generated
+label and badge as separate lines. And `KnotBadge`'s `.destructive` red was visually
+indistinguishable from the `.accent` pink, so "expiring soon" conveyed nothing — the ordinary
+state now uses `.outline` (neutral grey chip) so the last-day red actually reads as a change.
+
+**Files created:**
+- `backend/tests/test_recent_recommendations_endpoint.py` — route registration/order/401;
+  query shape (tz-aware 7-day cutoff, `image_url` null filter, vault scope, order + limit 60,
+  oldest-first vault); grouping (30s apart → 2, 40ms apart → 1, same timestamp different
+  milestone → 2); batch shape (`batch_id` = newest row, `expires_at` = +7d, `milestone_id`
+  echo, stale search URL nulled); empty window; 404/500 paths; unparseable anchor skipped;
+  cap truncation (`limit(61)`; 61 rows → the cut 21st run dropped and 20 served; exactly 60
+  rows with no sentinel → all 20 served; below cap nothing dropped); six direct
+  `_group_into_insert_batches` unit cases
+- `iOS/Knot/Features/ForYou/RecentPicksSection.swift` — section + row + preview
+- `iOS/KnotTests/RecentPicksTests.swift` — DTO decode from snake_case JSON; every static
+  helper at fixed `now` (UTC calendar); `StubRecentFetcher` success / failure-keeps-previous
+  / served `windowDays` adopted / `refreshJournal`; a `GatedRecentFetcher` (suspends on a
+  continuation) proving `loadData()` clears `isLoading` while the recent read is still in
+  flight; `visibleRecentBatches` order; occasion/milestone lookup; seeded VM shape; render
+  smoke for section (empty/populated), row (expiring-soon, < 3 picks), `rowTapped(delay:
+  .zero)` and the deferred default; `expiryHint(windowDays:)` copy; accessibility label statics;
+  `RecommendationsView(preferPregenerated: true, viewModel: seeded)` hosted with
+  `AuthViewModel` + in-memory `SavedRecommendation` container; `RecommendationDestination`
+  carries the seeded VM without changing equality
+- `docs/pr-screenshots/worktree-feat-journal-recent-picks.png` — the Journal with the new
+  section above "Upcoming"
+
+**Files modified:**
+- `backend/app/api/recommendations.py` — `/recent` route; `_group_into_insert_batches`;
+  `timezone` import; docstring
+- `backend/app/models/notifications.py` — the two response models
+- `iOS/Knot/Models/DTOs.swift` — the two DTOs
+- `iOS/Knot/Services/NotificationHistoryService.swift` — `fetchRecentRecommendations()`
+- `iOS/Knot/Features/ForYou/ForYouViewModel.swift` — seam, state, loaders, helpers
+- `iOS/Knot/Features/ForYou/ForYouView.swift` — section, seeded destination, pop reload,
+  pull-to-refresh
+- `iOS/Knot/App/UITestScreenshotHarness.swift` — `journal` harness inside a
+  `NavigationStack` with seeded batches
+- `iOS/KnotUITests/PRScreenshotTests.swift` — slot rewritten for this capture
+- `iOS/Knot.xcodeproj/project.pbxproj` — regenerated for the two new Swift files
+
+**Tests:** Full backend suite: **1568 passed, 622 skipped, 0 failures** (the new file plus
+`/latest` run together as 57). iOS Full plan green — **627 unit + 5 UI, 0 failures** (27 new
+in `RecentPicksTests`; `PRScreenshotTests` passes end to end, including the row-tap reopen).
+
+**Notes:**
+- **Assumptions made, flagged for the user:** every pipeline batch in the window appears —
+  Journal generates, milestone-push webhook batches, and `/refresh` re-rolls — while the
+  Ideas-feed rows are excluded. Reopening a set does **not** restore the "Knot's Take"
+  briefing card (no `milestone_briefings` join). No DB migration.
+- **Follow-up:** `/recent` filters and sorts on `(vault_id, created_at)`; at scale a
+  `(vault_id, created_at DESC)` index on `recommendations` would serve it — not added here
+  because the change deliberately carries no migration.
+- `ForYouViewModel` now *does* hold recommendation state (the batches); the old
+  architecture note that it "does not own recommendation state" is corrected in
+  `architecture.md`.
+- The expiry badge's neutral state is `.outline`, not `.accent`, on purpose — see the
+  root-cause paragraph. `.secondary` remains unusable here for the Step 19.33 reason.
+
+---
+
 ## Next Steps
 
 

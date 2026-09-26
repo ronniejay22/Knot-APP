@@ -148,6 +148,7 @@
 		BD8A4D08D4B769028B574BC4 /* KnotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6CD420FB7B5EA604BEB7B2 /* KnotApp.swift */; };
 		BFB1D55353FA8CD0ECEE3085 /* RecommendationsLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406EAF2E39B426C7DDB278D7 /* RecommendationsLoadingView.swift */; };
 		C11FDDA590E4984354043118 /* RelationshipLengthModalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5015F04947428A3CCD23BE62 /* RelationshipLengthModalTests.swift */; };
+		C434B83EDB69F102DBC46990 /* RecentPicksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B34A8667630E215E6E48DC6 /* RecentPicksTests.swift */; };
 		C680BA7B1788FC22A44FC074 /* DMSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7041890B6393E62C4CCA714 /* DMSans-Medium.ttf */; };
 		C882CDF6BFA2A20B17B3B0A5 /* Knot.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 20ADFF32A25D18A3C797E826 /* Knot.storekit */; };
 		D103E1BC786470DAE2EA0D0A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529A365072848BDDB2D5608 /* SettingsView.swift */; };
@@ -155,6 +156,7 @@
 		D1E38DC90E073BBDE6B134D7 /* BudgetRangeSliderMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96B2B980EF9DED7D4AB9A79 /* BudgetRangeSliderMathTests.swift */; };
 		D2361331C296D14B2C1F8A60 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB350F92D604D47901732E6 /* DTOs.swift */; };
 		D3CFCDAC1C24D1B94645D2B5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = BBA8B2CDFBA6DDD4F6FF3210 /* PostgREST */; };
+		D71F9AA936172E3673E8FE65 /* RecentPicksSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3581512CDF5C36D195243C /* RecentPicksSection.swift */; };
 		D8A1C2F8E8D8D94EDD1B2FF9 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3FC4035F26BACF751B7883 /* SubscriptionManager.swift */; };
 		DA3F459CB98EBDA8B0FBCB2C /* ForYouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0CC323FB5ADE12F70A632E /* ForYouView.swift */; };
 		DAD0855EA7C412632401F1CA /* UITestScreenshotHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = E324E1D2CAE5C6F664779EE1 /* UITestScreenshotHarness.swift */; };
@@ -275,6 +277,7 @@
 		770009BA7F80CB94E2946E28 /* KnotSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotSectionHeader.swift; sourceTree = "<group>"; };
 		77282BCCC7022C9A21681178 /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
 		789C4EAF315953E8E4A5AB29 /* SavedRecommendationDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedRecommendationDetailTests.swift; sourceTree = "<group>"; };
+		7B34A8667630E215E6E48DC6 /* RecentPicksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentPicksTests.swift; sourceTree = "<group>"; };
 		7C7494E1A85A146F51DD7CEA /* TabNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationTests.swift; sourceTree = "<group>"; };
 		7EA4958939F5A8BA34E82E70 /* MilestoneDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneDetailViewModel.swift; sourceTree = "<group>"; };
 		7FDD9BD5C8A55C0F96AF4009 /* MilestoneCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneCard.swift; sourceTree = "<group>"; };
@@ -315,6 +318,7 @@
 		AC8F0773F344CC8CC7494681 /* RecommendationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCard.swift; sourceTree = "<group>"; };
 		AD05E2D1126C3264DDB94FD1 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		AE385E616111A330CB02F728 /* KnotButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotButton.swift; sourceTree = "<group>"; };
+		AF3581512CDF5C36D195243C /* RecentPicksSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentPicksSection.swift; sourceTree = "<group>"; };
 		B46EF8B3CFD8712E2D9E65C3 /* DevAPIBaseURLResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevAPIBaseURLResolutionTests.swift; sourceTree = "<group>"; };
 		B930C7C939D1222B8E7D5C6F /* KnotProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnotProgressIndicator.swift; sourceTree = "<group>"; };
 		B9D8B67046D026EDEC88D850 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -514,6 +518,7 @@
 				7EA4958939F5A8BA34E82E70 /* MilestoneDetailViewModel.swift */,
 				760C1E366ADF455ED50ADC5A /* MilestoneRecommendationCopy.swift */,
 				5B4FA70071683C700F2089B2 /* MilestoneRecommendationSheet.swift */,
+				AF3581512CDF5C36D195243C /* RecentPicksSection.swift */,
 			);
 			path = ForYou;
 			sourceTree = "<group>";
@@ -752,6 +757,7 @@
 				CEA82A2CE4CA79CA050EDBE9 /* OnboardingContainerViewTests.swift */,
 				FC5590816CB9E33FDF165FEE /* OnboardingPaywallViewTests.swift */,
 				54549B56941A144EF54808E9 /* OnboardingStepHeaderTests.swift */,
+				7B34A8667630E215E6E48DC6 /* RecentPicksTests.swift */,
 				EC3158C65A6BCACADD941E90 /* RecommendationCardTests.swift */,
 				E007EE05B7A3A5D737044C38 /* RecommendationFeedTests.swift */,
 				C048E481157BE76BB33FB213 /* RecommendationsLoadingViewTests.swift */,
@@ -996,6 +1002,7 @@
 				DC7DC3A1589B85C2434AD5D2 /* OnboardingContainerViewTests.swift in Sources */,
 				6EF0AF543DC8499F647C2EF4 /* OnboardingPaywallViewTests.swift in Sources */,
 				896FCE434B1B1D625DEE6CD6 /* OnboardingStepHeaderTests.swift in Sources */,
+				C434B83EDB69F102DBC46990 /* RecentPicksTests.swift in Sources */,
 				003269991DA23F7590DF4A1D /* RecommendationCardTests.swift in Sources */,
 				40ECC22ABA50CD6B510D6826 /* RecommendationFeedTests.swift in Sources */,
 				745BEACCC2017AA507AEAF7D /* RecommendationsLoadingViewTests.swift in Sources */,
@@ -1111,6 +1118,7 @@
 				A5938A9546B1691862644395 /* PurchasePromptSheet.swift in Sources */,
 				03B65E3B26EFA2D4644F34F9 /* PurchaseRatingSheet.swift in Sources */,
 				E01CA6AF47EBA90874B4A5BE /* ReauthenticationSheet.swift in Sources */,
+				D71F9AA936172E3673E8FE65 /* RecentPicksSection.swift in Sources */,
 				3A4DF689A5D03F4606D7EAA9 /* RecommendationCard.swift in Sources */,
 				A8A62B3DDAF2B1B6B91C0F91 /* RecommendationChips.swift in Sources */,
 				A8A74F998ADC8DB98A086507 /* RecommendationDetailView.swift in Sources */,
